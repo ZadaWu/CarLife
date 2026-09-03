@@ -46,8 +46,21 @@ jobs:
       TEST_DATABASE_URL: postgresql://carlife:carlife@localhost:55433/carlife_test
       CARLIFE_PII_MASTER_KEY: ci-only-pii-key-0123456789abcdef
       CARLIFE_CONFIG_MASTER_KEY: ci-only-not-a-real-key-0123456789abcdef
+      # 2026-09-03 实测：runner 的 14 GB 盘被「仓库 checkout + 两个 Tauri crate 的 debug 产物 + rust-cache」
+      # 用满，报 `failed to build archive ...: No space left on device`。debuginfo 是 target/ 里最大的一块，
+      # CI 上没人用调试器；增量编译的中间产物同样只在反复本地构建时有价值。两项关掉 target/ 缩一大半。
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
+      # 同一件事的另一半：ubuntu runner 预装了 .NET、Android SDK、GHC、boost 等本仓永远用不到的大件，
+      # 合计 20 GB 以上。先删再编，比在 checkout 上抠空间可靠。df 前后各打一次，下次再满能看出是哪头长了。
+      - name: 释放 runner 磁盘（删本仓用不到的预装大件）
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h / | tail -1
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
