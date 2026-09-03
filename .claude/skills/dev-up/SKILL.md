@@ -1,21 +1,30 @@
 ---
 name: dev-up
 description: >-
-  把 CarLife 在本机从零跑起来——检查并安装工具链、生成 .env、安装依赖、编译、启动全部服务与
-  三个端（运营控制台 web、车机端 cockpit、手机端 mobile），最后逐项验证并把地址与窗口交给开发者。
+  把 CarLife 在本机从零跑起来——检查并安装工具链、准备 .env 并提醒用户填 DeepSeek 密钥、安装依赖、编译、
+  启动全部服务与三个端（运营控制台 web、车机端 cockpit、手机端 mobile），最后逐项验证并把地址与窗口交给开发者。
+  启动前先盘点会被停掉或重启的容器与进程，列给用户看、等用户同意才动手；任何要用户改配置的地方都先说清再等确认。
   凡是用户说「把项目跑起来」「本地启动」「怎么运行这个仓库」「装一下依赖」「编译并启动」「打开车机端 / 手机端 / web」
   「dev:upgrade 报错了」「刚 clone 下来怎么开始」，或刚进仓库还没有任何服务在跑、想看到界面，都用这个技能——
-  即使用户没说「启动」两个字。它止于本机开发环境就绪；接真实外部服务（LLM / 知识库 / 地图 / 语音）、
+  即使用户没说「启动」两个字。它止于本机开发环境就绪；接真实外部服务（LLM 之外的知识库 / 地图 / 语音）、
   容器化部署、发版分别见 docs 与 infra/ 的说明，不在本技能范围。
 ---
 
 # 本机启动（dev-up）
 
 目标只有一个：开发者在自己的电脑上看到完整的 CarLife——网关与编排在跑、运营控制台能打开、
-车机端与手机端两个客户端窗口出现在屏幕上。整个过程不需要任何付费密钥，LLM、语音、知识库、门店系统
-都有 Fake 或 Mock 降级。
+车机端与手机端两个客户端窗口出现在屏幕上。
 
-流程标记：`[自动]` 直接执行；`[人工]` 需要开发者在图形安装器或浏览器里操作；`[交互]` 先问再做。
+两条原则贯穿全程，因为违反它们的代价都落在用户身上：
+
+- **不替用户停任何服务。** `dev:upgrade` 会把本项目已有的容器与进程全部收拢再重启；用户机器上可能正跑着
+  一套他在用的 CarLife、或者别的项目占着同一个端口。所以每次执行会停止或重启东西的命令之前，先盘点、
+  把清单给用户看、说明将要发生什么，得到明确同意再执行。不认识的进程一律不碰，让用户自己决定。
+- **不替用户改配置。** 需要填密钥、改端口、改任何 `.env` 值时，把要改的项、改成什么、为什么，
+  一次说清，然后停下来等用户操作并回复"好了"。本技能只生成 `.env` 文件与本机加密主密钥，
+  不写任何外部服务的密钥。
+
+流程标记：`[自动]` 直接执行；`[人工]` 用户在图形安装器、编辑器或浏览器里操作；`[交互]` 先说清、等用户确认再继续。
 
 ## 平台
 
@@ -30,46 +39,68 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 - [自动] 在仓库根运行 `bash .claude/skills/dev-up/scripts/preflight.sh`。它逐项检查
   Node（版本必须等于根 `.nvmrc`）、corepack、Rust 工具链、Docker 与 Compose v2、Docker daemon 是否在跑、
   meson、ninja，以及 macOS 上的 Xcode Command Line Tools，缺什么打印什么与安装方式，只检查不安装。
-- [人工] 缺 Xcode Command Line Tools 或 Homebrew 时，安装器要交互确认，让开发者自己执行
-  `xcode-select --install` 与 Homebrew 的安装命令，装完回来重跑前置检查。
-- [自动] macOS 上其余缺项一律交给仓库自带的安装脚本，它幂等、可重复运行：
+- [交互] 有缺项时，把缺的项和将要执行的安装命令列给用户，等同意再装。macOS 上一条命令装齐：
 
   ```bash
   bash infra/scripts/setup-macos.sh
   ```
 
-  脚本会装 Brewfile 里的包（fnm、rustup、meson、ninja、lame、ffmpeg、poppler、tmux）、Docker Desktop、
-  Node 24.20.0 并启用 corepack、Rust 工具链，然后 `corepack pnpm install` 与 `check:node`。
-  脚本中途退出时按它的提示处理后重跑同一条命令。
-- [自动] 装完再跑一次 preflight，全绿才往下走。为什么不跳过：`dev:upgrade` 要跑十几分钟，缺一个
-  meson 会在最后的 cargo 阶段才失败，报错位置离根因很远。
+  它会装 Brewfile 里的包（fnm、rustup、meson、ninja、lame、ffmpeg、poppler、tmux）、Docker Desktop、
+  Node 24.20.0 并启用 corepack、Rust 工具链，然后 `corepack pnpm install` 与 `check:node`。幂等，可重跑。
+  这条命令会往用户机器上装软件、可能切换默认 Node 版本，所以要先说明再执行。
+- [人工] 缺 Xcode Command Line Tools 或 Homebrew 时，安装器要交互确认，让用户自己执行
+  `xcode-select --install` 与 Homebrew 的安装命令，装完回来重跑前置检查。
+- [自动] 装完再跑一次 preflight，全绿才往下走。缺一个 meson 会在 `dev:upgrade` 最后的 cargo 阶段才失败，
+  报错位置离根因很远。
 
-### 1. 生成 .env
+### 1. 准备 .env，提醒用户填密钥
 
 - [自动] 运行 `bash .claude/skills/dev-up/scripts/ensure-env.sh`。它在 `.env` 不存在时从
-  `.env.example` 复制，并在 `CARLIFE_CONFIG_MASTER_KEY` 为空时用 `openssl rand -hex 32` 填一个。
-  已有 `.env` 与已有主密钥都不会被改写。
-- 密钥类配置全部留空即可。不要替开发者填任何真实密钥；他们要接真实服务时自己按
-  `infra/external-dependencies.md` 补。
+  `.env.example` 复制，在 `CARLIFE_CONFIG_MASTER_KEY` 为空时生成一个本机加密主密钥；已有文件与已有值
+  一律不改。然后它列出还需要用户填的项，退出码 4 表示 `DEEPSEEK_API_KEY` 为空。
+- [交互] 退出码为 4 时停下来，把下面这段话原样告诉用户，等他填完回复再继续：
 
-### 2. 安装、编译、启动
+  > `.env` 已经生成在仓库根。**至少要填 `DEEPSEEK_API_KEY`**：打开 `.env`，把 `DEEPSEEK_API_KEY=""`
+  > 改成你的 key。不填的话 runtime 会用确定性的 Fake 模型，每个问题都是固定的假回答，看不到真正的对话能力。
+  > 其它密钥（知识库 RAGFlow、地图高德、语音 Ark、内容审核阿里云）都可以先不填，各有降级；
+  > 要接的话见 `infra/external-dependencies.md`。填好保存后告诉我。
 
-- [自动] 一条命令完成全部：
+  用户明确说不想填、只想先看界面时，可以继续，但在收尾报告里写明"LLM 走的是 Fake 模型"。
+- 用户填完后 [自动] 再跑一次 `ensure-env.sh` 确认退出码为 0。不要自己打开 `.env` 去读或核对密钥的值。
+
+### 2. 盘点会被动到的服务，等用户同意
+
+- [自动] 运行 `bash .claude/skills/dev-up/scripts/inventory.sh`。它只读地列出四样东西：
+  本项目的 Docker 容器（Compose 项目 `carlife`）、其它正在运行的容器、本项目的宿主进程与客户端窗口、
+  本项目要用的端口现在被谁占着。退出码 0 表示什么都不会被动到，可直接进入下一步；退出码 3 表示有东西会被
+  停掉或重启，或有端口被别的程序占着。
+- [交互] 退出码为 3 时，把清单原样给用户看，并说明：`dev:upgrade` 会把 ① 里的容器整体 down 再起
+  （数据卷保留），把 ③ 里的进程与窗口全部 stop 再 start；② 里不属于本项目的容器不会被动；④ 里被别的程序
+  占着的端口，需要用户二选一——改 `.env` 里对应的端口（告诉他改哪个变量），或自己去停那个程序。
+  然后等用户明确说"可以"。用户不同意时停在这里，报告当前状态。
+- 为什么不能跳过：`dev:upgrade` 的收拢是按 Compose 项目名与进程工作目录识别的，它认不出"这套服务用户正在用"，
+  只会照停不误。
+
+### 3. 安装、编译、启动
+
+- [自动] 用户同意后，一条命令完成全部：
 
   ```bash
   corepack pnpm dev:upgrade
   ```
 
   它依次做：冻结安装依赖 → 生成 Prisma Client → 构建全部前端与 Rust/Tauri debug 客户端 →
-  启动 PostgreSQL / Redis / MinIO 容器并等 healthy → 部署 migration → 启动网关、编排、四个 mock、
-  Vite、两个客户端窗口与 Worker → 语义就绪检查。首次运行含 Rust 全量编译，二十分钟量级是正常的。
+  收拢本项目已有的应用容器与宿主进程 → 启动 PostgreSQL / Redis / MinIO 容器并等 healthy → 部署 migration →
+  启动网关、编排、四个 mock、Vite、两个客户端窗口与 Worker → 语义就绪检查。首次运行含 Rust 全量编译，
+  二十分钟量级是正常的。
 - 它不执行 `git pull` / `merge` / `reset`，不删数据卷。macOS 上 Docker Desktop 没起会自动唤起并等
   约 60 秒。装了 tmux 时宿主服务放进 `carlife-dev` 会话，关终端不会回收进程。
 - [自动] 失败时先读输出最后 40 行找第一处 `error`，对照
-  [references/troubleshooting.md](references/troubleshooting.md) 按现象定位，修完重跑同一条命令。
+  [references/troubleshooting.md](references/troubleshooting.md) 按现象定位。修复若涉及改配置，
+  回到"先说清再等确认"；修复若涉及再次停服务，回到第 2 步重新盘点。修完重跑同一条命令。
   不要把这条链拆成手工的 install / build / start 分别执行，就绪检查与进程收拢只在这条链里。
 
-### 3. 验证
+### 4. 验证
 
 - [自动] 逐项确认，任一失败就停在这里修，不要带着红项往下走：
 
@@ -79,11 +110,12 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
   corepack pnpm dev:readiness
   ```
 
-  `dev:status` 里每个目标都应是运行中；出现「监护层已死」的目标要 `dev:restart <目标>`。
+  `dev:status` 里每个目标都应是运行中。出现「监护层已死」的目标需要 `dev:restart <目标>`，
+  这也是一次重启，先告诉用户要重启哪个。
 - 端口对照：gateway 8790、runtime 8791、mock-dealer 8792、mock-tts 8794、worker 健康检查 8796、
   cockpit 1430、mobile 1420、web 5173。
 
-### 4. 打开三个端
+### 5. 打开三个端
 
 - [自动] 运营控制台：
 
@@ -92,7 +124,8 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
   ```
 
 - 车机端与手机端是 `dev:upgrade` 拉起的两个原生窗口（`cockpit-app`、`mobile-app`），应该已经出现在
-  屏幕上。窗口在但白屏，说明 Vite（`cockpit` / `mobile`）没先就绪：
+  屏幕上。窗口在但白屏，说明 Vite（`cockpit` / `mobile`）没先就绪，需要重启这两个目标——先告诉用户，
+  同意后执行：
 
   ```bash
   corepack pnpm dev:restart cockpit cockpit-app
@@ -101,11 +134,11 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
   `cockpit` 与 `cockpit-app` 是两个目标：前者是 1430 上的 Vite dev server，后者才是窗口。
   debug 客户端走 devUrl、不内嵌前端产物，所以两者必须都在。
-- [人工] 让开发者看一眼三个界面。车机端默认是 HUD 与助手形象，不是聊天框；对话层从底部导航进入。
+- [人工] 让用户看一眼三个界面。车机端默认是 HUD 与助手形象，不是聊天框；对话层从底部导航进入。
 
-### 5. 演示数据（可选）
+### 6. 演示数据（可选）
 
-- [交互] 问开发者要不要预置演示数据。要的话：
+- [交互] 问用户要不要预置演示数据。这一步往数据库写两辆演示车辆及其记录，所以先问。要的话：
 
   ```bash
   corepack pnpm demo:seed
@@ -120,14 +153,16 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
 遇到以下情况停下来报告，不要绕过：
 
-- 平台不是 macOS 且开发者要看客户端窗口——说明只能跑服务端，客户端需要额外系统依赖。
-- 需要开发者交互的安装器（Xcode CLT、Homebrew、Docker Desktop 首次初始化）。
+- 用户没有同意第 2 步的清单，或没有回复第 1 步的密钥提醒。
+- 平台不是 macOS 且用户要看客户端窗口——说明只能跑服务端，客户端需要额外系统依赖。
+- 需要用户交互的安装器（Xcode CLT、Homebrew、Docker Desktop 首次初始化）。
 - `dev:upgrade` 连续两次在同一位置失败且排障参考里没有对应条目。
-- 端口被别的进程占用——`dev:status` 会指出来；让开发者决定停哪个，不要替他杀不认识的进程。
+- 端口被不认识的进程占用——让用户决定改端口还是停程序，不要替他杀。
 
 ## 不做的事
 
-- 不填任何真实密钥，不改 `.env` 里已有的值。
+- 不填任何外部服务密钥，不读 `.env` 里密钥的值，不改 `.env` 里已有的值。
+- 不停任何不属于本项目的容器或进程；属于本项目的也要先列清单、得到同意。
 - 不执行 git 写操作，不删容器数据卷（`down -v`），不清 `target/` 与 `node_modules/`。
 - 不全局安装 pnpm、turbo、pi：pnpm 由 corepack 提供，turbo 由各包 devDependencies 提供，
   pi 只从 `enterprise/backend/pi-agents/node_modules/.bin` 解析。
@@ -138,14 +173,15 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
 ```
 平台：macOS 15 / Node 24.20.0 / Rust 1.97.0 / Docker 28
-前置检查：全部通过（或：装了 meson、ninja）
-.env：新建，主密钥已生成（或：沿用已有）
+前置检查：全部通过（或：经用户同意装了 meson、ninja）
+.env：新建，主密钥已生成；DEEPSEEK_API_KEY 已由用户填写（或：用户选择暂不填，LLM 走 Fake 模型）
+盘点：停掉并重启了本项目的 N 个容器、M 个进程（已经用户同意）；未动其它容器
 dev:upgrade：成功，耗时 N 分钟（或：失败在 <步骤>，原因 <一句话>）
 服务：gateway 8790 ✓ runtime 8791 ✓ web 5173 ✓ mock ×4 ✓ worker ✓
 客户端：cockpit-app ✓ mobile-app ✓
 打开：http://localhost:5173
 演示数据：已预置 / 未预置
-下一步：接真实 LLM 见 infra/external-dependencies.md；停止用 corepack pnpm dev:stop
+下一步：接其它外部服务见 infra/external-dependencies.md；停止用 corepack pnpm dev:stop
 ```
 
 ## 指针
