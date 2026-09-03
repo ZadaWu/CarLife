@@ -1,17 +1,15 @@
-# CI 门禁（施工单 M45-03）。基底是 test-cases 技能的 templates/ci.yml，按本仓形态加了 integration 层。
+# CI 门禁（施工单 M45-03）。基底是 test-cases 技能的 templates/ci.yml。
 #
-# 三层边界，别混：
-#   unit         —— check:all：静态不变量 + typecheck + 全部 workspace 成员的 test/（3000+ 用例）
-#                   + Rust + 契约。不起服务、不碰外部依赖、不需要任何密钥。
-#   integration  —— 起 PG / Redis / MinIO，建 carlife_test，跑本仓的 e2e:*（自 spawn 网关与 runtime）。
-#                   **一律 fake 模型与本地桩**，同样不需要密钥、不花钱。
-#   e2e（playwright）—— 模板保留：本仓 clients/*/e2e、enterprise/console/e2e 与 tests/e2e 目前为空，hashFiles 判空整个跳过，
-#                   不留一个永远绿的空 job。有 playwright 用例时它自动生效。
+# 这里只留一层：
+#   unit —— check:all：静态不变量 + typecheck + 全部 workspace 成员的 test/（3000+ 用例）
+#           + Rust + 契约。不起服务、不碰外部依赖、不需要任何密钥。
 #
-# 不在这里的两类，都是刻意的：
+# 不在这里的三类，都是刻意的：
+#   - 端到端（fake 模型 + 本地桩的 e2e:*、playwright）：在 e2e.yml，只接受手动触发（2026-09-03 决定：
+#     每次 push 都起 PG / Redis、spawn 网关与 runtime 跑四套 e2e 太重，unit 已经带真库跑过 3000+ 用例，
+#     端到端留给发版前或改了编排链路时手动点一次）。
 #   - 建模数据（docs/）的校验：见 内部文档，不进 CI」。
 #     那些文档是讨论中的产物，中间态矛盾是正常的；让 CI 去红只会逼人为了流水线绿而编答案。
-#     （本文件的前一版跑了 catalog:verify，违反该约定，M45-03 移除。）
 #   - 真实密钥的冒烟：在 smoke.yml，只接受手动触发。fork 来的 PR 读不到 secrets，
 #     挂在这里会让所有外部贡献者的 PR 必红。
 name: ci
@@ -81,112 +79,3 @@ jobs:
       - run: corepack pnpm db:test:setup
       - run: corepack pnpm typecheck
       - run: corepack pnpm check:all
-
-  integration:
-    name: 端到端（fake 模型 + 本地桩）
-    needs: unit
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        # 与本地 infra/docker-compose.yml 同一镜像：Mem0 的向量表要 pgvector。
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: carlife
-          POSTGRES_PASSWORD: carlife
-          POSTGRES_DB: carlife
-        ports: ["55433:5432"]
-        options: >-
-          --health-cmd "pg_isready -U carlife"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-      redis:
-        image: redis:7-alpine
-        ports: ["56379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-    env:
-      DATABASE_URL: postgresql://carlife:carlife@localhost:55433/carlife
-      TEST_DATABASE_URL: postgresql://carlife:carlife@localhost:55433/carlife_test
-      REDIS_URL: redis://localhost:56379
-      # 主密钥缺失即启动失败（架构 §13-12）；CI 用一个一次性值，不是真密钥。
-      CARLIFE_CONFIG_MASTER_KEY: ci-only-not-a-real-key-0123456789abcdef
-      # 常用人员的称呼与手机号是 PII，入库即加密，缺这把 key 直接抛（不是可选项）。
-      CARLIFE_PII_MASTER_KEY: ci-only-pii-key-0123456789abcdef
-      CARLIFE_LLM: fake
-      # ACR-017：选档只剩 ASR_ENGINE（原 CARLIFE_ASR 已退休）。
-      # 漏改这里的后果是 CI 落回默认 ark 档去打真实端点。
-      ASR_ENGINE: fake
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-      - run: corepack pnpm install --frozen-lockfile
-      - run: corepack pnpm --filter @carlife/db db:generate
-      # 开发库与测试库分开建（M45-01）：e2e 只碰 carlife_test。
-      - run: corepack pnpm --filter @carlife/db db:migrate:deploy
-      - run: corepack pnpm db:test:setup
-      # 单测不在这里重跑：unit job 现在自带 PG，`check:all` 已经带着真库跑过一遍
-      # （3138 个用例），这里再跑一次只是把同一批用例跑两遍。本层只管端到端。
-      - run: corepack pnpm e2e:m2-02
-      # e2e:m3 曾被排除在门禁外，理由是"已知红"——**那个结论是错的**（M46-01）。
-      # 它报的「admin token → unauthorized」是假错误：上一轮 e2e 的孤儿进程占着端口，
-      # 本轮 spawn 起不来，请求落到残留的旧网关上（那个进程没有 CARLIFE_ADMIN_TOKEN）。
-      # 清空端口后同一份代码 18 条断言全过。现在脚本有了 spawn 前预检，加回来。
-      - run: corepack pnpm e2e:m3
-      - run: corepack pnpm e2e:member
-      - run: corepack pnpm e2e:dualpath
-      - run: corepack pnpm smoke:restart
-      # eval:memory-decay 是纯计算的正确性评测，零外部依赖，放这里比放 unit 更贴切
-      - run: corepack pnpm eval:memory-decay
-
-  e2e:
-    name: 浏览器端到端（playwright）
-    needs: unit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # 没有 e2e 文件就把后续步骤全跳过，不要为了"CI 里有 e2e"跑一整套装依赖起服务。
-      # ⚠️ hashFiles **不能用在 job 级 `if`**（只在 step 级可用，job 级会让整个
-      # workflow 解析失败、0 个 job 被创建、run 名退化成文件路径）。
-      # 从 test-cases 技能模板抄来时带进了这个错，实测被 GitHub 拒；改成先 checkout
-      # 再在 step 级判定，语义不变。检出命令：actionlint。
-      - id: probe
-        run: |
-          if [ -n "$(find clients/*/e2e enterprise/console/e2e tests/e2e -type f 2>/dev/null | head -1)" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "没有 e2e 用例文件，跳过本 job 的其余步骤"
-          fi
-      - if: steps.probe.outputs.found == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-      - if: steps.probe.outputs.found == 'true'
-        run: corepack pnpm install --frozen-lockfile
-      - if: steps.probe.outputs.found == 'true'
-        run: corepack pnpm exec playwright install --with-deps chromium
-      # 起服务的方式只有 infra/scripts/dev.sh 一份；e2e 用的端口与本地一致
-      - if: steps.probe.outputs.found == 'true'
-        run: corepack pnpm dev:start
-      - name: 等网关就绪
-        if: steps.probe.outputs.found == 'true'
-        run: |
-          for _ in $(seq 1 30); do
-            curl -fsS "http://127.0.0.1:${GATEWAY_PORT:-8790}/healthz" && exit 0
-            sleep 2
-          done
-          echo "网关 30 次都没就绪"; corepack pnpm dev:status; exit 1
-      - if: steps.probe.outputs.found == 'true'
-        run: corepack pnpm test:e2e
-      - if: always() && steps.probe.outputs.found == 'true'
-        run: corepack pnpm dev:stop
-      - if: failure() && steps.probe.outputs.found == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: |
-            clients/*/playwright-report
-            enterprise/console/playwright-report
-          if-no-files-found: ignore
