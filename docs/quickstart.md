@@ -12,13 +12,22 @@
 cp .env.example .env
 ```
 
-密钥全部留空即可。`CARLIFE_CONFIG_MASTER_KEY` 必须填一个值，按 `.env` 内的注释生成：
+两把本机加密主密钥 `CARLIFE_CONFIG_MASTER_KEY` 与 `CARLIFE_PII_MASTER_KEY` 各填一个值，用下面的命令各生成一次：
 
 ```bash
 openssl rand -hex 32
 ```
 
-未配置 `DEEPSEEK_API_KEY` 时，runtime 自动使用确定性的 Fake 模型；语音识别、知识库、门店系统、语音合成同样各有 Fake 或 Mock 降级。
+启动前必须填的外部服务密钥有四项，缺任何一项都不要往下：
+
+| 配置项 | 作用 | 缺了会怎样 |
+|---|---|---|
+| `DEEPSEEK_API_KEY` | LLM 推理 | runtime 走确定性 Fake 模型，每个问题都是固定的假回答 |
+| `AMAP_SERVER_KEY` | 高德 Web 服务：路径规划与沿途天气 | 出行规划报未接入 |
+| `AMAP_JS_KEY` | 高德 JS API：车机端与手机端的地图底图与行程图层 | 地图区域是空的程序化底图 |
+| `AMAP_JS_SECURITY_CODE` | 与 `AMAP_JS_KEY` 配对的安全密钥，只在网关代理里追加 | 地图请求全部 403 |
+
+三把高德 key 在 [高德开放平台控制台](https://console.amap.com) 同一个应用下申请：「Web 服务」对应 `AMAP_SERVER_KEY`，「Web 端（JS API）」对应 `AMAP_JS_KEY` 与安全密钥。其余密钥可以留空：语音识别、知识库、门店系统、语音合成、内容审核各有 Fake 或 Mock 降级。
 
 ## 启动
 

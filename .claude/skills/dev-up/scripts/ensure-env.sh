@@ -3,7 +3,8 @@
 # 之后只报告哪些密钥还没填、该由用户去填，本脚本不写任何外部服务密钥。
 # 已有文件与已有主密钥都不会被改写，可重复运行。
 # 用法：bash .claude/skills/dev-up/scripts/ensure-env.sh   （在仓库根运行）
-# 退出码：0 = .env 就绪且 DEEPSEEK_API_KEY 已填；4 = .env 就绪但 DEEPSEEK_API_KEY 为空，需要用户去填。
+# 退出码：0 = .env 就绪且四项必填（DEEPSEEK_API_KEY、AMAP_SERVER_KEY、AMAP_JS_KEY、AMAP_JS_SECURITY_CODE）都已填；
+#         4 = .env 就绪但有必填项为空，需要用户去填。
 set -eu
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
@@ -40,17 +41,32 @@ done
 
 echo
 echo "接下来需要用户自己填的配置（本脚本不会替用户填）："
+echo "  必填——缺任何一项都不要往下启动："
 missing=0
-if [ -n "$(value_of DEEPSEEK_API_KEY)" ]; then
-  echo "  ✓ DEEPSEEK_API_KEY 已填——LLM 走真实模型"
-else
-  echo "  ✗ DEEPSEEK_API_KEY 为空——至少要填这一项。不填的话 runtime 用确定性 Fake 模型，"
-  echo "    每个问题都是固定的假回答，看不到真正的对话能力。填法：打开 .env，把"
-  echo "    DEEPSEEK_API_KEY=\"\" 改成 DEEPSEEK_API_KEY=\"<你的 key>\"，保存后回来继续。"
-  missing=1
+# 四项必填：LLM 没有就是固定假回答；高德三把 key 缺一把，出行规划、沿途天气、车机端与手机端的地图底图都是空的。
+# AMAP_JS_KEY 随前端产物下发（安全性靠高德控制台的域名白名单）；AMAP_JS_SECURITY_CODE 只在网关代理里追加，前端不知道它。
+required_desc() {
+  case "$1" in
+    DEEPSEEK_API_KEY)      echo "LLM 推理。不填 runtime 走确定性 Fake 模型，每个问题都是固定的假回答" ;;
+    AMAP_SERVER_KEY)       echo "高德 Web 服务 key：服务端的路径规划（map_route）与沿途天气。不填出行规划直接报未接入" ;;
+    AMAP_JS_KEY)           echo "高德 JS API key：车机端 / 手机端的地图底图与行程图层。不填地图区域是空的程序化底图" ;;
+    AMAP_JS_SECURITY_CODE) echo "高德 JS API 安全密钥：网关的 /_AMapService 代理转发时追加，与 AMAP_JS_KEY 配对，缺了地图请求全部 403" ;;
+  esac
+}
+for k in DEEPSEEK_API_KEY AMAP_SERVER_KEY AMAP_JS_KEY AMAP_JS_SECURITY_CODE; do
+  if [ -n "$(value_of "$k")" ]; then
+    echo "    ✓ $k 已填"
+  else
+    echo "    ✗ $k 为空——$(required_desc "$k")"
+    missing=1
+  fi
+done
+if [ "$missing" -eq 1 ]; then
+  echo "  填法：打开 .env，把上面为空的项改成 KEY=\"<你的值>\"，保存后回来重跑本脚本。"
+  echo "  高德三把 key 在 https://console.amap.com 同一个应用下申请：Web 服务（AMAP_SERVER_KEY）与 Web 端 JS API（AMAP_JS_KEY + 安全密钥）。"
 fi
 echo "  可选（不填各有降级，见 infra/external-dependencies.md）："
-for k in RAGFLOW_API_KEY AMAP_SERVER_KEY ARK_API_KEY Aliyun_AccessKey_ID; do
+for k in RAGFLOW_API_KEY ARK_API_KEY Aliyun_AccessKey_ID; do
   if [ -n "$(value_of "$k")" ]; then echo "    ✓ $k 已填"; else echo "    - $k 未填"; fi
 done
 

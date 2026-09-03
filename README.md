@@ -63,7 +63,7 @@ corepack pnpm install
 corepack pnpm dev:upgrade
 ```
 
-不填任何付费密钥也能跑通核心链路：LLM、语音识别、知识库、门店系统都有 Fake 或 Mock 降级。接入真实外部服务的步骤见[配置外部服务](docs/external-services.md)。
+启动前在 `.env` 里填四项：`DEEPSEEK_API_KEY`（LLM），以及高德的 `AMAP_SERVER_KEY`、`AMAP_JS_KEY`、`AMAP_JS_SECURITY_CODE`（路径规划、天气、两端的地图底图）。其余密钥可以留空：语音识别、知识库、门店系统、内容审核都有 Fake 或 Mock 降级。各项的作用与申请方式见[配置外部服务](docs/external-services.md)。
 
 使用 Claude Code 或 Codex 的开发者可以直接让助手来做：仓库自带技能 `dev-up`（`.claude/skills/dev-up/`），对助手说「把项目跑起来」，它会检查工具链、生成 `.env`、安装编译、启动全部服务与三个端，并逐项验证后给出地址。
 
