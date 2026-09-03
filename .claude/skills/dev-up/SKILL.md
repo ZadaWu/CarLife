@@ -94,7 +94,10 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 - [自动] 运行 `bash .claude/skills/dev-up/scripts/ensure-env.sh`。它在 `.env` 不存在时从
   `.env.example` 复制，并为每一把本机加密主密钥（`CARLIFE_CONFIG_MASTER_KEY`、`CARLIFE_PII_MASTER_KEY`，
   以 `.env.example` 里的 `CARLIFE_*_MASTER_KEY` 为准）生成值；已有文件与已有值一律不改。
-  少任何一把网关都会在启动校验时退出，所以这一步不能只看第一把。然后它逐项检查**四项必填**：
+  少任何一把网关都会在启动校验时退出，所以这一步不能只看第一把。新生成的 `.env` 还会把 `GUIDE_QUEUE="on"`
+  打开——`.env.example` 缺省把它注释掉（每个景点至多 3 次按次计费的联网搜索），关着时车机端的景区导览没有内容
+  也没有进度区，看起来像功能坏了。已有的 `.env` 不会被改：脚本只打印一行 `GUIDE_QUEUE 未开启` 的提示，
+  这时按"先说清再等确认"把那一行改法交给用户，由他决定开不开。然后它逐项检查**四项必填**：
   `DEEPSEEK_API_KEY`、`AMAP_SERVER_KEY`、`AMAP_JS_KEY`、`AMAP_JS_SECURITY_CODE`，任一为空退出码 4，
   并打印是哪几项、各自缺了会怎样。
 - [交互] 退出码为 4 时停下来，把脚本列出的空项转告用户，用下面这段话的口径，等他填完回复再继续：
@@ -162,6 +165,8 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
   去核对 `Aliyun_AccessKey_*` 或 `GUARD_BASE_URL`。
 - 端口对照：gateway 8790、runtime 8791、mock-dealer 8792、mock-tts 8794、worker 健康检查 8796、
   cockpit 1430、mobile 1420、web 5173。
+- 景区导览要能用，`.env` 里必须 `GUIDE_QUEUE="on"`。改了这一项要重启 runtime 才生效（会加载 pg-boss 并建
+  `pgboss` schema）——重启前先告诉用户。
 
 ### 5. 打开三个端
 
@@ -233,7 +238,7 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 ```
 平台：macOS 15 / Node 24.20.0 / Rust 1.97.0 / Docker 28
 前置检查：全部通过（或：助手装了 meson、ninja；用户自己装了 Docker Desktop 并加了 File Sharing）
-.env：新建，主密钥已生成；四项必填（DEEPSEEK / 高德 ×3）已由用户填写（或：用户选择暂不填 <哪几项>，对应 <功能> 是假的 / 空的）
+.env：新建，主密钥已生成，GUIDE_QUEUE 已打开；四项必填（DEEPSEEK / 高德 ×3）已由用户填写（或：用户选择暂不填 <哪几项>，对应 <功能> 是假的 / 空的）
 盘点：停掉并重启了本项目的 N 个容器、M 个进程（已经用户同意）；未动其它容器
 dev:upgrade：成功，耗时 N 分钟（或：失败在 <步骤>，原因 <一句话>）
 服务：gateway 8790 ✓ runtime 8791 ✓ web 5173 ✓ mock ×4 ✓ worker ✓（审核层未配置，readiness 已放行）

@@ -11,10 +11,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 [ -f .env.example ] || { echo "找不到 .env.example，不在仓库根：$ROOT"; exit 2; }
 
+created=0
 if [ -f .env ]; then
   echo ".env 已存在，沿用（不会改写任何已有值）"
 else
   cp .env.example .env
+  created=1
   echo ".env 已从 .env.example 生成"
 fi
 
@@ -38,6 +40,21 @@ ensure_local_key() {
 for key in $(sed -n 's/^\(CARLIFE_[A-Z_]*MASTER_KEY\)=.*/\1/p' .env.example); do
   ensure_local_key "$key"
 done
+
+# 景区导览采集队列：.env.example 缺省注释掉（费用面：每个景点最多 3 次按次计费联网搜索，24h 缓存）。
+# 关着时车机端的景区导览没有内容也没有进度区，看起来像功能坏了（2026-09-03 实跑反馈）。
+# 新生成的 .env 直接打开——本机开发要的就是能看到完整功能；已有的 .env 不动，只提示用户自己决定。
+guide_hint=""
+if [ "$created" -eq 1 ]; then
+  if grep -qE '^#? *GUIDE_QUEUE=' .env; then
+    awk 'BEGIN{done=0} /^#? *GUIDE_QUEUE=/ && !done {print "GUIDE_QUEUE=\"on\""; done=1; next} {print}' .env > .env.tmp && mv .env.tmp .env
+  else
+    printf '\nGUIDE_QUEUE="on"\n' >> .env
+  fi
+  echo "GUIDE_QUEUE=\"on\" 已打开——车机端景区导览的后台采集靠它（每个景点至多 3 次按次计费的联网搜索，24h 缓存）"
+elif [ "$(value_of GUIDE_QUEUE)" != "on" ]; then
+  guide_hint="GUIDE_QUEUE 未开启：车机端景区导览不会有内容与进度区。要开的话在 .env 里加一行 GUIDE_QUEUE=\"on\"（每个景点至多 3 次按次计费联网搜索，24h 缓存）"
+fi
 
 echo
 echo "接下来需要用户自己填的配置（本脚本不会替用户填）："
@@ -65,6 +82,7 @@ if [ "$missing" -eq 1 ]; then
   echo "  填法：打开 .env，把上面为空的项改成 KEY=\"<你的值>\"，保存后回来重跑本脚本。"
   echo "  高德三把 key 在 https://console.amap.com 同一个应用下申请：Web 服务（AMAP_SERVER_KEY）与 Web 端 JS API（AMAP_JS_KEY + 安全密钥）。"
 fi
+[ -n "$guide_hint" ] && echo "  ! $guide_hint"
 echo "  可选（不填各有降级，见 infra/external-dependencies.md）："
 for k in RAGFLOW_API_KEY ARK_API_KEY Aliyun_AccessKey_ID; do
   if [ -n "$(value_of "$k")" ]; then echo "    ✓ $k 已填"; else echo "    - $k 未填"; fi

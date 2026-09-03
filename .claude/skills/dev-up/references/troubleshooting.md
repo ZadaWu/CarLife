@@ -35,6 +35,7 @@
 | 客户端窗口出现但白屏 | debug 客户端走 devUrl，Vite 没先就绪 | 同上，让 Vite 先起 |
 | 助手说「门店系统没连上」 | `mock-dealer` 没起，或 `.env` 缺 `MOCK_DEALER_URL`；两者现象一样 | `corepack pnpm dev:restart mock-dealer runtime` |
 | 车内音乐在容器里不出声 | 设计如此：出声位在车机端，服务端只留状态机，`mock-cabin` 的 `/health` 报 `backend:"none"` 是正常的 | 无需处理 |
+| 车机端景区导览没有内容、也没有进度区 | `.env` 里 `GUIDE_QUEUE` 没有打开（`.env.example` 缺省注释掉，因为采集走按次计费的联网搜索） | `.env` 加 `GUIDE_QUEUE="on"`，告知用户后 `corepack pnpm dev:restart runtime`；新生成的 `.env` 由 `ensure-env.sh` 自动打开 |
 | 用车助手说「给不出个性化结论」 | 没有演示数据，「这辆车」那一路查不到东西 | `corepack pnpm demo:seed` |
 | 模型手里零工具却照样编出答案 | pi 在项目未被信任时静默忽略扩展 | 看 runtime 日志有没有 `ACP 自检通过：扩展已加载`；没有就跑 `enterprise/backend/pi-agents/bin/pi-approved.sh` |
 | 控制台登录报「无法连接到后端网关」 | 8790 上没有人应答 | `corepack pnpm dev:status` 看 gateway；起来后再登 |

@@ -29,6 +29,8 @@ openssl rand -hex 32
 
 三把高德 key 在 [高德开放平台控制台](https://console.amap.com) 同一个应用下申请：「Web 服务」对应 `AMAP_SERVER_KEY`，「Web 端（JS API）」对应 `AMAP_JS_KEY` 与安全密钥。其余密钥可以留空：语音识别、知识库、门店系统、语音合成、内容审核各有 Fake 或 Mock 降级。
 
+要体验车机端的景区导览，再加一行 `GUIDE_QUEUE="on"`。模板缺省把它注释掉，因为景点资料的后台采集走按次计费的联网搜索（每个景点至多 3 次，24 小时缓存）；关着时导览页没有内容也没有进度区。
+
 ## 启动
 
 ```bash
