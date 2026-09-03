@@ -45,9 +45,59 @@ export interface AssistantInteractionApi {
   gestureProps: {
     onPointerDown: (e: React.PointerEvent) => void;
     onPointerUp: (e: React.PointerEvent) => void;
-    onPointerLeave: () => void;
+    onPointerLeave: (e?: React.PointerEvent) => void;
+    onPointerCancel: (e?: React.PointerEvent) => void;
     onKeyDown: (e: React.KeyboardEvent) => void;
   };
+}
+
+/** `leaveShouldCancel` 的输入：这一下 leave 到来时，手势处在什么状态。 */
+export interface LeaveContext {
+  /** 元素此刻还握着这个 pointer 的捕获（`hasPointerCapture`）。 */
+  captured: boolean;
+  /** 长按计时器还在走（按下了、还没到 350ms）。 */
+  timerPending: boolean;
+  /** 已经判成长按、正在录音。 */
+  longPress: boolean;
+}
+
+/**
+ * 收到 `onPointerLeave` 时，要不要把这次长按取消掉。
+ *
+ * # 为什么不能见 leave 就取消（2026-09-03 iPad 模拟器实测，埋点原始序列见 commit 说明）
+ *
+ * iPad 上长按暖暖，**手指只要挪动 1 个点，录音就断**——一句长话只录进一两个字。
+ * 序列是：`pointerdown` 落在 `<img>` 精灵上 → 我们对 hero 调 `setPointerCapture` →
+ * 捕获在**下一个** pointer 事件（第一次 `pointermove`）才生效，WebKit 此时把事件
+ * 目标从精灵换到 hero，并补发一个 `pointerout`（精灵）+ `pointerover`（hero）。
+ * iOS WebKit 给这个换目标的 `pointerout` 的 `relatedTarget` 是空的，React 据此
+ * 认为"指针离开了整个文档"，于是把 `onPointerLeave` 合成到 hero 上——**浏览器自己
+ * 并没有发 `pointerleave`**（原生 `pointerleave` 直到松手才来）。
+ * 手指在 350ms 之前挪：计时器被清，整次长按等于没按；之后挪：录音被停，
+ * 剩下按住的几秒全白按。桌面上是鼠标，按住不动没有 move，永远暴露不了。
+ *
+ * 判据用**物理事实**而不是猜 React 的合成规则：捕获还在手上，指针就不可能真的
+ * 离开——这样的 leave 一律是假的。捕获已丢（`pointercancel` 之后、或一开始就没
+ * 捕获成功）时，leave 才是真的移出。
+ *
+ * # 第二条：没有进行中的按压就没有什么可取消
+ *
+ * 同一份埋点还看到：松手后 WebKit 又补一个 `pointerout` → React 再合成一次
+ * leave，原来的实现在这里 `setLocal(null)`，把刚设上的「正在准备…」当场清掉——
+ * iPad 上 thinking 态从来没显示过，也是同一个根因。
+ */
+export function leaveShouldCancel({ captured, timerPending, longPress }: LeaveContext): boolean {
+  if (captured) return false;
+  return timerPending || longPress;
+}
+
+/** 元素是否还握着这个 pointer 的捕获；没有事件 / 老浏览器没有这个 API 都按「没有」算。 */
+function stillCaptured(e: React.PointerEvent | undefined): boolean {
+  try {
+    return e?.currentTarget?.hasPointerCapture?.(e.pointerId) === true;
+  } catch {
+    return false;
+  }
 }
 
 export interface UseAssistantOptions {
@@ -179,15 +229,32 @@ export function useAssistantInteraction({
     }
   }, [tapOnce, voice]);
 
-  const onPointerLeave = useCallback(() => {
-    // 指针移出：取消长按，不误触发送
-    clearTimer();
-    if (isLongPress.current) {
-      isLongPress.current = false;
-      void voice.stopPushToTalk().catch(() => {});
-    }
-    setLocal(null);
-  }, [voice]);
+  /**
+   * 真正的取消：指针移出 / 被系统收走。停掉进行中的录音，形象放回去。
+   *
+   * `pointercancel` 也走这里（iPadOS 的多任务手势、来电等会把触摸收走）。
+   * 它到来时捕获已被浏览器释放，所以 `leaveShouldCancel` 不会把它当成假 leave。
+   */
+  const cancelPress = useCallback(
+    (e?: React.PointerEvent) => {
+      if (
+        !leaveShouldCancel({
+          captured: stillCaptured(e),
+          timerPending: timer.current !== null,
+          longPress: isLongPress.current,
+        })
+      ) {
+        return;
+      }
+      clearTimer();
+      if (isLongPress.current) {
+        isLongPress.current = false;
+        void voice.stopPushToTalk().catch(() => {});
+      }
+      setLocal(null);
+    },
+    [voice],
+  );
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -204,6 +271,12 @@ export function useAssistantInteraction({
 
   return {
     state: local ?? externalState,
-    gestureProps: { onPointerDown, onPointerUp: finish, onPointerLeave, onKeyDown },
+    gestureProps: {
+      onPointerDown,
+      onPointerUp: finish,
+      onPointerLeave: cancelPress,
+      onPointerCancel: cancelPress,
+      onKeyDown,
+    },
   };
 }

@@ -231,7 +231,9 @@ describe("横轴刻度", () => {
   });
 
   it("日期只在本地零点那一格出现——每格都带日期会叠字，一格都不带则跨天分不清哪个 14:00", () => {
-    const to = Date.parse("2026-09-02T06:00:00+08:00");
+    // 用本地时间构造窗口：「零点」是本地零点，用固定时区字面量的话，CI（UTC）上 12 小时窗口
+    // 落在 10:00–22:00，一次零点都不跨，dated 为 0（2026-09-03 CI 实测）。
+    const to = new Date(2026, 8, 2, 6, 0, 0).getTime();
     const ticks = axisTicks({ from: to - 12 * H, to, span: 12 * H });
     const dated = ticks.filter((k) => /^\d{2}-\d{2}$/.test(k.label));
     assert.equal(dated.length, 1, "12 小时窗口里正好跨一次零点");
