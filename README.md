@@ -5,6 +5,23 @@
 
 # CarLife AI Agent
 
+<p align="center">
+  <a href="https://github.com/ZadaWu/CarLife/actions/workflows/ci.yml"><img src="https://github.com/ZadaWu/CarLife/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://github.com/ZadaWu/CarLife/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
+  <a href="https://github.com/ZadaWu/CarLife/stargazers"><img src="https://img.shields.io/github/stars/ZadaWu/CarLife?style=flat&color=yellow" alt="GitHub Stars"></a>
+</p>
+
+<p align="center">
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A524.20-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
+  <a href="https://pnpm.io"><img src="https://img.shields.io/badge/pnpm-%E2%89%A59.0-F69220?logo=pnpm&logoColor=white" alt="pnpm"></a>
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri 2"></a>
+  <a href="https://github.com/langchain-ai/langgraphjs"><img src="https://img.shields.io/badge/Orchestrator-LangGraph.js-FF6F00?logo=langchain&logoColor=white" alt="LangGraph.js"></a>
+  <a href="https://www.deepseek.com"><img src="https://img.shields.io/badge/LLM-DeepSeek-4D6BFE" alt="DeepSeek"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791?logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+</p>
+
 面向车主全生命周期的智能用车智能体：购车咨询、日常用车、出行规划、座舱陪伴、售后服务五个业务 Agent，由一个编排层统一调度，运行在车机端与手机端，服务端可私有化部署。
 
 本仓库是 CarLife 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)。

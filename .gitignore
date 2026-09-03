@@ -71,3 +71,7 @@ var/
 
 # 评测任务目录（M67）：控制台 / 编排器起的任务产物，不提交；仓库里提交的基线在 evals/runs/ 顶层
 evals/runs/jobs/
+
+# pi-agents 本地运行时产物（会话记录、凭证与模型存储等）
+enterprise/backend/pi-agents/.pi/agent/
+
