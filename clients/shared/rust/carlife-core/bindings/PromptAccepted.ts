@@ -3,6 +3,7 @@ import type { MessageSource } from "./MessageSource";
 
 export type PromptAccepted = { turnId: string, source: MessageSource, 
 /**
- * 语音输入的 ASR 识别原文；文本输入为 null。
+ * 用户这句话的原文：语音是 ASR 识别结果，文字就是打的那句（2026-09-03 起两种来源都带）。
+ * 端上只靠它追加用户气泡；null 只可能来自旧服务端，端上忽略并靠回源。
  */
 transcript: string | null, };

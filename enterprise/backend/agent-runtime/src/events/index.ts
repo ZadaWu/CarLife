@@ -18,6 +18,11 @@ import type {
   SessionEvent,
 } from "@carlife/shared";
 
+/**
+ * 受理回执。`transcript` 是**用户这句话的原文**——语音是 ASR 识别结果，文字就是打的那句。
+ * 两种来源都带：端上只靠它追加用户气泡（`fanout.rs`），不带就是一句隐形的话。
+ * 类型仍是 `string | null` 只为契约兼容，调用方不该再传 null。
+ */
 export function promptAccepted(
   turnId: string,
   source: MessageSource,

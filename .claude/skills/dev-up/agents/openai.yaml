@@ -1,0 +1,4 @@
+interface:
+  display_name: "本机启动 CarLife"
+  short_description: "检查工具链、生成 .env、安装编译并启动全部服务与三个端，逐项验证后交给开发者"
+  default_prompt: "使用 $dev-up 把 CarLife 在本机跑起来，打开 web、车机端与手机端。"

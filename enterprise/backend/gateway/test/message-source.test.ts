@@ -8,10 +8,11 @@
  *
  * 这一支原来把 `source` 写死 `"text"`，于是语音指令一路被记成文字，两处同时塌：
  *
- *  1. `turn-runner` 只在 `source === "voice"` 时给 prompt 事件带 `transcript`，
- *     而端上 `fanout.rs` 只在有 `transcript` 时才追加用户气泡
- *     （`None => Ignored("prompt_text")`）——**车主自己说的那句话在车机对话界面上
- *     根本不显示**。助手照常回答，历史里也有，只有当事人那句话是隐形的。
+ *  1. `turn-runner` 当时只在 `source === "voice"` 时给 prompt 事件带 `transcript`，
+ *     而端上 `fanout.rs` 只在有 `transcript` 时才追加用户气泡——**车主自己说的那句话
+ *     在车机对话界面上根本不显示**。助手照常回答，历史里也有，只有当事人那句话是隐形的。
+ *     （2026-09-03 起 runtime 不分来源都带原文——打字的那句原来同样隐形，见
+ *     `agent-runtime/test/prompt-transcript.test.ts`；本字段的意义只剩第 2 条。）
  *  2. 控制台会话详情按这个字段标「🎙 语音 / ⌨ 文字」，语音指令全被标成了文字，
  *     按端拆解用量的账（US-38 AC-38-8）跟着不准。
  *

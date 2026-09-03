@@ -2,6 +2,10 @@
 
 本文说明在不填任何付费密钥的情况下跑通核心链路并验证。前提是已按[安装](installation.md)装好依赖。接入真实外部服务见[配置外部服务](external-services.md)。
 
+## 让助手代劳
+
+仓库自带 Claude Code / Codex 技能 `dev-up`（`.claude/skills/dev-up/`）。对助手说「把项目跑起来」，它会执行本文的全部步骤并逐项验证。手动执行按下面的顺序。
+
 ## 准备配置
 
 ```bash

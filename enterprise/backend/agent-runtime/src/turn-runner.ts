@@ -338,7 +338,7 @@ export class TurnRunner {
         durationMs: this.now() - guardStartedAt,
       });
       if (!verdict.allowed) {
-        yield events.promptAccepted(input.turnId, input.source, input.source === "voice" ? input.content : null);
+        yield events.promptAccepted(input.turnId, input.source, input.content);
         yield events.delta(input.turnId, verdict.reason ?? "这条消息我没法处理。");
         yield events.turnEnd(input.turnId, assistantMessageId);
         // 这条提前 return 也要收口：不收的话被输入管线拦下的那一轮
@@ -348,11 +348,17 @@ export class TurnRunner {
       }
     }
 
-    yield events.promptAccepted(
-      input.turnId,
-      input.source,
-      input.source === "voice" ? input.content : null,
-    );
+    /*
+     * prompt 事件**不分来源都带原文**（2026-09-03 修）。
+     *
+     * 原来只给 `voice` 带 transcript，文字给 null——理由是"文字是端上自己打的，
+     * 端上乐观追加就行"。但端上那一侧写的是"不做乐观插入，用户消息由 SSE 回流"
+     * （cockpit/mobile 的 `sendText`），Rust 投影 `fanout.rs` 又只在有 transcript 时
+     * 才追加用户气泡。三处各自成立，合起来就是：**打字发出去的那句话在对话框里
+     * 不出现**，要换会话或重启回源才看得到，端侧 SQLite 缓存与重连补发窗口里也没有它。
+     * 这里一处带上原文，端上的编号（`msg-{turnId}-u`）、缓存、去重、补发全部自然生效。
+     */
+    yield events.promptAccepted(input.turnId, input.source, input.content);
     yield events.stateThinking();
 
     // 节点内的 emit 回调 → 队列 → 本生成器实时转发（流式，不等全量）。

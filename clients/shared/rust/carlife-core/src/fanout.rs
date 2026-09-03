@@ -10,9 +10,9 @@
 //!  - `update/delta`  → 流式文本（对话层显示）+ 按 turn 聚合
 //!  - `update/turn_end` → 助手消息落缓存 + 状态回落 `idle`
 //!    （`speaking` 由端上 TTS 播报起止驱动，M2-05 约束 2，不在本映射内）
-//!  - `prompt`（voice）→ 用户消息（ASR 原文）落缓存
+//!  - `prompt`（voice / text）→ 用户消息（transcript：ASR 原文或打字原文）落缓存
 //!  - `tool_call`   → 工具进展（对话层显示"正在查天气"，**不进历史**）
-//!  - 其余（session / 文本 prompt）→ 忽略并计数
+//!  - 其余（session / 不带 transcript 的 prompt）→ 忽略并计数
 
 use crate::cache::{CacheError, MessageCache};
 use crate::contract::{
@@ -99,7 +99,8 @@ pub fn project(env: &EventEnvelope, acc: &mut TurnAccumulator) -> Vec<BridgeActi
     match &env.event {
         SessionEvent::Session(_) => vec![BridgeAction::Ignored("session")],
         SessionEvent::Prompt(p) => match &p.transcript {
-            // 语音：ASR 原文即用户消息。
+            // 用户消息：语音是 ASR 原文，文字是打的那句。**两种来源都走这里**——
+            // 端上不做乐观插入（cockpit/mobile `sendText`），用户气泡的唯一来源就是这条。
             // NOTE(耦合)：message_id 镜像网关约定 `msg-{turnId}-u`（M2-02
             // turn-service）；契约演进时应在 prompt 事件里显式带 messageId。
             Some(text) => vec![BridgeAction::MessageAppended(ChatMessage {
@@ -113,8 +114,10 @@ pub fn project(env: &EventEnvelope, acc: &mut TurnAccumulator) -> Vec<BridgeActi
                 // 用户消息不会被"打断"（M33-01）：打断针对的是助手那半句。
                 cancelled: None,
             })],
-            // 文本：内容由发送方（对话层 UI）乐观追加，回源校正兜底。
-            None => vec![BridgeAction::Ignored("prompt_text")],
+            // 不带原文的 prompt 只可能来自 2026-09-03 之前的旧服务端（它只给 voice 带）。
+            // 这里曾写着"文本由对话层 UI 乐观追加"——而 UI 那边写的是"由 SSE 回流"，
+            // 两句话互相指望，打字的那句话就此隐形。忽略并计数，靠回源校正。
+            None => vec![BridgeAction::Ignored("prompt_without_transcript")],
         },
         SessionEvent::Update(update) => match update {
             SessionUpdate::State(s) => vec![BridgeAction::AssistantState(s.state)],
@@ -415,6 +418,61 @@ mod tests {
         let page = cache.recent_page("sess-r", None, 10).unwrap();
         assert_eq!(page.len(), 1, "不撤缓存的话，用户下次翻历史又能看到原文");
         assert_eq!(page[0].content, "这条回答我收回了");
+    }
+
+    /// 打字发出的那句话也要进对话框（2026-09-03 修）。
+    ///
+    /// 服务端 prompt 事件原来只给 voice 带 transcript；端上又不做乐观插入，
+    /// 结果文字消息在两端对话框里都不出现。此测锁住：text 来源、带原文 →
+    /// 追加一条 `source: Text` 的用户消息并落缓存，编号仍是 `msg-{turnId}-u`。
+    #[test]
+    fn text_prompt_with_transcript_appends_user_message() {
+        use crate::contract::{EventEnvelope, MessageSource, PromptAccepted, SessionEvent};
+
+        let cache = MessageCache::open_in_memory().unwrap();
+        let mut acc = TurnAccumulator::default();
+        let env = EventEnvelope {
+            event_id: "e-t".into(),
+            session_id: "sess-t".into(),
+            ts: 7,
+            event: SessionEvent::Prompt(PromptAccepted {
+                turn_id: "t-text".into(),
+                source: MessageSource::Text,
+                transcript: Some("我这车最近有点费电".into()),
+            }),
+        };
+        let (actions, errs) = apply(&env, &cache, &mut acc);
+        assert!(errs.is_empty());
+
+        let msg = actions
+            .iter()
+            .find_map(|a| match a {
+                BridgeAction::MessageAppended(m) => Some(m),
+                _ => None,
+            })
+            .expect("文字 prompt 带原文必须追加用户气泡——这正是打字消息隐形的根因");
+        assert!(matches!(msg.role, ChatRole::User));
+        assert!(matches!(msg.source, MessageSource::Text), "来源要照实标成文字，别沾语音标签");
+        assert_eq!(msg.message_id, "msg-t-text-u", "编号镜像网关约定，回源时靠它去重");
+        assert_eq!(msg.content, "我这车最近有点费电");
+
+        let page = cache.recent_page("sess-t", None, 10).unwrap();
+        assert_eq!(page.len(), 1, "不落缓存的话，离线翻历史仍看不到自己打的字");
+
+        // 旧服务端不带原文：忽略并说明原因，不追加空气泡。
+        let legacy = EventEnvelope {
+            event: SessionEvent::Prompt(PromptAccepted {
+                turn_id: "t-legacy".into(),
+                source: MessageSource::Text,
+                transcript: None,
+            }),
+            ..env
+        };
+        let (actions, _) = apply(&legacy, &cache, &mut acc);
+        assert!(matches!(
+            actions.as_slice(),
+            [BridgeAction::Ignored("prompt_without_transcript")]
+        ));
     }
 
     /// 垫场话**不进本轮助手全文**（M18-01，F-45-06 / AC-45-7）。

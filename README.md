@@ -60,6 +60,8 @@ corepack pnpm dev:upgrade
 
 不填任何付费密钥也能跑通核心链路：LLM、语音识别、知识库、门店系统都有 Fake 或 Mock 降级。接入真实外部服务的步骤见[配置外部服务](docs/external-services.md)。
 
+使用 Claude Code 或 Codex 的开发者可以直接让助手来做：仓库自带技能 `dev-up`（`.claude/skills/dev-up/`），对助手说「把项目跑起来」，它会检查工具链、生成 `.env`、安装编译、启动全部服务与三个端，并逐项验证后给出地址。
+
 ## 文档
 
 - [安装](docs/installation.md)
