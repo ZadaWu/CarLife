@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="docs/assets/readme-hero.jpg" alt="暖暖的一天：购车、用车、出行、座舱、售后——CarLife 覆盖的五个业务面" width="100%">
+</p>
+<p align="center"><sub>暖暖的一天，从左到右：购车 · 用车 · 出行 · 座舱 · 售后</sub></p>
+
 # CarLife AI Agent
 
 面向车主全生命周期的智能用车智能体：购车咨询、日常用车、出行规划、座舱陪伴、售后服务五个业务 Agent，由一个编排层统一调度，运行在车机端与手机端，服务端可私有化部署。
