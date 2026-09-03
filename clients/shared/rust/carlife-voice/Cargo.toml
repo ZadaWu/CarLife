@@ -1,0 +1,15 @@
+[package]
+name = "carlife-voice"
+version = "0.1.0"
+edition = "2021"
+
+# 哨兵监听里**与设备、网络、TTS 都无关**的那部分纯逻辑：唤醒词判定、
+# 对话窗口、转写降级闸。两个端（cockpit / mobile）共用一份。
+#
+# 为什么单独一个 crate 而不是塞进 carlife-media：
+# 那边是音频（采集 / VAD / 编码 / AEC），本 crate 处理的是**文本与时序**，
+# 一个采样都不碰。放一起会让 `pinyin` 这张离线音节表跟着音频链路进到
+# 所有依赖 carlife-media 的地方。
+[dependencies]
+# 唤醒词的拼音归一（离线数据表）。选它的理由见 src/wake.rs 文件头。
+pinyin = "0.11.0"

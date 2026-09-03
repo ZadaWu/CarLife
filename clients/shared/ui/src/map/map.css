@@ -1,0 +1,134 @@
+/* 真实地图底图（施工单 M10-01）
+ *
+ * 与程序化底图共用 .hud-map-backdrop 的定位与层级（hud.css 已定义），
+ * 这里只补两件它没有的事：
+ *   1. 未就绪时**完全不可见**——半成品的地图容器（灰底 + 高德 logo）比
+ *      程序化底图难看得多，宁可等它就绪再显现；
+ *   2. 就绪后淡入，避免底图在用户眼前"跳"一下。
+ */
+
+.hud-map-amap {
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+  /*
+   * 地图接受交互（M19-05 用户要求：加上缩放与平移）。
+   *
+   * 原来这里是 `pointer-events: none`，理由是"点击要落到生活环与卡片上"。
+   * 那条其实过头了：生活环、提示卡、助手都是**独立的上层元素**，各自照常吃到
+   * 自己的事件；这一层放开只影响它们**没盖住**的空白区域。
+   * 但构造参数里的 dragEnable/zoomEnable 单独打开是没用的——事件根本到不了容器，
+   * 表现是"参数改了，鼠标还是拖不动"。两处必须一起改。
+   */
+  pointer-events: auto;
+}
+
+.hud-map-amap[data-ready="1"] {
+  opacity: 1;
+}
+
+/* 高德的版权与 logo 必须保留（服务条款要求），但按 Brief §6 压到最低视觉优先级。 */
+.hud-map-amap .amap-copyright,
+.hud-map-amap .amap-logo {
+  opacity: 0.45;
+  transform: scale(0.85);
+  transform-origin: left bottom;
+}
+
+/* ---------- 状态切换的交叉淡入（M19-05） ----------
+ *
+ * 切天/换行程时新旧两代标记会**同时**在图上，各自按 data-gen 被设成 0 或 1，
+ * 补间由这条 transition 完成。时长与 AmapTripLayer 的 FADE_MS 对齐，
+ * 改一处要改两处——CSS 拿不到那个常量。
+ *
+ * 只写 opacity：胶囊的 transform 带着贴边夹持的 --clamp-x，
+ * 一起补间会让它在夹持生效的那一帧横向滑一下，反而更晃。
+ */
+.hud-tripmark,
+.hud-tripmark__dot,
+.hud-tripmark__runner {
+  transition: opacity 420ms ease-out;
+}
+
+/* ---------- 跟车车标（M31-03） ----------
+ *
+ * 它与流动粒子（`__runner`）是两回事，样式上必须一眼分得开：
+ * 粒子是**装饰**，沿线循环跑；车标是「我们说车此刻在这」。
+ * 长得像的话，屏幕上会有两个亮点各跑各的，谁也说不清哪个是车。
+ *
+ * 朝向由 JS 写 `--heading`（车头指向下一个采样点）。没有朝向时它是 0，
+ * 圆形本体看不出差别——**不拿一个默认朝向去补**，那会指向正北，
+ * 与实际行驶方向无关，比不指更误导。
+ */
+.hud-navcar {
+  position: relative; /* ::before 的那枚车头尖按它定位 */
+  width: calc(30 * var(--hud-unit));
+  height: calc(30 * var(--hud-unit));
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 92%);
+  box-shadow:
+    0 0 0 calc(3 * var(--hud-unit)) rgb(255 176 32 / 35%),
+    0 calc(4 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgb(0 0 0 / 28%);
+  /* 车头方向那一枚小尖：整体旋转，本体是圆所以只有尖在动。 */
+  rotate: var(--heading, 0deg);
+}
+
+.hud-navcar::before {
+  content: "";
+  position: absolute;
+  top: calc(-7 * var(--hud-unit));
+  width: 0;
+  height: 0;
+  border-left: calc(6 * var(--hud-unit)) solid transparent;
+  border-right: calc(6 * var(--hud-unit)) solid transparent;
+  border-bottom: calc(9 * var(--hud-unit)) solid rgb(255 176 32);
+}
+
+.hud-navcar__dot {
+  width: calc(12 * var(--hud-unit));
+  height: calc(12 * var(--hud-unit));
+  border-radius: 50%;
+  background: rgb(255 154 0);
+}
+
+/* 「回到全程」：用户自己动过镜头（拖动/缩放/点地点聚焦）之后才出现，
+   是镜头的**唯一**回程入口。
+   ⚠️ 原来贴的是右下角（right/bottom 各 32/120u），实测**被电量条整个盖住**：
+   横屏 1280×720 下按钮落在 (1146,581,109×47)，而电量条的数值就在 1094–1227 / 604–632，
+   `elementFromPoint` 取到的是 `.hud-energy__value`——看不见，也点不到。
+   它自己不出错，只有在"镜头交出去之后想回来"时才发现无路可走，而那正是它存在的理由。
+   改贴右上：横屏那一带只有底图（提示卡从 y≈75 起、逐日页签在竖屏才占顶部），
+   且与下方的提示卡对齐成一列，读起来就是"地图自己的控件"。
+
+   ⚠️ 右上角在手机上是**状态栏与灵动岛**：32 个竖屏单位约 29pt，而安全区 62pt，
+   按钮整个落在 WiFi/电量图标底下（iPhone 16 Pro Max 实拍）。这是与上面那次
+   同一种坏法——它自己不报错，只有"想回到全程却按不着"时才暴露。 */
+.hud-map-recenter {
+  position: absolute;
+  right: calc(32 * var(--hud-unit));
+  top: calc(32 * var(--hud-unit) + env(safe-area-inset-top));
+  z-index: 3;
+  padding: calc(12 * var(--hud-unit)) calc(22 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: 999px;
+  background: var(--hud-card-bg);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+  font-family: inherit;
+  font-size: var(--hud-font-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-map-amap {
+    transition: none;
+  }
+  /* 省电/无障碍偏好下不做交叉淡入：直接切换即可，两代仍然不会同时可见。 */
+  .hud-tripmark,
+  .hud-tripmark__dot,
+  .hud-tripmark__runner {
+    transition: none;
+  }
+}

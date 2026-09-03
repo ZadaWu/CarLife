@@ -1,0 +1,35 @@
+[package]
+name = "cockpit"
+version = "0.1.0"
+edition = "2021"
+
+# Tauri 移动端要求 app crate 是库（ACR-004）：iOS 走 staticlib 由 Swift 壳链接，
+# 桌面 main.rs 只是 `cockpit_lib::run()` 的三行壳。名字带 _lib 是 Tauri 官方模板的
+# 约定——crate 名与二进制名（cockpit）撞了会让 rlib/bin 在 target 目录互相覆盖。
+[lib]
+name = "cockpit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time"] }
+carlife-core = { path = "../../../clients/shared/rust/carlife-core" }
+carlife-net = { path = "../../../clients/shared/rust/carlife-net" }
+carlife-media = { path = "../../../clients/shared/rust/carlife-media" }
+carlife-telemetry = { path = "../../../clients/shared/rust/carlife-telemetry" }
+# 哨兵的纯逻辑层（唤醒词 / 对话窗口 / 降级闸），与手机端共用一份。
+# 移出去的理由见 clients/shared/rust/carlife-voice/src/lib.rs 文件头。
+carlife-voice = { path = "../../../clients/shared/rust/carlife-voice" }
+# 回采文本比对（voice/echo.rs）仍直接用它做拼音归一——唤醒词那一路已经
+# 搬进 carlife-voice，但回声消除是车机独有的（手机端没有本地播报）。
+pinyin = "0.11.0"
+# TTS 播放（ACR-004 第 2 步）：mp3 字节直接进声卡，macOS/iOS 同一条路径。
+# 替掉的是 afplay 子进程——iOS 沙盒禁止 spawn，而"能不能出声"不该是平台差异。
+# 底层是 cpal（已在 carlife-media 的依赖树里），没有引入新的音频后端。
+rodio = "0.22"
+tauri-plugin-opener = "2.5.4"

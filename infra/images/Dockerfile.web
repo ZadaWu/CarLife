@@ -1,0 +1,33 @@
+# Web 后台镜像：构建 Vite 静态产物，再由 nginx 提供静态文件和 /console 代理。
+
+FROM node:24-alpine AS deps
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY contracts/package.json contracts/
+COPY clients/shared/ui/package.json clients/shared/ui/
+COPY enterprise/backend/shared/rag/package.json enterprise/backend/shared/rag/
+COPY enterprise/backend/shared/memory/package.json enterprise/backend/shared/memory/
+COPY enterprise/backend/shared/guardrails/package.json enterprise/backend/shared/guardrails/
+COPY enterprise/backend/shared/tools/package.json enterprise/backend/shared/tools/
+COPY enterprise/backend/shared/db/package.json enterprise/backend/shared/db/
+COPY enterprise/backend/gateway/package.json enterprise/backend/gateway/
+COPY enterprise/backend/agent-runtime/package.json enterprise/backend/agent-runtime/
+COPY enterprise/backend/worker/package.json enterprise/backend/worker/
+COPY enterprise/backend/pi-agents/package.json enterprise/backend/pi-agents/
+COPY mocks/dealer/package.json mocks/dealer/
+COPY mocks/cabin/package.json mocks/cabin/
+COPY enterprise/console/package.json enterprise/console/
+COPY clients/mobile/package.json clients/mobile/
+COPY clients/cockpit/package.json clients/cockpit/
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY contracts/ contracts/
+COPY enterprise/console/ enterprise/console/
+RUN pnpm --filter @carlife/web build
+
+FROM nginx:1.27-alpine
+COPY --from=build /app/enterprise/console/dist /usr/share/nginx/html
+COPY infra/images/nginx.web.conf /etc/nginx/conf.d/default.conf

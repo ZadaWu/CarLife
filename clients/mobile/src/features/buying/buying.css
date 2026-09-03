@@ -1,0 +1,206 @@
+/* 购车页（施工单 M15-05）。与档案页同一视觉语言：卡片、琥珀标注估算/默认值。 */
+
+.buy-page {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow-y: auto;
+/* iPhone 的状态栏 / 灵动岛：页壳自己贴着 inset:0，不避让的话标题直接被压在时钟
+   与灵动岛底下（2026-09-02 在 iPhone 16 Pro Max 上，设置 / 车辆档案 / 会话历史
+   三个标题全中）。车机端这两个 env() 恒为 0，写在这里不影响它。 */
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+  background: var(--hud-map-base);
+  color: #14293f;
+}
+.buy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.buy-head h1 { font-size: 20px; margin: 0; }
+.buy-close {
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: #4a6b8a;
+}
+.buy-hint { font-size: 14px; line-height: 1.6; color: #4a6b8a; }
+/* 读不到 ≠ 没有：故障要用不同颜色说出来，不能和"还没比过车"长一个样。 */
+.buy-hint--warn { color: #a5551a; }
+.buy-universe { font-size: 13px; color: #5b7a96; margin: 0 0 12px; }
+
+.buy-section {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(12, 32, 56, 0.06);
+}
+.buy-section h2 { font-size: 16px; margin: 0 0 10px; }
+.buy-section h3 { font-size: 14px; margin: 16px 0 8px; }
+
+/* 宽表在小屏上横向滚动，**页面本身不横向滚动**。 */
+.buy-matrix-wrap { overflow-x: auto; }
+.buy-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+.buy-matrix th, .buy-matrix td {
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f6;
+}
+.buy-matrix thead th { font-size: 14px; }
+.buy-matrix th[scope="row"] { color: #5b7a96; font-weight: 500; white-space: nowrap; }
+.buy-val { display: block; font-weight: 600; }
+.buy-trim { display: block; font-size: 12px; color: #5b7a96; }
+/* 缺项显示"—"并注明：留空会被读成"两台一样"，而实际是我们没查到。 */
+.buy-missing { color: #93a7b8; }
+.buy-missing em { display: block; font-size: 11px; font-style: normal; }
+
+.buy-src {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border: 1px solid #c9d8e5;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11px;
+  color: #4a6b8a;
+}
+.buy-src-pop {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f2f6fa;
+}
+.buy-src-doc { margin: 0 0 4px; font-size: 11px; color: #5b7a96; }
+.buy-src-text { margin: 0; font-size: 12px; line-height: 1.5; }
+
+.buy-fold {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #c9d8e5;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  color: #4a6b8a;
+}
+.buy-elim { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
+.buy-elim p { margin: 2px 0; line-height: 1.5; }
+.buy-dim {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #fdece0;
+  color: #a5551a;
+  font-size: 11px;
+}
+
+.buy-meta { font-size: 12px; color: #5b7a96; margin: 0 0 10px; line-height: 1.5; }
+.buy-items, .buy-assumptions { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.buy-items li, .buy-assumptions li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+.buy-items li > span, .buy-assumptions li > span { flex: 1; color: #5b7a96; }
+.buy-total b { font-size: 16px; }
+.buy-total em { display: block; font-size: 11px; font-style: normal; color: #5b7a96; }
+.buy-assumptions em { font-style: normal; font-size: 11px; }
+/* 系统补的默认值用琥珀标出来——它最容易与车主实际情况不符。 */
+.buy-src-default { color: #a5551a; }
+.buy-src-user { color: #2f7a4f; }
+.buy-assumptions button {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #2f6ea5;
+}
+.buy-note { margin: 10px 0 0; font-size: 11px; line-height: 1.6; color: #5b7a96; }
+.buy-cta {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: #2f6ea5;
+  color: #fff;
+  font-size: 15px;
+}
+
+/* 对话层里的入口按钮。放这里而不是底部导航——理由见 app/index.tsx 的注释。 */
+.buy-entry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  padding: 6px 12px;
+  border: 1px solid #c9d8e5;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  color: #2f6ea5;
+}
+
+/* ── 配置对比与金融分区（施工单 M21-06）───────────────────────── */
+
+/** 对齐口径写在表头上方。**不是装饰**：不写清楚会被读成"拿顶配比入门"。 */
+.buy-align {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--hud-text-muted);
+}
+.buy-align b {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/** 配置列的表头分两行：车型小字在上，配置名在下——列多时也能认出属于哪款车。 */
+.buy-trim-model {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.65;
+}
+
+/** 逐项差异。**这一段的数字都是算出来的**，视觉上与"抽出来的参数"区分开。 */
+.buy-diffs {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.buy-diffs > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--hud-divider);
+  font-size: 12px;
+}
+.buy-diffs > li > b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+}
+.buy-diff {
+  display: inline-block;
+  margin: 0 10px 2px 0;
+  color: var(--hud-text-muted);
+}
+.buy-diff--calc {
+  color: #2563eb;
+}
+
+/** 免责只出现一次，且不抢实质内容的视觉权重。 */
+.buy-note--legal {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 11px;
+  line-height: 1.6;
+}

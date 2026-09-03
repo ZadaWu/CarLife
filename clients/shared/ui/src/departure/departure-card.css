@@ -1,0 +1,211 @@
+/*
+ * 出发卡（2026-09-02 从 cockpit `cabin-arrival.css` 上提，两端共用）。
+ *
+ * 尺寸全部跟着 `--hud-unit`：车机横屏它是 1672 基准的场景单位，手机竖屏是 390 基准的竖屏单位
+ * （hud.css 各自定义），所以同一份规则在两端都按各自的尺度落。
+ * 默认落位是"舞台正中"（车机动画收尾滑入）；手机端在 app.css 里把它改成底部升起的 sheet。
+ * 序号与里程行的琥珀用 `--hud-amber`（tokens.css），不用车机 `.cabin-arrival` 私有的 `--cabin-amber`：
+ * 手机端的 token 审计（login-theme-tokens.test）要求共享 css 引用的变量都在 tokens.css 里有定义。
+ */
+.cabin-depart-card {
+  position: absolute;
+  z-index: 9;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: calc(10 * var(--hud-unit));
+  width: min(76vw, calc(560 * var(--hud-unit)));
+  padding: calc(26 * var(--hud-unit)) calc(30 * var(--hud-unit));
+  border: 1px solid rgba(157, 204, 255, 0.28);
+  border-radius: calc(22 * var(--hud-unit));
+  background: linear-gradient(160deg, rgba(16, 45, 82, 0.92), rgba(8, 24, 46, 0.94));
+  box-shadow: 0 24px 60px rgba(2, 10, 22, 0.55), inset 0 0 40px rgba(108, 231, 255, 0.06);
+  text-align: center;
+  animation: cabin-card-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.08) both;
+}
+
+@keyframes cabin-card-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 26px)) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.cabin-depart-card__kicker {
+  color: #8fd8ff;
+  font-size: calc(13 * var(--hud-unit));
+  letter-spacing: 0.32em;
+}
+
+.cabin-depart-card h2 {
+  margin: 0;
+  color: #fff;
+  font-size: calc(34 * var(--hud-unit));
+  line-height: 1.15;
+}
+
+.cabin-depart-card__stops {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(6 * var(--hud-unit)) calc(8 * var(--hud-unit));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: depart-stop;
+}
+
+.cabin-depart-card__stops li {
+  counter-increment: depart-stop;
+  padding: calc(5 * var(--hud-unit)) calc(11 * var(--hud-unit));
+  border: 1px solid rgba(157, 204, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(20, 52, 92, 0.55);
+  color: #dcecff;
+  font-size: calc(14.5 * var(--hud-unit));
+}
+
+.cabin-depart-card__stops li::before {
+  content: counter(depart-stop) " · ";
+  color: var(--hud-amber);
+  font-weight: 700;
+}
+
+.cabin-depart-card__energy {
+  margin: 0;
+  color: #ffd9a0;
+  font-size: calc(13.5 * var(--hud-unit));
+}
+
+.cabin-depart-card__actions {
+  display: flex;
+  justify-content: center;
+  gap: calc(12 * var(--hud-unit));
+  margin-top: calc(4 * var(--hud-unit));
+}
+
+.cabin-depart-card__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none; /* CTA 可能是 <a>（见 TSX 注释），别带链接下划线 */
+  min-height: 44px; /* 驾驶态热区下限 */
+  padding: calc(10 * var(--hud-unit)) calc(30 * var(--hud-unit));
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #ffba54, #ff9b3d);
+  color: #35240a;
+  font-size: calc(17 * var(--hud-unit));
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(255, 168, 61, 0.32);
+}
+
+.cabin-depart-card__primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+.cabin-depart-card__ghost {
+  min-height: 44px;
+  padding: calc(10 * var(--hud-unit)) calc(20 * var(--hud-unit));
+  border: 1px solid rgba(157, 204, 255, 0.35);
+  border-radius: 999px;
+  background: none;
+  color: #cfe4ff;
+  font-size: calc(15 * var(--hud-unit));
+  cursor: pointer;
+}
+
+.cabin-depart-card__hint {
+  margin: 0;
+  color: #93b1d4;
+  font-size: calc(12.5 * var(--hud-unit));
+  line-height: 1.5;
+}
+
+/* 出发导航方案区（M66-04）：策略一句、休息点、里程行、提醒。跟随卡片既有字号与 --hud-unit。 */
+.cabin-depart-card__plan {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--hud-unit));
+  padding: calc(10 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border: 1px solid rgba(157, 204, 255, 0.2);
+  border-radius: calc(14 * var(--hud-unit));
+  background: rgba(14, 38, 70, 0.5);
+  text-align: left;
+}
+
+.cabin-depart-card__plan-strategy {
+  margin: 0;
+  color: #8fd8ff;
+  font-size: calc(13 * var(--hud-unit));
+  letter-spacing: 0.08em;
+}
+
+.cabin-depart-card__plan-stops {
+  margin: 0;
+  /*
+   * 序号走计数器 + `::before`，不用 `list-style` 的标记（走查 2026-09-02：序号左边被吃掉）。
+   *
+   * `overflow` 一旦不是 visible，WebKit 会把 `list-style-position: outside` 的标记
+   * 连同它所在的那条边一起裁掉——而这个列表恰恰必须能滚。`::before` 是内容的一部分，
+   * 裁不到。卡上另一处列表（`__stops`）本来就是这么做的，两处同款。
+   */
+  list-style: none;
+  padding-left: 0;
+  counter-reset: depart-plan-stop;
+  color: #dcecff;
+  font-size: calc(14 * var(--hud-unit));
+  line-height: 1.5;
+  /*
+   * 途经点全展示，高度由 JS 按 3.5 条量出来后写在 style 上（见 stopsViewportHeight）。
+   * 这里只负责"超出就能滑"：
+   *  - `pan-y` 必须显式写——同屏的暖暖身上是 `touch-action: none`（长按说话不能被
+   *    误判成滚动），触屏上这两块相邻，不写清楚就会有一块吞掉另一块的手势；
+   *  - `contain` 挡住滚动穿透：列表滑到底之后不该带着整张出发卡一起动。
+   */
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 悬挂缩进：换行的第二行对齐到文字，不是对齐到序号。 */
+.cabin-depart-card__plan-stops li {
+  counter-increment: depart-plan-stop;
+  padding-left: calc(20 * var(--hud-unit));
+  text-indent: calc(-20 * var(--hud-unit));
+}
+
+.cabin-depart-card__plan-stops li::before {
+  content: counter(depart-plan-stop) ". ";
+  color: var(--hud-amber);
+  font-weight: 700;
+}
+
+/* 车机上滚动条默认不常驻，给一条细的常显轨，让"还有更多"不只靠露出的半条。 */
+.cabin-depart-card__plan-stops::-webkit-scrollbar {
+  width: calc(3 * var(--hud-unit));
+}
+
+.cabin-depart-card__plan-stops::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(157, 204, 255, 0.35);
+}
+
+.cabin-depart-card__plan-stops-none,
+.cabin-depart-card__plan-summary {
+  margin: 0;
+  color: #ffd9a0;
+  font-size: calc(13 * var(--hud-unit));
+}
+
+.cabin-depart-card__plan-caveats {
+  margin: 0;
+  padding-left: calc(16 * var(--hud-unit));
+  color: #93b1d4;
+  font-size: calc(12 * var(--hud-unit));
+  line-height: 1.45;
+}
+

@@ -1,0 +1,25 @@
+{
+  "name": "@carlife/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@carlife/shared": "workspace:*",
+    "@carlife/memory": "workspace:*",
+    "@carlife/rag": "workspace:*",
+    "@carlife/db": "workspace:*",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11"
+  }
+}

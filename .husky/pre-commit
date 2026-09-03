@@ -1,0 +1,3 @@
+# 提交前门禁（快检查，全套走 corepack pnpm check:all 或 CI）
+corepack pnpm check:secrets
+corepack pnpm check:env-example

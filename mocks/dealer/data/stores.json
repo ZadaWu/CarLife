@@ -1,0 +1,115 @@
+{
+  "__doc": "门店种子数据（施工单 M19-01）。type: experience=体验店（试驾）/ service=服务中心（维修）。district 必填——用户按区找店。坐标是各区中心的近似值，用于 near 排序，不是真实门店地址。",
+  "stores": [
+    {
+      "storeId": "sz-nanshan-exp",
+      "name": "深圳南山体验店",
+      "type": "experience",
+      "city": "深圳",
+      "district": "南山区",
+      "address": "深圳市南山区科苑南路 2888 号",
+      "lat": 22.5288,
+      "lon": 113.9442,
+      "models": ["Model 3", "Model Y", "Cybertruck"]
+    },
+    {
+      "storeId": "sz-futian-exp",
+      "name": "深圳福田体验店",
+      "type": "experience",
+      "city": "深圳",
+      "district": "福田区",
+      "address": "深圳市福田区深南大道 7888 号",
+      "lat": 22.5410,
+      "lon": 114.0596,
+      "models": ["Model 3", "Model Y"]
+    },
+    {
+      "storeId": "sz-baoan-svc",
+      "name": "深圳宝安服务中心",
+      "type": "service",
+      "city": "深圳",
+      "district": "宝安区",
+      "address": "深圳市宝安区新湖路 1128 号",
+      "lat": 22.5551,
+      "lon": 113.8836,
+      "models": ["Model 3", "Model Y", "Cybertruck"]
+    },
+    {
+      "storeId": "gz-tianhe-exp",
+      "name": "广州天河体验店",
+      "type": "experience",
+      "city": "广州",
+      "district": "天河区",
+      "address": "广州市天河区天河路 383 号",
+      "lat": 23.1350,
+      "lon": 113.3245,
+      "models": ["Model 3", "Model Y"]
+    },
+    {
+      "storeId": "gz-panyu-svc",
+      "name": "广州番禺服务中心",
+      "type": "service",
+      "city": "广州",
+      "district": "番禺区",
+      "address": "广州市番禺区迎宾路 233 号",
+      "lat": 22.9386,
+      "lon": 113.3846,
+      "models": ["Model 3", "Model Y"]
+    },
+    {
+      "storeId": "sh-pudong-exp",
+      "name": "上海浦东体验店",
+      "type": "experience",
+      "city": "上海",
+      "district": "浦东新区",
+      "address": "上海市浦东新区世纪大道 100 号",
+      "lat": 31.2336,
+      "lon": 121.5055,
+      "models": ["Model 3", "Model Y", "Cybertruck"]
+    },
+    {
+      "storeId": "sh-minhang-exp",
+      "name": "上海闵行体验店",
+      "type": "experience",
+      "city": "上海",
+      "district": "闵行区",
+      "address": "上海市闵行区申长路 688 号",
+      "lat": 31.1923,
+      "lon": 121.3822,
+      "models": ["Model Y"]
+    },
+    {
+      "storeId": "sh-jiading-svc",
+      "name": "上海嘉定服务中心",
+      "type": "service",
+      "city": "上海",
+      "district": "嘉定区",
+      "address": "上海市嘉定区曹安公路 4801 号",
+      "lat": 31.3747,
+      "lon": 121.2655,
+      "models": ["Model 3", "Model Y", "Cybertruck"]
+    },
+    {
+      "storeId": "hz-xihu-exp",
+      "name": "杭州西湖体验店",
+      "type": "experience",
+      "city": "杭州",
+      "district": "西湖区",
+      "address": "杭州市西湖区文三路 258 号",
+      "lat": 30.2795,
+      "lon": 120.1329,
+      "models": ["Model 3", "Model Y"]
+    },
+    {
+      "storeId": "hz-binjiang-svc",
+      "name": "杭州滨江服务中心",
+      "type": "service",
+      "city": "杭州",
+      "district": "滨江区",
+      "address": "杭州市滨江区江南大道 3688 号",
+      "lat": 30.2084,
+      "lon": 120.2109,
+      "models": ["Model 3", "Model Y"]
+    }
+  ]
+}

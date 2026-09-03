@@ -1,0 +1,180 @@
+{
+  "__doc": "跨语言契约样例（M2-01）。Rust 侧 clients/shared/rust/carlife-core/tests/contract_roundtrip.rs 与 TS 侧 contracts/scripts/check-contract-fixtures.mjs 消费同一份数据；与 src/protocol/samples.ts 中的类型化样例保持逐字节一致。",
+  "envelopes": [
+    {
+      "eventId": "1",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000000000,
+      "event": {
+        "type": "session",
+        "status": "created"
+      }
+    },
+    {
+      "eventId": "2",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000001000,
+      "event": {
+        "type": "prompt",
+        "turnId": "turn-1",
+        "source": "voice",
+        "transcript": "明天要跑一趟长途"
+      }
+    },
+    {
+      "eventId": "3",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000001500,
+      "event": {
+        "type": "update",
+        "kind": "state",
+        "state": "thinking"
+      }
+    },
+    {
+      "eventId": "3f",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000001800,
+      "event": {
+        "type": "update",
+        "kind": "filler",
+        "turnId": "turn-1",
+        "text": "我在翻你这车的手册",
+        "source": "l0",
+        "interruptible": true
+      }
+    },
+    {
+      "eventId": "4",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000002000,
+      "event": {
+        "type": "update",
+        "kind": "delta",
+        "turnId": "turn-1",
+        "text": "好的，"
+      }
+    },
+    {
+      "eventId": "5b",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000002500,
+      "event": {
+        "type": "update",
+        "kind": "branch",
+        "turnId": "turn-1",
+        "agent": "trip-task",
+        "status": "ok",
+        "durationMs": 2140,
+        "note": "路线规划已完成"
+      }
+    },
+    {
+      "eventId": "5c",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000002600,
+      "event": {
+        "type": "update",
+        "kind": "branch",
+        "turnId": "turn-1",
+        "agent": "hotel-task",
+        "status": "timeout",
+        "durationMs": 60000,
+        "note": "酒店安排超时未返回"
+      }
+    },
+    {
+      "eventId": "5",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000003000,
+      "event": {
+        "type": "update",
+        "kind": "turn_end",
+        "turnId": "turn-1",
+        "messageId": "msg-assistant-1"
+      }
+    },
+    {
+      "eventId": "6",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000004000,
+      "event": {
+        "type": "permission",
+        "interruptId": "int-1",
+        "action": "calendar_write",
+        "title": "写入你的日历",
+        "details": [
+          {
+            "label": "10月1日",
+            "value": "出发（深圳 → 黄山）"
+          }
+        ],
+        "disclosure": [],
+        "scope": "google:primary"
+      }
+    },
+    {
+      "eventId": "7",
+      "sessionId": "sess-demo-001",
+      "ts": 1770000005000,
+      "event": {
+        "type": "tool_call",
+        "toolCallId": "tc-1",
+        "toolName": "weather",
+        "displayName": "正在查沿途天气",
+        "status": "started"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "messageId": "msg-user-1",
+      "sessionId": "sess-demo-001",
+      "turnId": "turn-1",
+      "role": "user",
+      "source": "voice",
+      "content": "明天要跑一趟长途",
+      "ts": 1770000001000
+    },
+    {
+      "messageId": "msg-assistant-1",
+      "sessionId": "sess-demo-001",
+      "turnId": "turn-1",
+      "role": "assistant",
+      "source": "text",
+      "content": "好的，出发前建议确认电量与胎压。",
+      "ts": 1770000003000
+    }
+  ],
+  "historyPage": {
+    "messages": [],
+    "hasMore": false,
+    "nextBefore": null
+  },
+  "captureStatuses": [
+    {
+      "kind": "started",
+      "mode": "push_to_talk"
+    },
+    {
+      "kind": "stopped",
+      "durationMs": 2300
+    },
+    {
+      "kind": "uploading"
+    },
+    {
+      "kind": "uploaded"
+    },
+    {
+      "kind": "failed",
+      "reason": "permission_denied"
+    }
+  ],
+  "audioMeta": {
+    "durationMs": 2300,
+    "format": "pcm_s16le",
+    "sampleRateHz": 16000,
+    "channels": 1
+  }
+}

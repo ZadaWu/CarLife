@@ -1,0 +1,17 @@
+{
+  "name": "@carlife/pi-agents",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.20.0"
+  },
+  "description": "pi 的项目级配置目录（prompts + .pi/extensions）。本目录不含任何协议代码——真正的 ACP Agent 进程由开源 svkozak/pi-acp 启动，pi 从本目录的 .pi/ 发现项目级配置与扩展（由 ACP session/new 的 cwd 决定，见 M4-01 回报 §13-1）。",
+  "scripts": {
+    "start": "pi-acp",
+    "test": "node -e \"console.log('no unit tests: pi 的配置目录（prompts/.pi/扩展清单），不含协议或业务代码；行为由 agent-runtime 的 ACP 用例覆盖')\""
+  },
+  "devDependencies": {
+    "pi-acp": "0.0.33",
+    "@earendil-works/pi-coding-agent": "0.84.1"
+  }
+}

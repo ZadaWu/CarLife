@@ -1,0 +1,122 @@
+/* 车机端 HUD 主题 Token（施工单 M1-02）
+ *
+ * 依据 内部文档 §5。
+ * 主题切换只改变配色与明暗层级，不改变布局坐标、信息层级与交互语义。
+ * 布局坐标不在本文件——它们以设计基准像素声明在组件里。
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* 生活地图底图：浅冰蓝，道路/水系/绿地可辨识，不得退化为纯白 */
+  --hud-map-base: #e2eef8;
+  --hud-map-base-2: #d5e7f6;
+  --hud-map-road: #ffffff;
+  --hud-map-road-minor: #eef6fd;
+  --hud-map-water: #bfdcf4;
+  --hud-map-green: #d4e8d2;
+  --hud-map-block: #edf4fb;
+
+  /* 信息卡：珍珠白卡面、深蓝文字、浅蓝描边 */
+  --hud-card-bg: rgba(255, 255, 255, 0.92);
+  --hud-card-border: rgba(163, 200, 232, 0.55);
+  --hud-card-shadow: 0 18px 48px rgba(70, 120, 170, 0.18);
+  --hud-text: #1f3d63;
+  --hud-text-muted: #6c8bb0;
+  --hud-divider: rgba(150, 190, 225, 0.45);
+
+  /* 生活环 / 主行动：暖琥珀 */
+  --hud-amber: #f5a623;
+  --hud-amber-bright: #ffc861;
+  --hud-amber-dim: #f7d9a0;
+  --hud-amber-glow: rgba(255, 190, 90, 0.75);
+  --hud-badge-text: #ffffff;
+
+  /* 正常状态：青绿 / 薄荷绿 */
+  --hud-ok: #2fbf9b;
+  /*
+   * 告警与错误。**两个主题各配一版，不是一个色值配两种底**——
+   * 深色主题那支红（#ff6b6b）落在浅色底图（#d5e7f6）上只有 2.4:1，正文读不了。
+   *
+   * 新增于 2026-09-02：此前登录门与车机设置页引用的是 `--danger` / `--warning`
+   * 两个名字，而它们**全仓从未定义过**，一直吃硬写的 fallback。
+   * 表现就是这几块颜色切主题时原地不动（app.css 文件头警告过的那一种）。
+   */
+  --hud-danger: #c0392b;
+  --hud-warn: #b8730f;
+  /* 告警块的底色：同一支红按主题各调一次透明度与明度，不共用一个 rgba。 */
+  --hud-danger-bg: rgba(192, 57, 43, 0.10);
+
+  --hud-pin: #3d8fd6;
+  --hud-halo: rgba(255, 255, 255, 0.85);
+  /* 助手底环（放大镜效果）：亮片 + 一圈冷蓝亮环 */
+  --hud-halo-fill: rgba(255, 255, 255, 0.5);
+  --hud-halo-ring: rgba(255, 255, 255, 0.85);
+  /* 音波底片：与卡面同色系，只比卡面暗一档，不抢主行动色 */
+  --hud-wave-bg: rgba(245, 166, 35, 0.12);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* 深海军蓝地理底图：蓝灰道路、深薄荷绿地清晰可见 */
+  --hud-map-base: #0e1c34;
+  --hud-map-base-2: #0a1729;
+  --hud-map-road: #24354f;
+  --hud-map-road-minor: #17263c;
+  --hud-map-water: #122d4a;
+  --hud-map-green: #16382f;
+  --hud-map-block: #132340;
+
+  /* 信息卡：蓝黑卡面、雾白文字、冰蓝描边 */
+  --hud-card-bg: rgba(16, 30, 52, 0.88);
+  --hud-card-border: rgba(120, 170, 220, 0.35);
+  --hud-card-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --hud-text: #e8f1fb;
+  --hud-text-muted: #8fa9c6;
+  --hud-divider: rgba(120, 170, 220, 0.28);
+
+  /* 生活环 / 主行动：金琥珀 */
+  --hud-amber: #ffbe4d;
+  --hud-amber-bright: #ffd98a;
+  --hud-amber-dim: #8a6a2f;
+  --hud-amber-glow: rgba(255, 200, 110, 0.55);
+  --hud-badge-text: #2a1c05;
+
+  --hud-ok: #3fd6ad;
+  --hud-danger: #ff7a70;
+  --hud-warn: #ffb454;
+  --hud-danger-bg: rgba(255, 122, 112, 0.16);
+
+  --hud-pin: #6fb6ee;
+  --hud-halo: rgba(255, 216, 150, 0.5);
+  /* 深色下底环不能再用白片——白圆在深蓝地图上是一块光斑，
+     改成半透明卡面色 + 冷蓝亮环，只留"镜片"的边缘感。 */
+  --hud-halo-fill: rgba(22, 40, 66, 0.5);
+  --hud-halo-ring: rgba(140, 190, 240, 0.42);
+  --hud-wave-bg: rgba(255, 190, 77, 0.16);
+}
+
+/* 车机大字号尺度：以设计基准 1672×941 为准等比缩放。
+ *
+ * --hud-unit 是「1 个设计基准像素对应的实际长度」，纯 CSS 推导，不依赖 JS：
+ * 舞台宽 = min(100vw, 100vh × 16:9)，与 .hud-stage 的 width/max-width 规则同源，
+ * 因此二者恒定一致。用长度单位而非无量纲比例，是为了让 calc(34 * unit) 合法。
+ *
+ * 注意：假定 HUD 占满视口（车机端即如此）。若将来嵌入更小容器，需改用容器查询。
+ */
+:root {
+  /* 悬浮层与文字的尺度 */
+  --hud-unit: calc(min(100vw, 100vh * 1672 / 941) / 1672);
+  /* 生活环场景的尺度。横屏与 --hud-unit 一致；竖屏下二者解耦——
+     场景按宽度铺满，而文字/卡片按更大的尺度放大以保证可读性。 */
+  --hud-scene-unit: var(--hud-unit);
+  --hud-font-title: calc(34 * var(--hud-unit));
+  --hud-font-poi: calc(27 * var(--hud-unit));
+  --hud-font-body: calc(24 * var(--hud-unit));
+  --hud-font-metric: calc(30 * var(--hud-unit));
+  --hud-font-caption: calc(21 * var(--hud-unit));
+  --hud-radius-card: calc(28 * var(--hud-unit));
+  --hud-radius-pill: 999px;
+}

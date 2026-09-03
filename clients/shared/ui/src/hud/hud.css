@@ -1,0 +1,1832 @@
+/* 车机端 HUD 样式（施工单 M1-02）
+ *
+ * 布局规则见 Brief §6：
+ *  - 地图背景必须可读，但视觉优先级低于生活环、助手、序号与提示卡；
+ *  - Light / Dark 保持相同信息位置与触控语义。
+ * 所有尺寸以 var(--hud-unit)（1 设计基准像素对应的实际长度）换算，
+ * 保证等比缩放不变形。--hud-unit 定义在 themes/tokens.css，纯 CSS 推导。
+ */
+
+.hud-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--hud-map-base-2);
+  overflow: hidden;
+  /* 统一走 --font-ui（Inter + 思源黑体，M14-14）——这里原来另写一套系统栈，
+     会让 HUD 与档案页用两种字，数字尤其明显。 */
+  font-family: var(--font-ui);
+  color: var(--hud-text);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 触屏长按不许弹系统菜单（车机 ACR-004 先踩到；2026-09-02 手机端又踩一次）──
+ *
+ * iPhone 上长按暖暖，弹出的是 iOS 的图片预览/菜单（放大、Share、Save to Photos），
+ * **把「长按说话」整个吃掉了**——那是本产品的核心交互。桌面端永远不会暴露这条：
+ * `-webkit-touch-callout` 只在触屏上生效。
+ *
+ * `.hud-viewport` 上已有的 `user-select: none` 管不住它：那条管文字选择，
+ * 图片的长按菜单是另一套。`-webkit-user-drag: none` 一并给：长按之后接着拖，
+ * 会把精灵图拖出一个半透明副本跟着手指走，同样是 WebView 的默认行为。
+ *
+ * 放在共享包而不是各端自己写：车机端曾在 styles.css 里修过同一件事，手机端没抄，
+ * 于是同一个 bug 在第二个端上原样重现。立绘与地图标注都住在 .hud-viewport 里，
+ * 从这里下发两端一起管。
+ *
+ * ⚠️ 输入框必须豁免：设置页填网关 IP 时长按粘贴是最有用的操作。 */
+.hud-viewport {
+  -webkit-touch-callout: none;
+}
+.hud-viewport img,
+.hud-viewport [class*="sprite"],
+.hud-viewport [class*="tripmark"] {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.hud-viewport input,
+.hud-viewport textarea {
+  -webkit-touch-callout: default;
+  user-select: text;
+}
+
+/* 地图底图铺满整个视口：任意屏幕比例都不留信箱黑边 */
+.hud-viewport > .hud-map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* 固定比例场景（生活环 + POI）：等比缩放并居中，构图永不拉伸。
+   场景内部把 --hud-unit 重绑到 --hud-scene-unit，使 POI 序号胶囊、地点名的
+   字号与偏移始终跟随场景缩放；竖屏下场景比悬浮层小，二者不能共用一个尺度。 */
+.hud-scene {
+  --hud-unit: var(--hud-scene-unit);
+  width: calc(1672 * var(--hud-unit));
+  height: calc(941 * var(--hud-unit));
+  /*
+   * 生活环是**装饰层**，鼠标/手指要能穿过去落到底图上。
+   *
+   * 底图早就开了 `dragEnable`/`zoomEnable`（M19-05 用户要求），但这一层铺满整块
+   * 场景压在上面，于是**拖不动也缩不了，且没有任何报错**——看起来就是"高德地图
+   * 在这一屏是张图片"。接"记住上次地图停在哪"时才发现是它挡的。
+   *
+   * `pointer-events` 会被子元素继承，所以整棵子树都穿透（LifeRing 是一张铺满
+   * 场景的 SVG，不整棵关的话它自己就把地图挡完了）。
+   * ⚠️ 以后要在这一层放**可点的东西**，那个元素必须自己写回 `pointer-events: auto`。
+   */
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+/* 卡片的 left/top/width/height 都按设计基准换算，padding 与 border 必须计入
+ * 该尺寸内；否则卡片实际比设定值宽（提示卡 +70px、指标条 +54px），右边缘会
+ * 越过画布并被舞台的 overflow:hidden 裁掉。 */
+.hud-viewport,
+.hud-viewport *,
+.hud-viewport *::before,
+.hud-viewport *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- 层级：地图 < 生活环 < 节点 < 卡片/助手（Brief §6） ---------- */
+.hud-life-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hud-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 竖屏 V2 独立时间轴。横屏继续使用 HudScene 内的原定稿生活环。 */
+.hud-portrait-timeline {
+  display: none;
+}
+
+/* ---------- 生活环节点 ---------- */
+.hud-poi {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.hud-poi__sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 calc(10 * var(--hud-unit)) calc(22 * var(--hud-unit)) rgba(20, 50, 90, 0.22));
+}
+
+.hud-poi--terminal .hud-poi__sprite {
+  filter: drop-shadow(0 calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit)) var(--hud-amber-glow));
+}
+
+.hud-poi__label {
+  position: absolute;
+  left: 50%;
+  white-space: nowrap;
+}
+
+/* 序号徽章优先于地点名（Brief §3.1） */
+.hud-poi__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+  padding: calc(7 * var(--hud-unit)) calc(20 * var(--hud-unit)) calc(7 * var(--hud-unit)) calc(8 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-pill);
+  box-shadow: var(--hud-card-shadow);
+  backdrop-filter: blur(8px);
+}
+
+.hud-poi__index {
+  display: grid;
+  place-items: center;
+  width: calc(38 * var(--hud-unit));
+  height: calc(38 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hud-poi__name {
+  font-size: var(--hud-font-poi);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.hud-poi__origin {
+  display: inline-block;
+  padding: calc(8 * var(--hud-unit)) calc(28 * var(--hud-unit));
+  background: linear-gradient(180deg, var(--hud-amber-bright), var(--hud-amber));
+  color: var(--hud-badge-text);
+  font-size: var(--hud-font-poi);
+  font-weight: 700;
+  border-radius: var(--hud-radius-pill);
+  box-shadow: 0 calc(6 * var(--hud-unit)) calc(20 * var(--hud-unit)) var(--hud-amber-glow);
+}
+
+/* ---------- 通用卡片 ---------- */
+.hud-card {
+  position: absolute;
+  z-index: 3;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-card);
+  box-shadow: var(--hud-card-shadow);
+  backdrop-filter: blur(14px);
+}
+
+/* ---------- 行前温馨提示卡 ---------- */
+.hud-tips {
+  /* 锚视口右上；数值对应 layout.ts 的 EDGE_ANCHORS.tips */
+  right: calc(32 * var(--hud-unit));
+  top: calc(112 * var(--hud-unit));
+  width: calc(462 * var(--hud-unit));
+  height: calc(578 * var(--hud-unit));
+  display: flex;
+  flex-direction: column;
+  /* 左右内边距收窄：内容区越宽，三等分后的单列越宽，物品图标才能达到定稿
+     约 35% 卡宽的体量 */
+  padding: calc(30 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  touch-action: pan-y;
+}
+
+.hud-tips__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(14 * var(--hud-unit));
+}
+
+.hud-tips__weather {
+  width: calc(42 * var(--hud-unit));
+  height: calc(42 * var(--hud-unit));
+  object-fit: contain;
+}
+
+.hud-tips__title {
+  margin: 0;
+  font-size: var(--hud-font-title);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hud-tips__divider {
+  margin: calc(20 * var(--hud-unit)) 0 calc(10 * var(--hud-unit));
+  border-top: 1px dashed var(--hud-divider);
+}
+
+/* 每页最多 3 件、三件等宽（Brief §3.3）。
+   整块物品区在卡片剩余空间内**垂直居中**（此前是 align-items:end 底对齐，
+   导致上方大片留白、图标视觉偏小）。 */
+.hud-tips__items {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: calc(8 * var(--hud-unit));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hud-tips__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(14 * var(--hud-unit));
+}
+
+/* 三件图标共用**同一个定高框**并 contain 缩放。
+   用 max-height 会让各自按原始比例自由生长（实测 105 / 262 / 287，高度悬殊），
+   定稿里三者是齐平的：宽扁的帽子受框宽约束、高瘦的瓶子受框高约束。
+   宽度取 112% 允许宽扁图标略溢出单列 —— 定稿的遮阳帽正是这样达到约 35% 卡宽，
+   而高瘦图标因 contain 不会真的变宽，不会相互碰撞。 */
+.hud-tips__icon {
+  width: 112%;
+  height: calc(168 * var(--hud-unit));
+  object-fit: contain;
+}
+
+/* 物品名与图标同时展示（M20-01 用户走查：只有图标时认不出是哪件东西）。
+ *
+ * 曾经这里是视觉隐藏（M19-05）。恢复文字后不要再改回去——三张图标都是
+ * `alt="" aria-hidden`，名字既是屏幕上的说明，也是这张卡在读屏里唯一的内容。
+ * 一行放不下就省略号：物品名是短词，出现省略号说明上游的 label 该收短了。 */
+.hud-tips__label {
+  max-width: 100%;
+  font-size: var(--hud-font-body);
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-tips__pager {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+  margin-top: calc(18 * var(--hud-unit));
+}
+
+.hud-tips__pagenum {
+  font-size: var(--hud-font-body);
+  color: var(--hud-text-muted);
+}
+
+/* 页码与圆点并排（M32-03）：目的地推荐卡的正文比物品卡挤得多，
+   这一排换一行能给正文让出约 26px——差的正是那么多。 */
+.hud-tips__pager.is-compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(10 * var(--hud-unit));
+  margin-top: calc(10 * var(--hud-unit));
+}
+
+.hud-tips__pager.is-compact .hud-tips__hint {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+.hud-tips__pagenum-cur {
+  color: var(--hud-amber);
+  font-weight: 700;
+}
+
+.hud-tips__dots {
+  display: flex;
+  gap: calc(10 * var(--hud-unit));
+}
+
+.hud-tips__dot {
+  width: calc(10 * var(--hud-unit));
+  height: calc(10 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-divider);
+  transition: background 0.25s ease;
+}
+.hud-tips__dot.is-active { background: var(--hud-amber); }
+
+/* 滑动手势引导：箭头淡、手势重，两者都不能盖过物品图标。
+   宽度按卡片走，高度锁死，避免 SVG 在 flex 列里被拉伸。 */
+.hud-tips__hint {
+  width: calc(216 * var(--hud-unit));
+  height: calc(58 * var(--hud-unit));
+  margin-top: calc(4 * var(--hud-unit));
+  overflow: visible;
+}
+
+.hud-tips__hint-arrow {
+  stroke: var(--hud-text-muted);
+  stroke-width: 2;
+  opacity: 0.5;
+}
+
+.hud-tips__hint-hand {
+  stroke: var(--hud-pin);
+  stroke-width: 1.7;
+  animation: hud-tips-hint 2.6s ease-in-out infinite;
+}
+
+/* 手沿箭头方向来回一小段——静止的手看起来像图标，动起来才是"往这边划"。 */
+@keyframes hud-tips-hint {
+  0%, 62%, 100% { transform: translate(112px, 6px) scale(1.15); }
+  30% { transform: translate(126px, 6px) scale(1.15); }
+}
+
+/* ---------- 目的地推荐卡（M32-03）----------
+   与提示卡**共用外框**：`.hud-highlights` 不设 right/top/width/height，
+   它们全部来自同一元素上的 `.hud-tips`。轮播时外框跳尺寸 = 每 6 秒地图被遮挡
+   的面积跳一次，比多显示两行字糟得多，所以这里一个几何值都不覆盖。 */
+
+/* 卡头那枚地点针脚：占位与天气图标一致，只是画法不同。 */
+.hud-highlights__pin {
+  flex: none;
+  stroke: var(--hud-amber);
+  stroke-width: 1.8;
+  fill: none;
+}
+
+/* 卡头**必须单行**。目的地名长短不由我们定（「广州」两个字，也可能是
+   「呼伦贝尔大草原」），换行的代价不是难看：标题一占两行，正文可用高度就少一行，
+   底下那一条推荐被 overflow 悄悄吃掉——走查实测过（75px 的头把 3+3 挤成 3+0）。 */
+.hud-highlights .hud-tips__head {
+  min-width: 0;
+}
+
+.hud-highlights .hud-tips__title {
+  font-size: var(--hud-font-poi);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 左右两栏。左栏（榜单）比右栏（拍照建议）宽一点：
+   左边一行是"序号 + 店名 + 一句理由 + 出处"，右边只有"点名 + 一句建议"。 */
+.hud-highlights__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.18fr 1fr;
+  column-gap: calc(14 * var(--hud-unit));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hud-highlights__col {
+  display: flex;
+  flex-direction: column;
+  gap: calc(10 * var(--hud-unit));
+  min-width: 0;
+}
+
+/* 右栏加一条竖分隔：两栏讲的是"去哪"和"怎么拍"，没有分隔时读起来像一栏折行。 */
+.hud-highlights__col--tips {
+  padding-left: calc(12 * var(--hud-unit));
+  border-left: 1px dashed var(--hud-divider);
+}
+
+.hud-highlights__label {
+  margin: 0 0 calc(4 * var(--hud-unit));
+  font-size: var(--hud-font-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--hud-text-muted);
+}
+
+.hud-highlights__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--hud-unit));
+}
+
+.hud-highlights__row {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(7 * var(--hud-unit));
+  min-width: 0;
+}
+
+/* 排名靠**序号**表达，不靠字号——三行字号一样大才读得快，
+   而"第几名"是一眼扫过去就要拿到的信息。 */
+.hud-highlights__rank {
+  flex: none;
+  width: calc(22 * var(--hud-unit));
+  height: calc(22 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-amber);
+  color: #fff;
+  font-size: calc(15 * var(--hud-unit));
+  font-weight: 700;
+  line-height: calc(22 * var(--hud-unit));
+  text-align: center;
+}
+
+.hud-highlights__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 名字一行放不下就省略号：它是短词，出现省略号说明上游给长了。 */
+.hud-highlights__name,
+.hud-highlights__spot {
+  font-size: calc(19 * var(--hud-unit));
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-highlights__spot {
+  color: var(--hud-amber);
+}
+
+/* 理由**只给一行**：卡高是定死的，给两行就要砍掉一条推荐。
+   工具侧已限长，这里是最后一道保险。拍照建议那一栏窄，允许折两行。 */
+.hud-highlights__note {
+  font-size: calc(16 * var(--hud-unit));
+  line-height: 1.3;
+  color: var(--hud-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-highlights__row--tip .hud-highlights__note {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 出处**不上卡**（2026-08-28 产品决定）：契约里的 `sourceUrl` 照旧存在、照旧要与
+   搜索结果全等才留，但这张卡一个来源字样都不画。所以这里**没有** `__source` 一组样式——
+   要加回来的话，先回去看 HighlightsCard.tsx 文件头那段"不许出现据某某"的理由。 */
+
+/* ---------- 能量胶囊 ---------- */
+.hud-energy {
+  /* 锚视口右下；对应 EDGE_ANCHORS.energy */
+  right: calc(32 * var(--hud-unit));
+  bottom: calc(79 * var(--hud-unit));
+  width: calc(664 * var(--hud-unit));
+  height: calc(108 * var(--hud-unit));
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 calc(26 * var(--hud-unit));
+}
+
+.hud-energy__metric {
+  display: flex;
+  align-items: baseline;
+  gap: calc(8 * var(--hud-unit));
+}
+
+.hud-energy__glyph {
+  width: calc(34 * var(--hud-unit));
+  height: calc(34 * var(--hud-unit));
+  align-self: center;
+}
+
+.hud-energy__caption {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+
+.hud-energy__value {
+  font-size: var(--hud-font-metric);
+  font-weight: 700;
+}
+
+.hud-energy__unit {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+
+.hud-energy__sep {
+  width: 1px;
+  height: 46%;
+  background: var(--hud-divider);
+}
+
+.hud-energy.is-stale { opacity: 0.94; }
+
+/* ── 实时能量读数（M27）────────────────────────────────────
+   续航估算跟在百分比后面：百分比回答"还剩多少"，公里数回答"够不够到"，
+   开车的人真正在问的是后者。字号压到 caption 级，不与主指标抢。 */
+.hud-energy__range {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+  margin-left: calc(6 * var(--hud-unit));
+}
+
+/* 一律不折行。中段的文案在 M27 变长了（"当前"→"剩余电量"，又多一段续航），
+   flex 收缩会把它们逐字折成两行——车机是扫一眼的屏幕，折行等于读不到。
+   容器有余量（三段合计约占胶囊的九成），缺的只是这条约束。 */
+.hud-energy__caption,
+.hud-energy__unit,
+.hud-energy__range,
+.hud-energy__value {
+  white-space: nowrap;
+}
+
+.hud-energy__metric {
+  flex: 0 0 auto;
+}
+
+/* 低电/低油：整段转琥珀。**图标形状已经区分了电与油**，颜色只承担告警，
+   不承担"这是电还是油"——色觉差异下后者会失效。 */
+.hud-energy__metric.is-low .hud-energy__value,
+.hud-energy__metric.is-low .hud-energy__caption {
+  color: var(--hud-amber);
+}
+
+/* 读不到：不给数字也不给告警色。它是"不知道"，不是"很低"——
+   染成琥珀会让车主以为快没电了，那是把一次故障说成一个车辆状态。 */
+.hud-energy__metric--muted .hud-energy__value--none {
+  font-size: var(--hud-font-caption);
+  font-weight: 600;
+  color: var(--hud-text-muted);
+  align-self: center;
+}
+
+.hud-energy__stale {
+  position: absolute;
+  right: calc(24 * var(--hud-unit));
+  bottom: calc(-30 * var(--hud-unit));
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+
+/* ---------- 助手英雄区 ---------- */
+/* 助手改为按左/下边缘锚定视口，不再以中心点定位，故移除居中位移 */
+.hud-assistant__hero {
+  /* 锁高、宽度随精灵比例；水平中心对齐提示卡中心（EDGE_ANCHORS.assistantHero） */
+  left: calc(221 * var(--hud-unit));
+  bottom: calc(175 * var(--hud-unit));
+  height: calc(344 * var(--hud-unit));
+  transform: translateX(-50%);
+  position: absolute;
+  z-index: 4;
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* 麦克风开关贴在暖暖身侧（M26 走查）。
+   它原先绝对定位在视口右上角，和「暖暖出发演示」的重播/关闭按钮**叠在同一块**——
+   两组按钮压在一起，点哪个都像点错。挪到助手右侧后它仍然常驻可见（F-02-08），
+   而右上角整块还给演示浮层。
+   落点贴在底环右缘、约 4 点钟方向——和「退下」贴右上角是同一套做法，
+   看起来是挂在暖暖身上的徽章，而不是浮在地图上的又一个控件。
+   推导（EDGE_ANCHORS.assistantHero：中心 221 / 底 175 / 高 344）：
+   底环圆心 (221, 底起 333)、半径 ≈151；取 −20° → 圆心 (363, 底起 281)，
+   徽章 62 见方 → left 332 / bottom 250。
+   再往右会压到装饰生活环的「湿地公园」岛（左缘约 404）。 */
+.hud-assistant-mic {
+  position: absolute;
+  z-index: 6;
+  left: calc(332 * var(--hud-unit));
+  bottom: calc(250 * var(--hud-unit));
+}
+/* 三个类一起写：`.carlife-mic--icon.carlife-mic--cockpit` 在本文件更靠后，
+   同特异度下会赢，尺寸就被拉回 52px 的固定值。 */
+.hud-assistant-mic.carlife-mic--icon.carlife-mic--cockpit {
+  width: calc(62 * var(--hud-unit));
+  height: calc(62 * var(--hud-unit));
+  border-width: calc(1.5 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  box-shadow: 0 calc(6 * var(--hud-unit)) calc(18 * var(--hud-unit)) rgba(20, 50, 90, 0.22);
+}
+.hud-assistant-mic.carlife-mic--icon .carlife-mic__glyph {
+  width: calc(34 * var(--hud-unit));
+  height: calc(34 * var(--hud-unit));
+}
+
+/* 「放大镜」底环：一枚圆形柔光片，角色从上方溢出它一小截。
+   尺寸用 aspect-ratio 而不是写死宽度——英雄区是**锁高、宽度随精灵比例**的，
+   换一张比例不同的精灵时圆环仍然是正圆。 */
+.hud-assistant__halo {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  height: 88%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--hud-halo-fill);
+  box-shadow:
+    inset 0 0 0 calc(3 * var(--hud-unit)) var(--hud-halo-ring),
+    0 calc(10 * var(--hud-unit)) calc(30 * var(--hud-unit)) rgba(70, 120, 170, 0.16);
+  backdrop-filter: blur(6px);
+}
+
+/* 锁高、宽度随精灵原始比例（见 layout.ts 的不遮挡不变量） */
+.hud-assistant__sprite {
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 100%;
+  width: auto;
+  filter: drop-shadow(0 calc(14 * var(--hud-unit)) calc(30 * var(--hud-unit)) rgba(20, 50, 90, 0.28));
+  transition: transform 0.3s ease;
+}
+
+.hud-assistant[data-state="listening"] .hud-assistant__sprite { transform: scale(1.03); }
+.hud-assistant[data-state="thinking"] .hud-assistant__sprite { transform: translateY(calc(-4 * var(--hud-unit))); }
+.hud-assistant[data-state="alert"] .hud-assistant__sprite {
+  filter: drop-shadow(0 calc(14 * var(--hud-unit)) calc(30 * var(--hud-unit)) var(--hud-amber-glow));
+}
+
+.hud-assistant__card {
+  /* 对应 EDGE_ANCHORS.assistantCard */
+  left: calc(26 * var(--hud-unit));
+  bottom: calc(55 * var(--hud-unit));
+  width: calc(390 * var(--hud-unit));
+  height: calc(150 * var(--hud-unit));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 calc(32 * var(--hud-unit));
+  /* 两行文案居中；音波是绝对定位的浮层，不占这条居中轴 */
+  text-align: center;
+}
+
+.hud-assistant__primary {
+  font-size: var(--hud-font-title);
+  font-weight: 700;
+}
+
+/* 主行里的操作提示（「（点一下打断）」）：它说的是"能做什么"而不是"在干什么"，
+   降到次行的字号与灰度，别与状态文案抢同一视觉级 */
+.hud-assistant__hint {
+  font-size: var(--hud-font-body);
+  font-weight: 400;
+  color: var(--hud-text-muted);
+}
+
+/* 分割线**短于卡片内容宽**，且居中：它右侧要给音波底片让出整块位置。
+   拉满宽度时这条线会从音波圆片底下穿过去，看起来像划伤了那枚图标。
+   宽度上限 = 音波左边缘（卡右 24 + 62）再留 12 的呼吸位，取 186。 */
+.hud-assistant__rule {
+  width: calc(186 * var(--hud-unit));
+  margin: calc(14 * var(--hud-unit)) auto calc(10 * var(--hud-unit));
+  border-top: 1px solid var(--hud-divider);
+}
+
+.hud-assistant__secondary {
+  font-size: var(--hud-font-body);
+  color: var(--hud-text-muted);
+}
+
+/* 音波仅在聆听/说话时轻度变化（Brief §3.4）。
+   圆形底片贴卡片右缘，绝对定位——它一旦进入文字所在的流，
+   两行文案就不再是相对卡片居中，而是相对"文字 + 音波"这一整块居中。 */
+.hud-assistant__wave {
+  position: absolute;
+  right: calc(24 * var(--hud-unit));
+  /* 上下都钉住、再让 margin 去分剩余空间 —— 比 top:50% + translateY(-50%)
+     稳：不占用 transform，将来给音波加缩放/位移动效时不会互相覆盖。 */
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+  display: grid;
+  place-items: center;
+  width: calc(62 * var(--hud-unit));
+  height: calc(62 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-wave-bg);
+}
+
+.hud-assistant__wave-icon {
+  width: calc(34 * var(--hud-unit));
+  height: calc(24 * var(--hud-unit));
+}
+
+.hud-assistant__wave-icon rect {
+  fill: var(--hud-amber);
+  opacity: 0.55;
+  /* fill-box 必须显式写：默认的 view-box 会让每根竖杠围绕整张 viewBox 的中心缩放，
+     两侧的杠因此上下平移，波形散架。 */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hud-assistant__wave.is-active .hud-assistant__wave-icon rect {
+  animation: hud-wave 0.9s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes hud-wave {
+  0%, 100% { transform: scaleY(0.72); }
+  50% { transform: scaleY(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-assistant__wave.is-active .hud-assistant__wave-icon rect { animation: none; }
+  .hud-tips__hint-hand { animation: none; }
+  .hud-assistant__sprite { transition: none; }
+  .hud-portrait-timeline__particle,
+  .hud-portrait-timeline__track-node.is-animated,
+  .hud-portrait-timeline__stop.is-animated .hud-portrait-timeline__node-content { animation: none; }
+  .hud-portrait-timeline__particle { display: none; }
+}
+
+/* ============================================================
+   竖屏 V2：纵向生活环 · 时间轴陪伴（390 × 844 基准）
+   ============================================================
+   竖屏不是把横版 16:9 场景缩小到顶部，而是独立转译成：
+   顶部时间轴地图 → 助手对话入口 → 行前提示 → 能量摘要。
+   这样五个节点沿高度展开，避免地点过小、路线难辨与下半屏空白。
+*/
+@media (max-aspect-ratio: 85/100) {
+  :root {
+    /*
+     * 底部预留分两层，别合成一个数字：
+     *
+     *   --hud-portrait-nav-bar  导航药丸自身占位（导航 + 上下留白）
+     *   --hud-portrait-nav      底部**总**预留 = 导航 + 之上那些常驻条
+     *
+     * 竖屏尺度基准与能量胶囊的抬升量都取后者，**必须同源**：一个按 90 算、
+     * 另一个按别的算，表现就是胶囊要么被压住、要么飘在半空。默认两者相等；
+     * 手机端还有一条「景点导览采集」折叠条，它存在时由 app.css 把总预留加高
+     * （见那边的 `:has()` 规则），三层才不会互相叠。
+     */
+    --hud-portrait-nav-bar: 90px;
+    --hud-portrait-nav: var(--hud-portrait-nav-bar);
+
+    /*
+     * 所有竖屏区域按 390 × 844 设计基准等比缩放，避免继续使用横版 1672px 尺度。
+     *
+     * ⚠️ 分母**不是 100vh**：这套竖屏版式是照 390×844 满铺画的，从没给
+     * 状态栏/挖孔、home indicator、底部常驻导航留过位置。按 100vh 缩放的结果是
+     * 844 个设计单位铺满整块屏——顶部的时间轴卡片钻进挖孔区、底部的行前提示
+     * 与能量胶囊互相叠在一起（2026-09-02 在 iPhone 16 Pro Max 上两处都实拍到）。
+     * 真正可用的是**三块都扣掉之后**剩下的高度，尺度按它算才不会有东西被压住。
+     */
+    --hud-portrait-unit: min(
+      calc(100vw / 390),
+      calc(
+        (100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--hud-portrait-nav))
+        / 844
+      )
+    );
+    --hud-unit: var(--hud-portrait-unit);
+
+    /* 竖屏舞台顶边：所有 `top:` 都要加它，否则元素落在状态栏/挖孔底下。 */
+    --hud-portrait-top: env(safe-area-inset-top);
+    /*
+     * 竖屏舞台左边：尺度被高度卡住时，390 个设计单位会窄于屏宽，
+     * 不补这个偏移的话整屏内容全部左对齐、右边空一条。
+     */
+    --hud-portrait-x: max(0px, calc((100vw - 390 * var(--hud-portrait-unit)) / 2));
+  }
+
+  /* 横版固定场景在真竖屏完全隐藏，改用同数据源的 V2 纵向时间轴。 */
+  .hud-scene {
+    display: none;
+  }
+
+  /* 竖屏地图仍保留道路/水系/绿地，但压低对比度，避免网格夺走时间轴注意力。 */
+  .hud-viewport > .hud-map-backdrop {
+    opacity: 0.82;
+  }
+
+  /* ---------- V2 顶部：地图 + 纵向时间轴 ---------- */
+  .hud-portrait-timeline {
+    display: block;
+    position: absolute;
+    z-index: 2;
+    left: 50%;
+    top: var(--hud-portrait-top);
+    width: calc(390 * var(--hud-portrait-unit));
+    height: calc(476 * var(--hud-portrait-unit));
+    transform: translateX(-50%);
+  }
+
+  .hud-portrait-timeline__header {
+    position: absolute;
+    z-index: 3;
+    left: calc(10 * var(--hud-portrait-unit));
+    top: calc(8 * var(--hud-portrait-unit));
+    width: calc(370 * var(--hud-portrait-unit));
+    height: calc(54 * var(--hud-portrait-unit));
+    display: grid;
+    grid-template-columns: calc(34 * var(--hud-portrait-unit)) 1fr;
+    grid-template-rows: 1fr 1fr;
+    column-gap: calc(8 * var(--hud-portrait-unit));
+    align-items: center;
+    padding: 0 calc(16 * var(--hud-portrait-unit));
+    border: 1px solid var(--hud-card-border);
+    border-radius: calc(18 * var(--hud-portrait-unit));
+    background: var(--hud-card-bg);
+    box-shadow: var(--hud-card-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  .hud-portrait-timeline__weather {
+    grid-row: 1 / 3;
+    width: calc(30 * var(--hud-portrait-unit));
+    height: calc(30 * var(--hud-portrait-unit));
+    object-fit: contain;
+  }
+
+  .hud-portrait-timeline__title {
+    align-self: end;
+    font-size: calc(21 * var(--hud-portrait-unit));
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1;
+  }
+
+  .hud-portrait-timeline__subtitle {
+    align-self: start;
+    color: var(--hud-text-muted);
+    font-size: calc(12 * var(--hud-portrait-unit));
+    line-height: 1.2;
+  }
+
+  .hud-portrait-timeline__track {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .hud-portrait-timeline__stops {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hud-portrait-timeline__stop {
+    position: absolute;
+    top: calc(var(--portrait-stop-top) * var(--hud-portrait-unit));
+    left: 0;
+    width: 100%;
+    height: calc(108 * var(--hud-portrait-unit));
+    pointer-events: none;
+  }
+
+  .hud-portrait-timeline__node-content {
+    position: absolute;
+    inset: 0;
+    transform-origin: center;
+  }
+
+  /* 节点可点（M36-04 导览入口）：按钮化时抹掉 UA 样式，视觉与纯展示零差别。 */
+  button.hud-portrait-timeline__node-content {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: pointer;
+  }
+
+  .hud-portrait-timeline__island {
+    position: absolute;
+    top: 0;
+    display: block;
+    width: calc(var(--portrait-stop-width) * var(--hud-portrait-unit));
+    height: auto;
+    filter: drop-shadow(0 calc(4 * var(--hud-portrait-unit)) calc(11 * var(--hud-portrait-unit)) rgba(20, 50, 90, 0.22));
+  }
+
+  .hud-portrait-timeline__stop.is-left .hud-portrait-timeline__island {
+    left: calc(10 * var(--hud-portrait-unit));
+  }
+
+  .hud-portrait-timeline__stop.is-right .hud-portrait-timeline__island {
+    left: calc(220 * var(--hud-portrait-unit));
+  }
+
+  .hud-portrait-timeline__stop.is-terminal .hud-portrait-timeline__island {
+    filter: drop-shadow(0 calc(4 * var(--hud-portrait-unit)) calc(13 * var(--hud-portrait-unit)) var(--hud-amber-glow));
+  }
+
+  .hud-portrait-timeline__label {
+    position: absolute;
+    top: calc(22 * var(--hud-portrait-unit));
+    min-height: calc(38 * var(--hud-portrait-unit));
+    display: inline-flex;
+    align-items: center;
+    gap: calc(6 * var(--hud-portrait-unit));
+    padding: calc(5 * var(--hud-portrait-unit)) calc(10 * var(--hud-portrait-unit));
+    border: 1px solid var(--hud-card-border);
+    border-radius: var(--hud-radius-pill);
+    background: var(--hud-card-bg);
+    box-shadow: var(--hud-card-shadow);
+    backdrop-filter: blur(9px);
+    font-size: calc(17 * var(--hud-portrait-unit));
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .hud-portrait-timeline__stop.is-right .hud-portrait-timeline__label {
+    left: calc(16 * var(--hud-portrait-unit));
+  }
+
+  .hud-portrait-timeline__stop.is-left .hud-portrait-timeline__label {
+    left: calc(228 * var(--hud-portrait-unit));
+  }
+
+  /* 出发是主起点而不是嵌套在白色卡片里的子按钮：直接使用单层琥珀胶囊。 */
+  .hud-portrait-timeline__stop.is-origin .hud-portrait-timeline__label {
+    min-height: 0;
+    padding: calc(8 * var(--hud-portrait-unit)) calc(18 * var(--hud-portrait-unit));
+    color: var(--hud-badge-text);
+    border: 0;
+    background: linear-gradient(180deg, var(--hud-amber-bright), var(--hud-amber));
+    box-shadow: 0 calc(4 * var(--hud-portrait-unit)) calc(13 * var(--hud-portrait-unit)) var(--hud-amber-glow);
+  }
+
+  .hud-portrait-timeline__origin-label {
+    padding: 0;
+  }
+
+  .hud-portrait-timeline__index {
+    display: grid;
+    place-items: center;
+    width: calc(25 * var(--hud-portrait-unit));
+    height: calc(25 * var(--hud-portrait-unit));
+    flex: 0 0 auto;
+    color: var(--hud-badge-text);
+    border-radius: 50%;
+    background: var(--hud-amber);
+    font-size: calc(16 * var(--hud-portrait-unit));
+    font-weight: 700;
+  }
+
+  .hud-portrait-timeline__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /*
+   * 小球、轨道圆点、地点内容共享一个 CSS 6s 时钟：小球在第 N 秒抵达时，
+   * 第 N 秒开始该节点的轻弹动画。这样不会出现 SVG SMIL 与 JS/CSS 时钟错位，
+   * 导致“节点先动/球后到”或“球已过/节点才动”。
+   */
+  .hud-portrait-timeline__particle {
+    position: absolute;
+    z-index: 2;
+    left: calc(195 * var(--hud-portrait-unit));
+    top: calc(136 * var(--hud-portrait-unit));
+    width: calc(9 * var(--hud-portrait-unit));
+    height: calc(9 * var(--hud-portrait-unit));
+    margin: calc(-4.5 * var(--hud-portrait-unit));
+    border-radius: 50%;
+    background: var(--hud-amber-bright);
+    box-shadow: 0 0 calc(10 * var(--hud-portrait-unit)) var(--hud-amber-glow);
+    animation: hud-portrait-particle 6s linear infinite;
+    pointer-events: none;
+  }
+
+  .hud-portrait-timeline__track-node.is-animated {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hud-portrait-track-arrival 6s linear var(--portrait-arrival-delay) infinite;
+  }
+
+  .hud-portrait-timeline__stop.is-animated .hud-portrait-timeline__node-content {
+    animation: hud-portrait-stop-arrival 6s linear var(--portrait-arrival-delay) infinite;
+  }
+
+  @keyframes hud-portrait-particle {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(298 * var(--hud-portrait-unit))); }
+  }
+
+  @keyframes hud-portrait-track-arrival {
+    0% { transform: scale(1.38); }
+    8%, 100% { transform: scale(1); }
+  }
+
+  @keyframes hud-portrait-stop-arrival {
+    0% { transform: scale(1.065); }
+    8%, 100% { transform: scale(1); }
+  }
+
+  /* ---------- V2 中段：助手是视觉 Key 与唯一主交互 ---------- */
+  .hud-assistant__hero {
+    left: calc(78 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+    /* 放大完整角色：它需明显大于任一微缩地点，且保持在末站之后、提示卡之前。 */
+    top: calc(450 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+    bottom: auto;
+    height: calc(200 * var(--hud-portrait-unit));
+    transform: translateX(-50%);
+  }
+
+  /* 竖屏：助手缩到 200 高、中心 78，底环右缘 ≈166 —— 开关贴它右上角。 */
+  .hud-assistant-mic {
+    left: calc(176 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+    bottom: auto;
+    top: calc(452 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+  }
+  /* 三个类一起写：`.carlife-mic--icon.carlife-mic--cockpit` 在本文件更靠后，
+   同特异度下会赢，尺寸就被拉回 52px 的固定值。 */
+.hud-assistant-mic.carlife-mic--icon.carlife-mic--cockpit {
+    width: calc(44 * var(--hud-portrait-unit));
+    height: calc(44 * var(--hud-portrait-unit));
+  }
+  .hud-assistant-mic.carlife-mic--icon .carlife-mic__glyph {
+    width: calc(24 * var(--hud-portrait-unit));
+    height: calc(24 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__card {
+    left: calc(151 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+    top: calc(510 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+    bottom: auto;
+    width: calc(224 * var(--hud-portrait-unit));
+    height: calc(108 * var(--hud-portrait-unit));
+    padding: 0 calc(18 * var(--hud-portrait-unit));
+    border-radius: calc(20 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__primary {
+    font-size: calc(22 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__secondary {
+    font-size: calc(15 * var(--hud-portrait-unit));
+  }
+
+  /* 同横屏：让开右侧音波（卡右 10 + 38，留 8 呼吸位 → 上限 112，取 104） */
+  .hud-assistant__rule {
+    width: calc(104 * var(--hud-portrait-unit));
+    margin: calc(8 * var(--hud-portrait-unit)) auto calc(6 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__wave {
+    right: calc(10 * var(--hud-portrait-unit));
+    width: calc(38 * var(--hud-portrait-unit));
+    height: calc(38 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__wave-icon {
+    width: calc(22 * var(--hud-portrait-unit));
+    height: calc(16 * var(--hud-portrait-unit));
+  }
+
+  .hud-assistant__halo {
+    box-shadow:
+      inset 0 0 0 calc(2 * var(--hud-portrait-unit)) var(--hud-halo-ring),
+      0 calc(6 * var(--hud-portrait-unit)) calc(18 * var(--hud-portrait-unit)) rgba(70, 120, 170, 0.16);
+  }
+
+  /* ---------- V2 下段：集中提示卡 ---------- */
+  .hud-tips {
+    left: calc(10 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+    right: auto;
+    top: calc(638 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+    width: calc(370 * var(--hud-portrait-unit));
+    height: calc(132 * var(--hud-portrait-unit));
+    padding: calc(10 * var(--hud-portrait-unit)) calc(12 * var(--hud-portrait-unit));
+    border-radius: calc(20 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__head {
+    justify-content: flex-start;
+    gap: calc(7 * var(--hud-portrait-unit));
+    padding-right: calc(52 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__weather {
+    width: calc(22 * var(--hud-portrait-unit));
+    height: calc(22 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__title {
+    font-size: calc(20 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__divider {
+    margin: calc(5 * var(--hud-portrait-unit)) 0 0;
+  }
+
+  .hud-tips__items {
+    align-content: center;
+    gap: calc(4 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__item {
+    gap: calc(2 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__icon {
+    width: 110%;
+    height: calc(52 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__label {
+    font-size: calc(14 * var(--hud-portrait-unit));
+  }
+
+  /* 竖屏的提示卡是一条 132 单位高的窄带，页码已被挪到右上角；
+     再塞一条箭头引导会顶掉物品图标——手机上横滑是肌肉记忆，不需要它。 */
+  .hud-tips__hint {
+    display: none;
+  }
+
+  .hud-tips__pager {
+    position: absolute;
+    top: calc(11 * var(--hud-portrait-unit));
+    right: calc(13 * var(--hud-portrait-unit));
+    flex-direction: row;
+    gap: calc(5 * var(--hud-portrait-unit));
+    margin: 0;
+  }
+
+  .hud-tips__pagenum {
+    font-size: calc(14 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__dots {
+    gap: calc(4 * var(--hud-portrait-unit));
+  }
+
+  .hud-tips__dot {
+    width: calc(6 * var(--hud-portrait-unit));
+    height: calc(6 * var(--hud-portrait-unit));
+  }
+
+  /* ---------- V2：目的地推荐卡（M32-03）----------
+     竖屏的提示卡不是横屏那个窄长方形，而是一条**又宽又扁**的带
+     （实测 687×245，正文只剩 123px 高）。横屏那套"左栏两节叠着、右栏一节"
+     在这里必然溢出——两个小标题就吃掉 66px。
+     所以竖屏把三节**并排**成三栏：高度只需一节（标题 + 一行），宽度那一维本来就富余。
+     每节只显示第一条——榜单是有序的，Top1 本身就是有意义的信息。 */
+  .hud-highlights__body {
+    grid-template-columns: 2fr 1fr;
+    column-gap: calc(10 * var(--hud-portrait-unit));
+  }
+
+  /* 左栏的两节在竖屏里并排，与右栏一起构成三栏。 */
+  .hud-highlights__col {
+    flex-direction: row;
+    gap: calc(10 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__section {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hud-highlights__col--tips {
+    padding-left: calc(10 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__label {
+    margin-bottom: calc(2 * var(--hud-portrait-unit));
+    font-size: calc(11 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__row:not(:first-child) {
+    display: none;
+  }
+
+  .hud-highlights__rank {
+    width: calc(13 * var(--hud-portrait-unit));
+    height: calc(13 * var(--hud-portrait-unit));
+    font-size: calc(9 * var(--hud-portrait-unit));
+    line-height: calc(13 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__name,
+  .hud-highlights__spot {
+    font-size: calc(13 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__note {
+    font-size: calc(11 * var(--hud-portrait-unit));
+  }
+
+  .hud-highlights__row--tip .hud-highlights__note {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  /* 竖屏的页码本来就绝对定位在右上角（见上面 .hud-tips__pager），
+     `is-compact` 的横排在那里没有意义，也不该覆盖它的定位。 */
+  .hud-tips__pager.is-compact {
+    flex-direction: row;
+    margin-top: 0;
+  }
+
+  /* ---------- V2 底部：固定只读能量摘要 ---------- */
+  /*
+   * 竖屏的能量胶囊：**高度随内容长**，不再钉死一行。
+   *
+   * 上面那条"一律不折行"是给车机定的，理由写着「容器有余量（三段合计约占胶囊的九成）」。
+   * 竖屏没有那个余量：370 设计像素扣掉左右内边距只剩 ~346，而中段在 M27 之后是
+   * 「充电中 85 % ≈486 km」——三段合计超出容器，nowrap + `flex: 0 0 auto` 于是
+   * 直接溢出被切掉。2026-09-02 在 iPhone 16 Pro Max 上表现为右边的「预计需 XX %」
+   * 整段消失在屏幕外，而**没有任何滚动条或省略号提示它被截了**。
+   */
+  .hud-energy {
+    left: calc(10 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+    right: auto;
+    top: auto;
+    bottom: calc(8 * var(--hud-portrait-unit));
+    width: calc(370 * var(--hud-portrait-unit));
+    height: auto;
+    min-height: calc(54 * var(--hud-portrait-unit));
+    padding: calc(7 * var(--hud-portrait-unit)) calc(10 * var(--hud-portrait-unit));
+    border-radius: calc(18 * var(--hud-portrait-unit));
+    justify-content: space-between;
+    gap: calc(6 * var(--hud-portrait-unit));
+  }
+
+  .hud-energy__metric {
+    gap: calc(4 * var(--hud-portrait-unit));
+    /* 允许被压缩，也允许内部换行——但换行只发生在续航那一段上（见下）。 */
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /*
+   * 续航独占一行落在百分比下面。它是三段里唯一可以下沉的：
+   * 「预计 / 剩余 / 预计需」三个主指标必须并排才能一眼比较，
+   * 而续航是对中段的补充说明，读它的时候视线本来就已经停在中段了。
+   */
+  .hud-energy__range {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  /* 分隔线跟着内容变高，别再钉在 46%。 */
+  .hud-energy__sep {
+    align-self: stretch;
+    height: auto;
+    flex: none;
+  }
+
+  .hud-energy__glyph {
+    width: calc(23 * var(--hud-portrait-unit));
+    height: calc(23 * var(--hud-portrait-unit));
+  }
+
+  .hud-energy__caption,
+  .hud-energy__unit {
+    font-size: calc(13 * var(--hud-portrait-unit));
+  }
+
+  .hud-energy__value {
+    font-size: calc(20 * var(--hud-portrait-unit));
+  }
+
+  .hud-energy__stale {
+    display: none;
+  }
+}
+
+/* ============================================================
+ * 底部导航（施工单 M2-05，F-01-06）——仅新增，不改动 M1-02 既有样式。
+ * 热区尺寸对齐车机防误触要求；配色全部来自主题 token。
+ * ============================================================ */
+.hud-bottom-nav {
+  position: fixed;
+  left: 50%;
+  /* home indicator：不加的话导航药丸的下缘被它压住（车机端 env() 恒为 0）。 */
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--hud-card-shadow);
+}
+.hud-bottom-nav__item {
+  min-width: 96px;
+  min-height: 48px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hud-text-muted);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-bottom-nav__item.is-active {
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hud-bottom-nav__item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── 监听状态指示与麦克风总开关（M4-07 / F-02-08）
+   隐私承诺的可见载体：三态由采集层真实状态驱动，关闭态刻意显眼、开启态刻意克制。 */
+.carlife-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hud-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.carlife-mic__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+/* 未在收音：最弱——常驻监听下这是绝大多数时间的状态，不该抢注意力 */
+.carlife-mic--idle { opacity: 0.65; }
+/* 正在收音：唯一会呼吸的状态，用户一眼能认出"它在听" */
+.carlife-mic--listening { color: var(--hud-pin); }
+.carlife-mic--listening .carlife-mic__dot { animation: carlife-mic-pulse 1.2s ease-in-out infinite; }
+.carlife-mic--uploading { color: var(--hud-pin); opacity: 0.8; }
+/* 降级（M25-04）：链路坏了要像坏了的样子——警示色，不呼吸不装听 */
+.carlife-mic--degraded {
+  color: var(--hud-warn);
+  border-color: var(--hud-warn);
+}
+.carlife-mic--degraded .carlife-mic__dot { background: currentcolor; animation: none; }
+/* 已关闭：刻意显眼且常驻——用户要能随时确认"它现在没在听"（F-02-08） */
+.carlife-mic--off {
+  color: var(--hud-text);
+  border-color: var(--hud-card-border);
+  background: var(--hud-card-bg);
+}
+/* 车机变体：只放大，不分叉组件（§2.3） */
+.carlife-mic--cockpit {
+  font-size: 18px;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+.carlife-mic--cockpit .carlife-mic__dot { width: 12px; height: 12px; }
+
+/* ── 图标形态：一枚喇叭，没有文案（文案在 aria-label / title 里）。
+   两态靠**图形**区分而不只靠颜色——车机在强光下颜色最先失真。 */
+.carlife-mic--icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+.carlife-mic--icon.carlife-mic--cockpit { width: 52px; height: 52px; min-height: 0; }
+.carlife-mic__glyph {
+  width: 58%;
+  height: 58%;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 静音那道斜杠要比声波重一点，一眼能认出"这是被划掉的" */
+.carlife-mic--off .carlife-mic__glyph,
+.carlife-mic--degraded .carlife-mic__glyph { stroke-width: 2; }
+
+@keyframes carlife-mic-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+}
+/* 省电/无障碍偏好下退化为静态（与 F-01-02 同一取向） */
+@media (prefers-reduced-motion: reduce) {
+  .carlife-mic--listening .carlife-mic__dot { animation: none; }
+}
+
+/* ============================================================
+ * 真实地图行程标注（施工单 M13-06）。标记胶囊对齐定稿琥珀系；
+ * 天徽标只在全程总览显示。
+ * ============================================================ */
+.hud-map-trip[data-ready="0"] { opacity: 0; }
+.hud-map-trip[data-ready="1"] { opacity: 1; transition: opacity 0.5s ease; }
+
+.hud-tripmark {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px 7px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 18px rgba(31, 61, 99, 0.28);
+  white-space: nowrap;
+  font-size: 19px;
+  font-weight: 600;
+  color: #1f3d63;
+  /* --clamp-x / --clamp-y 由贴边夹持在运行时写入（见 AmapTripLayer.clampToEdges）：
+     胶囊超出可视区时把它平移回来。走 CSS 变量而不是 Marker.setOffset——
+     后者实测对已上图的标记不生效（改了值位置纹丝不动）。
+     纵向那一份是 2026-09-02 补的：原来只夹横向，靠上的地点会整块落进
+     iPhone 的状态栏 / 挖孔区，那里**用户根本看不见下面的 UI**。 */
+  transform: translate(var(--clamp-x, 0px), calc(-6px + var(--clamp-y, 0px)));
+  /* 点它会推近并居中到该地点（AmapTripLayer.focusStop）。 */
+  cursor: pointer;
+}
+/* 车机是触摸屏，没有 hover 可以用来暗示"这能点"，按下反馈是唯一的确认时机。
+   ⚠️ 这里**不给 transform 加 transition**：胶囊的 transform 带着贴边夹持写入的
+   --clamp-x，补间会让它在夹持生效的那一帧横向滑一下（map.css 里那条只写 opacity
+   的 transition 就是为此），按下缩一下本来也该是即时的。
+   translate 那一份必须原样带上，否则一按下胶囊会跳回未夹持的位置。 */
+.hud-tripmark:active {
+  transform: translate(var(--clamp-x, 0px), calc(-6px + var(--clamp-y, 0px))) scale(0.95);
+  box-shadow: 0 3px 10px rgba(31, 61, 99, 0.34);
+}
+/* 品类贴纸（M13-07）：与生活环同一套卡通图；负外边距让它略溢出胶囊更像"立牌"。
+   尺寸在 M13-09 放大（用户走查：图标太小、与定稿不一致）——定稿里 POI 是主角，
+   胶囊只是它的名牌，42px 时反过来成了文字带一个小挂件。 */
+.hud-tripmark__poi {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  margin: -14px -2px -14px -6px;
+  filter: drop-shadow(0 3px 6px rgba(31, 61, 99, 0.28));
+}
+
+/* 两行文字（M13-09）：上行「序号 名称」，下行「Day N · 预计 hh:mm–hh:mm」。 */
+.hud-tripmark__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.hud-tripmark__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.hud-tripmark__meta {
+  font-size: 14px;
+  font-weight: 500;
+  color: #5b7699;
+  letter-spacing: 0.2px;
+}
+.hud-tripmark__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #f5a623;
+  color: #fff;
+  font-style: normal;
+  font-size: 17px;
+}
+.hud-tripmark--hotel .hud-tripmark__badge { background: #1e6ee8; }
+.hud-tripmark--charging .hud-tripmark__badge { background: #21a675; }
+/* 导览就绪角标：挂在胶囊右上角。**绝对定位、不占布局**——胶囊宽度一变，
+   贴边夹持（clampToEdges）的结论就作废，而这个角标是随 10s 轮询随时会亮起来的，
+   不能每亮一个就重夹一次。常驻 DOM、靠父级修饰类显隐（AmapTripLayer 只翻 class）。
+   绿色与"完成/充电"同色系；带字不只带色——车机上一眼扫过去要读得出"导览"。 */
+.hud-tripmark { position: relative; }
+.hud-tripmark__guided {
+  display: none;
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  align-items: center;
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  background: #21a675;
+  color: #fff;
+  border: 2px solid #fff;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(31, 61, 99, 0.3);
+  pointer-events: none;
+}
+.hud-tripmark--guided .hud-tripmark__guided { display: inline-flex; }
+/* 真实坐标落点（M13-08）：胶囊向外散开后，位置真相与路线折点由它承担。 */
+.hud-tripmark__dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f5a623;
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 6px rgba(31, 61, 99, 0.35);
+}
+/* 圆点是独立覆盖物、没有 .hud-tripmark 父级，配色只能自带修饰类（与徽章同色系）。 */
+.hud-tripmark__dot--hotel { background: #1e6ee8; }
+.hud-tripmark__dot--charging { background: #21a675; }
+
+.hud-tripmark__runner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffd76e;
+  box-shadow: 0 0 14px 5px rgba(245, 166, 35, 0.65);
+}
+
+/* ---------- 竖屏行程标记：胶囊必须收窄（M13-08） ----------
+   横屏那套字号/图标是按 1672 宽的舞台定的，照搬到 420 宽的车机竖屏窗口上，
+   单个胶囊实测 184–317px，最宽的占掉七成屏宽——地点因此必然互相压、还冲出右边。
+   长名字截断优于溢出：溢出是整段看不见，截断至少留住前几个字加省略号。
+
+   ⚠️ 这块**必须放在上面的基础规则之后**，不能并进文件前部那个竖屏
+   `@media (max-aspect-ratio: 85/100)` 大块——`.hud-tripmark` 的基础规则在它之后，
+   同 specificity 下后者胜，字号/内边距会被静默改回横屏值（实测：max-width 生效、
+   font-size 却仍是 19px，最难查的那种"只对了一半"）。 */
+@media (max-aspect-ratio: 85/100) {
+  .hud-tripmark {
+    max-width: 62vw;
+    gap: 5px;
+    padding: 5px 10px 5px 6px;
+    font-size: calc(15 * var(--hud-portrait-unit));
+  }
+  .hud-tripmark__poi {
+    /* 竖屏也要"贴纸是主角"（M13-09），只按窗口比例收一档，不回到小图标。 */
+    width: calc(50 * var(--hud-portrait-unit));
+    height: calc(50 * var(--hud-portrait-unit));
+    margin: -11px -2px -11px -5px;
+  }
+  .hud-tripmark__meta {
+    font-size: calc(11 * var(--hud-portrait-unit));
+  }
+  .hud-tripmark__badge {
+    width: calc(22 * var(--hud-portrait-unit));
+    height: calc(22 * var(--hud-portrait-unit));
+    font-size: calc(13 * var(--hud-portrait-unit));
+  }
+  .hud-tripmark__guided {
+    top: -8px;
+    right: -6px;
+    padding: 1px 7px 1px 5px;
+    font-size: calc(10 * var(--hud-portrait-unit));
+  }
+  .hud-tripmark__name {
+    /* flex 子项默认 min-width:auto，不加这条 ellipsis 不生效、照样把胶囊撑开。 */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* 顶部逐日切换（多日行程 + 有坐标时显示） */
+.hud-daytabs {
+  position: fixed;
+  /* 刘海屏/挖孔：这一条是 `position: fixed` 贴视口顶边的，不让开安全区就整条
+     落在状态栏与灵动岛底下——**那一带用户看不见下面的 UI**。车机端 env() 恒为 0。 */
+  top: calc(14px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 24px rgba(31, 61, 99, 0.22);
+  backdrop-filter: blur(6px);
+}
+.hud-daytabs button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f3d63;
+  background: transparent;
+  cursor: pointer;
+}
+.hud-daytabs button.is-active { background: #f5a623; color: #fff; }
+
+/* ── 住宿策略横幅（M34-02）：换酒店日/到达日的"行李怎么办"在图上要有答案 ── */
+.hud-lodging {
+  position: fixed;
+  /* 刘海屏/挖孔：这一条是 `position: fixed` 贴视口顶边的，不让开安全区就整条
+     落在状态栏与灵动岛底下——**那一带用户看不见下面的 UI**。车机端 env() 恒为 0。 */
+  top: calc(14px + env(safe-area-inset-top));
+  left: 24px;
+  z-index: 88;
+  max-width: 46vw;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 24px rgba(31, 61, 99, 0.18);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1f3d63;
+}
+.hud-lodging__item {
+  /*
+   * 两行截断而不是单行（走查修正）：到达日的 note 常常就是"这一天为什么只有
+   * 一个点"的全部解释（如「上海自驾1400km全天赶路，傍晚入住，夜间轻装夜游」），
+   * 单行省略号把后半句吃掉后，用户看到的只剩一个孤零零的夜游点。
+   */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hud-lodging__item b { color: #b26a00; font-weight: 700; margin-right: 2px; }
+
+/* ── 跟车顶栏（M31-03）────────────────────────────────────────
+ *
+ * 与逐日页签同一带（`top:14px`），但**两者不会同时出现**：
+ * 跟车时看的是"下一站还有多远"，不是"切到第几天"。
+ * 真要同时开，这里得先分两行——现在页签是空数组（M13-09 走查后隐藏），
+ * 所以不为一个当前不存在的组合先写布局。
+ *
+ * `role="status" aria-live="polite"`：下一站变化时读屏要念出来。
+ * 它不在 aria-hidden 的地图容器里，是这一层唯一可读的文字。
+ */
+.hud-navbar {
+  position: fixed;
+  /* 刘海屏/挖孔：这一条是 `position: fixed` 贴视口顶边的，不让开安全区就整条
+     落在状态栏与灵动岛底下——**那一带用户看不见下面的 UI**。车机端 env() 恒为 0。 */
+  top: calc(14px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 92; /* 高于逐日页签：跟车时它是主信息 */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 720px);
+  padding: 8px 10px 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(31, 61, 99, 0.24);
+  backdrop-filter: blur(6px);
+  color: #1f3d63;
+}
+
+.hud-navbar__main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hud-navbar__label {
+  font-size: 15px;
+  opacity: 0.62;
+}
+
+.hud-navbar__next {
+  font-size: 19px;
+  font-weight: 700;
+  /* 站名可能很长（「广州正佳广场万豪酒店」），省略而不是把整条栏撑破。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-navbar__metric {
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+/* 演示车速角标：**不是装饰，是声明**。车并没有真的在那个位置。
+   用警示色而不是柔和色——它要能被看见，不该被当成一枚好看的小标签。 */
+.hud-navbar__sim {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(214, 106, 0, 0.5);
+  background: rgba(255, 176, 32, 0.18);
+  color: #a35400;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-navbar__end {
+  flex: none;
+  border: none;
+  border-radius: 999px;
+  /* 车机上 44 是可点下限；这个按钮误触的代价是导航被关掉，不能再小。 */
+  min-height: 44px;
+  padding: 8px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: #1f3d63;
+  cursor: pointer;
+}
+
+/* ── 「退下」：结束这段对话（M22-03）─────────────────────────────
+ *
+ * 贴在底环右上角。**尺寸不能再小**：车机上 44×44 是可点区域的下限，
+ * 而这个按钮的误触代价是"对话被收掉"——比误触别的按钮贵。
+ */
+.hud-assistant__dismiss {
+  position: absolute;
+  /*
+   * 底环是 `height:88% / top:54% / left:50%` 的正圆，`aspect-ratio:1` 让它的宽度
+   * 由**高度**决定——于是它比 hero 盒子还宽（精灵是 887:1150 的竖图）。
+   * 半径 ≈ 0.44 × hero 高；45° 方向的右上角落在 left ≈ 86%、top ≈ 20%。
+   * 按 hero 宽度估成 76% 会把按钮压到角色脑袋上（实测过一次）。
+   */
+  left: 86%;
+  top: 20%;
+  /* **不加这行会竖排成「退\A 下」**：按钮很窄，两个汉字正好折行。 */
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  min-width: calc(44 * var(--hud-unit));
+  min-height: calc(44 * var(--hud-unit));
+  padding: 0 calc(14 * var(--hud-unit));
+  border: none;
+  border-radius: 999px;
+  font-size: calc(22 * var(--hud-unit));
+  line-height: 1;
+  letter-spacing: calc(1 * var(--hud-unit));
+  color: var(--hud-text);
+  background: var(--hud-card-bg, rgba(255, 255, 255, 0.92));
+  box-shadow:
+    0 calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit)) rgba(40, 70, 110, 0.22),
+    inset 0 0 0 calc(1.5 * var(--hud-unit)) var(--hud-halo-ring);
+  cursor: pointer;
+  z-index: 6;
+  /* 角色本体不接收指针事件，按钮要自己接住 */
+  pointer-events: auto;
+}
+
+.hud-assistant__dismiss:active {
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+/* 省电 / 无障碍偏好下不做出现动效（F-01-02 的同一条约束）。 */
+@media (prefers-reduced-motion: reduce) {
+  .hud-assistant__dismiss,
+  .hud-assistant__dismiss:active {
+    transition: none;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* 竖屏：底环更小，按钮跟着缩，但**不缩到 44 以下**。 */
+@media (orientation: portrait) {
+  .hud-assistant__dismiss {
+    min-width: calc(44 * var(--hud-portrait-unit));
+    min-height: calc(44 * var(--hud-portrait-unit));
+    padding: 0 calc(12 * var(--hud-portrait-unit));
+    font-size: calc(20 * var(--hud-portrait-unit));
+  }
+}

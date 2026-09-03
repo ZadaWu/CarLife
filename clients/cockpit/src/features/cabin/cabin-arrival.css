@@ -1,0 +1,624 @@
+/* 暖暖出发动画 + 出发卡。
+   0830 重排：编排（关键帧/时序）全部搬进 WAAPI（departure.ts 的
+   DEPARTURE_TIMELINE 是唯一时间真相源），本文件只留静态样式与
+   装饰性循环（钥匙摆动、轨道呼吸、字幕入场）。别在这里再写时序
+   ——上一版 CSS 与 JS 两处手写时间漂掉的教训见 departure.ts 文件头。 */
+
+/* ── 演示入口：车尾挂钥匙板，落在暖暖头顶上方偏右的空档（M26 走查）。
+ *
+ * 造型参考实物「车尾造型钥匙挂板」：上半是卡通车尾（车牌即按钮文案），
+ * 钥匙从保险杠下垂下来。文字直接上车牌、不再另起一行悬浮胶囊，
+ * 整组因此更矮，可以整体上移、离开暖暖的帽子。
+ *
+ * 【落位：小屋左侧的空地（走查定稿），改尺寸/位置时三条一起看】
+ * 右让开「家」小屋贴纸（左缘 120——SVG 画面右缘在 viewBox x134/150，
+ * 即 left + 0.393×宽度，当前 ≈114）；
+ * 下让开「浙江杭州」标签（顶约 355）与暖暖头顶（顶在底起 519）；
+ * 上让开左上角「功能演示」入口（y < 60）。
+ * 这一角落没有生活环轨迹经过，是整屏最空的一块。 */
+.cabin-arrival-trigger {
+  position: absolute;
+  z-index: 8;
+  left: calc(64 * var(--hud-unit));
+  bottom: calc(594 * var(--hud-unit));
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hud-text);
+  font: inherit;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: transform 180ms ease;
+}
+
+.cabin-arrival-trigger:hover,
+.cabin-arrival-trigger:focus-visible {
+  outline: none;
+  transform: translateX(-50%) translateY(calc(-3 * var(--hud-unit)));
+}
+
+.cabin-arrival-trigger__key {
+  display: block;
+  width: calc(126 * var(--hud-unit));
+  height: calc(145 * var(--hud-unit));
+  overflow: visible;
+  filter: drop-shadow(0 calc(7 * var(--hud-unit)) calc(14 * var(--hud-unit)) rgba(16, 44, 82, 0.34));
+}
+
+/* 只有钥匙圈以下摆动，车尾挂板钉死——整块一起晃会像挂板要掉。 */
+.cabin-arrival-trigger__swing {
+  /* 旋转心 = 这一组自身包围盒的顶边中点，也就是挂钩下缘；
+     用 fill-box 而不是默认的 view-box，改 viewBox 时不必回来重算坐标。 */
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: cabin-key-swing 3.8s ease-in-out infinite;
+}
+
+.cabin-arrival-trigger:hover .cabin-arrival-trigger__swing,
+.cabin-arrival-trigger:focus-visible .cabin-arrival-trigger__swing {
+  animation-duration: 1.1s;
+}
+
+/* 车尾挂板：配色对齐 HUD 琥珀系而不是参考图的法拉利红——
+   琥珀车身 + 暖海军蓝尾窗/保险杠（与界面标题文字同族），
+   尾灯用奶油色在琥珀上提亮。车配琥珀、钥匙配牛仔蓝（见下），
+   正好是暖暖「黄帽 + 蓝背带裤」的同一对配色。 */
+.cabin-car__body {
+  fill: var(--hud-amber, #f5a333);
+  stroke: #c2571f;
+  stroke-width: 2.6;
+}
+
+.cabin-car__window {
+  fill: #35507a;
+}
+
+.cabin-car__crease {
+  fill: none;
+  stroke: #c2571f;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+.cabin-car__lamp {
+  fill: #fff3d8;
+  stroke: #c2571f;
+  stroke-width: 2.2;
+}
+
+.cabin-car__plate {
+  fill: #fff8ea;
+  stroke: #a95f10;
+  stroke-width: 2;
+}
+
+.cabin-car__plate-text {
+  fill: #35507a;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cabin-car__bumper {
+  fill: #35507a;
+}
+
+.cabin-car__pipe {
+  fill: #c6d4e6;
+  stroke: #35507a;
+  stroke-width: 1.6;
+}
+
+.cabin-car__hook {
+  fill: none;
+  stroke: #93a6bd;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+}
+
+.cabin-key__ring {
+  fill: none;
+  stroke: #c6d4e6;
+  stroke-width: 4;
+}
+
+/* 钥匙走暖暖背带裤的牛仔蓝：车身已是琥珀，钥匙同色会糊成一块 */
+.cabin-key__fob {
+  fill: #4d7fc0;
+  stroke: #35507a;
+  stroke-width: 2.4;
+}
+
+.cabin-key__btn {
+  fill: #35507a;
+  opacity: 0.85;
+}
+
+.cabin-key__panel {
+  fill: #eaf2fc;
+  stroke: #35507a;
+  stroke-width: 2;
+}
+
+.cabin-key__blade {
+  fill: #d7e1ee;
+  stroke: #45607f;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+}
+
+@keyframes cabin-key-swing {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+
+/* 幕布拉开时后台演员退场：HUD 常驻的暖暖（AssistantDock）只是被压暗的话，
+   会和动画里走向车门的暖暖同框成两只（0830 走查病灶④）。 */
+.hud-viewport:has(.cabin-arrival) .hud-assistant {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.cabin-arrival {
+  --cabin-cyan: #6ce7ff;
+  --cabin-violet: #bf9cff;
+  --cabin-amber: #ffba54;
+  --cabin-stage: #06182d;
+  position: absolute;
+  /* 出发动画是全屏接管时刻：要盖过 HUD 全部悬浮件，包括右下角的
+     景点导览面板（guide-jobs）与导览全屏页（120）；留在 HITL 弹窗（200）之下
+     ——确认弹窗永远最大（0830 走查：动画放着，导览面板浮在幕布上面）。 */
+  z-index: 150;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: #f8fbff;
+  animation: cabin-overlay-in 260ms ease-out both;
+}
+
+.cabin-arrival__veil {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse at 49% 51%, rgba(9, 39, 74, 0.38) 0%, rgba(6, 24, 45, 0.82) 62%, rgba(4, 14, 28, 0.94) 100%),
+    rgba(4, 17, 33, 0.72);
+  backdrop-filter: blur(3px) saturate(0.82);
+}
+
+/* 这几层都是绝对定位的舞台元素。0831 删 __beam 时用正则误伤过这条分组规则：
+   __beam 是选择器组里的一项，把它连同 `{ position: absolute }` 一起删掉之后，
+   前三个选择器悬空粘到了下一条规则上，car-wrap 与 constellation 双双丢了定位，
+   车直接跑出画外。改 CSS 里的分组选择器时别用正则整段删。 */
+.cabin-arrival__constellation,
+.cabin-arrival__nuannuan {
+  position: absolute;
+}
+
+.cabin-arrival__constellation {
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.cabin-arrival__orbit {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  border: 1px solid rgba(157, 204, 255, 0.24);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cabin-arrival__orbit--outer {
+  width: min(77vw, calc(1230 * var(--hud-unit)));
+  height: min(58vw, calc(700 * var(--hud-unit)));
+  box-shadow: 0 0 50px rgba(111, 184, 255, 0.08);
+}
+
+.cabin-arrival__orbit--inner {
+  width: min(54vw, calc(850 * var(--hud-unit)));
+  height: min(37vw, calc(510 * var(--hud-unit)));
+  border-color: rgba(255, 184, 84, 0.3);
+  animation: cabin-orbit-breathe 2.4s ease-in-out infinite;
+}
+
+.cabin-arrival__orb {
+  --orb-color: var(--cabin-cyan);
+  position: absolute;
+  display: grid;
+  width: clamp(56px, 7.8vw, 118px);
+  height: clamp(56px, 7.8vw, 118px);
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--orb-color) 88%, white);
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 35%, color-mix(in srgb, var(--orb-color) 23%, #162e51), rgba(8, 28, 53, 0.88) 70%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--orb-color) 58%, transparent), inset 0 0 22px color-mix(in srgb, var(--orb-color) 14%, transparent);
+  opacity: 0.92;
+}
+
+.cabin-arrival__orb svg {
+  width: 49%;
+  height: 49%;
+  fill: none;
+  stroke: #f5fbff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.2;
+}
+
+.cabin-arrival__orb-ring {
+  position: absolute;
+  inset: -13%;
+  border: 1px solid var(--orb-color);
+  border-radius: inherit;
+  opacity: 0;
+}
+
+.cabin-arrival__orb--climate { left: 43%; top: 9%; --orb-color: var(--cabin-cyan); }
+.cabin-arrival__orb--seat { left: 20%; top: 20%; --orb-color: var(--cabin-amber); }
+.cabin-arrival__orb--light { right: 17%; top: 18%; --orb-color: var(--cabin-violet); }
+.cabin-arrival__orb--media { left: 20%; bottom: 14%; --orb-color: #70e4df; }
+.cabin-arrival__orb--family { right: 18%; bottom: 17%; --orb-color: #82bdff; }
+
+.cabin-arrival__headline {
+  position: absolute;
+  z-index: 7;
+  top: calc(28 * var(--hud-unit));
+  left: 50%;
+  display: grid;
+  gap: calc(4 * var(--hud-unit));
+  min-width: min(40vw, calc(330 * var(--hud-unit)));
+  text-align: center;
+  transform: translateX(-50%);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.46);
+}
+
+.cabin-arrival__headline span {
+  color: #a9c8ee;
+  font-size: calc(15 * var(--hud-unit));
+  letter-spacing: 0.16em;
+}
+
+.cabin-arrival__headline strong {
+  color: #fff;
+  font-size: calc(28 * var(--hud-unit));
+  line-height: 1.2;
+}
+
+/* 地平线那道细高光，与片子里的一致 */
+
+.cabin-arrival__car {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 25px rgba(0, 0, 0, 0.43));
+}
+
+/* --closed / --open 的可见性交替由 WAAPI 驱动；--open 初始必须藏着，
+   否则 JS 尚未接管的首帧会闪一辆开着门的车。 */
+.cabin-arrival__car--open {
+  opacity: 0;
+}
+
+.cabin-arrival__car-floor {
+  position: absolute;
+  z-index: 0;
+  left: 16%;
+  right: 12%;
+  bottom: 17%;
+  height: 13%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(72, 213, 255, 0.75), rgba(255, 174, 73, 0.32) 38%, transparent 72%);
+  filter: blur(12px);
+  opacity: 0;
+}
+
+.cabin-arrival__cabin-glow {
+  position: absolute;
+  z-index: 3;
+  left: 31%;
+  top: 25%;
+  width: 38%;
+  height: 31%;
+  border-radius: 45% 38% 38% 44%;
+  background: radial-gradient(ellipse, rgba(100, 235, 255, 0.43), rgba(121, 111, 255, 0.17) 58%, transparent 74%);
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.cabin-arrival__seat-nuannuan {
+  position: absolute;
+  z-index: 5;
+  /* 坐点按**侧视机位的主驾座**定（0830 走查③修订：加大、坐低）：
+     侧视车顶在画布 ~56% 高；暖暖要够大、屁股压在座垫线上，
+     下缘由关键帧的 clip-path 裁进门槛/窗线（见 departureLayers.seated）。 */
+  right: 43%;
+  top: 42%;
+  width: 17%;
+  height: auto;
+  opacity: 0;
+  transform: translateY(12%) scale(0.72);
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.28));
+}
+
+.cabin-arrival__nuannuan {
+  z-index: 3;
+  left: 6%;
+  bottom: 7%;
+  width: min(18vw, calc(250 * var(--hud-unit)));
+  height: auto;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.32));
+}
+
+.cabin-arrival__nuannuan--reach {
+  opacity: 0; /* 首帧由 WAAPI 填充；它现在从门口才登场（走路段是 __walk 的戏） */
+}
+
+.cabin-arrival__nuannuan--step {
+  opacity: 0;
+}
+
+/* 走路容器：位置/宽度同 __nuannuan（同一条起跑线），位移交给 WAAPI。
+   容器高宽比对齐 reach 素材（395/512≈0.77）、帧图**按高度**充满并水平居中——
+   步态帧裁切后比 reach 窄高（~0.62），按宽度排会让走路的暖暖比驻足的暖暖
+   高出一头，走到门口交棒瞬间人缩一号（0830 实拍病灶）。身高对齐、底对齐，
+   两帧之间与交棒前后都不"脚底打滑"。 */
+.cabin-arrival__walk {
+  opacity: 0;
+  aspect-ratio: 0.77 / 1;
+}
+.cabin-arrival__walk-frame {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 100%;
+  width: auto;
+  transform: translateX(-50%);
+  opacity: 0;
+  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.32));
+}
+
+/* 车身状态图（大灯/车尾）：与 --open 同一条规矩，初始藏着等 WAAPI 接管。 */
+.cabin-arrival__car--state {
+  opacity: 0;
+}
+
+/* 关门后的"车窗口"（0830 第四轮）：矩形钉在侧视车图的主驾窗上。
+   图 1:1 被 contain 进 1.4:1 的 wrap → 图占中间 71.4%、左右各留白 14.3%；
+   主驾窗在图上 x≈0.40~0.53、y≈0.57~0.665，换算成 wrap 坐标如下。
+   overflow:hidden = 窗台线就是容器下边，暖暖结构上露不到门板上。 */
+.cabin-arrival__seat-window {
+  position: absolute;
+  z-index: 5;
+  left: 42.5%;
+  top: 56%;
+  width: 13%;
+  height: 12.5%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cabin-arrival__seat-window img {
+  position: absolute;
+  bottom: -96%; /* 下半身沉在窗台线之下（被容器裁掉），头脸完整在窗里 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110%;
+  opacity: 0; /* WAAPI 接管 */
+}
+
+.cabin-arrival__beam {
+  z-index: 1;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--cabin-amber) 14%, #fff 48%, var(--cabin-cyan) 82%, transparent);
+  box-shadow: 0 0 12px var(--cabin-cyan);
+  opacity: 0;
+  transform-origin: 0 50%;
+}
+
+.cabin-arrival__actions {
+  position: absolute;
+  z-index: 8;
+  top: calc(24 * var(--hud-unit));
+  right: calc(28 * var(--hud-unit));
+  display: inline-flex;
+  gap: calc(9 * var(--hud-unit));
+}
+
+.cabin-arrival__actions button {
+  display: grid;
+  min-width: calc(42 * var(--hud-unit));
+  height: calc(42 * var(--hud-unit));
+  place-items: center;
+  border: 1px solid rgba(205, 228, 255, 0.45);
+  border-radius: 50%;
+  background: rgba(7, 30, 58, 0.72);
+  color: #eff7ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: calc(17 * var(--hud-unit));
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.cabin-arrival__actions button:hover,
+.cabin-arrival__actions button:focus-visible {
+  background: rgba(25, 68, 113, 0.93);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.cabin-arrival__replay {
+  padding: 0 calc(14 * var(--hud-unit));
+  border-radius: 999px !important;
+  font-size: calc(15 * var(--hud-unit)) !important;
+}
+
+@keyframes cabin-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cabin-orbit-breathe { 50% { box-shadow: 0 0 30px rgba(255, 185, 88, 0.2); opacity: 0.72; } }
+@media (prefers-reduced-motion: reduce) {
+  /* 时序层的"跳过动画"由 JS 处理（matchMedia → 直接出卡）；这里只管纯装饰。 */
+  .cabin-arrival-trigger__swing { animation: none !important; }
+  .cabin-arrival__orbit--inner { animation: none; }
+}
+
+@media (max-width: 900px), (max-height: 620px) {
+  .cabin-arrival__headline { top: calc(14 * var(--hud-unit)); }
+  .cabin-arrival__headline strong { font-size: calc(24 * var(--hud-unit)); }
+  .cabin-arrival__orb { transform: scale(0.76); }
+  .cabin-arrival__orb--seat { left: 13%; }
+  .cabin-arrival__orb--media { left: 13%; }
+  .cabin-arrival__orb--light { right: 10%; }
+  .cabin-arrival__orb--family { right: 11%; }
+}
+
+/* 竖屏 V2：纵向时间轴把 0–476 整块占满、助手卡又占住 151–375 × 510–618，
+   挂板落在右缘空档（湿地公园缩略图右缘 322、助手卡上沿 510）。
+   车牌文字在这个尺寸下只有装饰意义，真正的可达性文案在按钮的 aria-label 上。 */
+@media (max-aspect-ratio: 85/100) {
+  .cabin-arrival-trigger {
+    left: calc(354 * var(--hud-portrait-unit));
+    bottom: auto;
+    top: calc(428 * var(--hud-portrait-unit));
+  }
+
+  .cabin-arrival-trigger:hover,
+  .cabin-arrival-trigger:focus-visible {
+    transform: translateX(-50%) translateY(calc(-2 * var(--hud-portrait-unit)));
+  }
+
+  .cabin-arrival-trigger__key {
+    width: calc(62 * var(--hud-portrait-unit));
+    height: calc(71 * var(--hud-portrait-unit));
+  }
+}
+
+/* ── 字幕入场：换相位时轻推一下，字不再硬切 ── */
+.cabin-arrival__headline strong {
+  animation: cabin-status-in 320ms ease-out both;
+}
+
+@keyframes cabin-status-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 速度线：驶离相位由 WAAPI 点亮，三条错相 ── */
+.cabin-arrival__speedline {
+  position: absolute;
+  z-index: 1;
+  height: 3px;
+  width: 17vw;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(157, 218, 255, 0.85), transparent);
+  opacity: 0;
+  transform-origin: 0 50%;
+}
+
+.cabin-arrival__speedline--1 { left: 40%; top: 44%; }
+.cabin-arrival__speedline--2 { left: 34%; top: 52%; width: 22vw; }
+.cabin-arrival__speedline--3 { left: 42%; top: 60%; width: 14vw; }
+
+/* ── 出发卡：动画收尾滑入，替代上一版的「演示完成」尬停 ── */
+.cabin-arrival.is-card .cabin-arrival__constellation {
+  opacity: 0.3;
+  transition: opacity 420ms ease;
+}
+
+/* z 序：立绘(2~5) < 实拍片(6) < 字幕(7) < 重播/关闭(8) < 出发卡(9)。
+   卡必须压在片子之上——驶离片末帧 opacity 保持 1，否则动画放完卡片被它盖住。
+   出发卡的规则（`.cabin-depart-card*`，含 z-index 9）2026-09-02 上提到
+   `clients/shared/ui/src/departure/departure-card.css`，两端共用；这里不再有第二份。 */
+
+/*
+ * 出发动画的两段实拍片（0831）。
+ *
+ * 铺满整个舞台并盖住所有立绘层（z-index 高于 __car-wrap 的 2），但要低于字幕与
+ * 右上角的重播/关闭按钮，否则片子一切进来就把控件吞了。
+ * object-fit: cover 而不是 contain——片子与舞台都是 16:9，cover 在比例略有出入时
+ * 只会裁掉边角，contain 会露出黑边把"这是一段视频"暴露出来。
+ * opacity 由 WAAPI 硬切（见 departureLayers 的 boardingClip / driveoffClip），
+ * 这里只给初值 0，免得 WAAPI 挂上之前闪一帧。
+ */
+/*
+ * 功能球那一圈压在片子之上（z=7，与字幕同层）。
+ *
+ * 本来想给片子做边缘羽化、让四周的 HUD 装饰透出来，但**片子里车尾一直顶到画面
+ * 97% 宽**，任何羽化都先把车尾吃掉，得不偿失。改成反过来：片子仍然铺满，
+ * 让功能球叠在它上面。球本身是深底描边图形，压在片子的深蓝夜景上读得清，
+ * 而且它们都靠画面边缘，与居中的车基本不打架。
+ */
+.cabin-arrival__constellation {
+  z-index: 7;
+}
+
+.cabin-arrival__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * 切点前淡入的暖暖。
+ *
+ * 用的是**从上车片第 0 帧直接抠出来的那张**（`nuannuan-intro-plate.png`），
+ * 不是原始立绘 `walk-a`——两者姿态不同（立绘大步迈开、片里收着腿），
+ * 切一下会抖一下。抠图版与片子首帧像素一致，接缝彻底消失。
+ * left/width/top 就是抠图时量到的落点，别手调。
+ */
+.cabin-arrival__intro-nuannuan {
+  position: absolute;
+  z-index: 2;
+  left: 2.734%;
+  top: 90.694%;
+  margin-top: -21.562%;
+  width: 16.016%;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/*
+ * 唤醒光带：从她手边（实测手心在画面 21.9%, 69.9%）向右扫出。
+ *
+ * **两端都用 transparent 收口**，中间才有颜色——它必须没有"终点"，
+ * 否则末端落在哪颗球上就等于指了哪个功能。宽度直接铺到画面右缘之外，
+ * 也就没有任何一颗球会成为它的落点。
+ */
+.cabin-arrival__wake-band {
+  position: absolute;
+  z-index: 3;
+  left: 20%;
+  top: 62.5%;
+  width: 84%;
+  height: 14%;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  opacity: 0;
+  pointer-events: none;
+  /*
+   * 一团从她手边漫开的柔光，不是一条线。
+   * 第一版做成 3px 的细带 + drop-shadow，出来就是一支激光笔——有明确指向、
+   * 末端还落在球上，正是要避免的读法。改成横向拉长的椭圆渐变、四周都渐隐，
+   * 既没有边界也没有落点。
+   */
+  background: radial-gradient(
+    ellipse 78% 52% at 0% 50%,
+    rgba(160, 230, 255, 0.5) 0%,
+    rgba(120, 200, 255, 0.2) 40%,
+    transparent 72%
+  );
+  filter: blur(7px);
+}

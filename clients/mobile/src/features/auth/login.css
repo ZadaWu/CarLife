@@ -1,0 +1,170 @@
+/* 登录门（M48-02）。刻意极简：它出现在还没有任何数据的时刻，
+   任何依赖主题变量之外的东西都可能在这一刻还没就绪。
+
+   ⚠️ 颜色只许用 `@carlife/ui` 真实提供的 `--hud-*`（themes/tokens.css）。
+   本文件原来写的是 `--surface-base` / `--text-primary` / `--border-subtle` /
+   `--surface-raised` / `--accent` / `--danger` / `--warning` 七个名字，
+   **全仓一个都没定义过**，于是整页恒定吃硬写的深色 fallback、切主题原地不动。
+
+   这在 iOS 上不只是配色不搭：系统按 `color-scheme` 画键盘和它上方那条输入辅助条，
+   浅色手机上就成了「深色登录页 + 一条浅蓝横带」——2026-09-02 在 iPhone 16 Pro Max
+   上被当作"底部有空白"报上来。 */
+.login-gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--hud-map-base-2);
+  color: var(--hud-text);
+  /* 卡片本来居中、够不着状态栏，但**内容一长就够得着**——网络诊断展开时
+     列表把卡片撑高，标题顶进灵动岛。安全区照写。 */
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+}
+
+.login-gate--loading {
+  background: var(--hud-map-base-2);
+}
+
+.login-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.login-hint {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.login-field input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+}
+
+.login-error {
+  margin: 0;
+  color: var(--hud-danger);
+  font-size: 14px;
+}
+
+.login-submit {
+  height: 46px;
+  border: none;
+  border-radius: 10px;
+  background: var(--hud-pin);
+  color: var(--hud-badge-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.login-submit:disabled {
+  opacity: 0.5;
+}
+
+/* 网关地址（GatewayField）。默认折叠成一行——开发机上地址恒定正确，
+   它只对"装到设备上连不上"的人有意义，不该抢登录表单的注意力。 */
+.login-gateway {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.login-gateway__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 13px;
+  text-align: left;
+}
+
+.login-gateway__summary span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-gateway__summary span:last-child {
+  flex: none;
+  text-decoration: underline;
+}
+
+.login-gateway__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-gateway__hint,
+.login-gateway__warn {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+.login-gateway__warn {
+  color: var(--hud-warn);
+  opacity: 1;
+}
+
+.login-gateway__input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: 16px; /* 同上：16px 以下 iOS 会自动放大页面 */
+}
+
+.login-gateway__save {
+  height: 40px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+}
+
+.login-gateway__save:disabled {
+  opacity: 0.5;
+}
+
+/* 网络诊断（M65-03）：登录失败后才出现，结果原样列出、不加工 */
+.login-diag { margin: 6px 0 12px; }
+.login-diag__btn {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--hud-card-border);
+  background: transparent; color: inherit; font-size: 14px;
+}
+.login-diag__list {
+  margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5;
+  color: var(--hud-text-muted); word-break: break-all;
+}

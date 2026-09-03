@@ -1,0 +1,14 @@
+packages:
+  # 面向车主的端（ACR-020 批⑥）；企业内部的控制台在 enterprise/console
+  - "clients/*"
+  - "enterprise/console"
+  # 企业内部后端（ACR-020 批④）：真正的服务住这里；假第三方在 mocks/
+  - "enterprise/backend/*"
+  # 假第三方（ACR-020 批②）：替外部系统站位，不是我们的服务，所以不在 services/ 下
+  - "mocks/*"
+  # 服务端专属库（ACR-020 批③）：只被 gateway / agent-runtime / worker 依赖
+  - "enterprise/backend/shared/*"
+  # 端云契约（ACR-020 批⑤）：唯一被内外两侧同时依赖的包，不属于任何一侧
+  - "contracts"
+  # 两个消费者端共享的 UI（同批）；同目录下的 rust/ 是 cargo 成员，不在 pnpm 里
+  - "clients/shared/*"

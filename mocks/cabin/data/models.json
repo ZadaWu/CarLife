@@ -1,0 +1,60 @@
+{
+  "models": [
+    {
+      "model": "Model Y",
+      "climate": {
+        "zones": ["driver", "passenger"],
+        "tempRangeC": [16, 28],
+        "tempStepC": 0.5,
+        "fanLevels": 5,
+        "hasSync": true
+      },
+      "seats": {
+        "driver": { "heatingLevels": 3, "ventilationLevels": 3, "massageModes": ["off"] },
+        "passenger": { "heatingLevels": 3, "ventilationLevels": 3, "massageModes": ["off"] },
+        "rearLeft": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] },
+        "rearRight": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] }
+      },
+      "ambientLight": {
+        "zones": ["front"],
+        "modes": ["static", "breathe"],
+        "brightnessRange": [0, 100]
+      },
+      "media": {
+        "zones": ["cabin"],
+        "sources": ["music", "radio", "podcast", "kids", "off"],
+        "volumeRange": [0, 100]
+      },
+      "fragrance": { "present": false, "intensities": [], "scents": [] },
+      "childMode": { "zones": ["rearLeft", "rearRight"] }
+    },
+    {
+      "model": "Model 3",
+      "climate": {
+        "zones": ["driver", "passenger"],
+        "tempRangeC": [16, 28],
+        "tempStepC": 0.5,
+        "fanLevels": 5,
+        "hasSync": true
+      },
+      "seats": {
+        "driver": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] },
+        "passenger": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] },
+        "rearLeft": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] },
+        "rearRight": { "heatingLevels": 3, "ventilationLevels": 0, "massageModes": ["off"] }
+      },
+      "ambientLight": {
+        "zones": ["front"],
+        "modes": ["static", "breathe"],
+        "brightnessRange": [0, 100]
+      },
+      "media": {
+        "zones": ["cabin"],
+        "sources": ["music", "radio", "podcast", "kids", "off"],
+        "volumeRange": [0, 100]
+      },
+      "fragrance": { "present": false, "intensities": [], "scents": [] },
+      "childMode": { "zones": ["rearLeft", "rearRight"] }
+    }
+  ]
+}

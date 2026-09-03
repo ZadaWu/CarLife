@@ -1,0 +1,299 @@
+/*
+ * 手机端专属样式（施工单 A3）。
+ *
+ * HUD 与通用组件样式来自 `@carlife/ui/styles`；这里只放**手机独有**的三块：
+ * 全局布局、对话层的底部避让、HITL 确认弹窗。
+ *
+ * 颜色一律用 UI 包真实提供的 `--hud-*` token（见 themes/tokens.css）。
+ * 自造 token 名会静默回退到 fallback 值，表现是"切主题时这几块原地不动"——
+ * 而那正是最显眼的地方。
+ */
+
+/* HUD 占满视口、无滚动条。**没有这条 `.hud-viewport` 高度会塌成 0**，
+   界面上只剩底部导航——它是 100% 链条的第一环。 */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--hud-map-base-2);
+}
+
+/* ── 对话层：样式随 DialogScreen 上提到 @carlife/ui（M65-02，dialog.css）；
+      这里只留手机端的底部避让，见文件末尾 ── */
+
+/* ── HITL 确认：层级高于 HUD 与对话层 ─────────────────────── */
+
+.hitl-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #000a;
+  backdrop-filter: blur(3px);
+  /* 必须高于对话层(40)与底部导航：权限门挂起时用户可能在任意一层 */
+  z-index: 100;
+}
+.hitl-panel {
+  width: min(420px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: var(--hud-radius-card);
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  color: var(--hud-text);
+  box-shadow: var(--hud-card-shadow);
+}
+.hitl-title { margin: 0 0 16px; font-size: 18px; }
+.hitl-details { margin: 0; display: grid; gap: 9px; }
+.hitl-row { display: flex; gap: 12px; font-size: 14px; }
+.hitl-row dt { flex: 0 0 92px; color: var(--hud-text-muted); }
+.hitl-row dd { margin: 0; flex: 1; }
+
+/* 外发信息用琥珀边框圈出来：它与上面的动作明细性质不同，视觉上必须分得开 */
+.hitl-disclosure {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-card);
+}
+.hitl-disclosure h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--hud-amber);
+}
+
+.hitl-actions {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.hitl-actions button {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+}
+/* 确认是主按钮，但拒绝**不做次要弱化**——有后果的动作，两个选项平权 */
+.hitl-actions .is-primary {
+  background: var(--hud-amber);
+  border-color: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hitl-actions button:disabled { opacity: 0.55; }
+/* 告知态只有一个出口（「知道了」），横跨两列——这一屏已经不是"要不要做" */
+.hitl-actions .hitl-actions__single { grid-column: 1 / -1; }
+/* resume 没被接住的告知：与外发信息同用琥珀，它同样是"你得知道"的那一类 */
+.hitl-notice {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hud-amber) 14%, transparent);
+  color: var(--hud-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── 手机端的底部避让 ─────────────────────────────────────── */
+
+/*
+ * 底部导航在手机上是**常驻**的（车机上同样常驻，但屏幕高得多），
+ * 而 HUD 的能量胶囊按 `bottom` 贴视口底边——两者在 375×812 上重叠 76px，
+ * 表现是"当前电量/预计需电量"那一行被导航盖掉一半。
+ *
+ * 抬高胶囊而不是缩短 HUD 视口：视口一缩，上面的时间轴与助手会跟着等比缩小，
+ * 而它们本来就已经贴着可读下限了。
+ */
+.hud-viewport[data-mode="portrait"] .hud-energy {
+  bottom: calc(var(--nav-clearance) + env(safe-area-inset-bottom));
+}
+
+/* 导航高度 + 上下留白。**同源自 hud.css 的 `--hud-portrait-nav`**——那边的竖屏
+   尺度基准也要扣掉同一段高度，两处各写一个数字的话，对不上的表现就是能量胶囊
+   要么被导航压住、要么飘在半空。回落值只为非竖屏语境下不至于取到 0。 */
+.hud-viewport[data-mode="portrait"] {
+  --nav-clearance: var(--hud-portrait-nav, 90px);
+}
+
+/*
+ * 「景点导览采集」折叠条在场时，底部总预留要把它算进去（54px = 44 的热区 + 边框留白）。
+ * 它是**条件渲染**的，所以不能写死进 hud.css 的基准里——写死的话没有它时底部空一条。
+ * `:has()` 让这件事留在 CSS 里：多一层常驻条 → 竖屏尺度自动缩一点、能量胶囊自动抬一层，
+ * 不需要 JS 把"现在有没有这条"再喂回样式。
+ */
+@media (max-aspect-ratio: 85/100) {
+  :root:has(.mobile-guide-jobs) {
+    --hud-portrait-nav: calc(var(--hud-portrait-nav-bar) + 54px);
+  }
+}
+
+/* 对话层同理：列表底部与输入框都要让开导航（类名随 DialogScreen 上提改为 dlg-*） */
+.dlg-list { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
+.dlg-input {
+  margin-bottom: calc(84px + env(safe-area-inset-bottom));
+  /* 刘海屏底部安全区：不加的话输入框被 home indicator 压住 */
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: var(--hud-map-base);
+}
+/* 16px 是 iOS 不自动缩放页面的下限，小于它输入时整页会放大 */
+.dlg-input input { font-size: max(16px, var(--hud-font-body)); }
+/* 「有新消息」浮标要浮在输入框与导航之上 */
+.dlg-newmsg { bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+/* ── 导览采集进度折叠节（M40-03）：贴底部导航上方，展开在节内滚动 ── */
+.mobile-guide-jobs {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* 76px 是按"导航贴着屏幕底边"算的，而导航自己要让开 home indicator，
+     两者各算各的结果是这一条被导航药丸压住半截（iPhone 16 Pro Max 实拍）。
+     贴在**导航药丸正上方**：取 nav-bar（只含导航），不是 nav（底部总预留）——
+     取后者会跟能量胶囊落在同一条线上，两块直接叠在一起。 */
+  bottom: calc(var(--hud-portrait-nav-bar, 90px) + env(safe-area-inset-bottom));
+  z-index: 40;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.mobile-guide-jobs > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hud-text);
+  font-family: var(--font-ui, sans-serif);
+}
+.mobile-guide-jobs > summary::-webkit-details-marker { display: none; }
+.mobile-guide-jobs > summary::after {
+  content: "▾";
+  margin-left: auto;
+  color: var(--hud-text-muted);
+}
+.mobile-guide-jobs[open] > summary::after { content: "▴"; }
+.mobile-guide-jobs > .guide-jobs {
+  border: none;
+  border-radius: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* ── 真实地图行程模式的竖屏落点（M65-01）────────────────────
+ * hud.css 里 .hud-navbar / .hud-lodging / .hud-daytabs 只写了横屏坐标（三者都顶在 top:14px），
+ * 375 宽的屏放不下并排：跟车顶栏占顶行，住宿横幅落到它下面并放宽到整屏。
+ * 只在竖屏档位生效，车机横屏一像素不动。 */
+.hud-viewport[data-mode="portrait"] .hud-navbar {
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  transform: none;
+  max-width: none;
+  padding-left: 14px;
+  /* 横屏那条胶囊靠内容撑宽；竖屏撑满一行后要让「下一站 · 准备中」保持一行、按钮靠右 */
+  flex-wrap: nowrap;
+}
+.hud-viewport[data-mode="portrait"] .hud-navbar__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.hud-viewport[data-mode="portrait"] .hud-navbar__label,
+.hud-viewport[data-mode="portrait"] .hud-navbar__next,
+.hud-viewport[data-mode="portrait"] .hud-navbar__metric,
+.hud-viewport[data-mode="portrait"] .hud-navbar__end { white-space: nowrap; }
+.hud-viewport[data-mode="portrait"] .hud-lodging {
+  top: calc(76px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  max-width: none;
+}
+.hud-viewport[data-mode="portrait"] .hud-daytabs {
+  top: calc(76px + env(safe-area-inset-top));
+}
+
+/* ── 「开始行程」入口与出发卡（2026-09-02，对齐车机 M66 出发卡）────────────
+ * 入口落在暖暖右上那块空档：竖屏里助手 hero 顶在 450、麦克风开关在 (176, 452)、
+ * 助手卡片顶在 510 且从 151 起——右侧 240~380 × 450~505 这块没有任何东西经过。
+ * 车机的钥匙挂板也是"落在暖暖头顶偏右的空档"，两端思路一致。 */
+.hud-viewport[data-mode="portrait"] .hud-depart-entry {
+  position: absolute;
+  z-index: 45; /* 高于助手与定位按钮(40)，低于底部导航(60) */
+  left: calc(238 * var(--hud-portrait-unit) + var(--hud-portrait-x));
+  top: calc(454 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px; /* 触屏热区下限 */
+  padding: 0 16px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #ffba54, #ff9b3d);
+  color: #35240a;
+  font-family: var(--font-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 26px rgba(255, 168, 61, 0.32);
+  cursor: pointer;
+}
+.hud-viewport[data-mode="portrait"] .hud-depart-entry svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hud-viewport[data-mode="portrait"] .hud-depart-entry:active {
+  transform: translateY(1px);
+  box-shadow: 0 6px 16px rgba(255, 168, 61, 0.28);
+}
+
+/* 出发卡的手机落位：共享 css 默认把卡摆在舞台正中（车机动画收尾滑入）；
+   手机上改成从底部升起的 sheet——单手够得着「开始导航」，长方案区在卡内滚。 */
+.mobile-depart {
+  position: fixed;
+  inset: 0;
+  /* 高于导览条(40)、底部导航(60)与导览全屏页；低于 HITL 确认(100)——权限门挂起时它永远在最上 */
+  z-index: 90;
+}
+.mobile-depart__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: #000a;
+  backdrop-filter: blur(3px);
+}
+.mobile-depart .cabin-depart-card {
+  left: 12px;
+  right: 12px;
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: auto;
+  max-height: calc(100vh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: none;
+  animation: mobile-depart-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.04) both;
+}
+@keyframes mobile-depart-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-depart .cabin-depart-card { animation: none; }
+}

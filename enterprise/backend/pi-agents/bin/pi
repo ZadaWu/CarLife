@@ -1,0 +1,16 @@
+#!/bin/sh
+# pi-acp 0.0.33 的兼容入口。
+#
+# 该版本的适配器在 session/new 里绕过 PI_ACP_PI_COMMAND，直接执行裸
+# `pi --version`，随后调用 `npm view` 并把结果写进 ACP 启动消息。项目运行时
+# 已固定到仓库内的 pi 版本，不应让这个旁路检查污染车主对话或产生出站请求。
+# 真正的 pi 会话仍由 agent-runtime 传入的 PI_ACP_PI_COMMAND 启动；这里只负责
+# 让适配器的裸版本探针拿不到版本。其它调用转给同一份受信 wrapper，避免改变
+# 终端登录或手工调试语义。
+
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+if [ "$#" -eq 1 ] && { [ "$1" = "--version" ] || [ "$1" = "-v" ]; }; then
+  exit 0
+fi
+
+exec "$SCRIPT_DIR/pi-approved.sh" "$@"

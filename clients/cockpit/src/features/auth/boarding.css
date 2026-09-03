@@ -1,0 +1,232 @@
+/* 车机绑定与上车声明（M48-05）。横屏、大触达——它出现在人刚坐进车里的时刻，
+   而那时候手上可能还拿着东西。 */
+.boarding {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-base, #0b0d12);
+  color: var(--text-primary, #f5f7fa);
+  padding: 32px;
+  z-index: 40;
+}
+
+.boarding-card {
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.boarding-card h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+}
+
+.boarding-steps {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.9;
+  opacity: 0.8;
+}
+
+/*
+ * 二维码（M49-04）。白底是**必须的**——静区与浅色模块都靠它，
+ * 直接放在深色车机背景上，扫码器会把整块当噪声。
+ */
+.boarding-qr {
+  align-self: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  line-height: 0;
+}
+
+.boarding-qr svg {
+  display: block;
+  width: min(300px, 42vh);
+  height: auto;
+}
+
+.boarding-device-id {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.boarding-code-row {
+  display: flex;
+  gap: 12px;
+}
+
+.boarding-code-row input {
+  flex: 1;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  font-size: 24px;
+  letter-spacing: 0.3em;
+}
+
+.boarding-code-row button {
+  min-width: 140px;
+  height: 56px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent, #4c8dff);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.boarding-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.boarding-members button {
+  width: 100%;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  text-align: left;
+}
+
+.boarding-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.boarding-role {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.boarding-guest {
+  border-style: dashed !important;
+}
+
+.boarding-hint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+.boarding-error {
+  margin: 0;
+  color: var(--danger, #ff6b6b);
+  font-size: 15px;
+}
+
+.boarding-members button:disabled,
+.boarding-code-row button:disabled {
+  opacity: 0.5;
+}
+
+/* ── 登录门（M54-06，G1）。与 .boarding 同一层遮罩语义 ─────────── */
+
+.clogin {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-base, #0b0d12);
+  color: var(--text-primary, #f5f7fa);
+  padding: 32px;
+  z-index: 40;
+}
+
+.clogin-card {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.clogin-card h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.clogin-hint {
+  margin: 0;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.64));
+}
+
+.clogin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.clogin-field input {
+  font-size: 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+}
+
+.clogin-error {
+  margin: 0;
+  color: var(--danger, #ff7a70);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.clogin-submit {
+  font-size: 18px;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent, #3d7bfd);
+  color: #fff;
+}
+
+.clogin-submit:disabled {
+  opacity: 0.5;
+}
+
+.clogin-alt {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.clogin-alt button {
+  background: none;
+  border: none;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.64));
+  font-size: 14px;
+  padding: 6px 0;
+  text-decoration: underline;
+}
+
+.clogin-gateway {
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  padding-top: 12px;
+}

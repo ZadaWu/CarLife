@@ -1,0 +1,25 @@
+{
+  "stations": [
+    {
+      "stationId": "RS-SH-01",
+      "name": "上海浦东前滩服务中心",
+      "city": "上海",
+      "district": "浦东新区",
+      "services": ["保养", "钣喷", "机电维修", "轮胎"]
+    },
+    {
+      "stationId": "RS-SH-02",
+      "name": "上海闵行虹桥服务中心",
+      "city": "上海",
+      "district": "闵行区",
+      "services": ["保养", "机电维修", "轮胎"]
+    },
+    {
+      "stationId": "RS-HZ-01",
+      "name": "杭州西湖服务中心",
+      "city": "杭州",
+      "district": "西湖区",
+      "services": ["保养", "钣喷", "机电维修"]
+    }
+  ]
+}

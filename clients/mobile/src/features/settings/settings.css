@@ -1,0 +1,73 @@
+/* 手机端设置页。开关本身复用 clients/shared/ui 的 .cloc-toggle（两端同一套观感），
+   这里只管页壳：可滚动、给底部导航留出高度。 */
+
+.mset {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--hud-map-base, #e2eef8);
+  color: var(--hud-text, #1f3d63);
+  z-index: 30;
+}
+
+.mset-head {
+/* iPhone 的状态栏 / 灵动岛：页壳自己贴着 inset:0，不避让的话标题直接被压在时钟
+   与灵动岛底下（2026-09-02 在 iPhone 16 Pro Max 上，设置 / 车辆档案 / 会话历史
+   三个标题全中）。车机端这两个 env() 恒为 0，写在这里不影响它。 */
+  padding: calc(18px + env(safe-area-inset-top)) 18px 10px;
+}
+
+.mset-head h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.mset-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* 底部导航压在上面，留出它的高度；再加 home indicator 的安全区 */
+  padding: 4px 16px calc(96px + env(safe-area-inset-bottom));
+}
+
+.mset-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mset-group h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--hud-text-muted, #6c8bb0);
+}
+
+/* ── 账号（M52-01）：走查要反复换人，"现在是谁"与"怎么出去"都得一眼看到 ── */
+.mset-account {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mset-logout {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: var(--hud-danger);
+  font-size: 16px;
+}
+
+/* 开关下面那句解释为什么没打开（M60-01）：麦克风没授权是唯一常见的那种。
+   与 hint 分开一个类——hint 描述功能，它描述一次失败。 */
+.mset-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--hud-danger);
+}

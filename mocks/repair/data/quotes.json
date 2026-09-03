@@ -1,0 +1,52 @@
+{
+  "orders": [
+    {
+      "orderId": "RO-260821-01",
+      "vin": "DEM00SEED0M0DELY1",
+      "stationId": "RS-SH-01",
+      "stationName": "上海浦东前滩服务中心",
+      "status": "in_progress",
+      "startedAt": "2026-08-21T09:30:00+08:00"
+    },
+    {
+      "orderId": "RO-260825-02",
+      "vin": "DEM00SEED0MAL1BU1",
+      "stationId": "RS-SH-02",
+      "stationName": "上海闵行虹桥服务中心",
+      "status": "in_progress",
+      "startedAt": "2026-08-25T10:00:00+08:00"
+    }
+  ],
+  "quotes": [
+    {
+      "quoteId": "Q-EV-001",
+      "orderId": "RO-260821-01",
+      "vin": "DEM00SEED0M0DELY1",
+      "status": "in_progress",
+      "items": [
+        { "name": "前保险杠喷漆修复", "partsFee": 800, "laborFee": 400 },
+        { "name": "右前翼子板钣金", "partsFee": 600, "laborFee": 500 }
+      ],
+      "partsFee": 1400,
+      "laborFee": 900,
+      "total": 2300,
+      "currency": "CNY",
+      "updatedAt": "2026-08-27T16:20:00+08:00"
+    },
+    {
+      "quoteId": "Q-ICE-001",
+      "orderId": "RO-260825-02",
+      "vin": "DEM00SEED0MAL1BU1",
+      "status": "in_progress",
+      "items": [
+        { "name": "机油机滤更换", "partsFee": 380, "laborFee": 120 },
+        { "name": "空调滤芯更换", "partsFee": 160, "laborFee": 80 }
+      ],
+      "partsFee": 540,
+      "laborFee": 200,
+      "total": 740,
+      "currency": "CNY",
+      "updatedAt": "2026-08-26T09:10:00+08:00"
+    }
+  ]
+}

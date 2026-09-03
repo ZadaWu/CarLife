@@ -1,0 +1,73 @@
+# 发布态镜像覆盖（GitHub Release 自动发布链路）。
+#
+# **它只改「镜像从哪来」，不改任何服务定义**——服务本身仍由 infra/docker-compose.stack.yml
+# 与同目录的 worker.yml / web.yml 描述，那三份是唯一真相源。本文件叠在它们之上，
+# 把每个服务的镜像指向阿里云 ACR 的已构建产物，并要求每次都重新拉取。
+#
+# 为什么需要它：服务器是 2c8G，在机器上跑 pnpm install + 9 个镜像构建要十几分钟且吃满内存；
+# 构建下放到 GitHub Actions 之后，服务器侧只剩 pull（ACR 同地域走内网，秒级）。
+# 本机开发不受影响：不带这个 -f 就还是 build 本地代码。
+#
+#   docker compose -f infra/docker-compose.stack.yml -f infra/compose/worker.yml \
+#                  -f infra/compose/web.yml -f infra/compose/release.yml \
+#                  --profile worker --profile web up -d --no-build
+#
+# 两个变量由部署侧传入（shell 环境优先于 --env-file，所以不必写进服务器 .env）：
+#   CARLIFE_IMAGE_PREFIX  registry.<地域>.aliyuncs.com/<命名空间>
+#   CARLIFE_IMAGE_TAG     发布 tag，与 GitHub Release 的 tag 逐字一致（如 v1.2.3）
+#
+# ⚠️ 基础组件（postgres / redis / minio）刻意不在这里：它们用的是上游公共镜像，
+# 版本由 stack 文件钉死，不随本仓发布走。
+
+x-release-image: &pull-always
+  # 同一个 tag 被重新推送时（补丁重发），missing 策略会拿本地旧层，看起来"部署了"其实没变。
+  pull_policy: always
+
+services:
+  gateway:
+    image: ${CARLIFE_IMAGE_PREFIX:?发布部署必须提供 CARLIFE_IMAGE_PREFIX}/carlife-gateway:${CARLIFE_IMAGE_TAG:?发布部署必须提供 CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  agent-runtime:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-agent-runtime:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  # 一次性迁移任务。它与 gateway 同源同 tag——迁移落后于服务是最难查的一类故障。
+  migrate:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-migrate:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  worker:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-worker:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  web:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-web:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  # 四个「假第三方」。它们不装 workspace 依赖、构建秒级，但仍随同一个 tag 发布——
+  # 演示时能当场 stop 一个来展示降级，前提是它们与服务端同批次。
+  mock-dealer:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-mock-dealer:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-cabin:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-mock-cabin:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-repair:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-mock-repair:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  mock-insurance:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-mock-insurance:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  # 两个客户端演示站（profile: clients，见 infra/compose/clients.yml）
+  cockpit-web:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-cockpit-web:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always
+
+  mobile-web:
+    image: ${CARLIFE_IMAGE_PREFIX}/carlife-mobile-web:${CARLIFE_IMAGE_TAG}
+    <<: *pull-always

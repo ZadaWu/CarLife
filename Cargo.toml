@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "clients/shared/rust/carlife-core",
+    "clients/shared/rust/carlife-net",
+    "clients/shared/rust/carlife-media",
+    "clients/shared/rust/carlife-voice",
+    "clients/shared/rust/carlife-tts",
+    "clients/shared/rust/carlife-telemetry",
+    "clients/mobile/src-tauri",
+    "clients/cockpit/src-tauri",
+]
+# vendor 进来的上游 crate 不是我们的包，别让 cargo 把它当 workspace 成员去编。
+exclude = ["clients/shared/rust/vendor/webrtc-audio-processing-sys-2.1.0"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+# AEC 依赖的上游补丁（ACR-010 / 施工单 M47-04）。
+#
+# 为什么打：`webrtc-audio-processing-sys` 的 build.rs 用 `cfg!(target_os = "macos")`
+# 判断平台，而 build script 是为**宿主**编的——在 Mac 上交叉编 iOS 时它为真，于是
+# 把 `-mmacos-version-min=11.0` 塞进 iOS 编译，clang++ 拒绝该参数，`aarch64-apple-ios`
+# 直接编不过。iPad 上跑的就是 cockpit，所以这条路必须通。补丁改读 CARGO_CFG_TARGET_OS。
+#
+# 为什么 vendor 而不是指向 GitHub fork：判据是「新克隆 + CI 能否无额外步骤编过」。
+# vendor 自包含、离线可编、CI 不需要额外拉取；代价是 5.2MB 上游源码入库，一次性。
+#
+# 删除条件：上游合入等价修复并发版后，删掉本段与 clients/shared/rust/vendor/ 整个目录，
+# 依赖回到 crates.io 版本。补丁与待提的 PR 正文在 clients/shared/rust/vendor/README.md。
+[patch.crates-io]
+webrtc-audio-processing-sys = { path = "clients/shared/rust/vendor/webrtc-audio-processing-sys-2.1.0" }

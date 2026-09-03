@@ -1,0 +1,18 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.web
+    ports:
+      - "5173:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    profiles: [web]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ | grep -q '<!doctype html' || wget -qO- http://127.0.0.1/ | grep -q '<html'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s

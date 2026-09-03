@@ -1,0 +1,141 @@
+# CarLife 本地开发基础设施（§9 数据/存储层）
+#
+# 宿主机 5432 已被其它项目占用，PG 映射到 55433；Redis 映射到 56379。
+# DATABASE_URL 示例（enterprise/backend/shared/db/.env）：
+#   postgresql://carlife:carlife@localhost:55433/carlife
+#
+# 启动：docker compose -f infra/docker-compose.yml up -d
+
+#
+# **Mem0 没有独立容器**（M7-01 实测）：`mem0ai` 的 TS OSS 形态是**进程内库**，
+# 不是服务——`Memory` 类在 enterprise/backend/shared/memory 里直接 new，向量库/LLM/embedder 都是
+# 它的可插拔后端。所以"部署 Mem0"实际等于"部署它的向量库"，而我们选的是
+# **复用这台 PG**（§13-11 方案 A）：备份因此归入同一条 pg_dump，
+# 不为不可重建的数据新造一套备份机制。
+#
+# 镜像用 pgvector/pgvector:pg16 而非 postgres:16 —— 官方 drop-in，
+# 同一个 PG 16、同一套 PGDATA 布局，只多预装 vector 扩展。
+# 换镜像不影响既有数据（命名卷 carlife-pg-data 不变）。
+
+# **项目名必须显式写死，不能让 Compose 按目录名派生。**
+# 派生规则是「取 compose 文件所在目录名」，于是 infra/ 派生出 `infra`、deploy/ 派生出
+# `deploy`——这两个名字通用到必然和别的仓库撞车。本机实测：~/project/AI/robot-anomaly
+# 也有一份 deploy/docker-compose.yml，同样派生成 `deploy`，两个项目在 Docker 眼里
+# 就是同一个，`up` 会去 Recreate 另一个项目的 PG 和 Redis。
+#
+# 撞车还有第二个后果，更隐蔽：**卷名带项目前缀**。同一份 PG 从 infra/ 起就挂
+# infra_carlife-pg-data，从 deploy/ 起就挂 deploy_carlife-pg-data——是两个库，
+# 而 container_name 固定，Compose 会把在跑的那个改名让位再起一个新的，全程零报错，
+# 表现是「库突然回到了几周前」。所以下面每个卷也都显式写死 name，去掉项目前缀。
+name: carlife
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: carlife-postgres
+    environment:
+      POSTGRES_USER: carlife
+      POSTGRES_PASSWORD: carlife
+      POSTGRES_DB: carlife
+    ports:
+      - "55433:5432"
+    volumes:
+      - carlife-pg-data:/var/lib/postgresql/data
+      # 首次建库时自动建扩展。**已有数据卷不会重跑这个目录**——
+      # 所以 infra/scripts/pgvector-setup.sh 是幂等的显式补齐路径，二者都要有。
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carlife -d carlife"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 对象存储（§9 / M8-04）。S3 兼容，本地用 MinIO。
+  #
+  # 它存的是**用户拍的照片与留档音频**——高鹏两周后要拿这些去和修理厂对峙。
+  # 因此保留期与对话历史一致，**不接入记忆衰减**（F-09-13）：
+  # 记忆可以淡出，证据不行。
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: carlife-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: carlife
+      MINIO_ROOT_PASSWORD: carlife-secret
+    ports:
+      - "59000:9000"   # S3 API
+      - "59001:9001"   # 控制台
+    volumes:
+      - carlife-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: carlife-redis
+    ports:
+      - "56379:6379"
+    # 不挂卷时数据并不是"没落盘"，而是落在**匿名卷**上——redis 官方镜像的
+    # Dockerfile 自带 `VOLUME /data`，镜像默认的 RDB 快照（save 3600 1 / 300 100 /
+    # 60 10000）照常写 /data/dump.rdb。所以 restart 数据还在，**容器一被重建**
+    # （--force-recreate / 换 tag / down 后再 up）就换一个新匿名卷，旧数据变成
+    # 孤儿卷躺在磁盘上读不到，表现是"缓存突然全空了，但没人删过东西"。
+    # ⑤环境缓存的 TTL 已有两周量级（目的地推荐 / 景区导览简报），靠匿名卷等于
+    # 每次重建都把这两周白省的调用重新花一遍。命名卷 + 显式 name（理由见文件顶部）。
+    #
+    # **刻意不开 AOF**：⑤是可重建的缓存，RDB 最坏丢 60 秒写入的代价，
+    # 远小于 AOF 的写放大。要改这一条先想清楚 Redis 里是不是混进了不可重建的数据。
+    volumes:
+      - carlife-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 本地 ASR（ACR-006 定容器形态，ACR-007 换引擎与模型）。只有显式启用 profile
+  #   才会创建，避免默认开发依赖在没有模型时被一个约 1GB 的旁车拖成“启动失败”。
+  #   引擎是 llama.cpp llama-server，模型 Qwen3-ASR-0.6B GGUF（主模型 + mmproj 两个
+  #   文件）；模型由 setup 工具下载到宿主机缓存，再由启动编排经 Docker CLI 同步进
+  #   具名卷；容器只读挂载，不依赖 Docker Desktop 的 File Sharing。
+  #   转写端点：POST /v1/audio/transcriptions（multipart，回 {text}）。
+  local-asr:
+    profiles: ["local-asr"]
+    image: carlife-local-asr:llama-v0.3.0
+    pull_policy: build
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.llama-asr
+      args:
+        LLAMA_VERSION: v0.3.0
+        LLAMA_SOURCE_SHA256: d94c02d86db22d68692f6bb5b3854763d5091e52142868dc7251995517c666d1
+    container_name: carlife-local-asr
+    ports:
+      - "8795:8795"
+    volumes:
+      - type: volume
+        source: carlife-whisper-models
+        target: /models
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+volumes:
+  # 显式 name = 不带项目前缀。改这里等于换库，别顺手改。
+  carlife-pg-data:
+    name: carlife-pg-data
+  carlife-minio-data:
+    name: carlife-minio-data
+  carlife-redis-data:
+    name: carlife-redis-data
+  carlife-whisper-models:
+    name: carlife-whisper-models
+    external: true

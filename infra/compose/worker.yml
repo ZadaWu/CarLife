@@ -1,0 +1,24 @@
+services:
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: worker
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      REDIS_URL: redis://redis:6379
+      MEM0_DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      RAGFLOW_BASE_URL: ${RAGFLOW_BASE_URL:-}
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY:-}
+      RAGFLOW_DATASET_VEHICLE_MANUALS: ${RAGFLOW_DATASET_VEHICLE_MANUALS:-}
+      RAGFLOW_DATASET_REPAIR_KB: ${RAGFLOW_DATASET_REPAIR_KB:-}
+      RAGFLOW_DATASET_CAR_CATALOG: ${RAGFLOW_DATASET_CAR_CATALOG:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: [worker]
+    restart: unless-stopped

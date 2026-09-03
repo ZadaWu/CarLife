@@ -1,0 +1,8 @@
+#!/bin/sh
+# turbo 会去 PATH 上找一个叫 `pnpm` 的可执行文件来跑各包的脚本，
+# 但本仓的 pnpm 只经 corepack 提供（版本锁在根 package.json 的 packageManager），
+# 机器上没有全局 pnpm、corepack enable 又写不进 /usr/local/bin。
+# 结果是 `turbo run build` 直接死在 `Unable to find package manager binary`，
+# 表现为"前端 dist 从来没被编出来过"——而 cargo build 不报错，照样把旧 dist 嵌进客户端。
+# 所以把这个垫片提交进仓库，由 package.json 里的脚本前置到 PATH。
+exec corepack pnpm "$@"

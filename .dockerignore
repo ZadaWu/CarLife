@@ -1,0 +1,35 @@
+# 构建上下文裁剪（infra/images/Dockerfile 用）
+node_modules
+**/node_modules
+dist
+**/dist
+target
+**/target
+**/src-tauri/target
+.git
+# ⚠️ .dockerignore 的模式是**从上下文根锚定**的：裸 `.env` 只匹配仓库根那一个，
+# 匹配不到 infra/docker/envs/test/.env 这类嵌套的。少写 `**/` 那两行的后果是
+# 真值配置被打进镜像并推上 registry（发布部署包镜像时实测踩到，与 INC-0110 同族）。
+# 两种写法都要留：`**/x` 反过来又匹配不到根级的 x。
+.env
+.env.*
+**/.env
+**/.env.*
+# 例外要跟着写两遍，理由同上（否则模板文件一起被排掉）
+!.env.example
+!**/.env*.example
+*.log
+.DS_Store
+docs
+# clients/*/src 不能排：Dockerfile.client 要拿它们编浏览器演示站（mobile 只有 332K）。
+# 排掉的表现是 vite 报 "Failed to resolve /src/main.tsx from index.html"——
+# 看着像 vite 配置错，其实是文件压根没进构建上下文。
+# （原先还有一行 clients/cockpit/src/assets，那个目录早已不存在，一并删掉。）
+crates
+**/*.tsbuildinfo
+# 演示曲库不进镜像（M63 续）：它由 compose 从宿主只读挂进 mock-cabin，
+# 理由写在 infra/docker-compose.stack.yml 那条挂载旁边。
+# 那首垫底曲是**唯一**入 git 的音频，留着——没有挂载的部署形态下它是最后的兜底，
+# 没有它 `/health` 会报曲库为 0，而"接上了但没歌"和"没接上"看起来一模一样。
+mocks/cabin/media/*.mp3
+!mocks/cabin/media/CarLife 合成 - 夜路（演示垫底曲）.mp3

@@ -1,0 +1,5 @@
+# 钉定 Rust 工具链：装了 rustup 的机器 clone 后自动就位，保证社区构建可复现。
+# 升级时同步验证 cargo build --workspace 与两个 Tauri 端。
+[toolchain]
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]

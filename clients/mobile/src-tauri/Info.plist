@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 走查 2026-08-29 ②：macOS 麦克风用途声明（push-to-talk 采集）。
+     cockpit 早在 M2-03 就有这份，手机端一直缺——缺它的后果不是"不弹框"，
+     而是调用 requestAccessForMediaType 时进程被 TCC **直接杀掉**。
+     除麦克风与定位外不声明任何其它敏感权限（§8.5 能力最小化）。
+
+     定位（本次新增）：**默认停用**，且端上另有一道自己的开关与粒度选择
+     （模糊 / 精确，见 `clients/shared/rust/carlife-core/src/location.rs`）。系统权限拿到手
+     不等于会去用它——不授权就一次都不发起。这条声明与 §8.5 能力最小化不冲突：
+     少了它，调用系统定位时进程会被 TCC 直接杀掉（与麦克风那条同一种坏法）。 -->
+<plist version="1.0">
+<dict>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>用于把地图停在你附近、并找到附近的充电桩、加油站与服务门店。可以在「设置 › 定位」里随时停用，也可以只授予模糊定位。</string>
+  <!-- 本地网络（M65-03）：手机经 Wi-Fi 访问 Mac 上的网关是局域网单播，iOS 14+ 要先拿到这项授权。
+       此前这条只写在 gitignored 的 gen/apple 模板里，仓库里没有；NSBonjourServices 让授权框的文案
+       带上服务名，也是 mDNS 探测（src/local_network.rs）能被系统计入的前提。 -->
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>用于连接您局域网内运行 CarLife 服务的电脑（网关），获取行程、车辆与对话数据。</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_http._tcp</string>
+    <string>_carlife._tcp</string>
+  </array>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>按住助手说话时录制您的语音指令；开启设置页的「语音唤醒」后，会持续监听以识别唤醒词「暖暖」（未唤醒的语音判定后即弃）。该开关默认关闭。</string>
+</dict>
+</plist>

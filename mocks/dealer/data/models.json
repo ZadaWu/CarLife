@@ -1,0 +1,29 @@
+{
+  "__doc": "车型与配置价格（施工单 M19-01）。⚠️ priceCny 必须与 RAGFlow car-catalog 数据集里 tesla_m3_选配.md / tesla_my_选配.md 的厂商指导价逐字一致——那几个数已经进过五年成本测算（M15-01/02），对不上就是我们自己制造了两个真相。Cybertruck 选配表是美元价，本仓不换算，所以这里只给它的配置名与续航，priceCny 缺省表示「本系统无人民币报价」。",
+  "models": [
+    {
+      "model": "Model 3",
+      "trims": [
+        { "trim": "后轮驱动版", "priceCny": 235500, "rangeKm": 634, "seats": 5 },
+        { "trim": "长续航后轮驱动版", "priceCny": 259500, "rangeKm": 753, "seats": 5 },
+        { "trim": "长续航全轮驱动版", "priceCny": 285500, "rangeKm": 713, "seats": 5 }
+      ]
+    },
+    {
+      "model": "Model Y",
+      "trims": [
+        { "trim": "后轮驱动版", "priceCny": 263500, "rangeKm": 593, "seats": 5 },
+        { "trim": "长续航后轮驱动版", "priceCny": 288500, "rangeKm": 719, "seats": 5 },
+        { "trim": "长续航全轮驱动版", "priceCny": 313500, "rangeKm": 719, "seats": 5 },
+        { "trim": "Model Y L", "priceCny": 339000, "rangeKm": 751, "seats": 6 }
+      ]
+    },
+    {
+      "model": "Cybertruck",
+      "trims": [
+        { "trim": "全轮驱动版", "rangeKm": 515, "seats": 5 },
+        { "trim": "Cyberbeast", "rangeKm": 515, "seats": 5 }
+      ]
+    }
+  ]
+}

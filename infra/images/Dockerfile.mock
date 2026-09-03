@@ -1,0 +1,29 @@
+# 模拟系统镜像（mocks/* 共用，ARG SERVICE 选目录名：dealer / cabin / repair / insurance）
+# ACR-020 批②起假第三方住 mocks/，SERVICE 是那里的目录名，不再带 mock- 前缀。
+#
+# 【为什么不进 infra/images/Dockerfile 的 workspace 分层】两个 mock 的立身之本是
+# "假装成第三方"（M19-01 D1，架构不变量 mock-dealer-isolation 守着不引业务包）——
+# 这个隔离在部署层也应该成立：镜像只含该服务自己的目录，不装 workspace 依赖、
+# 不随主仓 lockfile 变动重建，构建秒级完成。它是别人家的系统，镜像也该像。
+#
+# 【为什么用 npm 而不是 corepack pnpm】服务自身的 package.json 没有
+# packageManager 字段（那是仓库根的），corepack 在这里无从解析版本；
+# 而 mock 的依赖只有 tsx/typescript 两个 devDep，npm 装完即用。
+# 无 lockfile、版本按 ^ 区间浮动——对模拟系统可接受，真服务别学。
+#
+#   docker build -f infra/images/Dockerfile.mock --build-arg SERVICE=dealer -t carlife-mock-dealer .
+#   docker build -f infra/images/Dockerfile.mock --build-arg SERVICE=cabin  -t carlife-mock-cabin  .
+
+FROM node:24-alpine
+ARG SERVICE
+WORKDIR /app
+
+# 依赖层先行：package.json 不变时命中缓存
+COPY mocks/${SERVICE}/package.json ./
+RUN npm install --no-audit --no-fund
+
+# 源码 + 种子数据（data/ 里的 stores.json / models.json 是服务的一部分）
+COPY mocks/${SERVICE}/ ./
+
+ENV NODE_ENV=production
+CMD ["npx", "tsx", "src/main.ts"]

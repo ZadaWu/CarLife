@@ -1,0 +1,242 @@
+/* 「开车去档案」过场（主页 → 档案）。逻辑与判据见 DriveTransition.tsx 的文件头。
+ *
+ * 尺度一律走 --hud-unit（设计基准像素），与 HUD 同源；颜色只用主题 token，
+ * 不写死色值——车机有 light/dark 两套，写死的那个必然在另一套里刺眼。 */
+
+.drivet {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* 高于底部导航（fixed），低于 HITL 确认层——确认永远压在最上面 */
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hud-map-base);
+  animation: drivet-fade-in 140ms ease-out both;
+}
+.drivet--leave {
+  animation: drivet-fade-out 380ms ease-in both;
+}
+
+/* ── 远景：上半屏的天光。给车一个"在户外开"的底，纯色底会显得像加载遮罩 */
+.drivet__sky {
+  position: absolute;
+  inset: 0 0 42% 0;
+  background:
+    radial-gradient(120% 80% at 50% 100%, var(--hud-amber-glow) 0%, transparent 58%),
+    linear-gradient(180deg, var(--hud-map-base-2) 0%, var(--hud-map-base) 100%);
+  opacity: 0.55;
+}
+
+/* ── 路面：占下半屏，用一条比底图深的带子把地平线画出来 */
+.drivet__road {
+  position: absolute;
+  inset: 58% 0 0 0;
+  background:
+    radial-gradient(80% 60% at 50% 0%, var(--hud-amber-dim) 0%, transparent 55%),
+    linear-gradient(180deg, var(--hud-map-road) 0%, var(--hud-map-block) 100%);
+  border-top: calc(2 * var(--hud-unit)) solid var(--hud-divider);
+  overflow: hidden;
+}
+/* 地平线亮边：天与地之间没有这道线时，浅色主题下路面像一块没画完的白底 */
+.drivet__road::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(6 * var(--hud-unit));
+  background: linear-gradient(90deg, transparent, var(--hud-amber-glow) 30% 70%, transparent);
+  opacity: 0.7;
+}
+
+/* 路面虚线往左掠 = 车在往右开。**速度感全靠它**：车本身在画面里几乎不动
+   （中段要停在画面中央等数据），没有这条带子就成了一辆停着的车。 */
+.drivet__dashes {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 贴着车轮下方，不放路面正中：侧视图里车压着的就是这条线，
+     放中间会在车与线之间留一大片没有内容的白，看起来像图没加载完。 */
+  top: 16%;
+  height: calc(6 * var(--hud-unit));
+  background: repeating-linear-gradient(
+    90deg,
+    var(--hud-amber) 0 calc(56 * var(--hud-unit)),
+    transparent calc(56 * var(--hud-unit)) calc(120 * var(--hud-unit))
+  );
+  opacity: 0.5;
+  animation: drivet-dash 620ms linear infinite;
+}
+/* 离场时路面加速：与车的加速同一拍，不然车窜出去而地面还在慢慢挪 */
+.drivet--leave .drivet__dashes { animation-duration: 260ms; }
+
+/* ── 车与它的速度线 */
+/* 舞台贴地：车的底边落在地平线**之下**一点，轮子才踩在路面上。
+   居中排版会让车停在视口中线（50%），而地平线在 58%——差那 8% 就是
+   "一辆飘在半空的车"，实测第一版正是如此。 */
+.drivet__stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* **必须用 vh 不能用 %**：百分比 padding 一律按包含块的**宽度**解析，
+     横屏车机上宽远大于高，34% 会把车顶到天上去（实测第二版就是）。 */
+  padding-bottom: 36vh;
+}
+
+.drivet__car {
+  position: relative;
+  width: calc(600 * var(--hud-unit));
+  max-width: 52vw;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 三段共用一个 translate 通道：进场从左外、巡航在中间、离场到右外 */
+  will-change: transform;
+}
+.drivet--enter .drivet__car { animation: drivet-car-enter 520ms cubic-bezier(0.22, 0.68, 0.3, 1) both; }
+/* 巡航：车身极轻微起伏（悬挂），位置不动——路面在动就够了 */
+.drivet--cruise .drivet__car { animation: drivet-car-bob 900ms ease-in-out infinite; }
+.drivet--leave .drivet__car { animation: drivet-car-leave 420ms cubic-bezier(0.5, 0, 0.85, 0.4) both; }
+
+.drivet__car-art {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 calc(10 * var(--hud-unit)) calc(18 * var(--hud-unit)) rgba(0, 0, 0, 0.28));
+}
+
+/* 兜底卡通车（SVG）。配色全走 token，深浅两套共用一份图形。 */
+.drivet__car-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 calc(8 * var(--hud-unit)) calc(14 * var(--hud-unit)) rgba(0, 0, 0, 0.22));
+}
+.drivet__svg-body {
+  fill: var(--hud-amber);
+  stroke: var(--hud-amber-bright);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.drivet__svg-glass {
+  fill: var(--hud-map-water);
+  stroke: var(--hud-halo-ring);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.drivet__svg-lamp { fill: var(--hud-halo); }
+/* 轮胎与轮毂**不跟主题走**：轮胎是固定深色，轮毂若用卡面色，
+   深色主题下就成了"深色轮毂压在深色轮胎上"，整个轮子糊成一块（实测如此）。
+   固定一深一浅，两套主题下都读得出这是个轮子。 */
+.drivet__svg-tyre { fill: #2b3442; }
+.drivet__svg-hub { fill: #e8eef6; }
+.drivet__svg-spoke { stroke: #8a97a8; stroke-width: 2; stroke-linecap: round; }
+/* 轮子转起来。**只在会动的两段转**：巡航时匀速，离场时加速。
+   静止的轮子配上滚动的路面，看起来是被拖着走的。 */
+.drivet--cruise .drivet__svg-wheel { animation: drivet-wheel 700ms linear infinite; }
+.drivet--leave .drivet__svg-wheel { animation: drivet-wheel 260ms linear infinite; }
+.drivet--enter .drivet__svg-wheel { animation: drivet-wheel 480ms linear infinite; }
+
+/* 落地阴影：跟着起伏一起缩放，车"压"下来时影子变大变实 */
+.drivet__car-shadow {
+  position: absolute;
+  bottom: calc(-14 * var(--hud-unit));
+  left: 12%;
+  right: 12%;
+  height: calc(16 * var(--hud-unit));
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.32), transparent 70%);
+}
+.drivet--cruise .drivet__car-shadow { animation: drivet-shadow-bob 900ms ease-in-out infinite; }
+
+/* 速度线：三条长短不一的横线，从车后往左掠 */
+.drivet__streaks {
+  position: absolute;
+  left: 0;
+  right: 56%;
+  top: 54%;
+  display: grid;
+  gap: calc(26 * var(--hud-unit));
+  pointer-events: none;
+}
+.drivet__streaks span {
+  display: block;
+  height: calc(4 * var(--hud-unit));
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--hud-amber-bright));
+  opacity: 0;
+}
+.drivet--cruise .drivet__streaks span,
+.drivet--leave .drivet__streaks span { animation: drivet-streak 700ms ease-out infinite; }
+/* 三条错开出发，才像连续的气流；同时出发是三条一起闪 */
+.drivet__streaks span:nth-child(1) { width: 46%; animation-delay: 0ms; }
+.drivet__streaks span:nth-child(2) { width: 72%; animation-delay: 180ms; }
+.drivet__streaks span:nth-child(3) { width: 34%; animation-delay: 340ms; }
+.drivet--leave .drivet__streaks span { animation-duration: 320ms; }
+
+/* ── 文案：只说去向。位置在路面之上、车之下，不压车身 */
+/* 文案放在天空区（地平线之上），**不放底部**：底部导航是 fixed 的，
+   放在那儿会被那颗药丸压住——实测就压住了半行字。 */
+.drivet__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(96 * var(--hud-unit));
+  margin: 0;
+  text-align: center;
+  color: var(--hud-text);
+  font-size: var(--hud-font-title);
+  font-weight: 600;
+  letter-spacing: calc(3 * var(--hud-unit));
+  opacity: 0.9;
+}
+.drivet--leave .drivet__label { opacity: 0; transition: opacity 200ms ease-in; }
+
+@keyframes drivet-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drivet-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes drivet-dash { to { transform: translateX(calc(-120 * var(--hud-unit))); } }
+
+@keyframes drivet-car-enter {
+  from { transform: translateX(-96vw) scale(0.82); opacity: 0; }
+  60% { opacity: 1; }
+  to { transform: translateX(0) scale(1); opacity: 1; }
+}
+/* 起伏幅度只有 4 个基准像素：车机上晃大了像在颠簸路面，而这是一段平路 */
+@keyframes drivet-car-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(calc(-4 * var(--hud-unit))) rotate(-0.4deg); }
+}
+@keyframes drivet-shadow-bob {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(1.06); opacity: 0.82; }
+}
+@keyframes drivet-car-leave {
+  from { transform: translateX(0) scale(1); }
+  to { transform: translateX(110vw) scale(0.92); }
+}
+@keyframes drivet-wheel { to { transform: rotate(360deg); } }
+
+@keyframes drivet-streak {
+  0% { opacity: 0; transform: translateX(18%) scaleX(0.4); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(-42%) scaleX(1); }
+}
+
+/* 减少动效：**整层直接不出现**（由 TSX 之外的调用方跳过更彻底，但这里也兜一道）。
+   只把时长压到 1ms 是不够的——过场的全部内容就是运动，压扁之后
+   剩下的是一块闪一下的色块，比没有更差。 */
+@media (prefers-reduced-motion: reduce) {
+  .drivet { animation: none; }
+  .drivet__dashes,
+  .drivet__car,
+  .drivet__car-shadow,
+  .drivet__streaks span,
+  .drivet__svg-wheel {
+    animation: none !important;
+  }
+  .drivet__car { transform: none; }
+}

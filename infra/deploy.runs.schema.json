@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deploy.local/deploy.runs.schema.json",
+  "title": "deploy run record",
+  "description": "infra/deploy.runs.jsonl 里一行一次 apply / rollback 的运行记录，由 infra/lib/common.sh 的 run_logged 在脚本跑完（无论成败）时追加，只追加不改写。回答「谁在什么时候往哪个环境跑了哪份脚本、结果如何、当时代码在哪个 commit、是否经过人工确认」。deploy.mjs runs 读它；index 用它给每份脚本标最近一次各环境的结果。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ts", "infra", "script_id", "env", "verb", "result", "duration_s", "commit", "by", "confirmed"],
+  "properties": {
+    "ts": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "infra": { "enum": ["docker", "k8s", "host"] },
+    "script_id": { "type": "string", "pattern": "^(docker|k8s|host)/M[0-9]+-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$", "description": "<infra>/<脚本文件名去 .sh>。" },
+    "env": { "enum": ["dev", "test", "prod"] },
+    "verb": { "enum": ["apply", "rollback"] },
+    "result": { "enum": ["pass", "fail"] },
+    "duration_s": { "type": "integer", "minimum": 0 },
+    "commit": { "type": "string", "pattern": "^([0-9a-f]{7,40}|-)$", "description": "运行时仓库 HEAD 的短哈希；不在 git 里时 `-`。" },
+    "by": { "type": "string", "minLength": 1, "description": "$DEPLOY_BY 或 $USER。" },
+    "confirmed": { "type": "boolean", "description": "这次运行里是否发生过人工确认（destructive / prod 门）。" }
+  }
+}

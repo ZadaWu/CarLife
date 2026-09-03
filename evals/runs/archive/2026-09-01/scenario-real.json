@@ -1,0 +1,685 @@
+{
+  "mode": "real",
+  "at": "2026-09-01T09:16:11.133Z",
+  "metricsVersion": "M57",
+  "total": 91,
+  "selected": 91,
+  "model": "deepseek-v4-flash",
+  "command": "corepack pnpm eval:scenarios -- --real --resume --json evals/runs/scenario-real.json --report evals/runs/reports/scenarios-real.md",
+  "outcomes": [
+    {
+      "id": "o-01",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 23964
+    },
+    {
+      "id": "o-02",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 34017
+    },
+    {
+      "id": "o-03",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 30004
+    },
+    {
+      "id": "o-04",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13150
+    },
+    {
+      "id": "o-05",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12058
+    },
+    {
+      "id": "o-06",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16685
+    },
+    {
+      "id": "o-07",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 9075
+    },
+    {
+      "id": "o-08",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 36848
+    },
+    {
+      "id": "o-09",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17915
+    },
+    {
+      "id": "o-10",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 24321
+    },
+    {
+      "id": "o-11",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 9667
+    },
+    {
+      "id": "o-12",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11551
+    },
+    {
+      "id": "s-01",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 19593
+    },
+    {
+      "id": "s-02",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14456
+    },
+    {
+      "id": "s-03",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13593
+    },
+    {
+      "id": "s-04",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18384
+    },
+    {
+      "id": "s-05",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 19643
+    },
+    {
+      "id": "s-06",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12231
+    },
+    {
+      "id": "s-07",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "route：期望 service（售后服务），实际 ownership（用车助手）"
+      ],
+      "latencyMs": 19466
+    },
+    {
+      "id": "s-08",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17610
+    },
+    {
+      "id": "s-09",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20278
+    },
+    {
+      "id": "s-10",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12033
+    },
+    {
+      "id": "s-11",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14720
+    },
+    {
+      "id": "s-12",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12235
+    },
+    {
+      "id": "b-01",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14170
+    },
+    {
+      "id": "b-02",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 6651
+    },
+    {
+      "id": "b-03",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10871
+    },
+    {
+      "id": "b-04",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 3706
+    },
+    {
+      "id": "b-05",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 4031
+    },
+    {
+      "id": "b-06",
+      "scene": "boundary",
+      "status": "fail",
+      "failures": [
+        "栈重启后重试仍未在时限内完成（栈疑似不健康：顶配和低配差在哪… 整轮无 turn_end（kinds=session,prompt,state,filler,tool_call,filler）——按超时失败计"
+      ]
+    },
+    {
+      "id": "o-13",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 36777
+    },
+    {
+      "id": "o-14",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 32690
+    },
+    {
+      "id": "o-15",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10228
+    },
+    {
+      "id": "o-16",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 30658
+    },
+    {
+      "id": "o-17",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12113
+    },
+    {
+      "id": "o-18",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14874
+    },
+    {
+      "id": "o-19",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18837
+    },
+    {
+      "id": "o-20",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 cabin（座舱陪伴）"
+      ],
+      "latencyMs": 15930
+    },
+    {
+      "id": "o-21",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 21748
+    },
+    {
+      "id": "o-22",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11123
+    },
+    {
+      "id": "o-23",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16714
+    },
+    {
+      "id": "o-24",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 8984
+    },
+    {
+      "id": "o-25",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13368
+    },
+    {
+      "id": "o-26",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "warning_must 未命中（手册警告漏说）：(低温|冬季|寒冷).{0,20}(续航|里程).{0,12}(下降|缩短|减少|衰减)"
+      ],
+      "latencyMs": 17787
+    },
+    {
+      "id": "o-27",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20973
+    },
+    {
+      "id": "o-28",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "warning_must 未命中（手册警告漏说）：(不得|不要|切勿|避免).{0,14}(超过|超出).{0,10}(涉水|水深)|涉水.{0,16}(损坏|风险|熄火)"
+      ],
+      "latencyMs": 22505
+    },
+    {
+      "id": "o-29",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "warning_must 未命中（手册警告漏说）：(低温|寒冷).{0,20}(充电(速度|功率|时间)|充电).{0,12}(变慢|下降|延长|受限)"
+      ],
+      "latencyMs": 11621
+    },
+    {
+      "id": "o-30",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "warning_must 未命中（手册警告漏说）：(密闭|车库|室内).{0,16}(不要|切勿|禁止|避免)|通风"
+      ],
+      "latencyMs": 14363
+    },
+    {
+      "id": "o-31",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 30961
+    },
+    {
+      "id": "o-32",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15875
+    },
+    {
+      "id": "o-33",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12657
+    },
+    {
+      "id": "o-34",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "warning_must 未命中（手册警告漏说）：(不能|不可|并非|不要).{0,14}(替代|代替|完全依赖)|(注意|观察).{0,10}(四周|周围|后方)"
+      ],
+      "latencyMs": 20343
+    },
+    {
+      "id": "o-35",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 31579
+    },
+    {
+      "id": "o-36",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11930
+    },
+    {
+      "id": "o-37",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 itinerary（行程规划）"
+      ],
+      "latencyMs": 18714
+    },
+    {
+      "id": "o-38",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15918
+    },
+    {
+      "id": "o-39",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16795
+    },
+    {
+      "id": "o-40",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17841
+    },
+    {
+      "id": "s-13",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14955
+    },
+    {
+      "id": "s-14",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16160
+    },
+    {
+      "id": "s-15",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "route：期望 service（售后服务），实际 ownership（用车助手）"
+      ],
+      "latencyMs": 11459
+    },
+    {
+      "id": "s-16",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "route：期望 service（售后服务），实际 ownership（用车助手）"
+      ],
+      "latencyMs": 13718
+    },
+    {
+      "id": "s-17",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11285
+    },
+    {
+      "id": "s-18",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：保修|检测|门店"
+      ],
+      "latencyMs": 19892
+    },
+    {
+      "id": "s-19",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14978
+    },
+    {
+      "id": "s-20",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11567
+    },
+    {
+      "id": "s-21",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15201
+    },
+    {
+      "id": "s-22",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 3912
+    },
+    {
+      "id": "s-23",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 26322
+    },
+    {
+      "id": "s-24",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：预约|时段|门店"
+      ],
+      "latencyMs": 4281
+    },
+    {
+      "id": "s-25",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 4766
+    },
+    {
+      "id": "s-26",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10632
+    },
+    {
+      "id": "s-27",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17136
+    },
+    {
+      "id": "s-28",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12965
+    },
+    {
+      "id": "s-29",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20120
+    },
+    {
+      "id": "s-30",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 30827
+    },
+    {
+      "id": "s-31",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 33399
+    },
+    {
+      "id": "s-32",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10995
+    },
+    {
+      "id": "s-33",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15485
+    },
+    {
+      "id": "s-34",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 22191
+    },
+    {
+      "id": "s-35",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12812
+    },
+    {
+      "id": "s-36",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10241
+    },
+    {
+      "id": "s-37",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14715
+    },
+    {
+      "id": "s-38",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 3447
+    },
+    {
+      "id": "s-39",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "route：期望 service（售后服务），实际 ownership（用车助手）"
+      ],
+      "latencyMs": 14129
+    },
+    {
+      "id": "s-40",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11383
+    },
+    {
+      "id": "s-41",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：约(的是)?(保养|维修|试驾)|哪(种|类)|什么(类型|服务)|请问.{0,12}(预约|约)"
+      ],
+      "latencyMs": 4230
+    },
+    {
+      "id": "s-42",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：(什么|哪(项|个)|指的是).{0,12}(费用|价格|多少钱)|您(想|要)(问|了解).{0,10}(哪|什么)"
+      ],
+      "latencyMs": 5079
+    },
+    {
+      "id": "s-43",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：您说的.{0,8}(是|指)|哪(个|一个|项)|指的是什么"
+      ],
+      "latencyMs": 12820
+    },
+    {
+      "id": "s-44",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：(改|调整)(的是)?哪(个|一个|次)|什么(时间|时候)|您(想|要)改到"
+      ],
+      "latencyMs": 77328
+    },
+    {
+      "id": "s-45",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：您(是想|是要|指).{0,14}(预约|保养|维修|做什么)|什么(事|安排)|哪方面"
+      ],
+      "latencyMs": 93272
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+dist/
+build/
+*.log
+.npm/
+.pnpm-store/
+
+# Rust / Tauri
+target/
+**/src-tauri/target/
+# Tauri 生成目录（schemas 每次 build 重写；gen/apple 由 `tauri ios init` 生成，
+# 且 Xcode 工程会写入个人签名信息 DEVELOPMENT_TEAM，整目录不入库）
+**/src-tauri/gen/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+# 部署目录中的可提交环境模板；真实 .env 仍保持忽略
+!.env.*.example
+
+# Python 虚拟环境（uv sync 生成）
+.venv/
+
+# Editor
+.vscode/
+.idea/
+
+# Build output (packages emit to dist/, already covered above)
+*.tsbuildinfo
+.feature-deps-review.md
+
+# 覆盖率产物（c8，ACR-009）。输出目录默认相对 cwd，仓库根与各 workspace 成员下
+# 都可能出现（如 enterprise/backend/shared/memory/coverage/），所以不锚定、按目录名统一忽略。
+# 带结尾斜杠只匹配目录，enterprise/backend/shared/rag/src/coverage.ts 这类源文件不受影响。
+coverage/
+
+
+# MinerU 转换产物（可重新生成，按量计费所以缓存）
+data/kb-md/
+# ⚠️ data/kb-src/ **不在忽略之列**：那里放的是手写的知识库源文件（没有上游 PDF，
+# 重新生成不出来）。忽略掉的话，它就只存在于 RAGFlow 和某个人的本地磁盘上。
+
+# Mem0 的运行时产物（historyDbPath 默认相对 cwd，谁先跑就落在谁的目录下）
+**/data/mem0-history.db
+**/data/mem0-vector.db
+
+# 本地 dev 服务日志（infra/scripts/dev.sh）
+.dev-logs/
+.turbo/
+
+
+# 模拟车机的运行时状态快照（mocks/cabin/src/persistence.ts）。
+# 它是"这辆演示车现在被设成什么样"，属于运行产物不是源码；
+# data/ 里的 models.json 是种子数据，仍然入库——两者刻意分开放。
+# 状态文件落在进程 cwd 下（仓库根 / 各服务目录都可能出现），且 gateway 的
+# finance-cache.json 等也遵循同一约定，所以不锚定、按目录名统一忽略。
+var/
+
+# playwright-cli 的调试快照与控制台日志（page-*.yml / console-*.log，逐次运行生成）
+.playwright-cli/
+
+# 浏览器验证截图输出（可随时重新截，不入库）
+/output/
+
+# doc-writing 技能评测预览服务器的本地运行产物
+
+# 评测任务目录（M67）：控制台 / 编排器起的任务产物，不提交；仓库里提交的基线在 evals/runs/ 顶层
+evals/runs/jobs/

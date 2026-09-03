@@ -1,0 +1,83 @@
+/* Workflow 页的页面级样式（wf- 前缀）。
+ *
+ * 三张 React Flow 编排图保持原样（只读、自检），重做的是它们周边的
+ * 信息展示：每张图连同它的说明与节点表收进一个区块卡；节点的
+ * 「图节点/节点内」层次做成徽章（这是读图时最常要对照的一列）；
+ * 11 个 pi Agent 从长表改成卡片网格——每个 Agent 本来就是一个
+ * 独立进程 + prompt + ACL 的单元，卡片比表格行更贴合它的颗粒度。 */
+
+.wf-page { max-width: 1180px; }
+.wf-page h1 { font-size: 20px; margin: 0 0 6px; }
+.wf-desc { color: var(--fg-dim); font-size: 13px; line-height: 1.7; margin: 0 0 8px; max-width: 86ch; }
+.wf-desc strong { color: var(--fg); }
+.wf-desc code { font-size: 11px; }
+
+/* ── 区块卡：一张图 + 它的说明 + 节点表 */
+.wf-section {
+  margin: 16px 0; padding: 16px 18px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+}
+.wf-section > h2 {
+  font-size: 14px; font-weight: 600; margin: 0 0 8px; letter-spacing: 0.04em;
+}
+.wf-section > h3 { font-size: 12px; font-weight: 600; margin: 18px 0 6px; color: var(--fg-dim); letter-spacing: 0.06em; }
+
+/* 图容器：图本身是主角，边框压暗一点让它浮出来 */
+.wf-graph {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--bg); margin: 12px 0;
+}
+
+/* 图与代码不一致的告警：这是页面存在的理由之一，必须扎眼 */
+.wf-problems {
+  padding: 12px 14px; margin: 10px 0; border-radius: 8px;
+  border: 1px solid var(--err); background: rgba(248, 81, 73, 0.08);
+  color: var(--err); font-size: 13px;
+}
+.wf-problems ul { margin: 6px 0 0; padding-left: 18px; }
+.wf-problems li { margin: 2px 0; }
+
+/* ── 节点说明表 */
+.wf-table { width: 100%; border-collapse: collapse; }
+.wf-table th {
+  text-align: left; font-size: 11px; font-weight: 500; color: var(--fg-dim);
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+}
+.wf-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 12px; vertical-align: top; }
+.wf-table tbody tr:last-child td { border-bottom: none; }
+.wf-table tbody tr:hover { background: var(--panel-2); }
+.wf-node-name { font-weight: 600; white-space: nowrap; }
+.wf-note { color: var(--fg-dim); line-height: 1.6; }
+.wf-note strong { color: var(--fg); font-weight: 600; }
+.wf-src { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); word-break: break-all; }
+
+/* 层次徽章：「图节点」是能被路由到的一步，「节点内」是它体内发生的事 */
+.wf-tier {
+  display: inline-block; font-size: 10px; padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--fg-dim); white-space: nowrap;
+}
+.wf-tier--graph { border-color: var(--accent); color: var(--accent); }
+
+/* ── Agent 卡片网格 */
+.wf-agents {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px; margin-top: 12px;
+}
+.wf-agent {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel-2);
+}
+.wf-agent-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.wf-agent-name { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); }
+.wf-agent-label { font-size: 12px; color: var(--fg-dim); }
+.wf-agent-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.wf-chip {
+  font-size: 10px; padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--fg-dim); background: var(--bg);
+}
+.wf-chip--mono { font-family: var(--mono); }
+.wf-agent-note { font-size: 11px; color: var(--fg-dim); line-height: 1.6; margin: 0; }
+.wf-agent-note strong { color: var(--fg); }
+.wf-agent-driven { font-size: 11px; color: var(--fg-dim); }
+.wf-agent-driven b { color: var(--fg); font-weight: 500; }

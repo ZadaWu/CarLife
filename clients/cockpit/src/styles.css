@@ -1,0 +1,652 @@
+/* 车机端全局样式：HUD 占满视口，无滚动条 */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--hud-map-base-2, #0a1729);
+}
+
+/* ── 触屏长按不许弹系统菜单（ACR-004，真机走查发现）───────────────
+ *
+ * iPad 上长按暖暖，弹出的是 iOS 的图片菜单（Share / Save to Photos /
+ * Copy Subject），**把「长按说话」整个吃掉了**——那是本产品的核心交互。
+ * 桌面端永远不会暴露这条：`-webkit-touch-callout` 只在触屏上生效。
+ *
+ * `.hud-viewport` 上已有的 `user-select: none`（clients/shared/ui）管不住它：
+ * 那条管的是文字选择，图片的长按菜单是另一套。两条都要。
+ *
+ * `-webkit-user-drag: none` 一并给：长按之后接着拖，会把精灵图拖出一个
+ * 半透明副本跟着手指走，同样是 WebView 的默认行为。
+ *
+ * ⚠️ **输入框必须豁免**：设置页要填网关 IP，长按粘贴是那一步最有用的操作。
+ * 全局一刀切会让用户只能一个字一个字敲 `http://192.168.x.x:8790`。
+ */
+#root {
+  -webkit-touch-callout: none;
+}
+
+#root img,
+#root [class*="sprite"],
+#root [class*="tripmark"] {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+#root input,
+#root textarea {
+  -webkit-touch-callout: default;
+  user-select: text;
+}
+
+/* 验收用临时开关条（非最终产品交互，M1-02 任务 3） */
+.hud-devbar {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  /* 撑到右边界只是为了给展开后的按钮行一个换行宽度；
+     容器自己不接事件，否则这一整条透明区域会盖住 HUD 顶部点不到。 */
+  right: 12px;
+  pointer-events: none;
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+.hud-devbar:hover { opacity: 1; }
+.hud-devbar > * { pointer-events: auto; }
+.hud-devbar button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 180, 220, 0.5);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1f3d63;
+  cursor: pointer;
+}
+
+/* 收起态的圆钮：devbar 默认只露出它一个。 */
+.hud-devbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 6px;
+}
+.hud-devbar-chevron {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(140, 180, 220, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+.hud-devbar-toggle[aria-expanded="true"] .hud-devbar-chevron { transform: rotate(90deg); }
+
+/*
+ * 展开后的按钮行**必须能换行**：这里的按钮只增不减（每个 Sprint 的走查开关
+ * 都往上加），一行排下去迟早横着溢出屏幕，而车机是固定分辨率、没有横向滚动。
+ */
+.hud-devbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+
+/* 竖屏按正式 HUD 验收：临时开发开关不占用顶部时间轴安全区。 */
+@media (max-aspect-ratio: 85/100) {
+  .hud-devbar { display: none; }
+}
+
+/* 对话层样式已随 DialogScreen 上提到 @carlife/ui（M65-02）：clients/shared/ui/src/dialog/dialog.css */
+
+/* ============================================================
+ * HITL 确认弹层（施工单 M13-05，FL-04 端上半程）。
+ *
+ * 视觉依据：内部文档 与同目录概念图
+ * （横屏 concepts/05-*、竖屏 vertical-concepts/05-*）。
+ *
+ * 尺寸一律用 `--hud-unit`（横屏 1672 基准 / 竖屏 390 基准，见 tokens.css）——
+ * 写死 px 的话，同一份弹窗在 1280 车机与 1920 车机上信息密度差一倍。
+ * 竖屏在文件末尾的 media 块里按 390 基准重写数值，不是等比缩小横屏。
+ *
+ * 车机可读性下限（Brief §4，按 1280 宽算 unit≈0.77）：
+ * 主标题 40u≈31px / 行标题 30u≈23px / 正文 24u≈18px / 按钮热区 64u≈49px。
+ * ============================================================ */
+/*
+ * 弹层内一律 border-box。**默认的 content-box 会让声明的宽高全部说谎**：
+ * `width: 1250u` 加上左右各 30u 的内边距，实际量出来是 1311u——
+ * 与定稿比尺寸时，这 61u 会被当成"版式画宽了"去追。
+ */
+.hitl-backdrop,
+.hitl-backdrop *,
+.hitl-backdrop *::before,
+.hitl-backdrop *::after {
+  box-sizing: border-box;
+}
+
+.hitl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /*
+   * 略微偏下而不是正居中（定稿实测：卡顶距屏顶 123px、距屏底 55px @1152 高）。
+   * 容器加顶内边距、居中在内边距之后发生——等效下移 28u，且**不会顶破上边**：
+   * 88vh + 56u 仍小于视口高。这样 HUD 顶部与助手的头留得住（Brief §2）。
+   */
+  padding-top: calc(56 * var(--hud-unit));
+  /* 压暗地图但保留可辨识度：助手与生活环仍要看得见（Brief §2「不遮断世界」）。 */
+  background: rgba(6, 16, 30, 0.4);
+  backdrop-filter: blur(6px);
+  /* 卡内的浅色嵌条。一个值同时适配两个主题：白底上压深、深底上提亮。 */
+  --hitl-inset: rgba(120, 160, 205, 0.12);
+}
+.hitl-sheet {
+  display: flex;
+  flex-direction: column;
+  /*
+   * 卡片尺寸取自定稿实测（`ui-diff.py` 的卡片外接框）：
+   * 浅色 v4 的卡是 1388×974px @2048 宽 = **1133u**，左右内边距 41u，
+   * 大交通栏 407u。深色那张量出来是 1237u 且**卡没居中**（中心偏右 80px），
+   * 是同一版设计的一次不精确渲染——以居中的浅色 v4 为准。
+   *
+   * 宽度同时是「4 天一屏放得下」的下限：再窄，景点 chips 与酒店名就折行，
+   * 一折行就撑出滚动条——而滚动在这一屏意味着用户可能没看全就按了确认。
+   */
+  width: min(calc(1133 * var(--hud-unit)), 94vw);
+  max-height: 88vh;
+  /* 顶内边距 44u 也是量出来的：定稿标题基线距卡顶 50u，实现原先 30u，
+     整卡内容因此整体偏上约 45px。多出来的高度从行距里匀，不加总高。 */
+  padding: calc(44 * var(--hud-unit)) calc(41 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  gap: calc(16 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-card);
+  background: var(--hud-card-bg);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+}
+
+/* 竖屏抽屉把手；横屏没有"下拉"语义，隐藏。 */
+.hitl-grip { display: none; }
+
+/* ── 标题区 ───────────────────────────────────────────────── */
+.hitl-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(14 * var(--hud-unit));
+}
+.hitl-head__icon {
+  flex: none;
+  width: calc(44 * var(--hud-unit));
+  height: calc(44 * var(--hud-unit));
+  color: var(--hud-pin);
+}
+/* 深色概念图里动作图标取金琥珀，浅色取蓝——唯一的按主题分叉，只差色相。 */
+[data-theme="dark"] .hitl-head__icon { color: var(--hud-amber); }
+.hitl-head__icon svg { width: 100%; height: 100%; display: block; }
+.hitl-head__title {
+  margin: 0;
+  font-size: calc(40 * var(--hud-unit));
+  font-weight: 700;
+  line-height: 1.2;
+}
+.hitl-head__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(12 * var(--hud-unit));
+}
+.hitl-pill {
+  padding: calc(4 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  border-radius: var(--hud-radius-pill);
+  font-size: calc(24 * var(--hud-unit));
+  line-height: 1.5;
+  white-space: nowrap;
+}
+/* 动作对象（「广州 · 4天」）用琥珀，与日徽章同族——它是这次动作的主语。 */
+.hitl-pill--subject {
+  border: 1px solid var(--hud-amber);
+  color: var(--hud-amber);
+}
+/* 影响范围是次要信息，不与主语争注意力。 */
+.hitl-pill--scope {
+  border: 1px solid var(--hud-card-border);
+  color: var(--hud-text-muted);
+}
+
+/* ── 主体：天序时间线 + 大交通 ──────────────────────────────── */
+.hitl-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: calc(24 * var(--hud-unit));
+  align-content: start;
+}
+/* 两块同时在场才分栏；只有一块时分栏会空出半屏。 */
+.hitl-body--split { grid-template-columns: 1fr calc(407 * var(--hud-unit)); }
+
+.hitl-plan { display: flex; flex-direction: column; gap: calc(11 * var(--hud-unit)); }
+
+.hitl-day {
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(40 * var(--hud-unit)) 1fr;
+  gap: calc(16 * var(--hud-unit));
+}
+/* 时间线连接线：从本日徽章底部连到下一日徽章，末日不画。 */
+.hitl-day::before {
+  content: "";
+  position: absolute;
+  left: calc(19 * var(--hud-unit));
+  top: calc(44 * var(--hud-unit));
+  bottom: calc(-11 * var(--hud-unit));
+  width: calc(2 * var(--hud-unit));
+  background: var(--hud-amber-dim);
+}
+.hitl-day:last-child::before { display: none; }
+
+.hitl-day__badge {
+  position: relative;
+  z-index: 1;
+  width: calc(40 * var(--hud-unit));
+  height: calc(40 * var(--hud-unit));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: calc(2 * var(--hud-unit)) solid var(--hud-amber);
+  border-radius: 50%;
+  background: var(--hud-card-bg);
+  color: var(--hud-amber);
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 700;
+}
+.hitl-day__main { display: flex; flex-direction: column; gap: calc(7 * var(--hud-unit)); }
+.hitl-day__theme {
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.hitl-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(10 * var(--hud-unit));
+}
+/*
+ * chips 与住宿行的字号是**按定稿的信息密度倒推的**，不是随手定的：
+ * 定稿把 4 天塞进 1133u 宽的卡里，日主题 30u 不变，而景点与住宿这两行
+ * 比它小一到两档——正因为它们最长。跟着日主题走的话，两行都会折行，
+ * 4 天折下来就撑破 88vh 上限开始滚动（实测溢出 188px）。
+ * 折行比字小糟：滚动意味着用户可能没看全就按了确认。
+ */
+.hitl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--hud-unit));
+  padding: calc(4 * var(--hud-unit)) calc(11 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-pill);
+  background: var(--hitl-inset);
+  font-size: calc(20 * var(--hud-unit));
+  line-height: 1.4;
+}
+.hitl-chip__icon {
+  width: calc(20 * var(--hud-unit));
+  height: calc(20 * var(--hud-unit));
+  color: var(--hud-pin);
+}
+.hitl-chip__icon svg { width: 100%; height: 100%; display: block; }
+
+/* 住宿行是整张卡里最长的一行（酒店名 + 价格 + 角标），定稿把它排得比
+   景点 chips 小一档——正因为它最长，跟着 chips 走就必然折行。 */
+.hitl-stay {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+  padding: calc(6 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
+  background: var(--hitl-inset);
+  font-size: calc(18 * var(--hud-unit));
+}
+.hitl-stay__icon {
+  flex: none;
+  width: calc(24 * var(--hud-unit));
+  height: calc(24 * var(--hud-unit));
+  color: var(--hud-text-muted);
+}
+.hitl-stay__icon svg { width: 100%; height: 100%; display: block; }
+.hitl-stay__name { flex: 1; min-width: 0; }
+/* 「同前一晚」是折叠提示不是内容，压一档色重，别和真酒店名一样抢眼。 */
+.hitl-stay__same { flex: 1; min-width: 0; color: var(--hud-text-muted); }
+/* 价格靠右且不换行——扫读时对齐的是这一列。 */
+.hitl-stay__price { flex: none; font-variant-numeric: tabular-nums; }
+
+/* 估算角标：源文本带（估算）才出现，是可信度标记不是装饰（Brief §2）。 */
+.hitl-est {
+  flex: none;
+  padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-pill);
+  color: var(--hud-amber);
+  font-size: calc(20 * var(--hud-unit));
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ── 大交通：独立卡，不混进天序时间线 ───────────────────────── */
+.hitl-transit {
+  align-self: start;
+  padding: calc(20 * var(--hud-unit)) calc(22 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: calc(20 * var(--hud-unit));
+  background: var(--hitl-inset);
+}
+.hitl-transit__title {
+  margin: 0 0 calc(14 * var(--hud-unit));
+  padding-bottom: calc(12 * var(--hud-unit));
+  border-bottom: 1px dashed var(--hud-divider);
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 600;
+}
+.hitl-transit__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--hud-unit));
+}
+.hitl-transit__row {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+  font-size: calc(24 * var(--hud-unit));
+  line-height: 1.4;
+}
+.hitl-transit__icon {
+  flex: none;
+  width: calc(28 * var(--hud-unit));
+  height: calc(28 * var(--hud-unit));
+  color: var(--hud-pin);
+}
+.hitl-transit__icon svg { width: 100%; height: 100%; display: block; }
+.hitl-transit__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--hud-unit));
+}
+/* 出行方式单独一行且加重：这一屏要先回答「怎么去」，再回答「多久多少钱」。 */
+.hitl-transit__mode { font-weight: 600; }
+.hitl-transit__text { font-variant-numeric: tabular-nums; }
+.hitl-transit__note {
+  margin: calc(16 * var(--hud-unit)) 0 0;
+  color: var(--hud-text-muted);
+  font-size: calc(21 * var(--hud-unit));
+  line-height: 1.4;
+}
+
+/* ── 结构化不了的明细：原样逐行显示 ────────────────────────── */
+.hitl-details { display: flex; flex-direction: column; gap: calc(8 * var(--hud-unit)); }
+.hitl-detail {
+  display: flex;
+  gap: calc(12 * var(--hud-unit));
+  font-size: calc(24 * var(--hud-unit));
+  line-height: 1.45;
+}
+.hitl-detail__label { flex: none; color: var(--hud-text-muted); }
+.hitl-detail__value { word-break: break-word; }
+/*
+ * 外发信息块（M15-04）。**视觉上必须与动作明细分开**——
+ * 用同样的排版就等于混在一起，而这两段的性质完全不同：
+ * 上面是"这次动作是什么"，这里是"我的哪些信息要发出去"。
+ * 左侧色条 + 标题是最省地方的区分方式（车机上竖向空间紧张）。
+ */
+.hitl-disclosure {
+  flex: none;
+  padding: calc(14 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  border-left: calc(4 * var(--hud-unit)) solid var(--hud-amber);
+  border-radius: 0 calc(12 * var(--hud-unit)) calc(12 * var(--hud-unit)) 0;
+  background: var(--hitl-inset);
+}
+.hitl-disclosure__title {
+  font-size: calc(26 * var(--hud-unit));
+  font-weight: 600;
+  color: var(--hud-amber);
+}
+.hitl-disclosure .hitl-details { margin: calc(10 * var(--hud-unit)) 0 0; }
+
+/* 确认没被接住时的告知条。用琥珀描边而不是红色：这不是故障，是"没生效"。 */
+.hitl-notice {
+  flex: none;
+  margin: 0;
+  padding: calc(14 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  border: 1px solid var(--hud-amber);
+  border-radius: calc(14 * var(--hud-unit));
+  background: var(--hitl-inset);
+  color: var(--hud-text);
+  font-size: calc(24 * var(--hud-unit));
+  line-height: 1.5;
+}
+
+/* ── 动作条：只有两个出口，确认是琥珀主行动 ─────────────────── */
+.hitl-actions {
+  flex: none;
+  display: flex;
+  gap: calc(20 * var(--hud-unit));
+  padding-top: calc(20 * var(--hud-unit));
+  border-top: 1px solid var(--hud-divider);
+}
+.hitl-btn {
+  min-height: calc(64 * var(--hud-unit));
+  padding: calc(14 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 600;
+  border-radius: calc(16 * var(--hud-unit));
+  border: none;
+  cursor: pointer;
+}
+.hitl-btn:disabled { opacity: 0.5; cursor: default; }
+/* 确认更宽：两个出口不是等价的，主行动要一眼看出来（Brief §3.4）。 */
+.hitl-btn--approve {
+  flex: 1.6;
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hitl-btn--reject {
+  flex: 1;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: var(--hud-text);
+}
+
+/* ============================================================
+ * 竖屏适配（依据 vertical-concepts/05-vertical-hitl-confirm-*.png）。
+ *
+ * 不是把横屏等比缩小：竖屏改成**底部抽屉**（贴底、顶部圆角、带把手），
+ * 大交通从右栏落到时间线下方。数值按 390 基准重写——此处 --hud-unit
+ * 已由 tokens.css 换成竖屏基准，横屏的 1120u 在这里会宽到离谱。
+ * ============================================================ */
+@media (max-aspect-ratio: 85/100) {
+  .hitl-backdrop {
+    align-items: flex-end;
+  }
+  .hitl-sheet {
+    width: 100%;
+    max-width: none;
+    /* 92vh 是「4 天 + 大交通 + 动作条」不滚动的下限。竖屏 unit 恒为 h/844
+       （见 tokens.css），所以这条比例与具体分辨率无关，各竖屏车机同样成立。 */
+    max-height: 92vh;
+    padding: calc(6 * var(--hud-unit)) calc(16 * var(--hud-unit)) calc(14 * var(--hud-unit));
+    gap: calc(10 * var(--hud-unit));
+    border-radius: calc(26 * var(--hud-unit)) calc(26 * var(--hud-unit)) 0 0;
+    border-bottom: none;
+  }
+
+  /* 抽屉把手：竖屏这层是从底部升起来的，需要一个"可下拉"的形状暗示。 */
+  .hitl-grip {
+    display: block;
+    width: calc(44 * var(--hud-unit));
+    height: calc(4 * var(--hud-unit));
+    margin: 0 auto calc(4 * var(--hud-unit));
+    border-radius: var(--hud-radius-pill);
+    background: var(--hud-divider);
+  }
+
+  .hitl-head { gap: calc(6 * var(--hud-unit)); }
+  .hitl-head__icon { width: calc(28 * var(--hud-unit)); height: calc(28 * var(--hud-unit)); }
+  .hitl-head__title { font-size: calc(19 * var(--hud-unit)); }
+  /* 胶囊整组占满一行，与竖屏概念图一致：标题一行、范围/对象一行。 */
+  .hitl-head__pills { flex-basis: 100%; gap: calc(8 * var(--hud-unit)); }
+  .hitl-pill {
+    padding: calc(3 * var(--hud-unit)) calc(12 * var(--hud-unit));
+    font-size: calc(13 * var(--hud-unit));
+  }
+
+  /* 单列：大交通落到时间线下方，不再占右栏。 */
+  .hitl-body,
+  .hitl-body--split {
+    grid-template-columns: 1fr;
+    gap: calc(14 * var(--hud-unit));
+  }
+
+  .hitl-plan {
+    gap: calc(8 * var(--hud-unit));
+    padding: calc(6 * var(--hud-unit));
+    border: 1px solid var(--hud-card-border);
+    border-radius: calc(16 * var(--hud-unit));
+  }
+  .hitl-day { grid-template-columns: calc(24 * var(--hud-unit)) 1fr; gap: calc(8 * var(--hud-unit)); }
+  .hitl-day::before {
+    left: calc(11 * var(--hud-unit));
+    top: calc(27 * var(--hud-unit));
+    bottom: calc(-12 * var(--hud-unit));
+    width: calc(1.5 * var(--hud-unit));
+  }
+  .hitl-day__badge {
+    width: calc(24 * var(--hud-unit));
+    height: calc(24 * var(--hud-unit));
+    border-width: calc(1.5 * var(--hud-unit));
+    font-size: calc(15 * var(--hud-unit));
+  }
+  .hitl-day__main { gap: calc(4 * var(--hud-unit)); }
+  .hitl-day__theme { font-size: calc(15 * var(--hud-unit)); }
+
+  .hitl-chips { gap: calc(7 * var(--hud-unit)); }
+  /* 与横屏同一条判据：chips 与住宿行按「一行放得下」定，不跟日主题走。
+     竖屏主列只有 302u 宽，跟着走的话两行都折，4 天折下来抽屉就顶到 92% 屏高
+     并开始滚动（实测：内容 1767px vs 定稿抽屉 1330px）。 */
+  .hitl-chip {
+    gap: calc(4 * var(--hud-unit));
+    padding: calc(3 * var(--hud-unit)) calc(7 * var(--hud-unit));
+    font-size: calc(10 * var(--hud-unit));
+  }
+  .hitl-chip__icon { width: calc(13 * var(--hud-unit)); height: calc(13 * var(--hud-unit)); }
+
+  /* 字号定在「带地铁站后缀的酒店名不折行」的上限：折一行 × 4 天，
+     大交通卡就被挤出视口，而它是这次动作的一部分，不该要滚动才看得到。 */
+  /*
+   * 竖屏的住宿行**不带底色**（定稿如此），天与天之间改用细分隔线。
+   *
+   * 不只是好看：填色块每天要吃掉 12u 的上下内边距，四天就是 48u ≈ 105px——
+   * 这一项占了抽屉比定稿高出来的绝大部分。横屏空间富余，那边保留底色。
+   *
+   * 横向留白同时压到 6u：住宿行在竖屏主列里是**贴着边界**的一行
+   * （实测自然宽 308u 对可用宽 308u），少 1px 就折行、折一行高 15u。
+   */
+  .hitl-stay {
+    gap: calc(5 * var(--hud-unit));
+    padding: calc(2 * var(--hud-unit)) calc(6 * var(--hud-unit));
+    border-radius: 0;
+    background: none;
+    font-size: calc(10 * var(--hud-unit));
+  }
+  /* 分隔线替代填色块来划分天与天；末日不画（下面紧跟的是大交通卡）。 */
+  .hitl-day:not(:last-child) {
+    padding-bottom: calc(3 * var(--hud-unit));
+    border-bottom: 1px solid var(--hud-divider);
+  }
+  .hitl-day::before { bottom: calc(-11 * var(--hud-unit)); }
+  .hitl-stay__icon { width: calc(16 * var(--hud-unit)); height: calc(16 * var(--hud-unit)); }
+  .hitl-est {
+    padding: calc(1 * var(--hud-unit)) calc(6 * var(--hud-unit));
+    font-size: calc(10 * var(--hud-unit));
+  }
+
+  .hitl-transit { padding: calc(8 * var(--hud-unit)) calc(12 * var(--hud-unit)); border-radius: calc(16 * var(--hud-unit)); }
+  .hitl-transit__title {
+    margin-bottom: calc(6 * var(--hud-unit));
+    padding-bottom: calc(5 * var(--hud-unit));
+    font-size: calc(15 * var(--hud-unit));
+  }
+  .hitl-transit__list { gap: calc(6 * var(--hud-unit)); }
+  .hitl-transit__row { gap: calc(8 * var(--hud-unit)); font-size: calc(11 * var(--hud-unit)); }
+  .hitl-transit__icon { width: calc(20 * var(--hud-unit)); height: calc(20 * var(--hud-unit)); }
+  .hitl-transit__note { margin-top: calc(6 * var(--hud-unit)); font-size: calc(11 * var(--hud-unit)); }
+
+  .hitl-detail { font-size: calc(14 * var(--hud-unit)); gap: calc(8 * var(--hud-unit)); }
+  .hitl-disclosure__title { font-size: calc(16 * var(--hud-unit)); }
+
+  .hitl-actions { gap: calc(12 * var(--hud-unit)); padding-top: calc(10 * var(--hud-unit)); }
+  /* 46u @竖屏基准 ≈ 100px 实际热区，仍远超 48px 下限（Brief §4）。 */
+  .hitl-btn {
+    min-height: calc(46 * var(--hud-unit));
+    padding: calc(8 * var(--hud-unit)) calc(16 * var(--hud-unit));
+    border-radius: calc(14 * var(--hud-unit));
+    font-size: calc(19 * var(--hud-unit));
+  }
+  /* 竖屏两键等宽：横向空间有限，宽度差反而挤掉「拒绝」的可点面积。 */
+  .hitl-btn--approve { flex: 1.2; }
+}
+
+/* ── 导览采集进度卡（M40-02）：右下小卡，不遮地图主视区与底部导航 ── */
+.hud-guide-jobs-slot {
+  position: fixed;
+  right: 24px;
+  /* 右列空带：行前提示卡（底 ≈638）与右下数据条（顶 ≈820）之间；
+     放不下的行在卡内滚动——挤占地图或叠在别的卡上都比滚动糟。 */
+  bottom: 88px;
+  width: 300px;
+  max-height: 184px;
+  overflow-y: auto;
+  z-index: 40;
+}
+
+/* ── 访客态常驻标记（M49-04，F-56-06）──
+ * 顶部居中、压在 HUD 之上：它要在任何一屏都看得见。
+ * 播报只说一次，而中途上车的人只能靠它知道现在是降级态。 */
+.cockpit-guest-badge {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(214, 158, 46, 0.92);
+  color: #1a1205;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+  pointer-events: none; /* 不挡任何操作 */
+  z-index: 60;
+}

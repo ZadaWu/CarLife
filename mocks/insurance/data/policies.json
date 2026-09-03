@@ -1,0 +1,40 @@
+{
+  "policies": [
+    {
+      "policyId": "PL-EV-2026-001",
+      "vin": "DEM00SEED0M0DELY1",
+      "insurer": "示例财险（模拟）",
+      "product": "机动车损失保险 + 交强险",
+      "validFrom": "2026-03-01",
+      "validTo": "2027-02-28",
+      "coverages": [
+        { "type": "vehicle_damage", "limit": 250000, "deductible": 500 },
+        { "type": "compulsory", "limit": 200000, "deductible": 0 }
+      ],
+      "status": "active"
+    },
+    {
+      "policyId": "PL-ICE-2026-001",
+      "vin": "DEM00SEED0MAL1BU1",
+      "insurer": "示例财险（模拟）",
+      "product": "机动车损失保险 + 交强险",
+      "validFrom": "2025-11-15",
+      "validTo": "2026-11-14",
+      "coverages": [
+        { "type": "vehicle_damage", "limit": 80000, "deductible": 500 },
+        { "type": "compulsory", "limit": 200000, "deductible": 0 }
+      ],
+      "status": "active"
+    },
+    {
+      "policyId": "PL-EXP-2024-001",
+      "vin": "EXP1REDSEEDVIN001",
+      "insurer": "示例财险（模拟）",
+      "product": "机动车损失保险",
+      "validFrom": "2024-01-01",
+      "validTo": "2025-01-01",
+      "coverages": [{ "type": "vehicle_damage", "limit": 100000, "deductible": 500 }],
+      "status": "expired"
+    }
+  ]
+}

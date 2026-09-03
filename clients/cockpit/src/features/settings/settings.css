@@ -1,0 +1,309 @@
+/* 网关连接设置（ACR-004 第 3 步）。
+   车机/iPad 都是触屏：输入与按钮都按 44px 可点下限给。
+   配色跟 HITL 弹层同一取向——用 token 不写死，深色主题下不能变成白卡。 */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* 高于跟车顶栏（92）与确认弹层——它是"先连上才谈得上别的" */
+  display: grid;
+  place-items: center;
+  background: rgba(15, 27, 45, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.settings-sheet {
+  width: min(92vw, 520px);
+  border-radius: 20px;
+  padding: 26px 28px;
+  background: var(--hud-card-bg, #fff);
+  color: var(--hud-text, #1f3d63);
+  border: 1px solid var(--hud-card-border, #dde4ee);
+  box-shadow: 0 18px 48px rgba(15, 27, 45, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-sheet h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  opacity: 0.82;
+}
+
+.settings-hint code {
+  font-size: 14px;
+}
+
+/* env 压住保存值：这是一句要被看到的声明，不是装饰 */
+.settings-warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgba(255, 176, 32, 0.16);
+  border: 1px solid rgba(214, 106, 0, 0.4);
+  color: #8a4b00;
+}
+
+.settings-sheet label,
+.cset-gateway label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-sheet input,
+.cset-gateway input {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-card-border, #c9d4e4);
+  font-size: 16px; /* iOS：<16px 的输入框聚焦时会被系统强制放大整页 */
+  font-weight: 400;
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+}
+
+.settings-error {
+  margin: 0;
+  font-size: 14px;
+  color: #c0392b;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.settings-actions button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--hud-card-border, #c9d4e4);
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-actions button.is-primary {
+  background: #f5a623;
+  border-color: #f5a623;
+  color: #fff;
+}
+
+.settings-actions button:disabled {
+  opacity: 0.6;
+}
+
+/* ============================================================
+ * 设置页（施工单 M33-05）——整页形态，与档案页同级。
+ *
+ * 主题 token **在本层自定义一套**（照 `.cown--light` / `.cown--dark` 的先例），
+ * 不直接吃 `--hud-*`：那一套是 HUD 舞台的（半透明卡片压在地图上），
+ * 而这里是一张实心的整页。实测踩到过——`--hud-bg` 压根不存在，
+ * 写 `var(--hud-bg, #f2f5fa)` 的结果是**深色主题下整页仍然是白的**，
+ * 而兜底值让它在浅色下看着完全正常，走查不打开深色就发现不了。
+ *
+ * 触屏可点下限 48px（与档案页的 `.cown-pick` 同一口径，FL-06 驾驶态）。
+ * ============================================================ */
+.cset {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* 低于 HITL(200) 与跟车顶栏(92)，高于 HUD 内容 */
+  display: flex;
+  flex-direction: column;
+  background: var(--cset-bg);
+  color: var(--cset-text);
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.cset--light {
+  --cset-bg: #f2f5fa;
+  --cset-card: rgba(255, 255, 255, 0.96);
+  --cset-edge: rgba(20, 40, 80, 0.07);
+  --cset-text: #1b2434;
+  --cset-dim: #6b7789;
+  --cset-chip: rgba(20, 40, 80, 0.05);
+  --cset-knob: rgba(20, 40, 80, 0.18);
+}
+
+.cset--dark {
+  --cset-bg: #0a1426;
+  --cset-card: rgba(255, 255, 255, 0.045);
+  --cset-edge: rgba(120, 170, 255, 0.16);
+  --cset-text: #e8eefb;
+  --cset-dim: #90a0bb;
+  --cset-chip: rgba(255, 255, 255, 0.07);
+  --cset-knob: rgba(255, 255, 255, 0.22);
+}
+
+.cset-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 28px 12px;
+  flex: 0 0 auto;
+}
+.cset-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+/* 底部留出导航条的高度（它是 fixed 的，不留就会盖住最后一组）。 */
+.cset-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 28px 104px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cset-group {
+  background: var(--cset-card);
+  border: 1px solid var(--cset-edge);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cset-group h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.cset-note {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--cset-dim);
+}
+
+/* 开关行：整行可点（车机上瞄准一个小滑块不现实）。 */
+.cset-toggle {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--cset-chip);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cset-toggle__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cset-toggle__label {
+  font-size: 19px;
+  font-weight: 600;
+}
+.cset-toggle__hint {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--cset-dim);
+}
+.cset-toggle__knob {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--cset-knob);
+  position: relative;
+  transition: background 0.15s ease;
+}
+.cset-toggle__knob::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 27, 45, 0.3);
+  transition: transform 0.15s ease;
+}
+.cset-toggle.is-on .cset-toggle__knob {
+  background: var(--hud-amber, #f5a623);
+}
+.cset-toggle.is-on .cset-toggle__knob::after {
+  transform: translateX(24px);
+}
+
+/* 网关表单在整页里的容器：沿用弹层那套 label/input/按钮样式。 */
+.cset-gateway {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cset-gateway input {
+  background: var(--cset-bg);
+  border-color: var(--cset-edge);
+  color: var(--cset-text);
+}
+
+/* ── 当前身份（M49-04，F-56-04）── */
+.cset-identity {
+  margin: 0 0 6px;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.cset-identity strong {
+  font-size: 22px;
+}
+
+.cset-identity-switch {
+  margin: 10px 0 8px;
+  padding: 12px 22px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.18));
+  border-radius: 12px;
+  background: var(--surface-raised, rgba(255, 255, 255, 0.08));
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.cset-identity-switch:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 存不住登录状态是要让人看见的，不是一行灰色小字。 */
+.cset-warn {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(214, 158, 46, 0.16);
+  color: #f0c46a;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* 开关下面那句解释为什么没打开（M60-01）。与普通 note 分开一个修饰类——
+   前者是说明，后者是一次失败，颜色必须能区分。 */
+.cset-note--error {
+  color: var(--danger, #ff6b6b);
+}

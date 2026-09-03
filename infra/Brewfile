@@ -1,0 +1,13 @@
+# macOS 宿主依赖（brew bundle --file infra/Brewfile）。
+# 每一项的"谁在用、缺了的症状"见 内部文档
+# Docker Desktop（cask）不在这里——已手动装过 Docker.app 的机器上 cask 会硬冲突，
+# 由 setup-macos.sh 先探测再决定装不装。
+
+brew "fnm"      # Node 版本管理（.nvmrc 钉 24.20.0）
+brew "rustup"   # Rust 工具链引导（rust-toolchain.toml 钉 1.97.0）
+brew "meson"    # carlife-media 的 webrtc-audio-processing 源码编译
+brew "ninja"    # 同上
+brew "lame"     # mock-tts 的 mp3 编码器（say 自己不产 mp3）
+brew "ffmpeg"   # mock-tts 兜底编码器 + 素材/视频处理
+brew "poppler"  # kb:convert 拆分加密大 PDF（pdftocairo/pdfinfo/pdftotext）
+brew "tmux"     # dev:upgrade 的独立会话，防 tsx watch 孤儿进程

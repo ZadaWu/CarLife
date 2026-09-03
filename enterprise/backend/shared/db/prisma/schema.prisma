@@ -1,0 +1,1141 @@
+// CarLife 数据层（施工单 M2-02）。
+//
+// 当前仅覆盖 M2 Sprint 所需：会话与对话历史（权威源，FL-03"存储分层对齐"）。
+// 用户/车辆档案/工单/预约/审计日志/LangGraph Checkpointer/⑥用车数据时序表
+// 随对应工单扩展（§9）。
+//
+// 历史表只服务"可翻阅"（F-03-10），不回灌模型上下文——
+// 跨轮上下文由 LangGraph 图状态承载（§7①，agent-runtime 侧）。
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Session {
+  id        String    @id
+  /// 会话归属账号（施工单 M48-01，FL-07 F-07-13）。
+  ///
+  /// **可空，且空 = 访客会话**（车机上车声明选了「访客模式」，F-56-06）。
+  /// 空值不是"忘了填"：访客没有账号，这条会话不属于任何人，
+  /// 因此任何用户的历史列表（按 `userId = 我` 查）都取不到它——这正是要的效果。
+  /// 落库而不是不落，是因为审计要看得见"这辆车上发生过一次访客对话"。
+  userId    String?   @map("user_id")
+  /// 会话由哪台设备发起（M48-01，F-07-13）。
+  ///
+  /// 会话归 `(userId, deviceId)` 而不只是 userId：同账号两台同型号 iPad
+  /// 各自有独立会话，不互相覆盖（设计裁决 R6，换设备 = 新会话）。
+  /// 可空：存量会话与非端上入口（后台、脚本）没有设备维度。
+  deviceId  String?   @map("device_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  /// ①Working 的图 thread id（施工单 M4-06）。
+  ///
+  /// 检查点本身落 PG 之后还差这一半：**没有这个映射，重启后不知道该读哪个 thread 的检查点**，
+  /// 会出现"检查点在库里但上下文照丢"的假成功（M4-06 约束 2 实测到过）。
+  /// `workingExpiresAt` 承载 §7① 的硬过期（会话结束 / 24h）——过期的是模型上下文，
+  /// 不是可翻阅历史（后者在 messages 表，不受影响）。
+  workingThreadId  String?   @map("working_thread_id")
+  workingExpiresAt DateTime? @map("working_expires_at")
+
+  /// 会话结束时刻（M22-01）。`null` = 仍在进行。
+  ///
+  /// **软关闭：`messages` 一条不删。** 关掉的是"还能不能接着说"，
+  /// 不是"还能不能翻阅"——§7① 区分的正是这两件事，而车主上滑还得看得见昨天说过什么。
+  ///
+  /// 两条来路：车主点「退下」，或空闲超过 `CARLIFE_SESSION_IDLE_MIN`
+  /// （**懒关闭**——没有 cron，过期是在下一次访问时才落定的）。
+  /// 不建索引：没有"按关闭时间找会话"的用例。
+  closedAt DateTime? @map("closed_at")
+
+  /// 会话标题（M28-01）。首轮结束后由旁路生成**一次**，`null` = 还没生成。
+  ///
+  /// **写入是幂等的且只写 null → 有值这一次**（`setSessionTitle` 用条件更新）。
+  /// 允许重写的话，第二轮之后标题会跟着话题漂——而车主在左侧列表里
+  /// 刚认下的那个名字自己变了，看起来就是记录串了。
+  ///
+  /// 不建索引：没有"按标题搜会话"的用例，列表排序仍走 `updatedAt`。
+  title String? @db.VarChar(64)
+
+  messages  Message[]
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  /// 运营页按最后活跃排序 + 游标翻页都走这一列（M3-04 修）。
+  @@index([updatedAt])
+  @@index([deviceId])
+  @@map("sessions")
+}
+
+/// 账号（施工单 M48-01，FL-07 F-07-13，
+/// 设计 用户体系 §2）。
+///
+/// # 为什么现在才有这张表
+///
+/// 此前整个系统是**隐含单用户**：网关把固定 token 换成硬编码的 `"demo-user"`，
+/// 所有隔离键（Mem0 的 userId、trips.user_id、vehicles.owner_id）都指向它。
+/// 隔离机制一直是对的，只是全系统只有一个值可填。REQ-0002 让第二个人成为可能。
+///
+/// # 为什么 id 没有 `@default(cuid())`
+///
+/// 迁移要插入 id 恰好是 `'demo-user'` 的第一行，让存量数据的裸字符串外键**原地接通**，
+/// 不必 UPDATE 每一张表。新账号的 id 由仓储层生成 cuid（`createUserRepository`）。
+/// 给了 default 也能显式传，但那会让"id 由谁生成"变成两处说法。
+///
+/// # 为什么这么薄
+///
+/// 偏好属③记忆（Mem0，带衰减），进这里就失去衰减语义；名下车辆从
+/// `vehicles.owner_id` 与 `vehicle_grants` 反查，冗余一份必然漂移。
+model User {
+  id           String  @id
+  /// 登录名。错误信息不得泄露它存不存在（FL-07 F-07-13 边界）。
+  username     String  @unique
+  /// bcrypt hash（cost 12）。明文口令不进任何一张表、任何一行日志。
+  passwordHash String  @map("password_hash")
+  /// 称呼。**车机上车声明的名单只显示它**——绝不显示 `vehicle_members.display_name`，
+  /// 那是车主给家人起的叫法（"妈"），属他人 PII（FL-46 F-46-13）。
+  displayName  String? @map("display_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ownedVehicles Vehicle[]
+  grants        VehicleGrant[]
+  devices       Device[]
+  sessions      Session[]
+  trips         Trip[]
+  ownerProfile  OwnerProfile?
+  vehicleMembers VehicleMember[]
+
+  @@map("users")
+}
+
+/// 车辆使用授权（施工单 M48-01，FL-55 F-55-01）。
+///
+/// # 这张表**不记所有权**
+///
+/// 一车一主由 `vehicles.owner_id` 单列表达，这里只记 driver / passenger。
+/// 设计裁决 R1：所有权写两处就是双真相源（ADR-001 同类），
+/// 而"同一车辆至多一个 owner"在 `owner_id` 那一列上是天然成立的，
+/// 不需要冗余列 + 唯一索引 + 写入纪律那一整套机制。
+///
+/// 角色判定的唯一入口是 `roleFor(userId, vin)`：owner_id 命中 → owner，
+/// 否则查这里的生效行 → driver / passenger，都没有 → 非成员。
+///
+/// # 与 `VehicleMember`（影子成员档案）的分工
+///
+///  - `VehicleMember`：车上常有谁的**档案**，可以没有账号（老人、小孩）；
+///  - `VehicleGrant`：谁被授权**使用**这辆车，必须有账号。
+///
+/// 两者独立生命周期、可选关联（`vehicleMemberId`）：借车的朋友不必进常用人员名单，
+/// 常坐车的孩子不必有账号。删档案只解除关联（SetNull）**不撤销授权**，
+/// 撤销授权也不碰档案——端上是两个动作，不隐式互相触发（AC-55-6）。
+///
+/// # 为什么一对 (userId, vin) 只有一行
+///
+/// 撤销是软删（`revokedAt` 置时刻），重新授权是**更新这一行**（清空 revokedAt）。
+/// 允许多行的话 `roleFor` 就得在若干行里挑一行"当前有效的"，
+/// 而"挑错行"的表现是一个已被移除的人还能用车——这种判定不该有歧义。
+/// 授予/撤销的完整动作流水在审计日志里，不靠这张表当账本。
+model VehicleGrant {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  vin    String
+  /// `driver` | `passenger`。**没有 owner**，见表头。
+  role   String @db.VarChar(20)
+
+  /// 可选关联到影子成员档案，仅供界面展示"这条授权对应车上的哪个人"。
+  /// `onDelete: SetNull`：档案删了授权还在。
+  vehicleMemberId String? @map("vehicle_member_id")
+
+  grantedAt DateTime  @default(now()) @map("granted_at")
+  /// 撤销时刻。**NULL = 生效中**；非空即失效，网关每请求查库判定（设计裁决 R11：
+  /// 不引入 Redis 撤销名单，第二真相源会带来 TTL 与库不一致的竞态）。
+  revokedAt DateTime? @map("revoked_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle        @relation(fields: [vin], references: [vin], onDelete: Cascade)
+  vehicleMember VehicleMember? @relation(fields: [vehicleMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, vin])
+  /// 「这辆车当前有哪些成员」是上车声明名单与成员管理页的主路径。
+  @@index([vin, revokedAt])
+  @@index([userId])
+  @@map("vehicle_grants")
+}
+
+/// 终端设备（施工单 M48-01，FL-07 F-07-13 / FL-56 F-56-01）。
+///
+/// # 单表双模式：绑人 or 绑车
+///
+///  - **私人终端**（手机 / 个人 pad）：`vehicleVin` 为 NULL，`userId` 是所有者；
+///  - **车机终端**（车机 / 充当车机的 pad）：`vehicleVin` 非空，
+///    `userId` 只记**绑定操作者**（必是该车 owner）供审计——**它不代表"谁在用这台车机"**。
+///
+/// 车机上"现在是谁"由每次会话的上车声明回答（`activeUserId`，F-56-05），
+/// 设备身份与人的身份是两件事（设计裁决 R4）。
+///
+/// # id 是注册实例 id，不是硬件标识
+///
+/// 端上首次启动生成 UUID 存 Keychain（`carlife.device.id`），与型号无关——
+/// 所以一个人的两台同型号 iPad 天然可区分（约束 5），
+/// 而 `modelName` 只是给人看的展示名，不参与任何判定。
+/// 车机模式用另一个 Keychain key（`carlife.device.id.cockpit`）注册**第二条**记录：
+/// 同一台物理 pad 的私人身份与车机身份因此互不覆盖（设计裁决 R12）。
+///
+/// 重装 app 丢 Keychain = 新设备（无设备指纹，POC 显式简化，见架构 §13-23）。
+model Device {
+  id     String @id
+  userId String @map("user_id")
+  /// `mobile` | `pad` | `cockpit`。
+  deviceType String @map("device_type") @db.VarChar(20)
+  /// 展示名（"iPad Pro 12.9-inch"）。同型号会重复，**不作为唯一键**。
+  modelName  String @map("model_name")
+  /// 车机终端绑定的车辆；私人终端为 NULL。
+  vehicleVin String? @map("vehicle_vin")
+
+  registeredAt DateTime  @default(now()) @map("registered_at")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at")
+  /// 撤销时刻（F-07-11）。非空即失效：refresh 与角色判定时查库拒绝。
+  /// 与授权撤销同一机制（R11），不另建黑名单。
+  revokedAt    DateTime? @map("revoked_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle?  @relation(fields: [vehicleVin], references: [vin], onDelete: SetNull)
+  sessions Session[]
+
+  @@index([userId, revokedAt])
+  @@index([vehicleVin])
+  @@map("devices")
+}
+
+/// 运维配置项（施工单 M3-02）。
+///
+/// 只承载注册表里的 A 密钥类 / B 接入面类；**C 策略值与 D 红线不入本表**
+/// （前者等 Guardrails 落地归运营控制台，后者永远只在代码里）。
+/// `value` 在 `isSecret` 时存 AES-GCM 密文（主密钥由环境注入，不与密文同库）。
+model ConfigItem {
+  key        String   @id
+  value      String
+  isSecret   Boolean  @map("is_secret")
+  updatedBy  String?  @map("updated_by")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  /// 探活通过时间；为空表示"未验证"（含强制保存的项）
+  verifiedAt DateTime? @map("verified_at")
+
+  @@map("config_items")
+}
+
+/// 配置变更历史（施工单 M3-06，F-35-07）。
+///
+/// ⚠️ **A 类（密钥）不保存旧值**——`prevValue` 对密钥类恒为 null。
+/// 因此密钥的"回滚"语义是"回到上一个已验证状态需要重新填值"，这是刻意的限制：
+/// 为了能回滚而留一份旧明文/旧密文，等于给泄露多开一个面。
+model ConfigItemRevision {
+  id         String   @id
+  key        String
+  changedAt  DateTime @default(now()) @map("changed_at")
+  changedBy  String   @map("changed_by")
+  isSecret   Boolean  @map("is_secret")
+  /// 变更前的值；密钥类恒为 null（只记"变更过"这个事实）
+  prevValue  String?  @map("prev_value")
+  prevVerifiedAt DateTime? @map("prev_verified_at")
+
+  @@index([key, changedAt])
+  @@map("config_item_revisions")
+}
+
+/// LLM 用量与成本（施工单 M3-06，F-36-07 / F-10-09 子集）。
+///
+/// 埋点必须贯穿 `session_id` + agent + model，否则成本只能统计到 provider 级，
+/// "谁把 DeepSeek 跑成这个量"永远回答不了（§4.1 X3）。
+/// 写入异步且失败不阻塞 token 流。
+model LlmUsage {
+  id               String   @id
+  at               DateTime @default(now())
+  sessionId        String   @map("session_id")
+  turnId           String   @map("turn_id")
+  /// 当前只有单节点图，固定为 supervisor；多 Agent 落地后是真实 Agent 名
+  agent            String
+  provider         String
+  model            String
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  /// 输入 token 里命中上下文缓存的部分（DeepSeek `prompt_cache_hit_tokens`）。
+  /// 拿不到缓存信息的路径（pi-acp 估算、ASR）留 0——**0 表示"没有这项数据"**，
+  /// 与"真的一次都没命中"在这张表上不可区分，读的人要结合 provider 判断。
+  cacheHitTokens   Int      @default(0) @map("cache_hit_tokens")
+  /// 未命中、因而写进缓存的输入 token（DeepSeek `prompt_cache_miss_tokens`）。
+  /// DeepSeek 不单独对缓存写入计费，所以它同时是"按未命中价计费的那部分"。
+  cacheMissTokens  Int      @default(0) @map("cache_miss_tokens")
+  costEstimate     Float    @map("cost_estimate")
+  durationMs       Int      @map("duration_ms")
+  status           String
+
+  @@index([at])
+  @@index([sessionId])
+  @@index([model, at])
+  @@map("llm_usage")
+}
+
+/// 后台操作审计（施工单 M3-01，FL-10 F-10-13 的雏形）。
+///
+/// 追加式：**没有删除接口**，任何角色都不能抹除记录（AC-28-10）。
+/// `detail` 禁止写入密钥、token 或完整用户消息原文（M3-01 边界）。
+model AuditLog {
+  id        String   @id
+  at        DateTime @default(now())
+  /// 操作主体（后台身份 subject）
+  actor     String
+  /// admin | ops —— 同一动作由谁做出必须可区分（M3-04 角色矩阵）
+  actorRole String   @map("actor_role")
+  /// 动作名，如 config.update / message.reveal / memory.reveal
+  action    String
+  /// 目标：配置项名 / sessionId / messageId
+  target    String?
+  /// 结构化补充（A 类配置只记项名不记值）
+  detail    Json?
+  /// ok | denied | error —— 越权尝试(denied)比成功操作更值得记录
+  result    String
+  sessionId String?  @map("session_id")
+  ip        String?
+
+  @@index([at])
+  @@index([actor, at])
+  @@index([action, at])
+  /// 档案变更记录按 target=vin 查（M29-05）——审计表全系统共用，无索引就是全表扫
+  @@index([target, at])
+  @@map("audit_logs")
+}
+
+/// Guardrails 运行时裁决审计（施工单 M37-04，F-27-11 / F-10-07 / F-10-13）。
+///
+/// 与 `AuditLog` 是两张表、两个主语：那边的 actor 是**运营人员**（后台操作），
+/// 这边的主语是**会话/轮次/裁决层级**——混一张表会让"高风险语境查询"永远要靠
+/// detail JSON 里捞。追加式：**没有更新与删除接口**（与 AuditLog 同纪律）；
+/// `reason`/`detail` 禁止写入 PII 原文与完整用户消息（PII 命中记规则与位置，不记原值）。
+model GuardAuditLog {
+  id         String    @id @default(uuid())
+  at         DateTime  @default(now())
+  sessionId  String    @map("session_id")
+  turnId     String?   @map("turn_id")
+  /// GuardLayer：input_prefilter | input_moderation | output_moderation | output_pii | action_gate
+  layer      String
+  /// allow | deny | needs_confirmation | block —— 含放行（F-27-11"含放行"）
+  decision   String
+  /// 命中的规则/维度 id（如注入规则编号、审核维度、敏感工具名）
+  rule       String?
+  /// action_gate 时的工具名——按工具聚合拦截率要用
+  tool       String?
+  /// 人话原因（已脱敏）
+  reason     String?
+  durationMs Int?      @map("duration_ms")
+  detail     Json?
+  /// F-10-13 归档策略的落点：本期只留字段，归档作业另立单
+  archivedAt DateTime? @map("archived_at")
+
+  @@index([sessionId, at])
+  @@index([decision, at])
+  @@index([layer, at])
+  @@map("guard_audit_logs")
+}
+
+model Message {
+  /// 契约字段 messageId（M2-01 ChatMessage）
+  id        String   @id
+  sessionId String   @map("session_id")
+  /// 同一轮问答共享 turn_id
+  turnId    String   @map("turn_id")
+  /// 契约枚举 ChatRole：user | assistant
+  role      String
+  /// 契约枚举 MessageSource：text | voice（voice 时 content 为 ASR 原文）
+  source    String
+  content   String
+  /// 契约字段 ts（Unix epoch 毫秒）
+  ts        BigInt
+  /// 这条助手回复是被**打断**的半句（M33-01，F-08-08）。
+  ///
+  /// 取消是"停止推进"不是"抹掉"：AC-08-6 明写「已产生内容不丢失」，
+  /// 用户已经听见的那半句留在历史里，只是标出来——不标的话它读起来
+  /// 像是助手好端端地把话说了一半。默认 false，老数据天然正确。
+  cancelled Boolean  @default(false)
+  /// 这条语音消息是**哪个 ASR 档**转写出来的（`ark` / `aliyun` / `mock` / `fake`）。
+  ///
+  /// 为什么落列而不是 join `llm_usage`：那张表**只有云档才有行**——本机 mock 与
+  /// fake 档不调 `onUsage`（它们没有 token 可报），于是"用了 mock"与"没记录"
+  /// 在那张表上不可区分，而 mock 正是要显示的取值之一。
+  ///
+  /// 只有 `source = voice` 的用户消息才有值；文字消息与助手消息恒为 null。
+  asrEngine String?  @map("asr_engine")
+  /// 这条助手回复**当时下发给端上的 TTS 档位**（`doubao` / `aliyun` / `mock`）。
+  ///
+  /// ⚠️ 语义是"下发档位"不是"实际播了什么"：合成发生在端上，服务端不知道
+  /// 那一句最终有没有出声——用户可能关了播报开关、也可能合成失败降级 `say`。
+  /// 界面措辞必须跟着这个边界，不能写成"使用了 X 合成"。
+  ttsEngine String?  @map("tts_engine")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  audio   MessageAudio[]
+
+  @@index([sessionId, ts])
+  @@map("messages")
+}
+
+/// 一条消息对应的**音频**（M60-02）——运营控制台"这句当时听起来是什么样"的回放源。
+///
+/// # 为什么按 (messageId, kind) 而不是每条消息一行
+///
+/// 一轮里两侧都可能有声音，来路完全不同：车主那句是**端上录进来的原始波形**
+/// （`kind=asr`，网关在建轮时顺手转存，`origin=captured`）；助手那句的音频
+/// **服务端手里没有**——合成发生在端上（豆包档端上直连火山），服务端只知道
+/// 当时下发了哪个档位。所以它是控制台第一次点播放时按同一档位补合成的
+/// （`origin=resynth`），补完就落这里，之后不再重复调用供应商。
+///
+/// # 只存"像样的会话"
+///
+/// 哨兵那条 `/v1/asr/transcribe` 不建轮、不落消息，因此也天然不会有行——
+/// 音频的存在性挂在 messageId 上，这条边界不需要再写一遍判断（AC-52-5）。
+///
+/// 字节本身在对象存储（MinIO / S3，`objectKey`），这张表只存索引与来路：
+/// 音频是可以很大的东西，进 PG 会把备份与复制一起拖下水。
+model MessageAudio {
+  messageId String   @map("message_id")
+  /// `asr` = 车主说的那段原始录音；`tts` = 助手那句的合成音。
+  kind      String
+  /// 哪个档位产生的（`ark` / `aliyun` / `mock` / `doubao`）。
+  /// 与 `messages.asr_engine` / `tts_engine` 同值域，但这里记的是**产生这段音频的**那次调用，
+  /// 补合成时可能与当时下发的档位不同（那一档已经下线的话）——两者都要能查到。
+  engine    String
+  /// TTS 音色（豆包 speaker / 百炼 voice）。ASR 侧恒为 null。
+  voice     String?  @map("voice")
+  /// 逐字节就是当时播出去的那段（`captured`），还是事后按同档位补合成的（`resynth`）。
+  /// 界面必须如实标注：把补合成的说成"当时的录音"是把一个不知道的事说成知道。
+  origin    String
+  mime      String
+  bytes     Int
+  objectKey String   @map("object_key")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  /// 删会话会级联删掉这些行，**但对象存储里的字节不会跟着走**——
+  /// 清理归 worker 的保留期任务，不要指望外键。
+  @@id([messageId, kind])
+  @@map("message_audio")
+}
+
+/// ⑥用车数据的**第一段**：原始行程流水（施工单 M7-04，§7⑥）。
+///
+/// 两段式的分工：这张表存**变化过程**（每一趟怎么开的），
+/// `enterprise/backend/worker/usage-aggregation` 定时把它聚合成"用车画像"写进 Mem0
+/// （`category=usage_pattern`）供语义检索。**画像不回写这张表**。
+///
+/// 与 ④车辆档案的边界（F-23-10）：档案存**当前值**且事件驱动，
+/// 流水存**变化过程**且只追加。同在 PG，但不共用读写路径。
+///
+/// 不设 updatedAt：流水**只追加不修改**——一趟已经开完的行程不会变。
+/// 要更正只能追加一条修正记录，历史保持可审计。
+model Trip {
+  id     String  @id
+  /// 记忆读写一律带用户维度（M7-01 边界：跨用户泄露是严重事故）
+  userId String  @map("user_id")
+  /// 关联车辆。一人多车时用它区分；POC 期可空
+  vin    String?
+
+  startedAt  DateTime @map("started_at")
+  endedAt    DateTime @map("ended_at")
+  distanceKm Float    @map("distance_km")
+
+  /// city | highway | mixed
+  roadType     String? @map("road_type")
+  ambientTempC Float?  @map("ambient_temp_c")
+
+  /// 本次行程的实际续航表现（km，满电折算）。低温续航判断的原始依据
+  observedRangeKm Float? @map("observed_range_km")
+
+  /// 充电起止 SOC 与时刻。三者要么全有要么全无，由写入层校验
+  chargeStartSoc Float?    @map("charge_start_soc")
+  chargeEndSoc   Float?    @map("charge_end_soc")
+  chargeAt       DateTime? @map("charge_at")
+
+  /// 这趟是谁开的（施工单 M17-02，F-46-05）。指向 `vehicle_members.id`。
+  ///
+  /// **可空，而且空值不许默认算车主**。空的语义是"不知道谁开的"，
+  /// 按人聚合时跳过、不计入任何人——把它算成车主，得到的不是"缺数据"，
+  /// 而是一个看起来很确定的错数字（妻子周末开的里程记到丈夫名下，下游无从察觉）。
+  ///
+  /// 不设外键：成员被删时归属**置空而不是级联删行程**——已发生的行程是审计事实。
+  /// 置空由 `removeMemberCascade` 负责（F-46-12）。
+  driverMemberId String? @map("driver_member_id")
+  /// 这趟车上还有谁（同上，成员 id 列表）。用于乘车人的同行频次聚合。
+  passengerMemberIds String[] @default([]) @map("passenger_member_ids")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 聚合查询的主路径：按用户 + 结束时间窗口取近 N 天
+  @@index([userId, endedAt])
+  @@index([vin, endedAt])
+  /// 按人聚合的主路径（F-46-06）
+  @@index([driverMemberId, endedAt])
+  @@map("trips")
+}
+
+/// 已确认的多天行程（施工单 M13-01，设计 内部文档）。
+///
+/// **只存确认过的**：草案活在 LangGraph 检查点（随 thread 24h 作废），
+/// 用户点过弹窗的行程才升格进这张表——它是承诺不是聊天，
+/// 所以在 PG 而不是 Mem0（worker 的记忆衰减只扫 Mem0，这里天然不衰减）。
+///
+/// 一次确认一行（整份快照进 `plan`，有审计价值）；「当前行程」= 最新一条
+/// status=confirmed；取消是把那一行置 cancelled，不删（能改的历史没有争议价值，
+/// 与 vehicle_profile_write 同一条纪律）。
+model TripPlan {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  /// 确认发生在哪个会话——回放与审计要能对上那次弹窗
+  sessionId String   @map("session_id")
+  /// confirmed | cancelled（草案状态不入库）
+  status    String
+  /// 冗余出目的地与起止日，列表页与运维查询不用拆 JSON
+  destination String
+  startDate   String?  @map("start_date")
+  /// 结束日 = 出发日 + 天数 - 1（写入时算好，`YYYY-MM-DD`）。
+  ///
+  /// **派生值却要落列**，因为"临近排序"要区分三种状态：正在走的、还没走的、已经走完的。
+  /// 只有出发日的话，一趟昨天出发、还要走五天的行程会被判成"过去的"沉到列表底部，
+  /// 而它恰恰是此刻最该排在最前面的那一趟。这个判断在 SQL 里表达不了
+  /// （`start_date + days` 不是可索引的表达式），所以写入时算好。
+  endDate     String?  @map("end_date")
+  days        Int
+  /// 整份 TripPlanSnapshot（contracts domain/trip-plan.ts 是形状真相源）
+  plan        Json
+  committedAt DateTime @default(now()) @map("committed_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  /// 「当前行程」查询主路径：按用户取最新 confirmed
+  @@index([userId, committedAt])
+  /// 行程列表主路径（M13-11）：按用户取未取消的，按起止日切分"进行中/未来/过去"
+  @@index([userId, status, startDate])
+  @@index([userId, status, endDate])
+  @@map("trip_plans")
+}
+
+/// `route_audit` 工具每次调用落一条（M-路径优化）。
+///
+/// 它存的是**模型交给算法体检的那份顺序**——第一条即「LLM 产出的第一版」，
+/// 与最终 `trip_plans` 快照对照，就是管理后台的"路径优化前后对比"。
+/// 只追加不修改：审计存证与 `trip_plans` 的取消不删行同一条纪律。
+model TripRouteAudit {
+  id        String   @id @default(cuid())
+  /// 工具上下文里的会话 id。fan-out 分支可能带 `#` 后缀，查询按前缀匹配。
+  sessionId String   @map("session_id")
+  turnId    String?  @map("turn_id")
+  /// 哪个 Agent 调的（tour / trip）——回答"模型有没有按纪律做体检"。
+  agent     String?
+  /// RouteAuditRecordPayload（enterprise/backend/shared/tools route-audit.ts 是形状真相源）：
+  /// 逐天的点序（含坐标）、原顺序里程、建议顺序与里程、交叉段、未解析点。
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId, createdAt])
+  @@map("trip_route_audits")
+}
+
+/// ④车辆档案（施工单 M7-03，§7④）。**不进向量库、不衰减、仅事件驱动更新**。
+///
+/// 为什么是 PG 而不是 Mem0：VIN 不能被语义近似检索到别的车——
+/// 向量检索天然把相似的 VIN 排在一起，那是灾难性的。
+/// 另外"上次保养 2025-03-14"不能是个近似检索结果。
+///
+/// 与 ⑥`trips` 的边界（F-23-10）：这里存**当前值**，那里存**变化过程**。
+/// `odometerKm` 可由⑥推进，但两者不共用读写路径。
+model Vehicle {
+  /// VIN 即主键：一辆车全局唯一，不另造 id
+  vin     String @id
+  /// 车主（施工单 M48-01 起是 `users.id` 外键，此前是裸字符串 `"demo-user"`）。
+  ///
+  /// **这一列是"一车一主"的唯一真相源**（设计裁决 R1）：约束由"它只能有一个值"
+  /// 天然给出，不在 `vehicle_grants` 里再记一份 owner。
+  /// `onDelete: Restrict`——删账号必须先处理名下车辆；车辆数据不随人蒸发。
+  ownerId String @map("owner_id")
+
+  model       String
+  modelYear   Int      @map("model_year")
+  purchasedAt DateTime @map("purchased_at")
+  /// 当前里程；由⑥流水推进或用户上报
+  odometerKm  Float    @map("odometer_km")
+  /// 当前里程这个**值**最后一次前进的时刻（施工单 M26-01，F-53-01，架构文档 §7「不衰减 ≠ 永远可信」）。
+  ///
+  /// # 为什么不能用行级 `updatedAt` 代替
+  ///
+  /// `updatedAt` 是整行的：`setDefault` 改默认车、cabin backend 回写 `cabinVehicleId`
+  /// 都会把它推到现在。拿它当"里程是什么时候的"，表现是**绑了一次车机，里程就显得很新鲜**——
+  /// 而里程可能还停在三个月前。④ 此前完全没有这一维，于是保养推算在数据陈旧时
+  /// 语气与数据新鲜时一模一样（§7 回填的那段）。
+  ///
+  /// # 语义：只在里程真的前进时才动
+  ///
+  /// 四条写入路径（appendMaintenance / appendRepair / advanceOdometer / upsert）
+  /// 都只在 `新值 > 旧值` 时连同 `odometerKm` 一起写它。里程没变 ⇒ 时刻不变，
+  /// 因为"又上报了一次同样的数"并不构成一次新的观测。
+  ///
+  /// **可空，且空 ≠ 很久以前。** 空的语义是"不知道这个里程是什么时候的"（存量行）。
+  /// 判定层遇到空值走 `unknown` 第三态：判 fresh 会让存量车永远不被问，
+  /// 判 stale 会让存量车在上线当天全部被判陈旧、全部触发补录询问。
+  odometerAt  DateTime? @map("odometer_at")
+  /// 当前里程这个值**是谁说的**（施工单 M26-04，F-53-08，架构文档 §4.6 约束 3）。
+  ///
+  /// 受控词表 `ProfileFactSource`（owner-stated / dealer / telemetry），词表在
+  /// `@carlife/shared`——存 enum 会让两处各写一份，必然漂移。
+  ///
+  /// **可空**：存量行不知道来源，读出来是"不知道"而不是"车辆上报"。
+  /// 猜一个的代价与 `energyType` 同源：下游会拿它去说"根据行驶记录"，
+  /// 而那句话可能建立在一句口述之上。
+  odometerSource String? @map("odometer_source")
+  /// 厂商标称保养周期（公里）。**缺失时下游按通用值并明确标注**，不假装知道
+  maintenanceIntervalKm Int? @map("maintenance_interval_km")
+
+  /// 车机侧车辆 id（mock-cabin 发号，M24-02）。**车型只在建号时传一次**，
+  /// 此后一切座舱操作按此 id；mock 重启后 id 悬空，由 cabin backend 自动重建重绑。
+  cabinVehicleId String? @map("cabin_vehicle_id")
+
+  /// 能源类型：`bev` 纯电 / `phev` 插混 / `icev` 燃油。词汇沿用 `cost_calc` 工具，不另造一套。
+  ///
+  /// **可空，而且不给默认值**——"不知道这辆车烧什么"是真实状态，不是待填的空缺。
+  /// 猜一个的代价实测过：编排层无条件让子 Agent 做"续航余量百分比"评估，
+  /// 对一辆燃油车这个问题无解，模型只能编或者说"数据不全"（见 subgraphs/trip.ts）。
+  /// 下游遇到 null 必须如实说不知道，不得按纯电或燃油任一侧假设。
+  energyType String? @map("energy_type")
+
+  /// 一人多车时的默认车（F-23-09）。当前车辆 id 随图状态传递，
+  /// 各工具不自行推断"我的车"是哪辆。
+  ///
+  /// **只能经 `VehicleStore.setDefault` 改**（先清后设、同一事务）。
+  /// 直接写这个字段会绕过下面 `defaultForOwner` 的唯一约束，
+  /// 写出两辆并列默认车——实测坏过一次，见 setDefault 的说明。
+  isDefault Boolean @default(false) @map("is_default")
+
+  /// 默认车的**数据库级唯一约束**（F-23-09）。
+  ///
+  /// 取值是 `ownerId` 本身（这辆是默认车）或 NULL（不是）。
+  /// Postgres 的唯一索引**忽略 NULL**，所以这一列天然保证"同一车主至多一辆默认车"——
+  /// 而 `isDefault` 这个布尔做不到：真正需要的是 partial unique index
+  /// （`UNIQUE (owner_id) WHERE is_default`），**Prisma 6 的 schema 表达不了它**，
+  /// 手写进迁移又会被 `migrate diff --from-migrations --to-schema-datamodel`
+  /// 判成漂移、在下一次 `db:migrate:safe` 时生成 DROP INDEX 删掉。
+  ///
+  /// 冗余是有意的：`isDefault` 供读取与排序（语义直白），这一列供约束。
+  /// 两者由 `setDefault` 在同一事务里一起写，不允许别处单独改任何一个。
+  defaultForOwner String? @unique @map("default_for_owner")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  maintenance MaintenanceRecord[]
+  repairs     RepairRecord[]
+  members     VehicleMember[]
+  combinations MemberCombination[]
+
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  grants  VehicleGrant[]
+  devices Device[]
+
+  @@index([ownerId])
+  @@map("vehicles")
+}
+
+/// 车辆常用人员（施工单 M17-01，§7④ 同族，FL-46 F-46-01）。
+///
+/// # 为什么在 PG 不在 Mem0
+///
+/// 与 `Vehicle` 同样的三条，加上一条更硬的：
+///  1. **精确匹配**——语义近似检索到"另一个妈"不是召回差，是说错人；
+///  2. **能真删**——称呼与关系是**他人的**可识别信息，删除必须删干净；
+///  3. **能更正**——改一次称呼就该是改，不是再写一条相似的进去；
+///  4. 不衰减：这辆车常有谁，不会因为久没被问起就变得不确定。
+///
+/// # 这里没有、也不会有的字段
+///
+/// 没有 `userId` / `inviteCode`：登记一个人**不发放任何权限**，
+/// 被登记者没有账号、不登录、看不到这些记录。一车多人的授权是 F-07-10 的未决，
+/// 加这个字段等于偷偷开始做它。
+///
+/// 没有任何评分/评级/等级字段（AC-46-10）：不给下游留发挥空间，
+/// 比在提示词里写"不要评价驾驶习惯"可靠。
+model VehicleMember {
+  id      String @id @default(cuid())
+  vin     String
+  /// 冗余归属列：读路径靠它做用户维度过滤，不必每次 join 车表。
+  /// 跨用户读改是严重事故（M7-01 同一条纪律），所以过滤条件要**便宜到不会有人省掉**。
+  ownerId String @map("owner_id")
+
+  /// 称呼。车主自己的叫法，"妈"就是合法输入；不校验真实姓名、不要求唯一。
+  displayName String  @map("display_name")
+  /// 与车主的关系，自由文本。
+  relation    String?
+
+  /// 角色集合（driver / passenger）。**是集合不是枚举**——妻子既开车也坐车。
+  roles   String[] @default([])
+  /// adult | senior | child。不存生日与年龄：产品只需要"按什么节奏安排"。
+  ageBand String?  @map("age_band")
+  /// 出行硬约束，取值来自 `@carlife/shared` 的 MEMBER_NEEDS 受控词表。
+  /// 受控是因为下游要**机械映射**成单段时长上限与停靠点门槛（F-46-10），
+  /// 存自由文本那边就只能再调一次 LLM 去猜。
+  needs   String[] @default([])
+  /// 说不清的那一句。只进提示词，不参与程序分叉。
+  note    String?
+  /// 手机号（M19-06）。**本表唯一能直接联系到人的字段**——出库一律先取后四位，
+  /// 明文只在下单那一步由工具层按 memberId 取用，不进模型上下文、不进 trace。
+  /// 不建索引：没有"按手机号找人"这个用例，建了反而是一条反查通道。
+  phone   String?
+
+  /// 座舱偏好（M24-06，F-50-01）。JSON 列，形状由 @carlife/shared 的
+  /// MemberCabinPreference 定义并在写入前校验——**没有条件化字段**（§13-18 未决不预留）。
+  cabinPreference Json? @map("cabin_preference")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vehicle Vehicle @relation(fields: [vin], references: [vin], onDelete: Cascade)
+  /// 档案的**维护者**（车主），M48-01 起是外键。不是"这个人是谁"——
+  /// 被登记者没有账号（表头那段仍然成立）；有账号的使用者走 `vehicle_grants`。
+  owner   User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  grants  VehicleGrant[]
+
+  @@index([vin])
+  @@index([ownerId])
+  @@map("vehicle_members")
+}
+
+/// 成员组合偏好（M24-06，F-50-03）：这几个人一起坐车时的覆盖项。
+/// **按成员集合精确匹配**（member_key = 排序去重后 join），孩子+妈妈 ≠ 孩子+妈妈+爸爸。
+/// 含已删成员的组合**标记失效保留**（AC-50-10），不静默重组——那是另一个组合。
+model MemberCombination {
+  id      String @id @default(cuid())
+  vin     String
+  ownerId String @map("owner_id")
+
+  /// 车主起的名字（"孩子和妈妈"）。
+  label String
+  /// 归一化（排序去重）的成员 id 数组，≥2 人（校验在 shared 的 normalizeMemberIds）。
+  memberIds String[] @map("member_ids")
+  /// 精确匹配键：normalizeMemberIds().join("|")。PG 数组列做不了唯一约束，键列可以。
+  memberKey String @map("member_key")
+  /// 覆盖项，形状同 MemberCabinPreference。
+  override Json
+
+  invalidatedAt DateTime? @map("invalidated_at")
+  invalidReason String?   @map("invalid_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vehicle Vehicle @relation(fields: [vin], references: [vin], onDelete: Cascade)
+
+  @@unique([vin, memberKey])
+  @@index([ownerId])
+  @@map("member_combinations")
+}
+
+/// 保养记录。**只追加**——历史要能被用作与修理厂争议的依据（F-23-11），改不得。
+model MaintenanceRecord {
+  id         String   @id
+  vin        String
+  at         DateTime
+  odometerKm Float    @map("odometer_km")
+  items      String
+  /// 门店或来源。**用户自述要标注出来**：它与门店记录的可信度不同
+  source     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  vehicle Vehicle @relation(fields: [vin], references: [vin], onDelete: Cascade)
+
+  @@index([vin, at])
+  @@map("maintenance_records")
+}
+
+/// 维修历史。同样只追加。
+model RepairRecord {
+  id         String   @id
+  vin        String
+  at         DateTime
+  odometerKm Float    @map("odometer_km")
+  symptom    String
+  resolution String?
+  source     String
+  /// 关联的问诊会话，供回看原图与分析（F-20-13）
+  sessionId  String?  @map("session_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  vehicle Vehicle @relation(fields: [vin], references: [vin], onDelete: Cascade)
+
+  @@index([vin, at])
+  @@map("repair_records")
+}
+
+/// 运行轨迹（施工单 M5-06 采集 / M9-01 回放，§4.1 X2）。
+///
+/// 粒度基准是罗启明的四问，不是"尽可能全"：
+/// 多 Agent 会话、分支起止、中断与恢复、工具调用的来源标注。
+///
+/// **只追加**。回放要能证明"没被隐藏"，一个能删的轨迹表证明不了任何事（F-29-08）。
+///
+/// 落库而不是留在内存：回放页读的是历史会话，进程一重启内存里的轨迹全没了——
+/// "回放不是重跑"这条铁律要求数据必须活得比进程久。
+model TraceEvent {
+  id        String   @id
+  sessionId String   @map("session_id")
+  turnId    String?  @map("turn_id")
+  /// turn_start | intent | risk | route | agent_session | branch | merge |
+  /// tool_call | guard | interrupt | resume | cancel | turn_end
+  kind      String
+  /// 事件发生时刻（Unix 毫秒）。用 BigInt 与 messages.ts 保持一致
+  at        BigInt
+  /// 结构化载荷。**展示前须经 PII 脱敏**（§8.3，回放页负责）
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// 回放的入口是 session_id + 时间序
+  @@index([sessionId, at])
+  @@index([createdAt])
+  @@map("trace_events")
+}
+
+/// 附件元数据（施工单 M8-04，§3 / FL-09）。
+///
+/// **文件本体在对象存储，这里只存元数据与句柄**。网关只接收与转存，
+/// 不解析内容（AC-09-8）——图片理解归售后 Agent，PDF 解析归 RAGFlow。
+///
+/// 保留期与对话历史一致，**不接入记忆衰减**（F-09-13）：
+/// 高鹏两周后要拿这些照片去和修理厂对峙。记忆可以淡出，证据不行。
+model Attachment {
+  /// 引用句柄，同时是主键。**不可枚举**：随机 192 bit，不含时间戳/序号/用户 id
+  id String @id
+
+  sessionId String  @map("session_id")
+  /// 与本轮提问绑定：附件与问题必须在同一次请求里到达（F-09-06）
+  turnId    String? @map("turn_id")
+  /// 归属校验用。取件时比对，**句柄泄露也拿不到别人的文件**
+  userId    String  @map("user_id")
+
+  /// image | audio | pdf。视频不支持（见 FL-09 未决）
+  kind        String
+  contentType String @map("content_type")
+  bytes       Int
+  /// 端上给的原始文件名，仅用于展示。**不参与存储路径**——它可控且可能含路径穿越
+  filename    String?
+  /// 对象存储里的 key
+  objectKey   String @map("object_key")
+
+  /// 端上生成的幂等键：弱网重传同一份文件不该产生两条记录（F-09-05）
+  idempotencyKey String? @unique @map("idempotency_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId, createdAt])
+  @@index([turnId])
+  @@map("attachments")
+}
+
+/// 定时任务执行留痕（施工单 M7-05，FL-32 F-32-10）。
+///
+/// 一行 = 一个**已成功执行完的时间窗口**。两个用途叠在同一张表上：
+///  1. 留痕本身——处理/变更/删除量与耗时，用来回溯"某天的画像是怎么算出来的"；
+///  2. **断点续跑的依据**——`runJob` 取本任务最大的 `windowTo` 当作上次成功位置，
+///     据此算出漏跑了几个窗口（F-32-06）。
+///
+/// 因此**只在成功后写入**：失败的窗口不留行，下次才会把它重新算进补偿范围。
+/// 失败要出声走 `JobAlerts`，不是往这张表里塞一行 failed（那会让断点前移，
+/// 把没跑成的窗口永久跳过）。
+///
+/// 追加式，无删除接口——与 `audit_logs` 同一条纪律。
+model JobRun {
+  id         String   @id @default(cuid())
+  /// 任务名：memory-decay | usage-aggregation | kb-sync | vehicle-reminder
+  job        String
+  windowFrom DateTime @map("window_from")
+  windowTo   DateTime @map("window_to")
+  /// 是否补偿执行（漏跑后的追赶）——补出来的画像与实时跑的要能区分
+  isCatchUp  Boolean  @default(false) @map("is_catch_up")
+  processed  Int      @default(0)
+  changed    Int      @default(0)
+  deleted    Int      @default(0)
+  /// 窗口内的分项失败。整体没抛错不等于全都成功（F-32-07）
+  failures   String[] @default([])
+  durationMs Int      @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  /// 断点查询走 (job, windowTo desc)，留痕回溯走 (job, createdAt)
+  @@index([job, windowTo])
+  @@index([job, createdAt])
+  @@map("job_runs")
+}
+
+/// 同任务并发互斥（施工单 M7-05，FL-32 F-32-13）。
+///
+/// **没有它，幂等也救不了**：两个实例同时跑 memory-decay，各自读到"还没删"，
+/// 于是删两遍（§13-13 的单实例假设正是为此）。
+///
+/// 为什么不用 Redis：FL-32 建议 Redis 分布式锁「不引入新组件」，但仓里没有
+/// Node 侧 Redis 客户端，加一个才是引入新依赖；而 PG 已经在依赖里。
+/// 也不用 `pg_advisory_lock`——它绑在**连接**上，而 Prisma 走连接池，
+/// 释放时未必还是同一条连接，会出现锁泄漏。
+/// 带 `expiresAt` 的行锁没有这个问题：持有者崩了，租约到点自然失效。
+model JobLease {
+  /// 任务名即主键——同名任务全局至多一个持有者
+  job       String   @id
+  /// 持有者标识（进程 id + 主机名），用于诊断"是谁占着"
+  holder    String
+  expiresAt DateTime @map("expires_at")
+  acquiredAt DateTime @default(now()) @map("acquired_at")
+
+  @@map("job_leases")
+}
+
+/// 保养/年检提醒（施工单 M7-05，FL-17 F-17-12）。
+///
+/// **任务只生成提醒，不写日历**——写日历必须回到 §8.4 的权限门与 HITL 链路，
+/// 定时任务无权绕过。所以这张表是"待告知"的队列，不是"已安排"的日程。
+///
+/// 去重窗口查的是 (user, vin, kind) 上最近一条的 `createdAt`（F-17-07）：
+/// 同一辆车同一类到期，7 天内已经提过就不再提。
+model VehicleReminder {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  vin         String
+  /// maintenance | inspection
+  kind        String
+  /// 预计到期时间；日均里程未知时为空——**不猜**（与 MaintenanceForecast.etaDays 同一条纪律）
+  dueAt       DateTime? @map("due_at")
+  /// 距下次保养剩余公里；负数表示已超期
+  remainingKm Int?     @map("remaining_km")
+  message     String
+  /// 推算依据，随提醒一起交付，用户能看到这个结论怎么来的
+  basis       String[] @default([])
+  /// 数据不足、走的通用周期——下游展示时必须标注
+  degraded    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  /// 保养完成后由 appendMaintenance 同事务置位（M14-02，F-17-08）。
+  /// 失效是标记不是删除：已发提醒是审计事实，"当时为什么提醒过"必须可回答。
+  invalidatedAt DateTime? @map("invalidated_at")
+
+  @@index([userId, vin, kind, createdAt])
+  @@map("vehicle_reminders")
+}
+
+/// ⑥用车数据的补能流水（施工单 M26-06，[FL-54] F-54-01，架构文档 §7⑥）。
+///
+/// # 为什么必须有这张表
+///
+/// 电侧的能耗算得出来（`Trip` 有充电起止 SOC 与 `observedRangeKm`），
+/// **油侧一条数据源都没有**——`Trip` 没有加油量字段。于是"这趟 500 公里要多少油"
+/// 的两个输入里，能耗那个只能靠厂标，而厂标与真实油耗能差三成。
+///
+/// 这正是 ADR-002 第 3 类事故的形状（字段与消费者先于数据源落地）。所以本表
+/// 与 `energy_gap` **同一个 Sprint 落地**，不留"以后再接"的口子。
+///
+/// # 与 ④ 的边界
+///
+/// 加油是**一次事件**，属于⑥的变化过程，不是④的当前值——所以它落这里而不是
+/// `Vehicle` 上加一列。同 `Trip`：只追加不修改，一次已经加完的油不会变。
+///
+/// # 口径
+///
+/// 百公里油耗按**两次加油之间**算：`liters(n) ÷ (odo(n) − odo(n−1)) × 100`。
+/// 单条记录算不出油耗（没有区间），所以至少要两条才有一个样本——
+/// 这也是为什么"车主报了一次加油"不等于"从此有实测油耗了"。
+model RefuelRecord {
+  id String @id @default(cuid())
+  /// 记忆读写一律带用户维度（M7-01 边界：跨用户泄露是严重事故）。
+  userId String @map("user_id")
+  /// 关联车辆。一人多车时用它区分；与 Trip 同样可空。
+  vin String?
+
+  at DateTime
+  /// 这次加了多少升。**不是油箱容量**，也不是剩余量。
+  liters Float
+  /// 加油时的里程读数。区间油耗全靠它，缺了这条记录就没有价值。
+  odometerKm Float @map("odometer_km")
+  /// 受控词表 ProfileFactSource。车主口述与加油站小票的可信度不同。
+  source String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, at])
+  @@index([vin, odometerKm])
+  @@map("refuel_records")
+}
+
+/// 补录询问的拒答冷却（施工单 M26-03，[FL-53] F-53-09，架构文档 §4.6 约束 2/4）。
+///
+/// # 为什么是独立一张表，而不是挂在 Vehicle 上
+///
+/// §4.6 约束 4：**拒答不构成新的信息**。挂进 `Vehicle` 就等于让它跟着
+/// `VehicleProfile` 的读路径流到每一个下游——出行规划、座舱、售后、购车都会
+/// "顺便知道"车主拒答过一次里程补录，而它们本不该知道。
+/// 可断言的不变量是：同一辆陈旧的车，在"从未被问过"与"已拒答"两种状态下，
+/// 喂给各 Agent 的上下文与工具集**逐字段相同**。独立成表是这条不变量最便宜的保证。
+///
+/// # 只追加更新，不删
+///
+/// 拒答是审计事实——"当时为什么没问"必须回答得出来。冷却过期靠时间判定，
+/// 不靠删行（同 `VehicleReminder.invalidatedAt` 的"失效是标记不是删除"）。
+model ElicitationCooldown {
+  /// 一辆车一种事实至多一行，复合主键即唯一约束。
+  vin  String
+  /// 受控词表 ElicitationKind（odometer / last_service / energy_type / energy_level）。
+  /// 存字符串而非 enum：词表在 @carlife/shared，两处各写一份枚举必然漂移。
+  kind String
+
+  /// 冗余归属列：读路径靠它做用户维度过滤，不必每次 join 车表。
+  /// 跨用户读改是严重事故（M7-01 同一条纪律），过滤条件要便宜到不会有人省掉。
+  ownerId String @map("owner_id")
+
+  declinedAt   DateTime @map("declined_at")
+  /// 累计拒答次数。连着拒三次与第一次拒，后续策略可以不同（本期只记录不用）。
+  declineCount Int      @default(1) @map("decline_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([vin, kind])
+  @@index([ownerId])
+  @@map("elicitation_cooldowns")
+}
+
+/// 提醒开关与频率（施工单 M7-05，FL-17 F-17-07）。
+///
+/// 落 PG 不落 Mem0：**这是配置而非记忆**，不应参与 §7 的衰减与 re-rank。
+/// 默认值偏保守（宁可少提醒），高频用户可以把窗口调小。
+model ReminderSetting {
+  userId     String   @id @map("user_id")
+  enabled    Boolean  @default(true)
+  /// 去重窗口天数
+  dedupeDays Int      @default(7) @map("dedupe_days")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("reminder_settings")
+}
+
+/// 运营可热改的 Guard 策略值（施工单 TD-03，FL-30 F-30-01/03）。
+///
+/// # 为什么不进 config_items
+///
+/// 那张表**只承载注册表里的 A 密钥类 / B 接入面类**（见 ConfigItem 注释）。
+/// §8.2 的三分边界里，C 策略值归**运营**、D 红线**永远只在代码里**：
+/// 让运营持有"把审核指向任意端点"的能力等于给内容安全开后门，
+/// 而让任何人能热改硬禁清单等于红线不存在。两类东西放同一张表，
+/// 分权就只能靠调用处自觉，迟早漏一处。
+///
+/// # 一行一项，不是一行一份大 JSON
+///
+/// `key` 粒度到"策略"与"止血开关"两项而不是压成一行：
+/// 变更留痕要能回答"是谁动了止血开关"，而整份 JSON 的 diff 回答不了。
+/// **红线类字段在本表里根本不存在**——它们不是"不可写"，是压根没有落点。
+model GuardSetting {
+  /// policy | kill_switch
+  key       String   @id
+  /// 结构由 key 决定：policy → GuardPolicy；kill_switch → { agents: string[], capabilities: string[] }
+  value     Json
+  /// 后台身份 subject。谁按下止血开关必须可追溯
+  updatedBy String?  @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("guard_settings")
+}
+
+/// Guard 策略变更历史（施工单 TD-03，F-30-02 变更留痕）。
+///
+/// 追加式，无删除接口——与 audit_logs 同一条纪律。
+/// **保留旧值**（与 ConfigItemRevision 对密钥类的处理相反）：策略值不是密钥，
+/// 留旧值才能回答"上周三那次误伤是在哪套策略下发生的"。
+model GuardSettingRevision {
+  id        String   @id @default(cuid())
+  key       String
+  /// 变更前的值；首次写入为 null
+  prevValue Json?    @map("prev_value")
+  nextValue Json     @map("next_value")
+  actor     String
+  /// admin | ops
+  actorRole String   @map("actor_role")
+  at        DateTime @default(now())
+
+  @@index([key, at])
+  @@map("guard_setting_revisions")
+}
+
+/// 用户级一次性标记（施工单 M14-03，F-23-12）。
+///
+/// 承载"这个用户已经被引导过建档"这类**持久且精确**的事实：
+/// 图状态随 thread 24h 作废、Mem0 是语义检索——都装不下"只提示一次"。
+/// 落 PG 不落 Mem0：这是状态而非记忆，不参与衰减。
+model UserFlag {
+  userId String   @map("user_id")
+  flag   String
+  at     DateTime @default(now())
+
+  @@id([userId, flag])
+  @@map("user_flags")
+}
+
+/// 车主本人的档案（施工单 M13-10）。
+///
+/// # 为什么不挂在 VehicleMember 上
+///
+/// 那张表登记的是**车上的其他人**（家人/常乘者），刻意不带 userId，
+/// 被登记者没有账号。车主自己不在那份名单里，他是 `Vehicle.ownerId`。
+/// 常住地是车主本人的属性，所以另起一张用户维度的表。
+///
+/// # 为什么落 PG 而不是 ③偏好（Mem0）
+///
+/// 常住地是**稳定事实**，不该衰减、也不该被语义检索模糊匹配掉。
+/// 与④车辆档案同一条纪律。
+///
+/// 坐标与城市名一起存：HUD 要拿它当地图中心，只有城市名的话端上得再查一次
+/// 地理编码，而那一跳失败时地图就没有落点了。
+model OwnerProfile {
+  userId String @id @map("user_id")
+
+  /// 常住地展示名，如「浙江杭州」。
+  homeCity String @map("home_city")
+  homeLat  Float  @map("home_lat")
+  homeLon  Float  @map("home_lon")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("owner_profiles")
+}
+
+/// 景区导览简报的持久层（2026-08-29 走查追修）。
+///
+/// # 为什么从⑤环境缓存（Redis 24h TTL）升格到 PG
+///
+/// 一份简报 = 三分支各一次 LLM 采集 + 多次按次计费的联网搜索，约一分钟。
+/// TTL 到期就原样重跑一遍，而停车场/必玩点/休憩面是**月级**变化的内容——
+/// 用户走查原话："只需要查一次，节约点钱和时间，除非用户点击重新生成"。
+/// 落 PG 长期持有；刷新只由「重新采集」（force）触发。
+///
+/// brief 整体存 JSON 不拆列：结构契约在 @carlife/shared 的 GuideBrief，
+/// 查询维度只有 (city, spotName)——与⑤缓存键同构（city 为空写 "-"）。
+model GuideBriefRecord {
+  city     String
+  spotName String @map("spot_name")
+  brief    Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([city, spotName])
+  @@map("guide_briefs")
+}

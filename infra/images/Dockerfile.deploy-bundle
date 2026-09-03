@@ -1,0 +1,22 @@
+# 发布物中的「部署包」镜像（GitHub Release 自动发布链路）。
+#
+# 它只装 infra/ 一整份目录，不含任何业务代码，几十 KB。
+#
+# 【为什么需要它】registry 化部署之后，服务器不再 rsync 代码，但它仍然需要两样东西：
+# Compose 文件（服务定义）与部署脚本本身。这两样必须**与本次发布的镜像同版本**——
+# 「镜像升了、compose 还是上个月的」是最难查的一类发布故障（服务定义与镜像对不上，
+# 现象千奇百怪却零报错）。把它们打进同一批次、同一个 tag 的镜像里，版本就永远一致。
+#
+# 【为什么不用 git clone / release tarball】服务器在杭州，访问 github.com 时通时断。
+# 本链路的铁律是：**境内服务器只从境内拉东西**。ACR 与 ECS 同地域走内网，是唯一可靠通道。
+#
+# 【为什么不用云助手直接下发文件】RunCommand 的命令内容有大小上限（Base64 后约 18KB），
+# 塞不下四份 Compose 加脚本；而且那样等于把部署逻辑写在 workflow 的字符串里，没法评审。
+
+FROM busybox:1.37
+
+# infra/ 里的 .env 由 .dockerignore 拦掉（真值只在服务器上），.env.example 会进来，无妨。
+COPY infra/ /bundle/infra/
+
+# 这个镜像不作为容器运行，只被 `docker create` + `docker cp` 取内容。
+CMD ["true"]

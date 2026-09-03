@@ -1,0 +1,95 @@
+# llama.cpp runtime image for the local ASR sidecar (ACR-007).
+#
+# Replaces Dockerfile.whisper: the engine moves from whisper.cpp whisper-server
+# to llama.cpp llama-server so the container can run Qwen3-ASR-0.6B GGUF
+# (main model + mmproj audio encoder). Same pinning discipline as before: the
+# source archive and the Ubuntu manifest are fixed, Buildx runs this Dockerfile
+# once per target architecture, and no Host binary is involved at runtime.
+#
+# 转写端点是 OpenAI 风格 `POST /v1/audio/transcriptions`（multipart，回 {text}），
+# `/health` 与 whisper-server 同为 {"status":"ok"}——healthcheck 原样保留。
+
+FROM ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc AS build
+
+ARG LLAMA_VERSION=v0.3.0
+ARG LLAMA_SOURCE_SHA256=d94c02d86db22d68692f6bb5b3854763d5091e52142868dc7251995517c666d1
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /src
+
+RUN apt-get -o Acquire::Retries=5 update \
+  && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    git \
+    tar \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN curl --fail --location --retry 5 --retry-all-errors \
+      "https://github.com/ggml-org/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.tar.gz" \
+      --output /tmp/llama.cpp.tar.gz \
+  && printf '%s  %s\n' "$LLAMA_SOURCE_SHA256" /tmp/llama.cpp.tar.gz \
+      | sha256sum --check --status \
+  && mkdir /src/llama.cpp \
+  && tar --extract --gzip --strip-components=1 \
+      --file /tmp/llama.cpp.tar.gz --directory /src/llama.cpp \
+  && rm -f /tmp/llama.cpp.tar.gz
+
+WORKDIR /src/llama.cpp
+
+# 通用指令集参数照抄 Dockerfile.whisper（同一套 ggml）：多架构镜像不能吃 -march=native。
+# LLAMA_CURL=OFF：模型从只读卷挂载，不给运行时留网络下载路径，也省掉 libcurl 依赖。
+RUN cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DGGML_NATIVE=OFF \
+      -DGGML_SSE42=OFF \
+      -DGGML_AVX=OFF \
+      -DGGML_AVX2=OFF \
+      -DGGML_BMI2=OFF \
+      -DGGML_FMA=OFF \
+      -DGGML_F16C=OFF \
+      -DLLAMA_BUILD_TESTS=OFF \
+      -DLLAMA_BUILD_EXAMPLES=OFF \
+      -DLLAMA_BUILD_SERVER=ON \
+      -DLLAMA_CURL=OFF \
+  && cmake --build build --target llama-server --parallel "$(nproc)"
+
+FROM ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -o Acquire::Retries=5 update \
+  && apt-get install -y --no-install-recommends \
+    adduser \
+    ca-certificates \
+    curl \
+    libgcc-s1 \
+    libgomp1 \
+    libstdc++6 \
+  && rm -rf /var/lib/apt/lists/* \
+  && adduser --system --uid 10001 --home /nonexistent \
+      --no-create-home --shell /usr/sbin/nologin asr \
+  && mkdir -p /models /tmp \
+  && chown asr: /tmp
+
+COPY --from=build /src/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+
+USER asr
+WORKDIR /tmp
+
+EXPOSE 8795
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=60 \
+  CMD curl --fail --silent http://127.0.0.1:8795/health \
+    | grep --quiet '"status":"ok"'
+
+ENTRYPOINT ["/usr/local/bin/llama-server"]
+# --no-webui：旁车只服务转写 API，不留浏览器面。--ctx-size 8192 给 ≥60s 长段留余量。
+CMD ["--model", "/models/Qwen3-ASR-0.6B-Q8_0.gguf", \
+     "--mmproj", "/models/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf", \
+     "--host", "0.0.0.0", "--port", "8795", \
+     "--threads", "8", "--ctx-size", "8192", \
+     "--alias", "qwen3-asr-0.6b", "--no-webui"]

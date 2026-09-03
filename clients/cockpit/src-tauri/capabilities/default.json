@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "CarLife 端能力白名单（安全边界：不暴露任何车辆控制能力）",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://uri.amap.com/*"
+        },
+        {
+          "url": "iosamap://*"
+        }
+      ]
+    }
+  ]
+}

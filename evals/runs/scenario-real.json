@@ -1,0 +1,664 @@
+{
+  "mode": "real",
+  "at": "2026-09-02T03:08:24.365Z",
+  "metricsVersion": "M67",
+  "total": 91,
+  "selected": 91,
+  "model": "deepseek-v4-flash",
+  "command": "corepack pnpm eval:scenarios -- --real --resume --json evals/runs/scenario-real.json --report evals/runs/reports/scenarios-real.md",
+  "score": {
+    "name": "核心场景 · real 档",
+    "got": 85,
+    "max": 91
+  },
+  "outcomes": [
+    {
+      "id": "o-01",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18910
+    },
+    {
+      "id": "o-02",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12921
+    },
+    {
+      "id": "o-03",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16601
+    },
+    {
+      "id": "o-04",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15330
+    },
+    {
+      "id": "o-05",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11710
+    },
+    {
+      "id": "o-06",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20948
+    },
+    {
+      "id": "o-07",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10714
+    },
+    {
+      "id": "o-08",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16563
+    },
+    {
+      "id": "o-09",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16088
+    },
+    {
+      "id": "o-10",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10930
+    },
+    {
+      "id": "o-11",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10961
+    },
+    {
+      "id": "o-12",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 26904
+    },
+    {
+      "id": "s-01",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 23541
+    },
+    {
+      "id": "s-02",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 19970
+    },
+    {
+      "id": "s-03",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12654
+    },
+    {
+      "id": "s-04",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12706
+    },
+    {
+      "id": "s-05",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13203
+    },
+    {
+      "id": "s-06",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20477
+    },
+    {
+      "id": "s-07",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20041
+    },
+    {
+      "id": "s-08",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12457
+    },
+    {
+      "id": "s-09",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17473
+    },
+    {
+      "id": "s-10",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 31746
+    },
+    {
+      "id": "s-11",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 28361
+    },
+    {
+      "id": "s-12",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15173
+    },
+    {
+      "id": "b-01",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 20278
+    },
+    {
+      "id": "b-02",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 6671
+    },
+    {
+      "id": "b-03",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17548
+    },
+    {
+      "id": "b-04",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 4926
+    },
+    {
+      "id": "b-05",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 2975
+    },
+    {
+      "id": "b-06",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14974
+    },
+    {
+      "id": "o-13",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18865
+    },
+    {
+      "id": "o-14",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13805
+    },
+    {
+      "id": "o-15",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 service（售后服务）"
+      ],
+      "latencyMs": 13805
+    },
+    {
+      "id": "o-16",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 service（售后服务）"
+      ],
+      "latencyMs": 16447
+    },
+    {
+      "id": "o-17",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 service（售后服务）"
+      ],
+      "latencyMs": 14535
+    },
+    {
+      "id": "o-18",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15354
+    },
+    {
+      "id": "o-19",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14441
+    },
+    {
+      "id": "o-20",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 27158
+    },
+    {
+      "id": "o-21",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16449
+    },
+    {
+      "id": "o-22",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17807
+    },
+    {
+      "id": "o-23",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11838
+    },
+    {
+      "id": "o-24",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 25519
+    },
+    {
+      "id": "o-25",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16577
+    },
+    {
+      "id": "o-26",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15755
+    },
+    {
+      "id": "o-27",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18138
+    },
+    {
+      "id": "o-28",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10240
+    },
+    {
+      "id": "o-29",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13915
+    },
+    {
+      "id": "o-30",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14499
+    },
+    {
+      "id": "o-31",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17964
+    },
+    {
+      "id": "o-32",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14480
+    },
+    {
+      "id": "o-33",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11392
+    },
+    {
+      "id": "o-34",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16058
+    },
+    {
+      "id": "o-35",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13672
+    },
+    {
+      "id": "o-36",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14408
+    },
+    {
+      "id": "o-37",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 10564
+    },
+    {
+      "id": "o-38",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12459
+    },
+    {
+      "id": "o-39",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11917
+    },
+    {
+      "id": "o-40",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 13357
+    },
+    {
+      "id": "s-13",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16436
+    },
+    {
+      "id": "s-14",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15699
+    },
+    {
+      "id": "s-15",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14426
+    },
+    {
+      "id": "s-16",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16322
+    },
+    {
+      "id": "s-17",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 15774
+    },
+    {
+      "id": "s-18",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12924
+    },
+    {
+      "id": "s-19",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14151
+    },
+    {
+      "id": "s-20",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "栈重启后重试仍未在时限内完成（栈疑似不健康：胎压报警灯亮了，充完气还… 整轮无 turn_end（kinds=session,prompt,state,tool_call,tool_call）——按超时失败计"
+      ]
+    },
+    {
+      "id": "s-21",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 21811
+    },
+    {
+      "id": "s-22",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 2986
+    },
+    {
+      "id": "s-23",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 24227
+    },
+    {
+      "id": "s-24",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：预约|时段|门店"
+      ],
+      "latencyMs": 3787
+    },
+    {
+      "id": "s-25",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 4287
+    },
+    {
+      "id": "s-26",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 18259
+    },
+    {
+      "id": "s-27",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 17287
+    },
+    {
+      "id": "s-28",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12058
+    },
+    {
+      "id": "s-29",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 32384
+    },
+    {
+      "id": "s-30",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14237
+    },
+    {
+      "id": "s-31",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 22168
+    },
+    {
+      "id": "s-32",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 9713
+    },
+    {
+      "id": "s-33",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 14469
+    },
+    {
+      "id": "s-34",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12019
+    },
+    {
+      "id": "s-35",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 21349
+    },
+    {
+      "id": "s-36",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 11786
+    },
+    {
+      "id": "s-37",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 9931
+    },
+    {
+      "id": "s-38",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 3159
+    },
+    {
+      "id": "s-39",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 16122
+    },
+    {
+      "id": "s-40",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 12388
+    },
+    {
+      "id": "s-41",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 5033
+    },
+    {
+      "id": "s-42",
+      "scene": "service",
+      "status": "fail",
+      "failures": [
+        "answer_must 未命中：(什么|哪(项|个|款|方面|一项|笔)|指的是).{0,12}(费用|价格|多少钱|报价|钱)|您(是)?(想|要)(问|了解|查).{0,10}(哪|什么)|(哪|什么).{0,6}的?(价格|费用|多少钱)"
+      ],
+      "latencyMs": 5482
+    },
+    {
+      "id": "s-43",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 5352
+    },
+    {
+      "id": "s-44",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 72407
+    },
+    {
+      "id": "s-45",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 5787
+    }
+  ]
+}

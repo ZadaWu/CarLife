@@ -1,0 +1,45 @@
+# 车机端 / 手机端的**浏览器演示站**（profile: clients）。
+#
+# 端口刻意选 1430 / 1420——与开发机上两个 vite dev server 同号，这样
+# 后台状态页那两行（system-status.ts 里探 http://host:1430|1420/）在线上
+# 也能变绿，而不用为"线上没有 vite"再加一套判定分支。
+#
+# ⚠️ 它们不是真正的车机端/手机端，只是那两个 Tauri 应用的 WebView 界面。
+# 语音、TTS、车辆信号在 Rust 侧，浏览器里不工作（前端有 isTauriEnv() 守卫，
+# 会走 mock 数据，不会白屏）。真机演示仍要跑 bundle:cockpit / bundle:mobile。
+services:
+  cockpit-web:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.client
+      args:
+        APP: cockpit
+    container_name: carlife-cockpit-web
+    ports:
+      - "1430:80"
+    profiles: [clients]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ | grep -qi '<html'"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+
+  mobile-web:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.client
+      args:
+        APP: mobile
+    container_name: carlife-mobile-web
+    ports:
+      - "1420:80"
+    profiles: [clients]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ | grep -qi '<html'"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s

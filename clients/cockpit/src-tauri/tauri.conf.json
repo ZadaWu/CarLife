@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CarLife Cockpit",
+  "version": "0.1.0",
+  "identifier": "com.carlife.cockpit",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1430",
+    "beforeDevCommand": "corepack pnpm dev",
+    "beforeBuildCommand": "corepack pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CarLife Cockpit",
+        "width": 1600,
+        "height": 900,
+        "center": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "iOS": {
+      "frameworks": ["AudioToolbox", "CoreAudio", "AVFoundation"],
+      "minimumSystemVersion": "14.0"
+    }
+  }
+}

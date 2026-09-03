@@ -1,0 +1,758 @@
+/* 档案页（施工单 M14-04）。视觉遵循建档 Brief §3：
+   高对比中性底、单一可信蓝、琥珀只用于"估算/待确认"，无渐变无装饰图。 */
+
+.own-page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+/* iPhone 的状态栏 / 灵动岛：页壳自己贴着 inset:0，不避让的话标题直接被压在时钟
+   与灵动岛底下（2026-09-02 在 iPhone 16 Pro Max 上，设置 / 车辆档案 / 会话历史
+   三个标题全中）。车机端这两个 env() 恒为 0，写在这里不影响它。 */
+  /* 底部让出导航高度 + home indicator 安全区 */
+  padding: calc(20px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
+  background: var(--hud-map-base);
+  color: var(--hud-text);
+}
+
+.own-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.own-card {
+  background: var(--hud-card-bg, #fff);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.own-card--default {
+  border: 1.5px solid #2563eb;
+}
+
+.own-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+.own-badge--default {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* 琥珀色只用于"估算/待确认"（Brief §3）——待补 VIN 属于待确认 */
+.own-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.own-model {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.own-meta {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--hud-text-muted);
+  line-height: 1.6;
+}
+
+/* 空态：行动引导替代空白页（Brief §4） */
+.own-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.own-empty p {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--hud-text-muted);
+}
+
+.own-cta {
+  margin-top: 16px;
+  min-height: 44px; /* 触控热区下限（Brief §3） */
+  padding: 0 24px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.own-cta:active {
+  opacity: 0.85;
+}
+
+/* offline ≠ empty：取不到数据时如实说，不显示"还没有车辆" */
+.own-offline {
+  padding: 32px 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--hud-text-muted);
+}
+
+.own-secondary {
+  margin-top: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+}
+
+/* ── 建档向导（M14-05）───────────────────────────────── */
+
+.own-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 16px;
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.own-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.own-choice-list--wrap {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.own-choice {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: var(--hud-card-bg, #fff);
+  color: inherit;
+  font-size: 15px;
+  text-align: left;
+}
+
+.own-choice--compact {
+  min-width: 88px;
+  text-align: center;
+}
+
+.own-choice.is-active {
+  border-color: #2563eb;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.own-choice-note {
+  display: block;
+  font-size: 12px;
+  color: var(--hud-text-muted);
+  font-weight: 400;
+}
+
+/* 推算依据与数值同一视区（Brief §2）；琥珀只用于估算/待确认 */
+.own-forecast-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.own-forecast-value--overdue {
+  color: #b91c1c;
+}
+
+.own-basis {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--hud-text-muted);
+}
+
+.own-basis--estimate {
+  color: #92400e;
+}
+
+.own-source-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  color: #374151;
+  margin-left: 6px;
+}
+
+/* ── 常用人员（施工单 M17-04）───────────────────────────────── */
+
+.own-member {
+  border-top: 1px solid var(--hud-divider);
+  padding: 10px 0 2px;
+}
+
+.own-member--form,
+.own-member--danger {
+  border-top-style: dashed;
+}
+
+.own-member-name {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.own-input {
+  display: block;
+  width: 100%;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-divider);
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+}
+
+/* 多选标签：常驾/常乘、年龄段、出行需要共用一套 */
+.own-chip {
+  margin: 0 6px 6px 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hud-divider);
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+
+/* `.own-chip--on` 的定义**必须排在下面那份 `.own-chip` 之后**，见那里的说明。
+   放在这里会被同权重的后者覆盖，表现是「点了没反应」。 */
+
+.own-error {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--hud-warn);
+}
+
+/* ── 竖版档案页（施工单 M14-11 / M14-12）─────────────────────────
+ *
+ * token 取自 手机端 档案页设计 Brief §4：
+ * 雾白 / 深海军蓝底、珍珠白 / 蓝黑容器、湖蓝可信信息、**琥珀只用于待办与
+ * 有后果的行动**。正文 ≥16px、热区 ≥48px。
+ *
+ * 变量挂在 `.own-page--light/dark` 而不是 :root——档案页与外壳同屏，
+ * 挂 :root 会影响到还没适配的其它页。
+ */
+
+.own-page--light {
+  --o-bg: #f5faff;
+  --o-card: #ffffff;
+  --o-sub: #f8fbff;
+  --o-edge: rgba(75, 143, 246, 0.14);
+  --o-text: #0a2a5a;
+  --o-dim: #7892b2;
+  --o-blue: #4b8ff6;
+  --o-amber: #ff9900;
+  --o-ok: #17b26a;
+  --o-danger: #b44949;
+}
+
+.own-page--dark {
+  --o-bg: #06182b;
+  --o-card: #0b2035;
+  --o-sub: #102a43;
+  --o-edge: rgba(111, 174, 255, 0.18);
+  --o-text: #f6f8fb;
+  --o-dim: #9eb3c8;
+  --o-blue: #6faeff;
+  --o-amber: #ffb11a;
+  --o-ok: #35d08a;
+  --o-danger: #ff8a7a;
+}
+
+.own-page--light,
+.own-page--dark {
+  background: var(--o-bg);
+  color: var(--o-text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.own-page--light .own-card,
+.own-page--dark .own-card {
+  background: var(--o-card);
+  border: 1px solid var(--o-edge);
+  border-radius: 24px;
+  padding: 16px 18px;
+  margin: 12px 0;
+}
+
+.own-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.own-head--sub { justify-content: flex-start; }
+.own-head-icon { display: inline-flex; width: 34px; height: 34px; color: var(--o-blue); }
+.own-head-icon svg { width: 100%; height: 100%; }
+.own-head-icon--sm { width: 26px; height: 26px; }
+.own-head-icon--warn { color: var(--o-amber); }
+.own-page--light .own-title,
+.own-page--dark .own-title { margin: 0; font-size: 28px; font-weight: 700; }
+
+.own-back {
+  min-height: 48px;
+  padding: 0 12px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-blue);
+  font-size: 16px;
+  cursor: pointer;
+}
+.own-subline { margin: 4px 0 2px; text-align: center; }
+.own-center { text-align: center; }
+.own-tiny { font-size: 14px; }
+
+.own-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--o-sub);
+  border: 1px solid var(--o-edge);
+  font-size: 14px;
+  color: var(--o-text);
+}
+/*
+ * 选中态（M54-01 修）。
+ *
+ * # 为什么它非得排在上面那份 `.own-chip` 后面
+ *
+ * 这个文件里 `.own-chip` 有**两份**：229 行那份是 M17-04 的，325 行这份是
+ * M14-11/12 改版加的。两者选择器权重相同（0,1,0），后者的
+ * `border: 1px solid var(--o-edge)` 与 `color: var(--o-text)` 会把先出现的
+ * `.own-chip--on` 的 `border-color` 与 `color` **全部抹平**——
+ * 于是点一下芯片，状态真的变了，界面**一点变化都没有**。
+ *
+ * 2026-08-31 走查 W11 的原话是「标签选择按钮在手机上不可以点」。
+ * 它一直是点得动的，只是看不出来。改版换了约定（旁边 `.own-chip.is-on` 是新的那套）
+ * 却没迁移这一条，旧的那份就此成了死规则。
+ */
+.own-chip--on {
+  border-color: var(--o-blue, #4c9aff);
+  color: var(--o-blue, #4c9aff);
+  background: transparent;
+  font-weight: 600;
+}
+
+.own-chip--quiet { color: var(--o-dim); }
+.own-chip--outline { border-color: var(--o-blue); color: var(--o-blue); background: transparent; }
+
+/* 车型切换 */
+.own-picker { position: relative; margin-left: auto; }
+.own-pick {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--o-edge);
+  background: var(--o-card);
+  color: var(--o-text);
+  font-size: 17px;
+  font-weight: 600;
+}
+.own-caret { transition: transform 0.16s ease; }
+.own-caret.is-open { transform: rotate(180deg); }
+.own-pick-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 3;
+  margin: 0; padding: 6px; list-style: none; min-width: 220px;
+  background: var(--o-card); border: 1px solid var(--o-edge);
+  border-radius: 16px; box-shadow: 0 16px 40px rgba(10, 42, 90, 0.18);
+}
+.own-pick-menu button {
+  width: 100%; min-height: 48px; padding: 0 12px; text-align: left;
+  border: 0; border-radius: 12px; background: transparent; color: var(--o-text); font-size: 16px;
+}
+.own-pick-menu button.is-active { background: var(--o-sub); color: var(--o-blue); }
+
+/* 车辆主卡 */
+.own-hero-title { margin: 0 0 10px; font-size: 20px; font-weight: 650; text-align: right; }
+.own-hero-body { display: flex; align-items: center; gap: 12px; }
+.own-art { width: 132px; height: 132px; flex: 0 0 auto; display: grid; place-items: center; }
+.own-art img { width: 100%; height: 100%; object-fit: contain; }
+.own-art-fallback {
+  width: 84px; height: 84px; display: grid; place-items: center;
+  border-radius: 22px; background: var(--o-sub); color: var(--o-dim);
+  font-size: 34px; font-weight: 700;
+}
+.own-facts { flex: 1; margin: 0; min-width: 0; }
+.own-facts > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--o-edge);
+}
+.own-facts > div:last-child { border-bottom: 0; }
+.own-facts dt { color: var(--o-dim); font-size: 15px; }
+.own-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.own-facts-foot { justify-content: flex-start !important; }
+.own-num { color: var(--o-amber); font-size: 24px; font-weight: 700; }
+.own-num span { font-size: 14px; font-weight: 500; }
+.own-star { color: var(--o-blue); }
+.own-facts-inline { margin: 4px 0; font-variant-numeric: tabular-nums; }
+
+/* 保养推算：琥珀只在这里和有后果的行动上出现 */
+.own-forecast { display: flex; gap: 12px; }
+.own-badge-round {
+  width: 56px; height: 56px; flex: 0 0 auto; border-radius: 50%;
+  display: grid; place-items: center; background: var(--o-amber); color: #fff;
+}
+.own-badge-round svg { width: 32px; height: 32px; }
+.own-forecast-main { flex: 1; min-width: 0; }
+.own-forecast-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
+.own-page--light .own-forecast-value,
+.own-page--dark .own-forecast-value {
+  margin: 2px 0 6px; color: var(--o-amber); font-size: 34px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.own-forecast-value span { font-size: 16px; font-weight: 500; }
+.own-basis { margin: 0 0 10px; color: var(--o-dim); font-size: 13px; }
+/*
+ * 两个动作按钮同高。
+ * `.own-secondary` 自带 `margin-top: 12px`（它原本是竖排里的次按钮），
+ * 进到这一行 flex 里之后，stretch 把它压矮了 12px——看上去就是
+ * 「记一笔」凭空高出一截。这里把外边距清掉并改成居中对齐。
+ */
+.own-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.own-actions > button { margin-top: 0; }
+.own-warnbtn {
+  min-height: 48px; padding: 0 18px; border-radius: 14px;
+  border: 1px solid var(--o-amber); background: transparent; color: var(--o-amber); font-size: 16px;
+}
+.own-warnbtn:disabled, .own-page--light .own-secondary:disabled { opacity: 0.5; }
+
+/* 画像 */
+.own-card-head { display: flex; align-items: center; gap: 8px; font-size: 20px; margin-bottom: 6px; }
+.own-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.own-stat {
+  flex: 1 1 140px; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 10px; border-radius: 16px; border: 1px solid var(--o-edge); background: var(--o-sub);
+}
+.own-stat small { display: block; color: var(--o-dim); font-size: 13px; }
+.own-stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.own-stat b span { font-size: 13px; font-weight: 500; }
+.own-stat-text { font-size: 15px !important; font-weight: 600; }
+.own-stat-icon { width: 34px; height: 34px; flex: 0 0 auto; }
+.own-stat-icon svg { width: 100%; height: 100%; }
+.own-stat-icon--blue { color: var(--o-blue); }
+.own-stat-icon--green { color: var(--o-ok); }
+.own-derivation { margin-top: 8px; font-size: 13px; color: var(--o-dim); }
+.own-derivation summary { min-height: 32px; }
+.own-derivation ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* 导航行与时间线 */
+.own-navrow, .own-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 56px; text-align: left; border: 0; background: transparent;
+  color: inherit; font: inherit; padding: 10px 0;
+}
+.own-navrow {
+  background: var(--o-card); border: 1px solid var(--o-edge);
+  border-radius: 24px; padding: 12px 18px; margin: 12px 0;
+}
+.own-navrow-icon {
+  width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center;
+  border-radius: 50%; color: var(--o-blue);
+}
+.own-navrow-icon svg { width: 26px; height: 26px; }
+.own-navrow-icon--warn { background: var(--o-amber); color: #fff; }
+.own-navrow-main { flex: 1; min-width: 0; }
+.own-navrow-main b { display: block; font-size: 18px; font-weight: 650; }
+.own-navrow-main small { display: block; color: var(--o-dim); font-size: 13px; margin-top: 2px; }
+.own-navrow-arrow { color: var(--o-dim); font-size: 24px; line-height: 1; }
+
+/*
+ * 时间轴：**竖线与圆点共用一条中线**。
+ *   线 left=L 宽 2 → 中线 L+1
+ *   点 left=X 宽 D → 中线 X+D/2
+ * 取 L=16、D=14、X=10，两边都是 17px。
+ * 之前线在 43、点在 0（中线 7），差了 37px——截图里线和点各走各的就是这个。
+ */
+.own-timeline { position: relative; }
+.own-timeline .own-row { padding-left: 40px; border-radius: 14px; }
+.own-timeline::before {
+  content: ""; position: absolute; left: 16px; top: 30px; bottom: 30px;
+  width: 2px; background: var(--o-amber); opacity: 0.5;
+}
+/* 同车机端那条：卡片 padding 18 → 点中线 = 1+18+X+7，线中线 = 18 → X = −8 */
+.own-dot {
+  position: absolute; left: -8px; width: 14px; height: 14px; border-radius: 50%;
+  border: 3px solid var(--o-amber); background: var(--o-card); box-sizing: border-box;
+}
+
+/* 人员 */
+/* 人员列表与记录卡同一条对齐规则：线中线 17px，卡片从 34px 开始 */
+.own-people { list-style: none; margin: 6px 0 0; padding: 0 0 0 34px; position: relative; }
+.own-people::before {
+  content: ""; position: absolute; left: 16px; top: 26px; bottom: 26px;
+  width: 2px; background: var(--o-amber); opacity: 0.5;
+}
+.own-person {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  margin: 8px 0; padding: 10px 14px; border-radius: 18px;
+  border: 1px solid var(--o-edge); background: var(--o-sub);
+  color: inherit; font: inherit; text-align: left;
+}
+.own-person.is-active { border-color: var(--o-amber); }
+/* 相对卡片 -24px → 相对列表 34-24+7 = 17px，与竖线同一条中线 */
+.own-person .own-dot { left: -24px; }
+.own-avatar {
+  width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--o-card); border: 2px solid var(--o-edge);
+}
+.own-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.own-avatar em { font-style: normal; font-size: 26px; font-weight: 700; color: var(--o-dim); }
+.own-person-main { flex: 1; min-width: 0; }
+.own-person-main b { display: block; font-size: 19px; font-weight: 700; }
+.own-person-main small { display: block; color: var(--o-dim); font-size: 13px; margin-top: 2px; }
+.own-role { color: var(--o-amber); font-weight: 600; }
+.own-needs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.own-needs em {
+  font-style: normal; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--o-edge); font-size: 13px; color: var(--o-dim);
+}
+
+.own-prefs { list-style: none; margin: 6px 0 0; padding: 0; }
+.own-prefs li {
+  display: flex; align-items: center; gap: 10px; min-height: 52px;
+  padding: 6px 0; border-bottom: 1px solid var(--o-edge); font-size: 17px;
+}
+.own-prefs li:last-child { border-bottom: 0; }
+
+/* ── 视觉贴合修正（施工单 M14-13）───────────────────────────── */
+
+/* 画像三格：定稿是并排三格，flex-wrap 会把第三格挤到下一行 */
+.own-page--light .own-stats,
+.own-page--dark .own-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.own-page--light .own-stat,
+.own-page--dark .own-stat { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 8px; }
+.own-page--light .own-stat b,
+.own-page--dark .own-stat b { font-size: 20px; }
+.own-page--light .own-stat-text,
+.own-page--dark .own-stat-text { font-size: 14px !important; }
+
+/* 保养依据折叠成一行（定稿是一行小字，不是一段） */
+.own-page--light .own-basis,
+.own-page--dark .own-basis { margin: 0 0 8px; color: var(--o-dim); font-size: 13px; }
+.own-page--light .own-basis summary,
+.own-page--dark .own-basis summary { cursor: pointer; min-height: 28px; list-style-position: inside; }
+.own-page--light .own-basis ul,
+.own-page--dark .own-basis ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* 车辆卡底部那一行（知识库关联）：一句话，不是一个数值 */
+.own-cardfoot {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--o-edge);
+  color: var(--o-dim);
+  font-size: 13px;
+}
+
+/* ── 车机区（M24-05）：三态与能力摘要 ── */
+.own-kv { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.own-kv li { display: flex; justify-content: space-between; font-size: 15px; }
+.own-kv li span { color: var(--hud-text-muted); }
+
+/* ── 偏好编辑与组合管理（M24-09） ── */
+.own-form { display: grid; gap: 10px; margin-top: 8px; }
+.own-field { display: grid; gap: 4px; font-size: 14px; }
+.own-field input { padding: 8px 10px; border: 1px solid var(--hud-divider); border-radius: 8px; font-size: 15px; }
+.own-form-actions { display: flex; gap: 10px; }
+.own-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.own-chips .own-chip.is-on { background: var(--hud-pin); color: #fff; }
+.own-combo { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--hud-divider); }
+.own-combo--dead b { opacity: 0.6; }
+
+/* 成员与授权区（M48-03，F-55-07）。与「常用人员」区并列，视觉上刻意同款——
+   它们是同一层级的两件事，样式分叉会让人以为其中一个更重要。 */
+.own-grant-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.own-grant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hud-card-bg);
+}
+
+.own-grant-name {
+  flex: 1;
+  font-size: 15px;
+}
+
+.own-grant-role {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.own-grant-remove {
+  border: none;
+  background: transparent;
+  color: var(--hud-danger);
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+.own-grant-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.own-grant-form input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+}
+
+.own-grant-form select,
+.own-grant-form button {
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  padding: 0 10px;
+}
+
+/* ── 车机终端绑定（M51-01，F-56-03）──
+ * 与上面的「成员与授权」区并列。注意它和档案页那个「车机」区不是一回事：
+ * 那个是舒适域能力（.own-card），这个是车上那块屏这台设备。 */
+.own-pair-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--hud-text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.own-pair-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg);
+  color: inherit;
+  /* 等宽 + 字距：32 位十六进制要能一眼对齐着抄 */
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+  letter-spacing: 0.06em;
+}
+
+.own-pair-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.own-pair-actions .own-secondary { margin-top: 0; }
+
+.own-pair-video {
+  width: 100%;
+  max-height: 240px;
+  margin-top: 12px;
+  border-radius: 10px;
+  background: #000;
+  object-fit: cover;
+}
+
+.own-pair-confirm {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+/* 6 位码是这一屏唯一要被人隔着一块屏读出来的东西，给它最大的字号。 */
+.own-pair-code {
+  margin: 0 0 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 过期的码还留在屏上（不清空），但要一眼看出它已经不能用了 */
+.own-pair-code--dead {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+/* ── 移除授权的行内二次确认（M52-01）──
+ * 换掉 window.confirm：wry 没实现 WKWebView 的 confirm 面板，它在 Tauri 里
+ * 不弹窗、直接返回 false，表现是点了毫无反应（走查 W3）。 */
+.own-grant-confirm {
+  flex-basis: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+}
+
+.own-grant-confirm p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--hud-text-muted);
+}
+
+.own-grant-confirm-acts {
+  display: flex;
+  gap: 10px;
+}
+
+.own-grant-confirm-acts button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--hud-card-border);
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+}
+
+.own-grant-confirm-acts .own-grant-remove {
+  border-color: var(--hud-danger);
+  color: var(--hud-danger);
+}

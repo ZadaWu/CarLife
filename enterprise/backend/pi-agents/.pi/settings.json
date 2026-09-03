@@ -1,0 +1,7 @@
+{
+  "quietStartup": true,
+  "enableSkillCommands": false,
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultThinkingLevel": "high"
+}

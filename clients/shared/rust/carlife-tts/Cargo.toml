@@ -1,0 +1,17 @@
+[package]
+name = "carlife-tts"
+version = "0.1.0"
+edition = "2021"
+
+# 暖暖播报里**与端无关**的那部分（施工单 M65-04）：文本清洗、合成端点缓存、
+# 播放状态/代际、rodio 从内存直解 mp3 进声卡。两个端（cockpit / mobile）该共用一份。
+#
+# 从车机 `cockpit/src-tauri/src/tts/` 搬出来的是"核"；留在车机那边的是它的差异项：
+# 垫场话抢占/衔接、背景音 ducking、AEC 参考信号旁路、macOS `say` 降级。
+# 本 crate **不依赖 tauri**：状态变化经回调发射，网关地址与设备 JWT 由调用方注入。
+[dependencies]
+carlife-core = { path = "../carlife-core" }
+carlife-net = { path = "../carlife-net" }
+# 与车机同版（ACR-004）：mp3 字节直接进声卡，macOS/iOS 同一条路径——iOS 沙盒禁止 spawn 子进程。
+rodio = "0.22"
+tokio = { version = "1", features = ["rt", "time", "macros"] }

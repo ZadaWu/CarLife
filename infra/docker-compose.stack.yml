@@ -1,0 +1,234 @@
+# CarLife 完整服务栈（施工单 M2 收口后新增）
+#
+# 一条命令拉起：PG + Redis（复用 infra 定义）+ agent-runtime + gateway
+# + 两个模拟系统（mock-dealer 门店 / mock-cabin 车机舒适域），以及按配置启用的
+# local-asr 旁车（llama.cpp + Qwen3-ASR，ACR-007）。
+# 车机端（Tauri 桌面应用）仍在宿主机运行，经 CARLIFE_GATEWAY_URL 连本栈网关。
+#
+#   docker compose -f infra/docker-compose.stack.yml up -d --build
+#   docker compose -f infra/docker-compose.stack.yml logs -f gateway
+#   docker compose -f infra/docker-compose.stack.yml down
+#
+# 密钥来自仓库根 .env（gitignore 覆盖）；网络相关变量在此显式覆盖——
+# 容器内互访用服务名（postgres/agent-runtime），不是宿主的 localhost:端口。
+
+# **项目名显式写死，理由见 infra/docker-compose.yml 顶部那段。**
+# 一句话：按目录名派生的项目名通用到必然撞车（原 deploy/ 时期本机的 robot-anomaly
+# 就撞上过），撞上之后 `up` 会去动别人项目的容器，而且卷名前缀跟着变、库被悄悄换掉。
+# 本文件和 docker-compose.yml 用同一个项目名，两份文件描述的就是同一个栈。
+name: carlife
+
+include:
+  # 依赖组件的唯一定义处（架构 §10：infra/docker-compose.yml）
+  - path: docker-compose.yml
+
+services:
+  # ── 一次性：数据库迁移。gateway 依赖它跑完再启动
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── 模拟系统（独立部署的"假第三方"，M19-01 D1）
+  #
+  # 两条共同纪律：不依赖本栈任何组件（无 depends_on、无 env_file——它们不该拿到密钥）、
+  # 能被当场 stop 演示降级（关掉 mock-dealer，助手要如实说"门店系统没连通"；
+  # 关掉 mock-cabin，同理说"车机没连上"——这是 Demo 的一部分，不是故障）。
+  mock-dealer:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: dealer
+    # 固定容器名（同 infra/docker-compose.yml 的 carlife-postgres 一套惯例）：
+    # dev 脚本按名字查健康状态（走查 2026-08-29 ③：mock 一律容器起，不再落宿主进程）。
+    container_name: carlife-mock-dealer
+    environment:
+      MOCK_DEALER_PORT: 8792
+    ports:
+      - "8792:8792"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8792/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  mock-cabin:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: cabin
+    container_name: carlife-mock-cabin
+    environment:
+      MOCK_CABIN_PORT: 8793
+      # 设置与变更流水落这里（persistence.ts）。挂 /app/var 而不是 /app/data——
+      # data/ 里是随镜像发布的种子（models.json），挂卷会把它盖掉。
+      CABIN_DATA_FILE: /app/var/mock-cabin-state.json
+    volumes:
+      - mock-cabin-var:/app/var
+      # 演示曲库从宿主挂进来，**不进镜像**（M63 续）。两个理由：
+      # ① 音频不入 git（media/.gitignore 挡着——私有仓库也是分发），所以干净检出
+      #    构建出来的镜像里本来就只有那一首垫底曲，靠镜像发曲库这条路走不通；
+      # ② 跑过 `demo:media` 的机器上那是 20 多 MB，没有理由每次重建都打进层里。
+      # 只读：mock 只扫不写（`media/library.ts` 全是读操作）。
+      - ../mocks/cabin/media:/app/media:ro
+    ports:
+      - "8793:8793"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8793/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── 4S 维修系统（M41-01）。与 mock-dealer 同一哲学：假第三方、可当场 kill
+  # 演示降级（关掉它，助手要如实说"维修系统没连通"）。
+  mock-repair:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: repair
+    container_name: carlife-mock-repair
+    environment:
+      MOCK_REPAIR_PORT: 8797
+    ports:
+      - "8797:8797"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8797/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── 保险系统（M41-02）。同上：假第三方、理赔预检确定性测算、可 kill 演示降级。
+  mock-insurance:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.mock
+      args:
+        SERVICE: insurance
+    container_name: carlife-mock-insurance
+    environment:
+      MOCK_INSURANCE_PORT: 8798
+    ports:
+      - "8798:8798"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8798/health | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── Agent 运行时（LangGraph；内部服务，§3 规定网关是唯一对外入口）
+  agent-runtime:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: agent-runtime
+    env_file:
+      - ../.env          # DEEPSEEK_API_KEY 等
+    environment:
+      AGENT_RUNTIME_PORT: 8791
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      REDIS_URL: redis://redis:6379
+      MEM0_DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      # 容器内互访用服务名，覆盖 .env 里的 localhost（那是给宿主机跑服务用的）。
+      MOCK_DEALER_URL: http://mock-dealer:8792
+      MOCK_CABIN_URL: http://mock-cabin:8793
+      MOCK_REPAIR_URL: http://mock-repair:8797
+      MOCK_INSURANCE_URL: http://mock-insurance:8798
+    expose:
+      - "8791"
+    depends_on:
+      # dev.sh 用两次事故换来的顺序（mock-dealer 排 runtime 前）在这里由 compose 保证：
+      # runtime 启动时会探活门店系统，mock 晚起会留一条误导人的告警。
+      mock-dealer:
+        condition: service_healthy
+      mock-cabin:
+        condition: service_healthy
+      mock-repair:
+        condition: service_healthy
+      mock-insurance:
+        condition: service_healthy
+    ports:
+      # 仅为本机排障暴露；生产部署应删掉这段（对外只留 gateway）
+      - "8791:8791"
+    healthcheck:
+      # 内部接口无 GET 路由，404 即证明进程在监听
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8791/ 2>&1 | grep -q . || wget -q -S -O /dev/null http://localhost:8791/ 2>&1 | grep -q 'HTTP/'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── 接入网关（唯一对外入口）
+  gateway:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: gateway
+    env_file:
+      - ../.env          # ARK_API_KEY（ASR）等
+    environment:
+      GATEWAY_PORT: 8790
+      DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
+      AGENT_RUNTIME_URL: http://agent-runtime:8791
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      # 容器内 local ASR 必须走 Compose DNS；宿主 Gateway 才使用 127.0.0.1:8795。
+      # ASR_ENGINE 非 mock 时该变量不会被 provider 使用。
+      LOCAL_ASR_URL: http://local-asr:8795/v1/audio/transcriptions
+      # 状态页需从容器探测宿主机的 mock-tts 与三个 Vite；业务上游仍用上面的
+      # Compose 服务名。宿主机开发 Gateway 不设置此项，继续使用 localhost。
+      CARLIFE_HOST_SERVICES_HOST: host.docker.internal
+      # Gateway 也在 Compose 网络内运行，所有模拟第三方必须走服务名；
+      # 根 .env 的 localhost 只适用于宿主机开发进程，不能直接继承进容器。
+      MOCK_DEALER_URL: http://mock-dealer:8792
+      MOCK_CABIN_URL: http://mock-cabin:8793
+      MOCK_REPAIR_URL: http://mock-repair:8797
+      MOCK_INSURANCE_URL: http://mock-insurance:8798
+    ports:
+      - "8790:8790"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      agent-runtime:
+        condition: service_started
+      # local-asr 本身带 profile。required=false 让 fake/Ark stack 在未启用 profile
+      # 时仍可启动；local 模式由 infra/scripts/_common.sh 自动加入该 profile。
+      local-asr:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8790/healthz | grep -q '\"ok\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+
+# 具名卷。PG/Redis 的卷在 infra/docker-compose.yml 里各自声明，这里只加模拟车机的：
+# 它是唯一一份"这辆演示车被设成什么样"的记录，容器重建不该把它一起清掉。
+# 真要从头开始：docker compose -f infra/docker-compose.stack.yml down -v
+volumes:
+  # 显式 name = 不带项目前缀，同 infra 的两个卷。
+  mock-cabin-var:
+    name: carlife-mock-cabin-var

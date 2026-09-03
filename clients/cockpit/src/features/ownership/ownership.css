@@ -1,0 +1,643 @@
+/*
+ * 车机端档案页样式（施工单 M14-09 / M14-10）。
+ * 定稿：内部文档,dark}-{car,person}.png
+ *
+ * # 为什么变量挂在 .cown--light / .cown--dark 而不是 :root
+ *
+ * 车机端主题由 App 的 `theme` 状态驱动（devbar 能切），HUD 层同时在屏上。
+ * 挂 :root 会让切主题影响到还没适配的其它层；挂在本页根节点上，
+ * 这一页自成一套且切换即时。
+ *
+ * # 车机规格
+ * 正文 17px 起步、热区 48px+、信息密度比手机低一档（Brief §3）。
+ */
+
+.cown {
+  --c-accent: #2f6bff;
+  --c-warn: #f59320;
+  --c-ok: #17b26a;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  /*
+   * **居中不能靠 align-items: center**（配 .cown-sheet 的 margin: auto 一起看）。
+   *
+   * 内容高于容器时，flex 居中会把溢出的上半截推到滚动区**起点之前**，
+   * 那部分滚不回来。实测：1000×660 的窗口里塞进 1760px 内容，
+   * 标题行的 top 是 **-519px**——用户看到的就是"进档案页没有标题，
+   * devbar 底下直接是车辆卡"。改成 flex-start + 子元素 margin: auto 之后
+   * 同一场景下 top = 31px。放得下仍然居中，放不下就从顶部开始滚。
+   */
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14px 20px 92px;
+  box-sizing: border-box;
+  overflow: auto;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--c-text);
+}
+
+.cown--light {
+  --c-sheet: rgba(255, 255, 255, 0.96);
+  --c-card: #f7f9fc;
+  --c-card-edge: rgba(20, 40, 80, 0.07);
+  --c-text: #1b2434;
+  --c-dim: #6b7789;
+  --c-chip: rgba(20, 40, 80, 0.05);
+  --c-shadow: 0 24px 60px rgba(20, 40, 80, 0.16);
+}
+
+.cown--dark {
+  --c-sheet: rgba(10, 20, 38, 0.96);
+  --c-card: rgba(255, 255, 255, 0.045);
+  --c-card-edge: rgba(120, 170, 255, 0.16);
+  --c-text: #e8eefb;
+  --c-dim: #90a0bb;
+  --c-chip: rgba(255, 255, 255, 0.07);
+  --c-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.cown-sheet {
+  /*
+   * 宽度对齐定稿：定稿面板 1467px / 画布 1672px ≈ 88%（ui-diff 量出来的）。
+   * 之前写死 1180px，在 1672 宽的车机屏上比定稿窄了 278px，
+   * 两列被挤得比设计紧一大截。
+   */
+  width: min(1470px, 92%);
+  margin: auto; /* 与上面的 flex-start 配合：放得下才居中 */
+  background: var(--c-sheet);
+  border: 1px solid var(--c-card-edge);
+  border-radius: 26px;
+  box-shadow: var(--c-shadow);
+  padding: 18px 24px 20px;
+  box-sizing: border-box;
+  backdrop-filter: blur(18px);
+}
+
+/* ── 顶栏 ─────────────────────────────────────────────── */
+
+.cown-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.cown-head-icon {
+  display: inline-flex;
+  color: var(--c-accent);
+  width: 34px;
+  height: 34px;
+}
+.cown-head-icon svg { width: 100%; height: 100%; }
+.cown-head-icon--sm { width: 28px; height: 28px; }
+.cown-head-icon--warn { color: var(--c-warn); }
+
+.cown-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.cown-head-spacer { flex: 1; }
+
+.cown-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--c-chip);
+  border: 1px solid var(--c-card-edge);
+  font-size: 14px;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.cown-chip--star { color: var(--c-accent); }
+.cown-chip--quiet { color: var(--c-dim); font-size: 14px; }
+.cown-chip--outline { border-color: var(--c-accent); color: var(--c-accent); background: transparent; }
+
+/* 车型切换 */
+.cown-picker { position: relative; }
+.cown-pick {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--c-card-edge);
+  background: var(--c-chip);
+  color: var(--c-text);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cown-pick--static { cursor: default; }
+.cown-caret { transition: transform 0.16s ease; }
+.cown-caret.is-open { transform: rotate(180deg); }
+
+.cown-pick-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  min-width: 240px;
+  background: var(--c-sheet);
+  border: 1px solid var(--c-card-edge);
+  border-radius: 16px;
+  box-shadow: var(--c-shadow);
+}
+.cown-pick-menu button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--c-text);
+  font-size: 17px;
+  cursor: pointer;
+}
+.cown-pick-menu button.is-active { background: var(--c-chip); color: var(--c-accent); }
+
+/* ── 布局 ─────────────────────────────────────────────── */
+
+.cown-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.cown-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* 窄窗口（车机竖屏预览、开发窗口拉窄）退化成单列，不横向滚动 */
+@media (max-width: 900px) {
+  .cown-grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cown-card {
+  background: var(--c-card);
+  border: 1px solid var(--c-card-edge);
+  border-radius: 18px;
+  padding: 16px 20px;
+}
+.cown-card--row { display: flex; align-items: center; gap: 14px; }
+
+.cown-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+.cown-card-head b { font-weight: 700; }
+
+.cown-note { color: var(--c-text); }
+.cown-dim { color: var(--c-dim); margin: 6px 0; }
+.cown-tiny { font-size: 14px; }
+
+/* ── 车辆主卡 ─────────────────────────────────────────── */
+
+.cown-card--hero { padding-top: 16px; padding-bottom: 16px; }
+.cown-hero-title {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-weight: 700;
+  text-align: right;
+}
+.cown-hero-body { display: flex; align-items: center; gap: 14px; }
+
+.cown-art {
+  width: 200px;
+  height: 200px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+.cown-art img { width: 100%; height: 100%; object-fit: contain; }
+.cown-art-fallback {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: var(--c-chip);
+  color: var(--c-dim);
+  font-size: 40px;
+  font-weight: 700;
+}
+
+.cown-facts { flex: 1; margin: 0; min-width: 0; }
+.cown-facts > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-card-edge);
+}
+.cown-facts > div:last-child { border-bottom: 0; }
+/* 定稿三行 facts 前面各有一个小图标——少了它这一列看着就是纯表格 */
+.cown-facts dt { color: var(--c-dim); font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.cown-fact-icon { width: 22px; height: 22px; display: inline-flex; color: var(--c-dim); opacity: 0.85; }
+.cown-fact-icon svg { width: 100%; height: 100%; }
+.cown-facts dd { margin: 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+.cown-num { color: var(--c-warn); font-size: 24px; font-weight: 700; }
+.cown-num span { font-size: 15px; font-weight: 500; }
+.cown-facts-foot { justify-content: flex-start !important; }
+.cown-star { color: var(--c-accent); font-size: 17px; }
+
+.cown-facts-inline { margin: 4px 0; font-variant-numeric: tabular-nums; }
+
+/* ── 保养推算 ─────────────────────────────────────────── */
+
+/* 定稿这张卡左侧有一条琥珀竖线从圆形图标垂下来，把"待办"和它的两个动作
+   串成一条时间轴。少了它，这张卡就只是个带圆图标的普通卡片。 */
+.cown-card--forecast { display: flex; gap: 14px; position: relative; }
+.cown-card--forecast::before {
+  content: "";
+  position: absolute;
+  /* 与圆形图标同心：卡片 padding-left 18 + 图标 56/2 − 线宽 2/2 = 45 */
+  left: 45px;
+  top: 78px;
+  bottom: 46px;
+  width: 2px;
+  background: var(--c-warn);
+  opacity: 0.55;
+}
+.cown-card--forecast::after {
+  content: "";
+  position: absolute;
+  left: 39px;
+  bottom: 40px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 3px solid var(--c-warn);
+  background: var(--c-card);
+}
+.cown-badge-round {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--c-warn);
+  color: #fff;
+}
+.cown-badge-round svg { width: 30px; height: 30px; }
+.cown-forecast-main { flex: 1; min-width: 0; }
+.cown-forecast-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 20px;
+}
+.cown-forecast-value {
+  margin: 0 0 4px;
+  color: var(--c-warn);
+  font-size: 36px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cown-forecast-value span { font-size: 16px; font-weight: 500; }
+/* 依据折叠成一行（定稿是一行小字，不是一段） */
+.cown-basis { margin: 0 0 8px; color: var(--c-dim); font-size: 13px; }
+.cown-basis summary { cursor: pointer; min-height: 28px; list-style-position: inside; }
+.cown-basis ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* 车辆卡底部那一行（知识库关联）：一句话，不是一个数值 */
+.cown-cardfoot {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-card-edge);
+  color: var(--c-dim);
+  font-size: 13px;
+}
+
+.cown-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ── 按钮 ─────────────────────────────────────────────── */
+
+.cown-btn {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 13px;
+  border: 1px solid var(--c-card-edge);
+  background: var(--c-chip);
+  color: var(--c-text);
+  font-size: 17px;
+  cursor: pointer;
+}
+.cown-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.cown-btn--sm { min-height: 40px; padding: 0 14px; font-size: 15px; }
+.cown-btn--ghost { background: transparent; }
+.cown-btn--primary { background: var(--c-accent); border-color: transparent; color: #fff; }
+.cown-btn--outline { background: transparent; border-color: var(--c-accent); color: var(--c-accent); }
+.cown-btn--warn { background: transparent; border-color: var(--c-warn); color: var(--c-warn); }
+
+/* ── 用车画像 ─────────────────────────────────────────── */
+
+/* 定稿是**并排三格**。flex-wrap 会在右列宽度不够时把第三格挤到下一行，
+   于是"常在 22:00 充电"独占一行，节奏就散了。窄到放不下再降两列。 */
+.cown-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+@media (max-width: 1100px) {
+  .cown-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.cown-stat {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--c-card-edge);
+}
+.cown-stat small { display: block; color: var(--c-dim); font-size: 14px; }
+.cown-stat b { font-size: 23px; font-variant-numeric: tabular-nums; }
+.cown-stat b span { font-size: 14px; font-weight: 500; }
+.cown-stat-text { font-size: 16px !important; font-weight: 600; }
+.cown-stat-icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; }
+.cown-stat-icon svg { width: 100%; height: 100%; }
+.cown-stat-icon--blue { color: var(--c-accent); }
+.cown-stat-icon--green { color: var(--c-ok); }
+
+.cown-derivation { margin-top: 8px; font-size: 14px; color: var(--c-accent); }
+.cown-derivation summary {
+  cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 8px;
+  list-style: none;
+}
+.cown-derivation summary::-webkit-details-marker { display: none; }
+.cown-derivation ul { color: var(--c-dim); }
+.cown-derivation-icon { width: 20px; height: 20px; display: inline-flex; }
+.cown-derivation-icon svg { width: 100%; height: 100%; }
+.cown-derivation ul { margin: 6px 0 0; padding-left: 18px; }
+
+.cown-pill {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--c-chip);
+  color: var(--c-dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+.cown-pill--on { color: var(--c-ok); background: rgba(23, 178, 106, 0.14); }
+
+/* ── 行 / 时间线 ──────────────────────────────────────── */
+
+.cown-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  min-height: 48px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.cown-row--link {
+  background: var(--c-card);
+  border: 1px solid var(--c-card-edge);
+  border-radius: 20px;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+.cown-row-icon { width: 46px; height: 46px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; }
+.cown-row-icon svg { width: 26px; height: 26px; }
+.cown-row-icon--blue { color: var(--c-accent); }
+.cown-row-icon--warn { background: var(--c-warn); color: #fff; }
+.cown-row-main { flex: 1; min-width: 0; display: block; }
+.cown-row-main b { display: block; font-size: 18px; font-weight: 600; }
+.cown-row-main small { display: block; color: var(--c-dim); font-size: 14px; margin-top: 2px; }
+.cown-row-arrow { color: var(--c-dim); font-size: 26px; line-height: 1; }
+
+/*
+ * 时间轴：**竖线与圆点共用一条中线**。
+ *   线 left=L 宽 2 → 中线 L+1；点 left=X 宽 D → 中线 X+D/2
+ * 取 L=16、D=14、X=10，两边都是 17px。
+ * 之前线在 25（中线 26）、点在 0（中线 7），差 19px——截图里线穿在图标上、
+ * 点孤零零挂在卡片外，就是这个。
+ */
+.cown-timeline { position: relative; }
+.cown-timeline .cown-row { padding-left: 40px; }
+/* 三行都是按钮（M29 起各自进真实页面），按下要有反馈，否则和死行没区别 */
+.cown-timeline button.cown-row { cursor: pointer; border-radius: 14px; }
+.cown-timeline button.cown-row:active { background: var(--c-chip); }
+.cown-timeline::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 30px;
+  bottom: 56px;
+  width: 2px;
+  background: var(--c-warn);
+  opacity: 0.55;
+}
+/*
+ * `left` 是负的，不是笔误。
+ *
+ * 竖线的 `::before` 挂在**卡片**上，从卡片的 padding box 起算（≈border 1px）；
+ * 圆点在 `.cown-row` 里，而行已经被卡片的 `padding-left: 20px` 推开了。
+ * 两个参照系差着一整个内边距——第一版按同一个数写，线和点就差了 20px。
+ *   线中线 = 1 + 16 + 1 = 18
+ *   点中线 = 1 + 20 + X + 7 → X = −10
+ */
+.cown-dot {
+  position: absolute;
+  left: -10px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--c-warn);
+  background: var(--c-card);
+  box-sizing: border-box;
+}
+.cown-timeline-foot { padding-left: 40px; padding-top: 6px; }
+
+/* ── 人员 ─────────────────────────────────────────────── */
+
+/* 与记录卡同一条对齐规则：线中线 17px，卡片从 34px 开始 */
+.cown-people { list-style: none; margin: 6px 0 0; padding: 0 0 0 34px; position: relative; }
+.cown-people::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 30px;
+  bottom: 30px;
+  width: 2px;
+  background: var(--c-warn);
+  opacity: 0.55;
+}
+.cown-person {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 8px 0;
+  padding: 12px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--c-card-edge);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cown-person.is-active { border-color: var(--c-accent); background: var(--c-chip); }
+/* 相对卡片 -24px → 相对列表 34-24+7 = 17px，与竖线同一条中线 */
+.cown-person .cown-dot { left: -24px; }
+
+.cown-avatar {
+  width: 66px;
+  height: 66px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--c-chip);
+  border: 2px solid var(--c-card-edge);
+}
+.cown-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cown-avatar em { font-style: normal; font-size: 30px; font-weight: 700; color: var(--c-dim); }
+
+.cown-person-main { flex: 1; min-width: 0; }
+.cown-person-main b { display: block; font-size: 19px; font-weight: 700; }
+.cown-role { color: var(--c-warn); font-weight: 600; }
+.cown-person-main small { display: block; color: var(--c-dim); font-size: 14px; margin-top: 3px; }
+.cown-needs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.cown-needs em {
+  font-style: normal;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--c-card-edge);
+  font-size: 14px;
+  color: var(--c-dim);
+}
+
+.cown-prefs { list-style: none; margin: 8px 0 0; padding: 0; }
+.cown-prefs li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-card-edge);
+  font-size: 17px;
+}
+.cown-prefs li:last-child { border-bottom: 0; }
+/* 文字占满、删除按钮推到最右：不给 flex:1 的话按钮会紧贴文字尾巴，
+   每行的按钮位置随文案长短乱跳，一列扫下来找不到它们。 */
+.cown-pref-text { flex: 1; min-width: 0; }
+
+/* ── 建档向导（M14-06 沿用）───────────────────────────── */
+
+.cown-page {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: auto;
+  padding: 24px 28px 110px;
+  box-sizing: border-box;
+  background: var(--cl-bg, #0b1220);
+  color: var(--cl-fg, #e8eefb);
+  font-size: 17px;
+}
+.cown-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 4px; }
+.cown-choice {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 255, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 17px;
+  cursor: pointer;
+}
+.cown-choice.is-active { border-color: #2f6bff; color: #7aa7ff; }
+.cown-choice-note { display: block; font-size: 13px; opacity: 0.65; }
+.cown-input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 170, 255, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 17px;
+}
+.cown-meta { color: #90a0bb; font-size: 15px; }
+.cown-error { color: #ff8a8a; }
+.cown-model { font-size: 21px; margin: 0 0 6px; }
+.cown-badge { margin-left: 10px; font-size: 14px; color: #7aa7ff; }
+.cown-estimate { font-size: 14px; opacity: 0.7; }
+.cown-card--default { border-color: rgba(47, 107, 255, 0.5); }
+
+/* ── 上车点选（M24-09） ── */
+.cown-seatrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.cown-btn--chip { padding: 4px 12px; border-radius: 999px; font-size: 14px; }
+.cown-btn--chip.is-on { background: var(--cown-accent, #2f6fed); color: #fff; }
+
+/* ── 保养与维修详情页（M29-02） ── */
+/* 与人员列表同一条时间线对齐规则（线中线 17px，行从 34px 起） */
+.cown-records { list-style: none; margin: 6px 0 0; padding: 0 0 0 34px; position: relative; }
+.cown-records::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 22px;
+  bottom: 22px;
+  width: 2px;
+  background: var(--c-warn);
+  opacity: 0.55;
+}
+.cown-record { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; }
+.cown-record .cown-dot { left: -24px; top: 14px; }
+.cown-record-main { flex: 1; min-width: 0; }
+.cown-record-main b { display: block; font-size: 18px; font-weight: 600; }
+.cown-record-main small { display: block; color: var(--c-dim); font-size: 14px; margin-top: 2px; }
+/* 「未记录处置」要与"记了处置"可分辨：斜体弱化而不是省略那一行 */
+.cown-record-missing { font-style: italic; opacity: 0.75; }
+
+/* ── 添加常用人员的短表单（M29-06） ── */
+/* 一屏放完：字段之间给足间距，但不撑到要滚两屏（驻车场景，多级滚动本身就是负担） */
+.cown-memberform { margin-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+.cown-field { display: flex; flex-direction: column; gap: 6px; }
+.cown-field > span { color: var(--c-dim); font-size: 14px; }
+.cown-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── 人员行的修改/删除与删除确认（M29-07） ── */
+/* 动作按钮是行的兄弟节点（按钮不能嵌套），所以对齐靠 li 自己排 */
+.cown-people li { display: flex; align-items: center; gap: 10px; }
+.cown-people li .cown-person { flex: 1; min-width: 0; }
+.cown-person-actions { display: flex; gap: 8px; flex-shrink: 0; }
+/* 删除是不可逆动作：确认卡用警示描边，与普通卡片一眼可分 */
+.cown-confirm {
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--c-warn);
+  border-radius: 14px;
+  background: var(--c-chip);
+}
+.cown-confirm b { display: block; font-size: 18px; margin-bottom: 4px; }

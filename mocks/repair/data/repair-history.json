@@ -1,0 +1,60 @@
+{
+  "records": [
+    {
+      "id": "RH-EV-001",
+      "vin": "DEM00SEED0M0DELY1",
+      "at": "2025-01-15T10:00:00+08:00",
+      "odometerKm": 12000,
+      "items": ["首保检查", "轮胎换位"],
+      "resolution": "整车检查无异常；四轮换位完成",
+      "stationId": "RS-SH-01",
+      "stationName": "上海浦东前滩服务中心",
+      "totalFee": 350
+    },
+    {
+      "id": "RH-EV-002",
+      "vin": "DEM00SEED0M0DELY1",
+      "at": "2026-01-31T14:00:00+08:00",
+      "odometerKm": 32100,
+      "items": ["空调滤芯更换", "轮胎换位"],
+      "resolution": "空调滤芯更换完成；四轮换位完成",
+      "stationId": "RS-SH-01",
+      "stationName": "上海浦东前滩服务中心",
+      "totalFee": 480
+    },
+    {
+      "id": "RH-ICE-001",
+      "vin": "DEM00SEED0MAL1BU1",
+      "at": "2025-07-25T09:00:00+08:00",
+      "odometerKm": 104500,
+      "items": ["机油机滤", "空气滤芯"],
+      "resolution": "常规保养完成",
+      "stationId": "RS-SH-02",
+      "stationName": "上海闵行虹桥服务中心",
+      "totalFee": 780
+    },
+    {
+      "id": "RH-ICE-002",
+      "vin": "DEM00SEED0MAL1BU1",
+      "at": "2026-05-26T11:00:00+08:00",
+      "odometerKm": 113200,
+      "items": ["机油机滤", "刹车油更换"],
+      "resolution": "常规保养完成；刹车油更换完成",
+      "stationId": "RS-SH-02",
+      "stationName": "上海闵行虹桥服务中心",
+      "totalFee": 1050
+    },
+    {
+      "id": "RH-ICE-003",
+      "vin": "DEM00SEED0MAL1BU1",
+      "at": "2026-06-30T15:00:00+08:00",
+      "odometerKm": 116050,
+      "items": ["空调系统检修"],
+      "symptom": "怠速时空调不凉，跑起来恢复",
+      "resolution": "冷凝器翅片清洗；冷媒压力正常未补加",
+      "stationId": "RS-SH-01",
+      "stationName": "上海浦东前滩服务中心",
+      "totalFee": 620
+    }
+  ]
+}

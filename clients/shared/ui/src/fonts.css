@@ -1,0 +1,85 @@
+/*
+ * 字体（施工单 M14-14）：中文思源黑体、英文与数字 Inter。
+ *
+ * # 一个 family 列表就够，不需要按语言切类名
+ *
+ * `--font-ui` 把 Inter 排在 Noto Sans SC **前面**。浏览器按字符逐个回落：
+ * 拉丁字母与数字在 Inter 里有字形 → 用 Inter；汉字 Inter 里没有 → 落到
+ * Noto Sans SC。所以"英文数字 Inter、中文思源"是这一行字体栈的自然结果，
+ * 不用给中文单独包一层标签。
+ *
+ * # 思源黑体 = Noto Sans SC
+ *
+ * 同一套字形的两个发行名（Adobe 叫思源，Google 叫 Noto）。取 Google 的包
+ * 是因为它有现成 woff2；Adobe 只发 OTF/OTC。
+ *
+ * # 字体文件进包，不挂 CDN
+ *
+ * 两端都是 Tauri WebView，**离线必须能用**。文件由
+ * `node scripts/assets/fetch-fonts.mjs` 下载到 `assets-fonts/`（带 --check）。
+ *
+ * # 数字为什么要 tabular-nums
+ *
+ * 档案页满屏是里程、公里数、条数这类会变的数字。比例数字在数值跳动时
+ * 列宽会跟着抖，表格式数字（等宽数位）不会。Inter 的 `tnum` 由
+ * `font-variant-numeric` 打开，已在各处数值元素上单独声明。
+ */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  /* 可变字体：一个文件覆盖 100–900，48KB */
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./assets-fonts/inter-latin-variable.woff2") format("woff2");
+  /* 只声明拉丁范围：**汉字必须落到下一档**，否则 Inter 的 notdef 会吃掉它们 */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets-fonts/noto-sans-sc-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets-fonts/noto-sans-sc-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  /* 600 也走这个文件：只带 3 个字重，600 就近取 700（见 fetch-fonts.mjs） */
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("./assets-fonts/noto-sans-sc-700.woff2") format("woff2");
+}
+
+:root {
+  --font-ui:
+    "Inter", "Noto Sans SC", "Source Han Sans SC", "PingFang SC",
+    "Hiragino Sans GB", system-ui, sans-serif;
+}
+
+html,
+body {
+  font-family: var(--font-ui);
+  /* 中文在 macOS 上默认会被 antialiased 拉细一档，这里跟随系统不强改 */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 表单控件不继承 font-family，得单独给——否则按钮里的中文会掉回系统默认 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}

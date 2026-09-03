@@ -1,0 +1,47 @@
+[package]
+name = "mobile"
+version = "0.1.0"
+edition = "2021"
+
+# Tauri 移动端要求 app crate 是库（车机端 ACR-004 已同此形态）：iOS 走 staticlib
+# 由 Swift 壳链接，桌面 main.rs 只是 `mobile_lib::run()` 的三行壳。名字带 _lib 是
+# Tauri 官方模板的约定——crate 名与二进制名（mobile）撞了会让 rlib/bin 在 target
+# 目录互相覆盖。
+[lib]
+name = "mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 网络诊断要枚举本机接口地址（getifaddrs）——手机自己在哪个网段，是所有 errno 的前置判据。
+libc = "0.2"
+carlife-core = { path = "../../../clients/shared/rust/carlife-core" }
+carlife-net = { path = "../../../clients/shared/rust/carlife-net" }
+carlife-media = { path = "../../../clients/shared/rust/carlife-media" }
+carlife-telemetry = { path = "../../../clients/shared/rust/carlife-telemetry" }
+# 哨兵监听的纯逻辑层（M60-01）：唤醒词表、对话窗口、降级闸与车机端**共用一份**。
+# 复制一份的结局是"同一句话在车上有用、在手机上没反应"，且不会有任何报错。
+carlife-voice = { path = "../../../clients/shared/rust/carlife-voice" }
+# 暖暖播报的共享核（M65-04）：清洗 / 端点缓存 / 代际 / rodio 播放。此前手机端没有任何出声路径，
+# 设置页的「出声播报」开关只写一个布尔、无人读——见 events.rs 文件头。
+carlife-tts = { path = "../../../clients/shared/rust/carlife-tts" }
+# 出发卡「开始导航」开外链（与车机同一支同一版本）：WKWebView 会静默吞掉 target=_blank。
+tauri-plugin-opener = "2.5.4"
+
+# 系统定位。**只在移动端存在**：上游 tauri-plugin-geolocation 只支持 iOS/Android，
+# 桌面三家都没有实现（见 lib.rs 里那段为什么 WebView 那条路是死路的注释）。
+# 写成 target 条件依赖而不是 optional feature，是为了让 `cargo build`（桌面）
+# 与 `cargo build --target aarch64-apple-ios` 都不需要额外的 feature 开关。
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-geolocation = "2"
+
+# 只为一句 objc 消息：把 WKWebView 的 scrollView.contentInsetAdjustmentBehavior 设成 .never
+# （见 setup.rs）。wry 没设它，默认 .automatic 会让 WebKit 把页面铺进安全区之内而不是整块屏。
+# 版本跟 wry 用的同一支，锁里已有，不引入新的传递依赖。
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"

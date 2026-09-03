@@ -1,0 +1,24 @@
+[package]
+name = "carlife-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ts-rs = { version = "12", features = ["serde-compat"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "2"
+
+# 端上凭证落操作系统凭证库（ACR-011 / 施工单 M49-02）。
+#
+# 三个声明来自同一个上游项目（open-source-cooperative/keyring-rs），不是三处不同的供应链：
+# `keyring` 的默认 feature `v1` 内部依赖的就是后两个，我们只是**直接声明**它们，
+# 因为 v1 那层的自动装配**不覆盖 iOS**——见下。
+keyring = "4"
+keyring-core = "1"
+# iOS 上必须走 `protected`（数据保护钥匙串），macOS 上走 `keychain`。
+# keyring 的 v1 兼容层只装配 macOS/Windows/*nix，iOS 直接返回
+# `Error::Invalid("platform", …)`；而车机跑的正是 iPad（见 ACR-004）。
+# 所以按平台自己装配一次，见 src/auth.rs 的 `init_store`。
+apple-native-keyring-store = { version = "1", features = ["keychain", "protected"] }

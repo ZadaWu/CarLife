@@ -1,0 +1,6 @@
+{
+  "name": "@carlife/cockpit", "version": "0.1.0", "private": true, "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build", "typecheck": "tsc --noEmit", "test": "node --import tsx --test test/*.test.ts", "tauri": "tauri" },
+  "dependencies": { "@carlife/ui": "workspace:*", "@carlife/shared": "workspace:*", "react": "^18.3.1", "react-dom": "^18.3.1", "@tauri-apps/api": "^2.1.1" },
+  "devDependencies": { "typescript": "^5.7.2", "vite": "^6.0.5", "@vitejs/plugin-react": "^4.3.4", "@tauri-apps/cli": "^2.1.0", "@types/react": "^18.3.12", "@types/react-dom": "^18.3.1" }
+}

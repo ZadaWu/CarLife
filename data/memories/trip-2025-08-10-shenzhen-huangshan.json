@@ -1,0 +1,73 @@
+{
+  "category": "episodic",
+  "subType": "trip_plan",
+  "content": "2025-08-10 单人单日驾驶纯电动车从深圳龙华出发前往黄山风景区，车上载有母亲周慧珍（69岁，晕车，单段≤120分钟）和女儿林小满（7岁）。全程约1200公里，纯高速G35/G56路线。",
+  "metadata": {
+    "occurredAt": "2025-08-10T06:00:00+08:00",
+    "createdAt": "2025-08-09T22:00:00+08:00",
+    "updatedAt": "2025-08-09T22:00:00+08:00",
+    "status": "planned",
+    "participants": [
+      {"name": "林向东", "role": "driver"},
+      {"name": "周慧珍", "role": "passenger", "constraints": ["晕车", "单段行车≤120分钟", "需合格卫生间"]},
+      {"name": "林小满", "role": "passenger", "constraints": ["儿童", "需频繁停靠"]}
+    ],
+    "route": {
+      "origin": {"name": "深圳", "detail": "龙华区", "lat": 22.65, "lon": 114.03},
+      "destination": {"name": "黄山风景区", "lat": 30.13, "lon": 118.17},
+      "totalDistanceKm": 1200,
+      "estimatedDriveMinutes": 780,
+      "primaryRoute": "G35济广高速 + G56杭瑞高速"
+    },
+    "vehicle": {
+      "type": "bev",
+      "model": "2024款纯电中型SUV",
+      "ratedRangeKm": 520,
+      "realCityRangeKm": 400,
+      "estimatedHighwayRangeKm": 350,
+      "batteryKwh": 70,
+      "highwayConsumptionKwhPer100km": 20,
+      "currentOdometerKm": 27000,
+      "source": "persona P-01 林向东档案"
+    },
+    "weather": {
+      "status": "unavailable",
+      "reason": "Open-Meteo forecast API does not cover 2025-08-10 (beyond archive range)",
+      "note": "出发当日需另行查询实际天气；8月上旬沿途多高温，空调负荷增加约8-12%能耗"
+    },
+    "energyPlan": {
+      "chargingStops": 3,
+      "chargingLocations": [
+        {"name": "赣州南康服务区", "cumulativeKm": 350, "targetSoc": "90%"},
+        {"name": "景德镇服务区", "cumulativeKm": 700, "targetSoc": "90%"},
+        {"name": "休宁/黄山南服务区", "cumulativeKm": 1020, "targetSoc": "60%"}
+      ],
+      "rangeMarginPct": 10,
+      "rangeMarginNote": "抵达黄山时预估SOC约10%（~35km剩余），基于每段270-280km实用续航与3次补能计算。若遇高温/爬坡/堵车需提前在下个服务区补电。"
+    },
+    "segmentPlan": [
+      {"leg": 1, "from": "深圳龙华", "to": "河源热水服务区", "km": 170, "minutes": 115, "action": "休息（老人/儿童）"},
+      {"leg": 2, "from": "河源", "to": "赣州南康服务区", "km": 180, "minutes": 120, "action": "充电至90% + 午餐"},
+      {"leg": 3, "from": "赣州", "to": "吉安服务区", "km": 170, "minutes": 115, "action": "休息"},
+      {"leg": 4, "from": "吉安", "to": "景德镇服务区", "km": 230, "minutes": 155, "action": "充电至90% + 休息", "constraintWarning": "本段超出120分钟（~155分钟），需与周慧珍确认是否接受；替代方案为在南昌南加停一次"},
+      {"leg": 5, "from": "景德镇", "to": "婺源服务区", "km": 110, "minutes": 75, "action": "休息"},
+      {"leg": 6, "from": "婺源", "to": "休宁服务区", "km": 160, "minutes": 105, "action": "充电至60%"},
+      {"leg": 7, "from": "休宁", "to": "黄山风景区", "km": 180, "minutes": 120, "action": "抵达", "constraintWarning": "最后一段接近120分钟上限"}
+    ],
+    "keyConcerns": [
+      "高温天气空调增加8-12%能耗，续航余量偏紧",
+      "leg4景德镇段超出周慧珍120分钟约束约35分钟，需出发前确认",
+      "赣州/景德镇服务区充电桩需提前查看排队情况（上次清远教训）",
+      "充电3次共计约2.5-3小时，不含休息时间，总行程约16小时"
+    ],
+    "costEstimate": {
+      "energyCostOneWay": 240,
+      "energyCostRoundTrip": 480,
+      "tollOneWay": 550,
+      "note": "电费按0.8元/kWh×20kWh/100km×1200km计算；高速费按广东/江西/安徽0.45-0.5元/km估算"
+    },
+    "previousNegativeExperiences": [
+      "2025年五一清远：导航规划的充电站排队11台，母亲在车上坐了一个半小时不适"
+    ]
+  }
+}

@@ -1,0 +1,305 @@
+{
+  "_readme": "脱敏回归样本集（F-26-12，施工单 M42-02）。shouldMask=false 的是误伤反例——不该脱的脱了同样算回归。expected 为 null 时只断言输入原样保留。",
+  "samples": [
+    {
+      "rule": "phone",
+      "shouldMask": true,
+      "input": "有事打 13812345678 找我",
+      "expected": "有事打 138****5678 找我"
+    },
+    {
+      "rule": "phone",
+      "shouldMask": true,
+      "input": "两个号：13812345678 和 15987654321",
+      "expected": "两个号：138****5678 和 159****4321"
+    },
+    {
+      "rule": "phone",
+      "shouldMask": true,
+      "input": "13812345678",
+      "expected": "138****5678"
+    },
+    {
+      "rule": "phone",
+      "shouldMask": true,
+      "input": "联系方式13812345678。",
+      "expected": "联系方式138****5678。"
+    },
+    {
+      "rule": "phone",
+      "shouldMask": true,
+      "input": "call me at 13812345678 pls",
+      "expected": "call me at 138****5678 pls"
+    },
+    {
+      "rule": "phone",
+      "shouldMask": false,
+      "input": "订单号 23812345678 不是手机号",
+      "expected": null
+    },
+    {
+      "rule": "phone",
+      "shouldMask": false,
+      "input": "12812345678 首位组合不合法",
+      "expected": null
+    },
+    {
+      "rule": "phone",
+      "shouldMask": false,
+      "input": "里程 138123 公里",
+      "expected": null
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": true,
+      "input": "身份证 110101199003078515 登记",
+      "expected": "身份证 110101**********15 登记"
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": true,
+      "input": "31010119851201123X",
+      "expected": "310101**********3X"
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": true,
+      "input": "老证 110101850307851 也要脱",
+      "expected": "老证 110101*******51 也要脱"
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": true,
+      "input": "证号440301200011304567",
+      "expected": "证号440301**********67"
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": true,
+      "input": "两证 110101199003078515 与 44030120001130456X",
+      "expected": "两证 110101**********15 与 440301**********6X"
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": false,
+      "input": "11010119900307 只有 14 位不成证",
+      "expected": null
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": false,
+      "input": "流水号 990101850307851（15 位但前缀非法）",
+      "expected": null
+    },
+    {
+      "rule": "id_card",
+      "shouldMask": false,
+      "input": "110101 只有六位",
+      "expected": null
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": true,
+      "input": "卡号 6222020200112233445 到账",
+      "expected": "卡号 6222***********3445 到账"
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": true,
+      "input": "6225880137700996",
+      "expected": "6225********0996"
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": true,
+      "input": "转 62258801377009961 这张",
+      "expected": "转 6225*********9961 这张"
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": true,
+      "input": "纯数字 17 位 12345678901234567 按卡号口径脱",
+      "expected": "纯数字 17 位 1234*********4567 按卡号口径脱"
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": true,
+      "input": "订单 622202020011223344551 是 21 位不脱，但 6222020200112233445 要脱",
+      "expected": "订单 622202020011223344551 是 21 位不脱，但 6222***********3445 要脱"
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": false,
+      "input": "12345678901234 只有 14 位不成卡",
+      "expected": null
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": false,
+      "input": "里程 123456 公里",
+      "expected": null
+    },
+    {
+      "rule": "bank_card",
+      "shouldMask": false,
+      "input": "622202020011223344551 超长流水号",
+      "expected": null
+    },
+    {
+      "rule": "email",
+      "shouldMask": true,
+      "input": "发到 zhangsan@example.com 就行",
+      "expected": "发到 z*******@example.com 就行"
+    },
+    {
+      "rule": "email",
+      "shouldMask": true,
+      "input": "a.b-c_1@mail.co",
+      "expected": "a******@mail.co"
+    },
+    {
+      "rule": "email",
+      "shouldMask": true,
+      "input": "抄送 ops@car.life。",
+      "expected": "抄送 o**@car.life。"
+    },
+    {
+      "rule": "email",
+      "shouldMask": true,
+      "input": "x@y.cn 与 zhangsan@example.com 都脱",
+      "expected": "x*@y.cn 与 z*******@example.com 都脱"
+    },
+    {
+      "rule": "email",
+      "shouldMask": true,
+      "input": "user+tag@domain.org",
+      "expected": "u*******@domain.org"
+    },
+    {
+      "rule": "email",
+      "shouldMask": false,
+      "input": "推特句柄 @carlife 不是邮箱",
+      "expected": null
+    },
+    {
+      "rule": "email",
+      "shouldMask": false,
+      "input": "价格 3.5@折 的写法",
+      "expected": null
+    },
+    {
+      "rule": "email",
+      "shouldMask": false,
+      "input": "文件 readme.md 不是邮箱",
+      "expected": null
+    },
+    {
+      "rule": "vin",
+      "shouldMask": true,
+      "input": "车架号 LSJA24U91NS654321 登记在案",
+      "expected": "车架号 LSJ**********4321 登记在案"
+    },
+    {
+      "rule": "vin",
+      "shouldMask": true,
+      "input": "VIN: DEM00SEED0M0DELY1",
+      "expected": "VIN: DEM**********ELY1"
+    },
+    {
+      "rule": "vin",
+      "shouldMask": true,
+      "input": "5YJ3E1EA7KF000316 是特斯拉的",
+      "expected": "5YJ**********0316 是特斯拉的"
+    },
+    {
+      "rule": "vin",
+      "shouldMask": true,
+      "input": "两台：LSJA24U91NS654321、DEM00SEED0MAL1BU1",
+      "expected": "两台：LSJ**********4321、DEM**********1BU1"
+    },
+    {
+      "rule": "vin",
+      "shouldMask": true,
+      "input": "vin LFV3A23C8K3123456 在保",
+      "expected": "vin LFV**********3456 在保"
+    },
+    {
+      "rule": "vin",
+      "shouldMask": false,
+      "input": "含 I 的 LSJA24U91NS65432I 不是合法 VIN",
+      "expected": null
+    },
+    {
+      "rule": "vin",
+      "shouldMask": false,
+      "input": "16 位 LSJA24U91NS65432 不够长",
+      "expected": null
+    },
+    {
+      "rule": "vin",
+      "shouldMask": false,
+      "input": "18 位 LSJA24U91NS6543210 太长",
+      "expected": null
+    },
+    {
+      "rule": "vin",
+      "shouldMask": false,
+      "input": "commit 哈希 a1b2c3d4e5f6a7b8c 含 I/O 之外的小写不匹配",
+      "expected": null
+    },
+    {
+      "rule": "plate",
+      "shouldMask": true,
+      "input": "车牌 沪A12345 进小区",
+      "expected": "车牌 沪A****5 进小区"
+    },
+    {
+      "rule": "plate",
+      "shouldMask": true,
+      "input": "京AD12345 是新能源牌",
+      "expected": "京A*****5 是新能源牌"
+    },
+    {
+      "rule": "plate",
+      "shouldMask": true,
+      "input": "粤B8888W 出险",
+      "expected": "粤B****W 出险"
+    },
+    {
+      "rule": "plate",
+      "shouldMask": true,
+      "input": "挂车 浙A1234挂 通行",
+      "expected": "挂车 浙A****挂 通行"
+    },
+    {
+      "rule": "plate",
+      "shouldMask": true,
+      "input": "两辆：沪A12345 和 京BF0001",
+      "expected": "两辆：沪A****5 和 京B****1"
+    },
+    {
+      "rule": "plate",
+      "shouldMask": false,
+      "input": "口语说京A车牌不带号段",
+      "expected": null
+    },
+    {
+      "rule": "plate",
+      "shouldMask": false,
+      "input": "去北京A座开会",
+      "expected": null
+    },
+    {
+      "rule": "plate",
+      "shouldMask": false,
+      "input": "沪AI2345 含 I 不是合法机关码",
+      "expected": null
+    },
+    {
+      "rule": "plate",
+      "shouldMask": false,
+      "input": "云A12 太短不成牌",
+      "expected": null
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# infra/docker/envs/test/compose.override.yml —— test 环境对 compose.yml 的覆盖。
+# 只写差异：端口映射、副本数、资源限制、日志驱动、镜像 tag。服务定义本身放上一层 compose.yml。
+services: {}
+  # gateway:
+  #   ports: ["8790:8790"]

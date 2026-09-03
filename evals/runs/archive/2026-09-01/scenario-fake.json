@@ -1,0 +1,651 @@
+{
+  "mode": "fake",
+  "at": "2026-09-01T09:15:32.085Z",
+  "metricsVersion": "M57",
+  "total": 91,
+  "selected": 91,
+  "model": "fake",
+  "command": "corepack pnpm eval:scenarios -- --resume --json evals/runs/scenario-fake.json --report evals/runs/reports/scenarios-fake.md",
+  "outcomes": [
+    {
+      "id": "o-01",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 2161
+    },
+    {
+      "id": "o-02",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 932
+    },
+    {
+      "id": "o-03",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 754
+    },
+    {
+      "id": "o-04",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 837
+    },
+    {
+      "id": "o-05",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 749
+    },
+    {
+      "id": "o-06",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 852
+    },
+    {
+      "id": "o-07",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 1037
+    },
+    {
+      "id": "o-08",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 745
+    },
+    {
+      "id": "o-09",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 834
+    },
+    {
+      "id": "o-10",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 779
+    },
+    {
+      "id": "o-11",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 793
+    },
+    {
+      "id": "o-12",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 728
+    },
+    {
+      "id": "s-01",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 733
+    },
+    {
+      "id": "s-02",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 795
+    },
+    {
+      "id": "s-03",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 809
+    },
+    {
+      "id": "s-04",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 741
+    },
+    {
+      "id": "s-05",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 791
+    },
+    {
+      "id": "s-06",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 762
+    },
+    {
+      "id": "s-07",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 840
+    },
+    {
+      "id": "s-08",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 757
+    },
+    {
+      "id": "s-09",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 777
+    },
+    {
+      "id": "s-10",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 770
+    },
+    {
+      "id": "s-11",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 733
+    },
+    {
+      "id": "s-12",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 755
+    },
+    {
+      "id": "b-01",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 505
+    },
+    {
+      "id": "b-02",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 766
+    },
+    {
+      "id": "b-03",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 783
+    },
+    {
+      "id": "b-04",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 496
+    },
+    {
+      "id": "b-05",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 386
+    },
+    {
+      "id": "b-06",
+      "scene": "boundary",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 595
+    },
+    {
+      "id": "o-13",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 772
+    },
+    {
+      "id": "o-14",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 747
+    },
+    {
+      "id": "o-15",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 798
+    },
+    {
+      "id": "o-16",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 766
+    },
+    {
+      "id": "o-17",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 773
+    },
+    {
+      "id": "o-18",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 787
+    },
+    {
+      "id": "o-19",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 748
+    },
+    {
+      "id": "o-20",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 749
+    },
+    {
+      "id": "o-21",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 875
+    },
+    {
+      "id": "o-22",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 757
+    },
+    {
+      "id": "o-23",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 777
+    },
+    {
+      "id": "o-24",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 793
+    },
+    {
+      "id": "o-25",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 811
+    },
+    {
+      "id": "o-26",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 758
+    },
+    {
+      "id": "o-27",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 747
+    },
+    {
+      "id": "o-28",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 779
+    },
+    {
+      "id": "o-29",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 782
+    },
+    {
+      "id": "o-30",
+      "scene": "ownership",
+      "status": "fail",
+      "failures": [
+        "route：期望 ownership（用车助手），实际 itinerary（行程规划）",
+        "solved_must 未命中：给出判定（正常/偏高/需关注）|本次不具备个性化依据"
+      ],
+      "latencyMs": 530
+    },
+    {
+      "id": "o-31",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 811
+    },
+    {
+      "id": "o-32",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 811
+    },
+    {
+      "id": "o-33",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 817
+    },
+    {
+      "id": "o-34",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 773
+    },
+    {
+      "id": "o-35",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 763
+    },
+    {
+      "id": "o-36",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 795
+    },
+    {
+      "id": "o-37",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 738
+    },
+    {
+      "id": "o-38",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 871
+    },
+    {
+      "id": "o-39",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 792
+    },
+    {
+      "id": "o-40",
+      "scene": "ownership",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 795
+    },
+    {
+      "id": "s-13",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 971
+    },
+    {
+      "id": "s-14",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 759
+    },
+    {
+      "id": "s-15",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 789
+    },
+    {
+      "id": "s-16",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 788
+    },
+    {
+      "id": "s-17",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 766
+    },
+    {
+      "id": "s-18",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 762
+    },
+    {
+      "id": "s-19",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 762
+    },
+    {
+      "id": "s-20",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 756
+    },
+    {
+      "id": "s-21",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 816
+    },
+    {
+      "id": "s-22",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 504
+    },
+    {
+      "id": "s-23",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 864
+    },
+    {
+      "id": "s-24",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 573
+    },
+    {
+      "id": "s-25",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 512
+    },
+    {
+      "id": "s-26",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 799
+    },
+    {
+      "id": "s-27",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 822
+    },
+    {
+      "id": "s-28",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 802
+    },
+    {
+      "id": "s-29",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 805
+    },
+    {
+      "id": "s-30",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 797
+    },
+    {
+      "id": "s-31",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 775
+    },
+    {
+      "id": "s-32",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 775
+    },
+    {
+      "id": "s-33",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 824
+    },
+    {
+      "id": "s-34",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 780
+    },
+    {
+      "id": "s-35",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 838
+    },
+    {
+      "id": "s-36",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 875
+    },
+    {
+      "id": "s-37",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 793
+    },
+    {
+      "id": "s-38",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 390
+    },
+    {
+      "id": "s-39",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 761
+    },
+    {
+      "id": "s-40",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 761
+    },
+    {
+      "id": "s-41",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 346
+    },
+    {
+      "id": "s-42",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 337
+    },
+    {
+      "id": "s-43",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 344
+    },
+    {
+      "id": "s-44",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 342
+    },
+    {
+      "id": "s-45",
+      "scene": "service",
+      "status": "pass",
+      "failures": [],
+      "latencyMs": 342
+    }
+  ]
+}

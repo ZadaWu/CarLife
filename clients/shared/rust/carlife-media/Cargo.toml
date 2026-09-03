@@ -1,0 +1,37 @@
+[package]
+name = "carlife-media"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+carlife-core = { path = "../carlife-core" }
+cpal = "0.16"
+# VAD（施工单 M4-07）：选 WebRTC 而非 Silero，理由见 src/vad.rs 文件头——
+# 决定性因素是包体：Silero 系需要 ONNX 运行时（数十 MB），
+# 与 §2.1 选 Tauri 的理由（包体小、内存占用低，契合车机资源受限）直接冲突。
+webrtc-vad = "0.4"
+# 图片压缩（施工单 M8-04 F-09-03）。default-features = false 后只留我们要的
+# 三种编解码：车机端包体敏感，把 tiff/gif/bmp 之类全带上没有意义。
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+thiserror = "2"
+# 声学回声消除（ACR-010，施工单 M47-04 引入 / M47-01 封装）。WebRTC APM 的 Rust 绑定，
+# 与上面的 webrtc-vad 同源同栈。**`bundled` 不是可选项**：不开它默认走 pkg-config 找
+# 系统已装的库，本机与 CI 都没有，两端都编不过（`Couldn't find webrtc-audio-processing-2`）。
+# 开了它从源码编，构建期需要 meson + ninja——获取方式见内部开发指引 的 Commands 节。
+# iOS 交叉编译另需根 Cargo.toml 的 [patch.crates-io] 补丁，理由写在那儿。
+webrtc-audio-processing = { version = "2.1", features = ["bundled"] }
+
+# 麦克风系统授权（走查 2026-08-29 ②，src/permission.rs）。三个包都已在
+# 依赖树里（tauri 带入，版本与 Cargo.lock 一致），这里只是提为直接依赖。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+block2 = "0.6"
+
+# iOS 与 macOS 用同一套 objc2：前者要 AVAudioSession（audio_session.rs），
+# 后者要 AVCaptureDevice（permission.rs）。版本刻意保持一致，避免同一 crate
+# 在两个 Apple 平台上编出两份 objc2。
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+block2 = "0.6"

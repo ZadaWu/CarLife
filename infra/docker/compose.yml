@@ -1,0 +1,11 @@
+# infra/docker/compose.yml —— 所有环境共用的服务定义。
+# 环境差异（端口 / 镜像 tag / 副本 / 资源）写进 envs/<env>/compose.override.yml，变量来自 envs/<env>/.env。
+# 服务名要与 内部开发指引「目标与端口」表、部署脚本头部 `# services:` 一致。按 accepted 的 ARCH 填——模板只给形状。
+name: placeholder   # 实际 project 名由适配器的 --project-name 决定（<项目>-<env>），这里的值不生效
+services: {}
+  # gateway:
+  #   image: ${IMAGE_REGISTRY:-local}/gateway:${IMAGE_TAG:-latest}
+  #   env_file: [.env]            # compose 会按 --env-file 解析，这里通常不用再写
+  #   healthcheck: { test: ["CMD", "wget", "-qO-", "http://localhost:8790/health"], interval: 10s, retries: 6 }
+  # orchestrator: …
+  # agent-runtime: …

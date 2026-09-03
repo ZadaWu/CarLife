@@ -1,0 +1,59 @@
+services:
+  ollama:
+    image: ollama/ollama:0.11.11
+    volumes:
+      - carlife-ollama-data:/root/.ollama
+    expose:
+      - "11434"
+    profiles: [ollama]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  ollama-init:
+    image: ollama/ollama:0.11.11
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MEM0_EMBEDDING_MODEL: ${MEM0_EMBEDDING_MODEL:-nomic-embed-text}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$${MEM0_EMBEDDING_MODEL}\""]
+    profiles: [ollama]
+    restart: "no"
+
+  agent-runtime:
+    environment:
+      MEM0_EMBEDDING_BASE_URL: http://ollama:11434
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+
+  gateway:
+    environment:
+      MEM0_EMBEDDING_BASE_URL: http://ollama:11434
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile
+      target: worker
+    env_file:
+      - ../.env
+    environment:
+      MEM0_EMBEDDING_BASE_URL: http://ollama:11434
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    profiles: [worker]
+
+volumes:
+  carlife-ollama-data:
