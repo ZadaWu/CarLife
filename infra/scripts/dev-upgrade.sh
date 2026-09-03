@@ -70,7 +70,7 @@ fi
 
 (( $# == 0 )) || fail "不接受参数；需要跳过构建时请使用 dev:restart"
 
-[[ -f "$ENV_FILE" ]] || fail "缺少 $ENV_FILE；请先准备根目录 .env"
+[[ -f "$ENV_FILE" ]] || fail "缺少 ${ENV_FILE}；请先准备根目录 .env"
 CURRENT_STAGE="检查本地工具与 Docker"
 command -v git >/dev/null 2>&1 || fail "未找到 git"
 command -v curl >/dev/null 2>&1 || fail "未找到 curl"

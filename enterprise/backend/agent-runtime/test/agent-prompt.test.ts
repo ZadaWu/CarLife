@@ -117,11 +117,18 @@ describe("四个行程专家的诚实红线要写在 prompt 里（M12-02）", ()
   it("drive 与 trip 的边界写明：单程即时出行归 trip", () => {
     assert.match(loadAgentPrompt("drive"), /单程即时出行归 trip/);
   });
-  it("四个都是 -task 会话 → 思考档位 off", async () => {
+  it("-task 会话默认思考档位 off", async () => {
     const { thinkingLevelFor } = await import("../src/acp-client/agent-prompt");
-    for (const a of ["drive-task", "hotel-task", "tour-task", "transit-task"]) {
+    for (const a of ["drive-task", "hotel-task", "tour-task", "transit-task", "ownership-task"]) {
       assert.equal(thinkingLevelFor(a), "off", a);
     }
+  });
+  it("tour-task 不钉 low：实测 low 只是把推演挪进思考块、token 烧三倍（turn-8ddc78e7）", async () => {
+    const { thinkingLevelFor } = await import("../src/acp-client/agent-prompt");
+    assert.equal(thinkingLevelFor("tour-task"), "off");
+    // 例外表为空时，规范名与其它后缀走默认规则。
+    assert.equal(thinkingLevelFor("tour"), "high");
+    assert.equal(thinkingLevelFor("tour-intent"), "off");
   });
 });
 

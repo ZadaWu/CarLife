@@ -13,7 +13,7 @@ die() {
 }
 
 require_env_file() {
-  [[ -f "$ENV_FILE" ]] || die "缺少 $ENV_FILE；先 cp infra/env/.env.demo.example .env"
+  [[ -f "$ENV_FILE" ]] || die "缺少 ${ENV_FILE}；先 cp infra/env/.env.demo.example .env"
 }
 
 env_value() {
@@ -78,7 +78,7 @@ add_profile() {
     web) COMPOSE_ARGS+=( -f "$INFRA_DIR/compose/web.yml" --profile web ) ;;
     ollama) COMPOSE_ARGS+=( -f "$INFRA_DIR/compose/ollama.yml" --profile ollama ) ;;
     local-asr) COMPOSE_ARGS+=( --profile local-asr ) ;;
-    *) die "未知 profile：$profile（可选 local-asr、worker、web、ollama）" ;;
+    *) die "未知 profile：${profile}（可选 local-asr、worker、web、ollama）" ;;
   esac
 }
 

@@ -1532,7 +1532,22 @@ html:has(.demo:fullscreen), body:has(.demo:fullscreen) { overflow: hidden; }
 .fin-spark-wrap--hovering .fin-spark-axis,
 .fin-spark-wrap--hovering .fin-spark-foot { visibility: hidden; }
 
-.fin-card-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+/* ── 调用吞吐柱状图（卡片底部）。
+   横轴与余额曲线共用；缺的桶是零不是缺口，所以没有断线一说。 */
+.fin-tp { display: flex; flex-direction: column; gap: 3px; margin-top: auto; }
+.fin-tp-head {
+  display: flex; align-items: baseline; gap: 6px;
+  padding-top: 6px; border-top: 1px dashed var(--line);
+  font-size: 11px; color: var(--fg-dim); white-space: nowrap;
+}
+.fin-tp-bar { fill: var(--accent); opacity: 0.55; }
+/* 整桶全失败：换成警示色。混着成功的桶不换——一根柱子只能是一种颜色，失败数在气泡里 */
+.fin-tp-bar--failed { fill: var(--warn); }
+.fin-tp-bar--hover { opacity: 1; }
+.fin-tp-tip { flex-direction: column; gap: 1px; align-items: flex-start; }
+.fin-tp-est { color: var(--warn); cursor: help; }
+
+.fin-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 
 /* 卡片是选择器：选中态要能一眼认出来，否则不知道下面那张表在讲谁 */
 .fin-card { cursor: pointer; outline: none; }

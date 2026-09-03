@@ -52,6 +52,8 @@ export {
   type UsageRepository,
   type UsageEntry,
   type UsageBucket,
+  type UsageThroughputQuery,
+  type UsageThroughputRow,
 } from "./repositories/usage";
 // 用户体系（M48-01）：账号、车辆授权、设备。角色判定的唯一入口是 `roleFor`。
 export {

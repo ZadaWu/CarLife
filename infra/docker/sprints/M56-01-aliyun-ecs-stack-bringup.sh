@@ -54,7 +54,7 @@ RSYNC_EXCLUDES=(
 
 plan() {
   require_remote_vars
-  info "目标：$DEPLOY_SSH:$DEPLOY_APP_DIR（env=$DEPLOY_ENV）"
+  info "目标：$DEPLOY_SSH:${DEPLOY_APP_DIR}（env=${DEPLOY_ENV}）"
   if remote 'echo ok' >/dev/null 2>&1; then
     ok "SSH 可达"
     info "远端 docker：$(remote 'docker --version 2>/dev/null || echo 未安装')"
@@ -70,9 +70,9 @@ plan() {
   fi
   local s
   for s in "${SERVICES[@]}"; do
-    if svc_exists "$s"; then info "$s：已存在 → 按新代码重建（up.sh 内 build + up）"; else info "$s：不存在 → 创建"; fi
+    if svc_exists "$s"; then info "${s}：已存在 → 按新代码重建（up.sh 内 build + up）"; else info "${s}：不存在 → 创建"; fi
   done
-  info "步骤：①镜像加速 ②rsync 代码 ③生成服务器 .env（sidecar=$SERVER_SIDECAR_ENABLED；引擎档位走 DB 不写 .env）④远端 up.sh $STACK_PROFILE_FLAGS ⑤verify"
+  info "步骤：①镜像加速 ②rsync 代码 ③生成服务器 .env（sidecar=${SERVER_SIDECAR_ENABLED}；引擎档位走 DB 不写 .env）④远端 up.sh $STACK_PROFILE_FLAGS ⑤verify"
 }
 
 # ---------- apply ----------
@@ -117,7 +117,7 @@ EOF
   sed -e "s/^SIDECAR_ENABLED=.*/SIDECAR_ENABLED=$SERVER_SIDECAR_ENABLED/" "$REPO_ROOT/.env" |
     remote "cat >'$DEPLOY_APP_DIR/.env' && chmod 600 '$DEPLOY_APP_DIR/.env'"
 
-  info "④ 远端 doctor → build → up（up.sh $STACK_PROFILE_FLAGS；首次构建要拉基础镜像 + pnpm install，会久）"
+  info "④ 远端 doctor → build → up（up.sh ${STACK_PROFILE_FLAGS}；首次构建要拉基础镜像 + pnpm install，会久）"
   remote "cd '$DEPLOY_APP_DIR' && bash infra/scripts/up.sh $STACK_PROFILE_FLAGS"
 }
 
@@ -155,7 +155,7 @@ verify() {
 
 rollback() {
   require_remote_vars
-  destructive "远端整栈 down（$DEPLOY_SSH:$DEPLOY_APP_DIR，容器与网络删除、数据卷保留）" -- \
+  destructive "远端整栈 down（$DEPLOY_SSH:${DEPLOY_APP_DIR}，容器与网络删除、数据卷保留）" -- \
     remote_compose down
 }
 

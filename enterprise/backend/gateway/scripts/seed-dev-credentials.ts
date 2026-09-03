@@ -22,8 +22,15 @@
  * 刻意不随机生成口令再打印——那会把口令写进终端历史与 CI 日志。
  *
  * 用法：
- *   corepack pnpm --filter @carlife/gateway seed:dev-credentials
+ *   corepack pnpm --filter @carlife/gateway seed:dev-credentials            # 只在账号仍是锁定态时播种
+ *   corepack pnpm --filter @carlife/gateway seed:dev-credentials -- --force  # 已有口令也覆盖
  *   CARLIFE_DEV_PASSWORD=... 覆盖缺省口令（缺省 `carlife-dev`，仅本机）
+ *
+ * # 幂等：缺省只碰锁定账号
+ *
+ * dev:bootstrap 每次都会跑它（2026-09-03 实跑反馈：不进主流程的话，本机迁移完没有任何账号能登录）。
+ * 要是每次都覆盖，开发者自己改过的口令会在下一次启动被静默改回缺省——所以缺省只在
+ * 口令散列仍是迁移种下的 `!` 时写入；想强制重置用 `--force`。
  */
 
 import { getPrisma } from "@carlife/db";
@@ -39,6 +46,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const password = process.env.CARLIFE_DEV_PASSWORD?.trim() || DEFAULT_PASSWORD;
+  const force = process.argv.includes("--force");
   const prisma = getPrisma();
   try {
     const user = await prisma.user.findUnique({ where: { id: DEV_USER_ID } });
@@ -47,6 +55,10 @@ async function main(): Promise<void> {
         `账号 ${DEV_USER_ID} 不存在——先跑迁移（db:migrate:safe / migrate deploy），它会种下这一行`,
       );
       process.exitCode = 1;
+      return;
+    }
+    if (user.passwordHash !== "!" && !force) {
+      console.log(`✓ ${DEV_USER_ID}（用户名 ${user.username}）已有口令，不覆盖；要重置加 --force`);
       return;
     }
     await prisma.user.update({

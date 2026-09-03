@@ -319,10 +319,22 @@ async function main() {
     if (!Number.isInteger(health.tools?.registered) || health.tools.registered < 1) {
       return { ok: false, detail: "工具注册数为 0 或缺失" };
     }
-    if (risks.length > 0) return { ok: false, detail: risks.join("；") };
+    // 内容审核层是可选外部服务：没配阿里云 / OpenAI 兼容端点时，runtime 会如实报
+    // 「内容审核层未接入」，那是预期的降级（规则筛 + 脱敏 + 权限门仍在），不是启动失败。
+    // 只有配了却没接上，才该拦——那说明密钥或网络有问题。
+    const guardConfigured = Boolean(
+      process.env.Aliyun_AccessKey_ID?.trim() || process.env.GUARD_BASE_URL?.trim(),
+    );
+    const blocking = risks.filter(
+      (risk) => guardConfigured || !risk.startsWith("内容审核层未接入"),
+    );
+    if (blocking.length > 0) return { ok: false, detail: blocking.join("；") };
+    const waived = risks.filter((risk) => !blocking.includes(risk));
     return {
       ok: true,
-      detail: `ACP 已连接，扩展已加载，工具 ${health.tools.registered} 个`,
+      detail:
+        `ACP 已连接，扩展已加载，工具 ${health.tools.registered} 个` +
+        (waived.length > 0 ? `（未配置审核服务，放行：${waived.join("；")}）` : ""),
     };
   });
 

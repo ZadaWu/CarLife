@@ -922,7 +922,9 @@ export function App({
   endCurrentSessionRef.current = endCurrentSession;
 
   /**
-   * 收编 Rust 侧因 409 新建的会话（M25-03）。
+   * 收编 Rust 侧新建的会话（M25-03）：409 过期重建，以及**关闭会话后的第一次长按**
+   * （2026-09-03，手上没有会话时 Rust 停完采集现建一个再上传，与文字路的
+   * `ensureUsableSession` 对称）。
    * 暖暖休息时绑定会话往往已过期；唤醒指令不能丢，Rust 已新建并重发，
    * 这里把前端的会话所有权切过去：换存储、切流、拉新会话的历史。
    */
@@ -934,6 +936,8 @@ export function App({
     setMessages([]);
     setStreaming(null);
     setLastInteractionAt(Date.now());
+    // 服务端已经多了一个会话，左栏列表要跟上——与 `doStartNewSession` 同一做法。
+    void loadSessionsRef.current?.(true);
     try {
       await invoke("start_session_stream", { sessionId: sid });
       // PTT 收编也要让哨兵跟上；否则下一次免手指令仍会打到旧会话。
@@ -1358,6 +1362,8 @@ export function App({
   const voice = useMemo(
     () =>
       createVoicePort(
+        // 关闭会话之后这里是 null——**照样交下去**，Rust 停完采集会现建会话再上传，
+        // 建出的 id 从 outcome 回来收编。别在这里"没会话就不发"（2026-09-03 走查）。
         () => sessionIdRef.current,
         (outcome) => {
           console.info("[voice] 已上传", outcome);

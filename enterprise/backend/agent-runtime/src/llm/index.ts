@@ -80,7 +80,7 @@ export interface ChatStreamHooks {
    * 调用方放弃时（分支超时、用户取消），光靠 `break` 退出 `for await` 是不够的——
    * **流静默时根本拿不到下一个 chunk，永远走不到那个 break**。
    * 实测抓到过：fan-out 分支 60s 判超时后，底层调用又静默挂了 60s 才被
-   * pi 侧的 120s 超时收走，这 60 秒里 token 照烧。
+   * pi 侧的 `PROMPT_TIMEOUT_MS`（当时 120s）收走，这 60 秒里 token 照烧。
    *
    * ACP 实现据此发 `session/cancel` 并立刻结束流；直连实现据此中止请求。
    */

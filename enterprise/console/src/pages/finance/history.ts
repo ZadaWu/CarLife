@@ -69,13 +69,23 @@ export interface TimeWindow {
  * 共用窗口一样能解决挤在右边的问题。
  *
  * 一个点都没有时给 `null`：那种情况根本没有曲线可画，也就不该有横轴。
+ *
+ * `extraEarliest` 是同一张卡上**其它图**的最早时刻（吞吐柱状图的第一个桶）：
+ * 它们与余额曲线共用横轴，窗口就得把它们也装进去——否则吞吐图比余额历史早开始
+ * 记的那几天会被裁掉，而且不报错。
  */
-export function windowFor(history: FinanceHistory): TimeWindow | null {
+export function windowFor(
+  history: Pick<FinanceHistory, "from" | "to" | "series">,
+  extraEarliest: number[] = [],
+): TimeWindow | null {
   let earliest = Number.POSITIVE_INFINITY;
   for (const series of Object.values(history.series)) {
     for (const p of series.points) {
       if (Number.isFinite(p.v) && p.t < earliest) earliest = p.t;
     }
+  }
+  for (const t of extraEarliest) {
+    if (Number.isFinite(t) && t < earliest) earliest = t;
   }
   if (!Number.isFinite(earliest)) return null;
 

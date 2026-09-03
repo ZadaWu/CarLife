@@ -37,7 +37,7 @@ import {
 } from "./update-bridge";
 import { listForAgent, type AgentName as ToolAgentName } from "@carlife/tools";
 
-import { loadAgentPrompt, canonicalAgent } from "./agent-prompt";
+import { loadAgentPrompt, canonicalAgent, type ThinkingLevel } from "./agent-prompt";
 import { splitThinkBursts, type ThoughtTick } from "./think";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PI_AGENTS_DIR = resolve(HERE, "../../../pi-agents");
 
 const CONNECT_TIMEOUT_MS = 30_000;
-const PROMPT_TIMEOUT_MS = 120_000;
+/**
+ * 单次 session/prompt 的兜底超时。**必须比任何一层编排超时都长**——
+ * 行程 fan-out 的 `ITINERARY_BRANCH_TIMEOUT_MS` 是 300s，本层留 30s 余量，
+ * 保证到点时永远是编排层先判超时并下发 cancel（否则两层同时到点，僵尸调用会回来）。
+ */
+const PROMPT_TIMEOUT_MS = 330_000;
 const BACKOFF_BASE_MS = 500;
 const BACKOFF_MAX_MS = 30_000;
 
@@ -89,7 +94,7 @@ export interface AcpClientOptions {
    * 改不了单次调用。所以池按 (Agent, 档位) 分进程，见 `pool.ts` 的 `processKey`。
    * 省略时用 `.pi/settings.json` 里的 `defaultThinkingLevel`。
    */
-  thinkingLevel?: "off" | "high";
+  thinkingLevel?: ThinkingLevel;
 }
 
 interface SessionEntry {
@@ -408,7 +413,7 @@ export class AcpClient {
      *
      *  1. 发 `session/cancel` —— 让 pi 那边真的停下来。不发的话，
      *     编排层不等了，pi 还在烧 token，直到 `PROMPT_TIMEOUT_MS` 才收。
-     *     实测过一次 60 秒的僵尸调用（分支 60s 判超时 → 底层跑到 120s）。
+     *     实测过一次 60 秒的僵尸调用（分支 60s 判超时 → 底层跑到当时的 120s）。
      *  2. `sink.fail` 立刻结束本地这条流 —— **流静默时这条才是关键**：
      *     光发 cancel、等 pi 的最后一条更新，遇上 pi 已经不说话的情况就还是干等。
      *
@@ -626,7 +631,7 @@ export function toolListFor(agent: AgentName | string): string {
 
 export function modelSpecFor(
   agentsDir: string,
-  thinkingLevel: "off" | "high" | undefined,
+  thinkingLevel: ThinkingLevel | undefined,
 ): string | undefined {
   if (!thinkingLevel) return undefined;
   const key = `${agentsDir}::${thinkingLevel}`;

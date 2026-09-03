@@ -82,13 +82,39 @@ JSON 放不了注释，理由记在这里。**改这三个值之前先读完这�
 "需要如实转述""合肥方向不用提，就按…讲"是模型对自己下的指令，不是给车主的话。
 还丢了台风预警，也丢了"你还没建车辆档案"这句 F-13-04 要求的缺失标注。
 
-而且**没有中间档可退**：这两个模型的 `thinkingLevelMap` 把 `minimal`/`low`/`medium`
+而且 pi **自带目录里没有中间档**：这两个模型的 `thinkingLevelMap` 把 `minimal`/`low`/`medium`
 标成了 `null`（pi 文档：该档不支持，跳过/钳掉），真正可用的只有 `off`、`high`、`max`。
-没有"稍微少想一点"，只有想与不想。
+**但接口本身接受 `low`**——见下「中间档：low 是接口支持、目录不认」。
 
 所以钉 `high`。**要说清楚它买到的是什么**：是**可复现**（同一份代码在两台机器上
 行为一致）与**成本可预期**，**不是延迟**——实测它没有比默认更快。
 想要延迟收益只有 `off` 那一条路，而它的代价是上面那种退化。
+
+### 中间档：`low` 是接口支持、目录不认（2026-09-03）
+
+直接对 `api.deepseek.com/chat/completions` 发 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}`，
+**不报错**，`completion_tokens_details.reasoning_tokens=322`（同题 `high` 为 42，单次方差大，只证明"接受"不证明"更省"）。
+所以中间档缺的不是模型能力，是 pi 目录里那个 `null`：`clampThinkingLevel` 遇到 `low` 会往上找到 `high`，
+**静默**变成 high，jsonl 里 `thinking_level_change` 也记 high，看不出被抬过。
+
+解法是 pi 的 `models.json` 覆盖层（`modelOverrides`，与内置定义**合并**而非替换）：
+
+```json
+{ "providers": { "deepseek": { "modelOverrides": {
+  "deepseek-v4-flash": { "thinkingLevelMap": { "low": "low" } } } } } }
+```
+
+它只认 agent 目录下的 `models.json`，而 agent 目录默认是使用者的 `~/.pi/agent/`——不随仓库走。
+所以 `bin/pi-approved.sh` 把 `PI_CODING_AGENT_DIR` 指到仓库内 `.pi/agent/`，那里只入库 `models.json`；
+**副作用是 pi 的会话 jsonl 从此落在 `.pi/agent/sessions/`**（已 gitignore），不再在 `~/.pi/agent/sessions/`。
+
+第一个试它的是 `tour-task`（`agent-prompt.ts` 的 `THINKING_LEVEL_OVERRIDES`）：
+turn-c0ea193e 里它以 `off` 跑，推演全写进了可见正文，10 轮 15000 字、117 s 生成、到超时都没提交。
+`low` 的赌注是让推演回到思考块、正文只剩工具调用。**同场景对照的结果是更糟**（turn-8ddc78e7，2026-09-03）：
+7 轮输出 18459 token，其中推理 15194 token、思考块 46770 字，157 s 才提交——推演没有变短，
+只是从正文挪进了思考块，token 烧了三倍。所以例外表已清空、tour-task 回到 `off`；
+管线（`models.json` 覆盖 + `PI_CODING_AGENT_DIR`）留着。正文过长的真因是 08-28 起
+tour.md 让模型在正文里做体检/时间轴/住宿的取舍，要修的是提示词。
 
 ### 试过但没用：`thinkingBudgets`
 

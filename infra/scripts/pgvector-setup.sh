@@ -32,4 +32,4 @@ docker exec "$CONTAINER" psql -U "$USER" -d "$DB" -c "CREATE EXTENSION IF NOT EX
 
 VER=$(docker exec "$CONTAINER" psql -U "$USER" -d "$DB" -tAc \
   "select extversion from pg_extension where extname='vector'")
-echo "✓ pgvector 已就绪（版本 $VER，容器 $CONTAINER）"
+echo "✓ pgvector 已就绪（版本 ${VER}，容器 ${CONTAINER}）"

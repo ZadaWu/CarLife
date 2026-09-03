@@ -240,9 +240,10 @@ export function createConsoleRouter(deps: ConsoleDeps): Router {
     }),
   );
   router.use(createUsageRouter(deps.usage));
-  // 外部账户余额（admin 独有）。无依赖注入：它只读环境里的供应商凭据，
-  // 不碰任何仓储——把余额查询和业务数据放进同一个 deps 会给人"能改"的错觉。
-  router.use(createFinanceRouter());
+  // 外部账户余额（admin 独有）。余额与账单只读环境里的供应商凭据；唯一碰的仓储是
+  // 用量表的只读聚合（卡片底部的吞吐图），类型收窄到 `throughput()` 一个方法——
+  // 把整个仓储放进去会给人"财务页能改业务数据"的错觉。
+  router.use(createFinanceRouter({ usage: deps.usage }));
   // audit 是 reveal 那条路要的：提示词原文的提权必须留痕（TD-08）
   router.use(createReplayRouter(deps.trace, deps.audit));
   // 实时轨迹（大屏"现在流到哪了"）。与回放共用同一套脱敏口径，见 trace-stream.ts。

@@ -36,6 +36,15 @@ pub(crate) fn gateway_client() -> GatewayClient {
 /// **手里这枚 token 是哪一种**，角色只是端上的显示状态，两者可能短暂不一致。
 #[tauri::command]
 pub async fn create_session() -> Result<String, String> {
+    create_session_for_device().await
+}
+
+/// 建会话的**唯一**实现——`create_session` 命令与 PTT 松手时的现建 / 409 收编共用。
+///
+/// 原来 PTT 收编那条路直接调 `gateway.create_session()`（不带声明），
+/// 在车辆级 token 上必然撞 400 `active_user_required`；
+/// 这里把"车机要带上上车声明"的判据收成一份，别处不再各写各的。
+pub(crate) async fn create_session_for_device() -> Result<String, String> {
     if carlife_core::auth::bound_vin().is_some() {
         let Some(declared) = crate::boarding::declared() else {
             // 没声明过就别去撞那个 400——它对用户毫无意义。
@@ -176,21 +185,61 @@ pub struct StopOutcome {
 
 /// PTT 上行的有限恢复：过期只新建一个会话，并把同一段音频再送一次。
 /// 网络错误与 5xx 的既有重试仍由 `GatewayClient::upload_audio` 负责。
-async fn upload_with_session_recovery(
+/// PTT 上传失败的两种成因——端上要分开交代。
+///
+/// 原来只有 `upload_failed` 一档：建不出会话（车机没做上车声明、网关不在）
+/// 也被压成"上传失败"，排障时看不出是哪一步断的。
+#[derive(Debug)]
+enum PttUploadError {
+    /// 手上没有会话（或旧会话已过期）而新会话建不出来。
+    CreateSession(String),
+    /// 会话在手，上传本身失败。
+    Upload(NetError),
+}
+
+impl From<NetError> for PttUploadError {
+    fn from(err: NetError) -> Self {
+        PttUploadError::Upload(err)
+    }
+}
+
+/// 把这段录音送进一个能用的会话。
+///
+/// `session_id` 为 `None` 是**关闭会话之后的第一次长按**（2026-09-03 车机走查）：
+/// 「退下」与「新建对话」都只把端上的会话位置空、不预建下一个（M50-02），
+/// 下一句话由发送方现建。文字那条路一直是这么做的（`ensureUsableSession`），
+/// 语音这条路原来却在松手时发现没会话就**把录音整段丢掉**，
+/// 只在控制台留一行 warn——车主看到的就是"关掉会话之后长按老是录不上"。
+///
+/// 现建放在 Rust 侧而不是前端：这里已经停了采集、释放了麦克风，
+/// 建会话的网络往返不占设备；放前端就得先建再停，多录一段空白。
+/// 建出来的 id 随 [`StopOutcome::session_id`] 交回前端收编，与 409 那条路同一形态。
+async fn upload_with_session_recovery<F, Fut>(
     gateway: &GatewayClient,
-    session_id: &str,
+    session_id: Option<&str>,
     bytes: &[u8],
     meta: &AudioMeta,
-) -> Result<(AcceptedTurn, Option<String>), NetError> {
+    create_session: F,
+) -> Result<(AcceptedTurn, Option<String>), PttUploadError>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<String, String>>,
+{
+    let Some(session_id) = session_id else {
+        eprintln!("[cockpit] PTT 松手时没有会话，现建一个再上传");
+        let created = create_session().await.map_err(PttUploadError::CreateSession)?;
+        let accepted = gateway.upload_audio(&created, bytes, meta).await?;
+        return Ok((accepted, Some(created)));
+    };
     match gateway.upload_audio(session_id, bytes, meta).await {
         Ok(accepted) => Ok((accepted, None)),
         Err(NetError::SessionExpired) => {
             eprintln!("[cockpit] PTT 会话已过期，新建会话并重传一次");
-            let created = gateway.create_session().await?;
-            let accepted = gateway.upload_audio(&created.session_id, bytes, meta).await?;
-            Ok((accepted, Some(created.session_id)))
+            let created = create_session().await.map_err(PttUploadError::CreateSession)?;
+            let accepted = gateway.upload_audio(&created, bytes, meta).await?;
+            Ok((accepted, Some(created)))
         }
-        Err(err) => Err(err),
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -383,7 +432,8 @@ pub async fn start_push_to_talk(
 pub async fn stop_push_to_talk(
     app: AppHandle,
     state: State<'_, VoiceState>,
-    session_id: String,
+    // 前端手上的会话；关闭会话之后是 `None`，由 `upload_with_session_recovery` 现建。
+    session_id: Option<String>,
 ) -> Result<StopOutcome, String> {
     /*
      * 还没起好就松手时，**把取消意愿留在状态里**由 `start` 那一侧收尾——
@@ -435,7 +485,15 @@ pub async fn stop_push_to_talk(
     emit_status(&app, &CaptureStatus::Uploading);
     // 同上：PTT 这条路也要带开关，否则"用语音关了旁路、按住说话仍然有垫场"。
     let gateway = gateway_client().with_filler_enabled(crate::voice::filler_enabled_now(&app));
-    match upload_with_session_recovery(&gateway, &session_id, &bytes, &meta).await {
+    match upload_with_session_recovery(
+        &gateway,
+        session_id.as_deref(),
+        &bytes,
+        &meta,
+        create_session_for_device,
+    )
+    .await
+    {
         Ok((accepted, adopted_session_id)) => {
             emit_status(&app, &CaptureStatus::Uploaded);
             Ok(StopOutcome {
@@ -446,9 +504,16 @@ pub async fn stop_push_to_talk(
             })
         }
         Err(err) => {
-            eprintln!("[cockpit] upload failed session={session_id}: {err}");
-            emit_status(&app, &CaptureStatus::Failed(CaptureFailed { reason: "upload_failed".into() }));
-            Err("upload_failed".into())
+            let reason = match &err {
+                // 建不出会话要带原因（比如"尚未完成上车声明"）——它是能让车主自己动手的信息。
+                PttUploadError::CreateSession(msg) => format!("session_create_failed: {msg}"),
+                PttUploadError::Upload(e) => {
+                    eprintln!("[cockpit] upload failed session={session_id:?}: {e}");
+                    "upload_failed".into()
+                }
+            };
+            emit_status(&app, &CaptureStatus::Failed(CaptureFailed { reason: reason.clone() }));
+            Err(reason)
         }
     }
 }
@@ -469,17 +534,14 @@ mod tests {
         }
     }
 
-    /// 按固定顺序模拟“旧会话拒绝 → 建会话 → 新会话受理”。
-    fn spawn_recovery_stub() -> (String, mpsc::Receiver<String>, std::thread::JoinHandle<()>) {
+    /// 按给定顺序逐个应答，并把每个请求行交回测试断言。
+    fn spawn_recovery_stub(
+        responses: Vec<(&'static str, &'static str)>,
+    ) -> (String, mpsc::Receiver<String>, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind recovery stub");
         let addr = listener.local_addr().expect("stub address");
         let (tx, rx) = mpsc::channel();
         let handle = std::thread::spawn(move || {
-            let responses = [
-                ("409 Conflict", r#"{"error":"session_expired"}"#),
-                ("201 Created", r#"{"sessionId":"fresh-session"}"#),
-                ("202 Accepted", r#"{"turnId":"turn-fresh"}"#),
-            ];
             for (status_line, body) in responses {
                 let (mut stream, _) = listener.accept().expect("accept recovery request");
                 let mut reader = BufReader::new(stream.try_clone().expect("clone request"));
@@ -510,16 +572,33 @@ mod tests {
         (format!("http://{addr}"), rx, handle)
     }
 
+    /// 生产里建会话走 `create_session_for_device`（要读设备绑定状态）；
+    /// 这里直接打网关，只钉"什么时候建、建几次"。
+    fn create_via(client: &GatewayClient) -> impl std::future::Future<Output = Result<String, String>> + '_ {
+        async move {
+            client
+                .create_session()
+                .await
+                .map(|s| s.session_id)
+                .map_err(|e| e.to_string())
+        }
+    }
+
     /// [F-02-04][AC-02-2] 过期 PTT 会话只创建一次并重传同一段音频一次。
     #[test]
     fn expired_ptt_session_is_adopted_and_reuploaded_once() {
-        let (base, rx, server) = spawn_recovery_stub();
+        let (base, rx, server) = spawn_recovery_stub(vec![
+            ("409 Conflict", r#"{"error":"session_expired"}"#),
+            ("201 Created", r#"{"sessionId":"fresh-session"}"#),
+            ("202 Accepted", r#"{"turnId":"turn-fresh"}"#),
+        ]);
         let client = GatewayClient::new(base, "demo-token");
         let result = tauri::async_runtime::block_on(upload_with_session_recovery(
             &client,
-            "old-session",
+            Some("old-session"),
             &[1, 2, 3],
             &test_meta(),
+            || create_via(&client),
         ))
         .expect("PTT recovery should succeed");
 
@@ -530,6 +609,56 @@ mod tests {
         assert!(requests[1].starts_with("POST /v1/session HTTP/1.1"));
         assert!(requests[2].starts_with("POST /v1/session/fresh-session/messages"));
         assert!(rx.try_recv().is_err(), "过期恢复不应产生第四次请求");
+        server.join().expect("recovery stub should exit");
+    }
+
+    /// [F-02-04][AC-02-2] 关闭会话后的第一次长按：手上没有会话 → 现建一个再传，
+    /// **录音不丢**，且新会话 id 交回前端收编（2026-09-03 车机走查）。
+    #[test]
+    fn 松手时没有会话就现建一个再上传() {
+        let (base, rx, server) = spawn_recovery_stub(vec![
+            ("201 Created", r#"{"sessionId":"fresh-session"}"#),
+            ("202 Accepted", r#"{"turnId":"turn-fresh"}"#),
+        ]);
+        let client = GatewayClient::new(base, "demo-token");
+        let result = tauri::async_runtime::block_on(upload_with_session_recovery(
+            &client,
+            None,
+            &[1, 2, 3],
+            &test_meta(),
+            || create_via(&client),
+        ))
+        .expect("没有会话时应现建并上传成功");
+
+        assert_eq!(result.0.turn_id, "turn-fresh");
+        assert_eq!(result.1.as_deref(), Some("fresh-session"), "新建的 id 必须交回去收编");
+        let requests: Vec<_> = (0..2).map(|_| rx.recv().expect("request record")).collect();
+        assert!(requests[0].starts_with("POST /v1/session HTTP/1.1"), "第一步就是建会话：{}", requests[0]);
+        assert!(requests[1].starts_with("POST /v1/session/fresh-session/messages"));
+        assert!(rx.try_recv().is_err(), "不该有第三次请求");
+        server.join().expect("recovery stub should exit");
+    }
+
+    /// 建不出会话时错误归 `CreateSession`——端上据此显示原因，而不是笼统的"上传失败"。
+    #[test]
+    fn 建不出会话时如实归因() {
+        let (base, rx, server) = spawn_recovery_stub(vec![(
+            "400 Bad Request",
+            r#"{"error":"active_user_required"}"#,
+        )]);
+        let client = GatewayClient::new(base, "demo-token");
+        let err = tauri::async_runtime::block_on(upload_with_session_recovery(
+            &client,
+            None,
+            &[1, 2, 3],
+            &test_meta(),
+            || create_via(&client),
+        ))
+        .expect_err("建会话 400 应失败");
+
+        assert!(matches!(err, PttUploadError::CreateSession(_)), "{err:?}");
+        rx.recv().expect("建会话那一次请求");
+        assert!(rx.try_recv().is_err(), "会话都没有，不该再去上传");
         server.join().expect("recovery stub should exit");
     }
 }

@@ -38,7 +38,13 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
 - [自动] 在仓库根运行 `bash .claude/skills/dev-up/scripts/preflight.sh`。它逐项检查
   Node（版本必须等于根 `.nvmrc`）、corepack、Rust 工具链、Docker 与 Compose v2、Docker daemon 是否在跑、
-  meson、ninja，以及 macOS 上的 Xcode Command Line Tools，缺什么打印什么与安装方式，只检查不安装。
+  meson、ninja、macOS 上的 Xcode Command Line Tools，以及 **Docker Desktop 的 File Sharing 是否覆盖仓库目录**，
+  缺什么打印什么与处理方式，只检查不安装。
+- [人工] File Sharing 那一项红了，说明仓库不在 Docker Desktop 的共享目录内，起容器时会报
+  `mounts denied: The path ... is not shared from the host`。让用户到 Docker Desktop → Settings → Resources →
+  File sharing 把**整个工作区的上级目录**加进去（preflight 会打印建议的路径）。本仓有多处宿主挂载
+  （`infra/postgres-init`、`mocks/cabin/media`、`.env`），只加一个子目录会连环报错。加完让用户点 Apply，
+  再重跑 preflight。
 - [交互] 有缺项时，把缺的项和将要执行的安装命令列给用户，等同意再装。macOS 上一条命令装齐：
 
   ```bash
@@ -56,8 +62,10 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 ### 1. 准备 .env，提醒用户填密钥
 
 - [自动] 运行 `bash .claude/skills/dev-up/scripts/ensure-env.sh`。它在 `.env` 不存在时从
-  `.env.example` 复制，在 `CARLIFE_CONFIG_MASTER_KEY` 为空时生成一个本机加密主密钥；已有文件与已有值
-  一律不改。然后它列出还需要用户填的项，退出码 4 表示 `DEEPSEEK_API_KEY` 为空。
+  `.env.example` 复制，并为每一把本机加密主密钥（`CARLIFE_CONFIG_MASTER_KEY`、`CARLIFE_PII_MASTER_KEY`，
+  以 `.env.example` 里的 `CARLIFE_*_MASTER_KEY` 为准）生成值；已有文件与已有值一律不改。
+  少任何一把网关都会在启动校验时退出，所以这一步不能只看第一把。然后它列出还需要用户填的项，
+  退出码 4 表示 `DEEPSEEK_API_KEY` 为空。
 - [交互] 退出码为 4 时停下来，把下面这段话原样告诉用户，等他填完回复再继续：
 
   > `.env` 已经生成在仓库根。**至少要填 `DEEPSEEK_API_KEY`**：打开 `.env`，把 `DEEPSEEK_API_KEY=""`
@@ -112,6 +120,9 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
   `dev:status` 里每个目标都应是运行中。出现「监护层已死」的目标需要 `dev:restart <目标>`，
   这也是一次重启，先告诉用户要重启哪个。
+- `dev:readiness` 对 runtime 的语义检查里，「内容审核层未接入」在没配阿里云 / OpenAI 兼容审核端点时是
+  预期的降级（规则筛、脱敏、权限门仍在），会被放行并在通过信息里注明；配了却报这一条才是真问题，
+  去核对 `Aliyun_AccessKey_*` 或 `GUARD_BASE_URL`。
 - 端口对照：gateway 8790、runtime 8791、mock-dealer 8792、mock-tts 8794、worker 健康检查 8796、
   cockpit 1430、mobile 1420、web 5173。
 
@@ -135,6 +146,14 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
   `cockpit` 与 `cockpit-app` 是两个目标：前者是 1430 上的 Vite dev server，后者才是窗口。
   debug 客户端走 devUrl、不内嵌前端产物，所以两者必须都在。
 - [人工] 让用户看一眼三个界面。车机端默认是 HUD 与助手形象，不是聊天框；对话层从底部导航进入。
+- 登录用什么，要提前告诉用户，别让他对着输入框猜：
+  - **运营控制台**是 token 鉴权，不是账号密码。输入 `.env` 里 `CARLIFE_ADMIN_TOKEN` 或 `CARLIFE_OPS_TOKEN`
+    的值（`.env.example` 缺省是 `admin-token` / `ops-token`）；开发模式下登录框下方有两个快捷填入按钮。
+    登录页报「无法连接到后端网关」是 8790 没起，报「token 无效」才是 token 的问题。
+  - **车机端 / 手机端**的私人模式用开发账号 `demo`。迁移把它种成锁定态，`dev:upgrade`（经 bootstrap）
+    会自动播种口令：缺省 `carlife-dev`，`.env` 里 `CARLIFE_DEV_PASSWORD` 可覆盖；播种只碰锁定账号，
+    用户自己改过的口令不会被改回去。要重置就先告诉用户，再执行
+    `corepack pnpm --filter @carlife/gateway seed:dev-credentials -- --force`。
 
 ### 6. 演示数据（可选）
 
@@ -177,9 +196,9 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 .env：新建，主密钥已生成；DEEPSEEK_API_KEY 已由用户填写（或：用户选择暂不填，LLM 走 Fake 模型）
 盘点：停掉并重启了本项目的 N 个容器、M 个进程（已经用户同意）；未动其它容器
 dev:upgrade：成功，耗时 N 分钟（或：失败在 <步骤>，原因 <一句话>）
-服务：gateway 8790 ✓ runtime 8791 ✓ web 5173 ✓ mock ×4 ✓ worker ✓
+服务：gateway 8790 ✓ runtime 8791 ✓ web 5173 ✓ mock ×4 ✓ worker ✓（审核层未配置，readiness 已放行）
 客户端：cockpit-app ✓ mobile-app ✓
-打开：http://localhost:5173
+打开：http://localhost:5173（登录用 .env 的 CARLIFE_ADMIN_TOKEN；客户端私人模式用 demo / CARLIFE_DEV_PASSWORD 或缺省 carlife-dev）
 演示数据：已预置 / 未预置
 下一步：接其它外部服务见 infra/external-dependencies.md；停止用 corepack pnpm dev:stop
 ```

@@ -328,7 +328,7 @@ describe("页面接线的防退化", () => {
 
   it("横轴窗口由页面算一次发给每张卡，不是各卡自己算", () => {
     assert.ok(
-      /const spanWindow = useMemo\(\(\) => \(history \? windowFor\(history\) : null\)/.test(src),
+      /const spanWindow = useMemo\(\(\) => \{[\s\S]*?windowFor\(base, extra\)[\s\S]*?\}, \[history, throughput\]\)/.test(src),
       "窗口必须在页面层算一次——各卡自己算的话，同一个横坐标不再是同一个时刻",
     );
     assert.ok(src.includes("window={spanWindow}"), "算出来的窗口要真的发下去");

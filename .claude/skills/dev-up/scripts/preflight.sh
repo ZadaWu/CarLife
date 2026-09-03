@@ -23,7 +23,7 @@ echo "必需："
 if command -v node >/dev/null 2>&1; then
   have="$(node -v | sed 's/^v//')"
   if [ "$have" = "$WANT_NODE" ]; then ok "Node $WANT_NODE" "$(command -v node)"
-  else bad "Node $WANT_NODE" "当前 $have；按 .nvmrc 切换（nvm use / fnm use），或 bash infra/scripts/setup-macos.sh"; fi
+  else bad "Node $WANT_NODE" "当前 ${have}；按 .nvmrc 切换（nvm use / fnm use），或 bash infra/scripts/setup-macos.sh"; fi
 else
   bad "Node $WANT_NODE" "未安装；bash infra/scripts/setup-macos.sh 或用 nvm/fnm 装 $WANT_NODE"
 fi
@@ -34,7 +34,7 @@ else bad "corepack" "随 Node 24 自带；先装对 Node，再 corepack enable";
 if command -v cargo >/dev/null 2>&1; then
   have="$(rustc --version 2>/dev/null | awk '{print $2}')"
   if [ -n "$WANT_RUST" ] && [ "$have" != "$WANT_RUST" ]; then
-    warn "Rust $WANT_RUST" "当前 $have；rustup 会在首次 cargo 时按 rust-toolchain.toml 自动装 $WANT_RUST"
+    warn "Rust $WANT_RUST" "当前 ${have}；rustup 会在首次 cargo 时按 rust-toolchain.toml 自动装 $WANT_RUST"
   else ok "Rust ${WANT_RUST:-toolchain}" "$(command -v cargo)"; fi
 else
   bad "Rust ${WANT_RUST:-toolchain}" "未安装 rustup；brew install rustup 后 rustup-init，或 bash infra/scripts/setup-macos.sh"
@@ -59,6 +59,40 @@ if [ "$OS" = "Darwin" ]; then
   else bad "Xcode Command Line Tools" "需要交互安装：xcode-select --install"; fi
   if command -v brew >/dev/null 2>&1; then ok "Homebrew" "$(command -v brew)"
   else bad "Homebrew" "需要交互安装，见 https://brew.sh"; fi
+fi
+
+# Docker Desktop（macOS）的 File Sharing：宿主 bind mount 的目录必须在共享白名单里，否则 compose 起容器时报
+# `mounts denied: The path ... is not shared from the host`。2026-09-03 实跑踩到两次（postgres-init、mocks/cabin/media），
+# 一个目录一个目录加会连环报错，所以这里一次列出本仓所有 bind mount 并建议把整个工作区上级目录加进去。
+# 新版 Docker Desktop 把配置从 settings.json 挪到了 settings-store.json，字段名也从 filesharingDirectories 变成
+# FilesharingDirectories；两处都看。没有该字段时按 Docker Desktop 的缺省共享目录判断。
+if [ "$OS" = "Darwin" ] && command -v docker >/dev/null 2>&1; then
+  share_result="$(python3 - "$ROOT" <<'PY' 2>/dev/null
+import json, os, sys
+root = os.path.realpath(sys.argv[1])
+base = os.path.expanduser("~/Library/Group Containers/group.com.docker/")
+dirs = None
+for name, key in (("settings-store.json", "FilesharingDirectories"), ("settings.json", "filesharingDirectories")):
+    p = base + name
+    if os.path.exists(p):
+        try:
+            d = json.load(open(p))
+        except Exception:
+            continue
+        if key in d and isinstance(d[key], list):
+            dirs = d[key]; break
+if dirs is None:
+    dirs = ["/Users", "/Volumes", "/private", "/tmp", "/var/folders"]  # Docker Desktop 缺省
+covered = any(root == os.path.realpath(x) or root.startswith(os.path.realpath(x).rstrip("/") + "/") for x in dirs)
+print(("ok " if covered else "no ") + ", ".join(dirs))
+PY
+)"
+  mounts="$(sed -n 's/^ *- \(\.\.\?\/[^:]*\):.*/\1/p' infra/docker-compose.yml infra/docker-compose.stack.yml 2>/dev/null | sort -u | tr '\n' ' ')"
+  case "$share_result" in
+    ok*) ok "Docker File Sharing" "仓库目录已在共享白名单内（${share_result#ok }）" ;;
+    no*) bad "Docker File Sharing" "仓库不在 Docker Desktop 共享目录内（当前：${share_result#no }）。本仓的宿主挂载：${mounts:-infra/postgres-init mocks/cabin/media .env}。到 Docker Desktop → Settings → Resources → File sharing 把整个工作区的上级目录（如 $(dirname "$ROOT")）加进去，一次解决所有挂载，别一个子目录一个子目录加" ;;
+    *) warn "Docker File Sharing" "无法读取 Docker Desktop 配置；若起容器报 mounts denied，把 $(dirname "$ROOT") 加进 Settings → Resources → File sharing" ;;
+  esac
 fi
 
 echo "可选："

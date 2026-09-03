@@ -25,13 +25,20 @@
  * 最右边 0.3% 的宽度里），但**窗口在本文件算一次、几张卡共用**：各缩各的之后
  * 两张卡上同一个横坐标不是同一个时刻。跨度既然会伸缩，就必须标出来——
  * 所以有刻度，它不是装饰。
+ *
+ * 有吞吐口径的卡（`throughputSupported`，目前只有 DeepSeek）底部再多一条柱状图
+ * （`ThroughputBars`）：每个采样桶里跑了多少 token，数据来自我们自己的 `llm_usage`
+ * 埋点（`/console/finance/throughput/:id`），与余额曲线共用横轴——余额掉得快的那段
+ * 才能对上"那段跑了多少"。它是这一页唯一不来自供应商的数字，注意里说了。
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, ApiError } from "../../api";
 import { BalanceSparkline } from "./Sparkline";
+import { ThroughputBars } from "./ThroughputBars";
 import { windowFor, type FinanceHistory } from "./history";
+import type { ThroughputSeries } from "./throughput";
 import {
   ageLabel,
   amountFallback,
@@ -162,10 +169,34 @@ export function FinancePage(): JSX.Element {
   const [history, setHistory] = useState<FinanceHistory | null>(null);
   const [historyBusy, setHistoryBusy] = useState(true);
 
+  /** 按账户存：目前只有 DeepSeek 有，但"哪些有"由服务端的快照说了算 */
+  const [throughput, setThroughput] = useState<Record<string, ThroughputSeries>>({});
+  const [throughputBusy, setThroughputBusy] = useState<Record<string, boolean>>({});
+
   const [selected, setSelected] = useState<string | null>(null);
   const [bills, setBills] = useState<FinanceBillPage | null>(null);
   const [billsError, setBillsError] = useState<string | null>(null);
   const [billsBusy, setBillsBusy] = useState(false);
+
+  /*
+   * 吞吐按账户拉，且**只拉服务端说有的**。失败静默：柱状图画不出来不该在页面
+   * 顶上顶一条红字，由 `ThroughputBars` 在自己的位置说"暂不可用"。
+   * 每个账户只在 busy 表里没它时发起，快照两段式回来两次也只拉一次。
+   */
+  const loadThroughput = useCallback((accounts: FinanceAccount[], refresh: boolean) => {
+    for (const a of accounts) {
+      if (!a.throughputSupported) continue;
+      setThroughputBusy((cur) => {
+        if (!refresh && cur[a.id] !== undefined) return cur;
+        api
+          .get<ThroughputSeries>(`/console/finance/throughput/${a.id}${refresh ? "?refresh=1" : ""}`)
+          .then((series) => setThroughput((prev) => ({ ...prev, [a.id]: series })))
+          .catch(() => {})
+          .finally(() => setThroughputBusy((prev) => ({ ...prev, [a.id]: false })));
+        return { ...cur, [a.id]: true };
+      });
+    }
+  }, []);
 
   const load = useCallback((refresh: boolean) => {
     setBusy(true);
@@ -177,6 +208,7 @@ export function FinancePage(): JSX.Element {
         // 默认落在**第一个账单可查**的账户上：默认选一家查不了的，
         // 首屏就是一张空表，看的人第一反应是"这功能坏了"。
         setSelected((cur) => cur ?? defaultAccountId(snapshot.accounts));
+        loadThroughput(snapshot.accounts, refresh);
       })
       .catch((e: unknown) =>
         setError(
@@ -188,7 +220,7 @@ export function FinancePage(): JSX.Element {
         ),
       )
       .finally(() => setBusy(false));
-  }, []);
+  }, [loadThroughput]);
 
   /*
    * 两段式加载：先拿落盘的上次快照**秒开**画面（stored 路径不打上游，毫秒级），
@@ -203,6 +235,8 @@ export function FinancePage(): JSX.Element {
         if (!snapshot) return;
         setData((cur) => cur ?? snapshot);
         setSelected((cur) => cur ?? defaultAccountId(snapshot.accounts));
+        // 吞吐是纯读库的，不必等现查的快照——stored 快照已经知道哪些账户有它
+        loadThroughput(snapshot.accounts, false);
       })
       .catch(() => {});
     /*
@@ -217,7 +251,7 @@ export function FinancePage(): JSX.Element {
       .catch(() => {})
       .finally(() => setHistoryBusy(false));
     load(false);
-  }, [load]);
+  }, [load, loadThroughput]);
 
   // 选中变化就拉那一家的账单——也是两段式：先铺上次的（毫秒级），再等现查的替换。
   useEffect(() => {
@@ -253,7 +287,15 @@ export function FinancePage(): JSX.Element {
    * 让每张卡自己算的话，几张卡的横轴会各缩各的——同一个横坐标不再是同一个时刻，
    * "这两家是不是同时开始掉的"就没法用眼睛回答了，而且它不报错，只是安静地误导。
    */
-  const spanWindow = useMemo(() => (history ? windowFor(history) : null), [history]);
+  const spanWindow = useMemo(() => {
+    // 吞吐图与余额曲线共用横轴：窗口得把吞吐的第一个桶也装进去，
+    // 否则吞吐比余额历史早开始记的那几天会被裁掉，而且不报错。
+    const seriesList = Object.values(throughput);
+    const extra = seriesList.flatMap((s) => (s.buckets.length > 0 ? [s.buckets[0].t] : []));
+    // 余额历史还没到（或暂不可用）时，用吞吐自己的窗口边界兜底，柱状图不必白等
+    const base = history ?? (seriesList[0] ? { from: seriesList[0].from, to: seriesList[0].to, series: {} } : null);
+    return base ? windowFor(base, extra) : null;
+  }, [history, throughput]);
 
   const danger = (data?.accounts ?? []).filter((a) => a.status === "failed" || a.level === "danger");
   const selectedAccount = data?.accounts.find((a) => a.id === selected);
@@ -379,6 +421,18 @@ export function FinancePage(): JSX.Element {
 
                 {a.error ? <p className="error tiny">{a.error}</p> : null}
                 {a.note ? <p className="muted tiny">{a.note}</p> : null}
+
+                {/*
+                  吞吐放在卡片底部、所有供应商给的数字之后：它是这张卡上唯一来自
+                  我们自己埋点的数字，与上面那些不是同一本账，位置上就得分开。
+                */}
+                {a.throughputSupported ? (
+                  <ThroughputBars
+                    series={throughput[a.id] ?? null}
+                    window={spanWindow}
+                    loading={throughputBusy[a.id] !== false}
+                  />
+                ) : null}
 
                 <footer className="fin-card-foot">
                   <a

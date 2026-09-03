@@ -254,6 +254,10 @@ describe("思考档位按会话用途分（缺陷六：没人看的思考也在�
     assert.equal(modelSpecFor(PI_AGENTS_DIR, "off"), "deepseek/deepseek-v4-flash:off");
   });
 
+  it("low 档位原样拼进 --model（pi 侧由 .pi/agent/models.json 解除 low 的 null 标记）", () => {
+    assert.equal(modelSpecFor(PI_AGENTS_DIR, "low"), "deepseek/deepseek-v4-flash:low");
+  });
+
   it("**没指定档位时不加 --model**——降级到原行为，不是降级到未知行为", () => {
     assert.equal(modelSpecFor(PI_AGENTS_DIR, undefined), undefined);
   });

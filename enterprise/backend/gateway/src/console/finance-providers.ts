@@ -54,6 +54,8 @@ export interface FinanceAccount {
   error?: string;
   /** 这家有没有账单接口。由注册表回填，前端据此决定默认选中谁。 */
   billsSupported?: boolean;
+  /** 有没有吞吐口径（卡片底部的调用柱状图）。由路由按 finance-throughput.ts 的账户表填 */
+  throughputSupported?: boolean;
 }
 
 /**

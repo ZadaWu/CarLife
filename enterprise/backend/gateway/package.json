@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "seed:dev-credentials": "tsx scripts/seed-dev-credentials.ts"
+    "seed:dev-credentials": "node --env-file-if-exists=../../../.env --import tsx scripts/seed-dev-credentials.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",

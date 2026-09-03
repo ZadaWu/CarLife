@@ -48,6 +48,12 @@ fi
 export PI_SKIP_VERSION_CHECK=1
 # 关闭 pi 的其它启动联网动作（版本、包更新、安装遥测）；模型请求不受影响。
 export PI_OFFLINE=1
+# 【PI_CODING_AGENT_DIR】pi 的 agent 目录（models.json / sessions / auth.json 的所在）指到仓库内的
+# .pi/agent/，而不是使用者的 ~/.pi/agent/。要它是为了 models.json 那份模型覆盖能随仓库走：
+# pi 自带目录把 deepseek-v4-flash 的 low 档标成不支持，请求 low 会被静默抬成 high，
+# 覆盖后 tour-task 才真的以 reasoning_effort=low 跑（见 README「思考档位」）。
+# 副作用：pi 的会话 jsonl 从此落在 .pi/agent/sessions/（已 gitignore），排查模型原话去那里找。
+export PI_CODING_AGENT_DIR="$SCRIPT_DIR/../.pi/agent"
 
 set -- --no-builtin-tools "$@"
 if [ -n "$CARLIFE_PI_APPEND_PROMPT" ]; then

@@ -56,7 +56,7 @@ if (( $# > 0 )); then
   fail "不接受目标参数"
 fi
 
-[[ -f "$ENV_FILE" ]] || fail "缺少 $ENV_FILE；请先准备根目录 .env"
+[[ -f "$ENV_FILE" ]] || fail "缺少 ${ENV_FILE}；请先准备根目录 .env"
 command -v curl >/dev/null 2>&1 || fail "未找到 curl"
 CURRENT_STAGE="检查 Node.js 运行时"
 require_supported_node || fail "Node.js 版本不满足项目基线"
@@ -69,26 +69,32 @@ set +a
 READY_ATTEMPTS=20
 
 CURRENT_STAGE="启动基础设施并等待健康"
-printf '[1/5] 启动 PostgreSQL、Redis、MinIO；local 模式含 local-asr，并等待 healthy…\n'
+printf '[1/6] 启动 PostgreSQL、Redis、MinIO；local 模式含 local-asr，并等待 healthy…\n'
 bash "$ROOT/infra/scripts/dev-infra.sh" up
 # dev-infra 已经等待 local-asr healthy；避免下面的宿主应用重启再次卸载并加载 1.62GB
 # 模型。直接执行 dev:restart 时没有这个标记，仍会按默认集合重启 local-asr。
 export CARLIFE_DEV_INFRA_LOCAL_ASR_READY=1
 
 CURRENT_STAGE="部署已提交数据库 migration"
-printf '\n[2/5] 部署已提交的数据库 migration…\n'
+printf '\n[2/6] 部署已提交的数据库 migration…\n'
 corepack pnpm --filter @carlife/db db:migrate:deploy
 
 CURRENT_STAGE="核对 live migration 状态"
-printf '\n[3/5] 核对 live migration 状态…\n'
+printf '\n[3/6] 核对 live migration 状态…\n'
 corepack pnpm --filter @carlife/db db:migrate:status
 
+# 迁移把 demo-user 种成锁定账号（口令散列 `!`），不播种的话本机没有任何账号能登录（M48-02）。
+# 脚本缺省只碰锁定账号，开发者自己改过的口令不会被改回去。
+CURRENT_STAGE="播种开发账号口令"
+printf '\n[4/6] 播种开发账号口令（仅锁定账号；CARLIFE_DEV_PASSWORD 可覆盖缺省）…\n'
+corepack pnpm --filter @carlife/gateway seed:dev-credentials
+
 CURRENT_STAGE="重启宿主机开发服务"
-printf '\n[4/5] 重启宿主机开发服务…\n'
+printf '\n[5/6] 重启宿主机开发服务…\n'
 bash "$ROOT/infra/scripts/dev.sh" restart
 
 CURRENT_STAGE="执行语义 readiness 检查"
-printf '\n[5/5] 执行语义 readiness 检查…\n'
+printf '\n[6/6] 执行语义 readiness 检查…\n'
 corepack pnpm dev:readiness
 
 trap - ERR

@@ -1044,16 +1044,18 @@ export interface ItineraryInput {
 /**
  * 行程 fan-out 的单分支硬超时。
  *
- * 从 `runFanout` 的默认 60s 提到 120s：四条腿各自要跑工具（选路 / 找店 / 找景点 / 查公共交通）
+ * 从 `runFanout` 的默认 60s 提到 120s，再提到 300s：四条腿各自要跑工具（选路 / 找店 / 找景点 / 查公共交通）
  * 再收敛成结构化提交，60s 下多天行程的 hotel 与 tour 常在最后一步被掐——
  * 分支以 `timeout` 汇聚、merge 那边只能报"分支超时"，用户看到的是一份缺腿的行程。
+ * 120s 也不够：turn-c0ea193e（2026-09-03）的 tour-task 跑了 10 轮模型回复、25 次 poi_search、
+ * 2 次 route_audit，第 10 轮正在写"整理并提交三天骨架"时被掐，`submit_tour_days` 一次都没调出来。
  *
- * 上限不能再往上抬太多：pi 侧的 `PROMPT_TIMEOUT_MS` 是 120s（`acp-client/connection.ts`），
+ * 上限与 pi 侧的 `PROMPT_TIMEOUT_MS`（`acp-client/connection.ts`，330s）**必须保持本层更短**：
  * 本层比它先起表（分支计时从发起就开始，prompt 的表要等 session 建好才起），
- * 所以 120s 时仍是本层先判超时并下发 cancel——这是 TD-08 那套"超时即取消"成立的前提。
+ * 所以到点时仍是本层先判超时并下发 cancel——这是 TD-08 那套"超时即取消"成立的前提。
  * 要再加就得先抬 `PROMPT_TIMEOUT_MS`，否则两层同时到点，僵尸调用会回来。
  */
-const ITINERARY_BRANCH_TIMEOUT_MS = 120_000;
+const ITINERARY_BRANCH_TIMEOUT_MS = 300_000;
 
 /** 追跳（M35-01 方案 C）的独立硬超时：只为缺口片区补候选，比整轮汇聚短得多。 */
 const FOLLOWUP_HOTEL_TIMEOUT_MS = 25_000;
@@ -1517,7 +1519,7 @@ export async function runItineraryFanout(
       onBranchEvent: hooks.onBranchEvent,
       timeoutMs: ITINERARY_BRANCH_TIMEOUT_MS,
       // 上游取消要能穿过 fan-out（M33-01）：不接的话打断之后四条分支
-      // 还会各自跑到分支超时（120s）——TD-08 那个僵尸调用，换了个触发原因。
+      // 还会各自跑到分支超时（`ITINERARY_BRANCH_TIMEOUT_MS`）——TD-08 那个僵尸调用，换了个触发原因。
       signal: hooks.signal,
       /*
        * 提交即收工（M30-02）：只有行程 fanout 接——supervisor.ts 的单分支调用点不传，

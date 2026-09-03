@@ -162,7 +162,7 @@ async function runBranch(
    * 此前只有 `Promise.race`：超时赢了，编排层不再等，但被丢下的那一半没人去停——
    * `collect()` 的循环还在拉，ACP 的 `session/prompt` 从没被取消。
    * 实测的后果是一个 **60 秒的僵尸调用**：分支在 60s 判 timeout，
-   * 底层一路跑到 pi 侧的 120s 超时才收，这 60 秒里 token 照烧、结果没有任何人会用。
+   * 底层一路跑到 pi 侧的 `PROMPT_TIMEOUT_MS`（当时 120s）才收，这 60 秒里 token 照烧、结果没有任何人会用。
    *
    * 光 `break` 退循环解决不了：**流静默时根本拿不到下一个 chunk**，
    * 永远走不到那个 break——而实测那次恰恰是静默的。所以要主动的取消信号。

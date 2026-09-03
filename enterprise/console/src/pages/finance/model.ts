@@ -26,6 +26,8 @@ export interface FinanceAccount {
   durationMs: number;
   error?: string;
   billsSupported?: boolean;
+  /** 有没有吞吐口径（卡片底部的调用柱状图）。与 billsSupported 一样由服务端定，页面不猜 */
+  throughputSupported?: boolean;
 }
 
 export interface FinanceSnapshot {

@@ -39,7 +39,7 @@ assert_owned_tmux_session() {
   local session_path
   session_path="$(tmux_session_path)"
   [[ "$session_path" == "$ROOT" ]] ||
-    fail "tmux 会话 $DEV_SESSION 属于 $session_path，拒绝接管其他项目"
+    fail "tmux 会话 $DEV_SESSION 属于 ${session_path}，拒绝接管其他项目"
 }
 
 stop_owned_tmux_session() {
@@ -109,7 +109,7 @@ run_bootstrap() {
   code="$(tr -d '[:space:]' < "$BOOTSTRAP_STATUS")"
   if [[ "$code" != "0" ]]; then
     print_bootstrap_tail
-    fail "bootstrap 返回退出码 $code；会话 $DEV_SESSION 已保留供排障"
+    fail "bootstrap 返回退出码 ${code}；会话 $DEV_SESSION 已保留供排障"
   fi
   print_bootstrap_tail
 }

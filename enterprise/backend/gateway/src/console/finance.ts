@@ -25,10 +25,16 @@
  * 探针），换来的是卡片上那条能看出"什么时候开始掉得快"的曲线。嫌贵就把
  * `CARLIFE_FINANCE_HISTORY_INTERVAL_MIN` 调大，或 `CARLIFE_FINANCE_HISTORY=off`
  * 把定时器与记点一起停。
+ *
+ * 调用**吞吐**在 `/console/finance/throughput/:accountId`（只读我们自己的
+ * `llm_usage` 表，同样永不打上游）：与余额历史同一套桶宽与窗口，摆在卡片底部
+ * 让"余额掉得快的那段"能对上"那段跑了多少 token"。口径见 finance-throughput.ts。
  */
 
 import { Router } from "express";
 import type { Response } from "express";
+
+import type { UsageRepository } from "@carlife/db";
 
 import { requireRole, type ConsoleRequest } from "../auth/console";
 import { defaultStateFile, emptyState, loadState, saveState, type FinanceState } from "./finance-state";
@@ -36,6 +42,7 @@ import {
   bucketStart,
   defaultHistoryFile,
   intervalMs,
+  RETENTION_MS,
   emptyHistory,
   loadHistory,
   recordSnapshot,
@@ -44,6 +51,12 @@ import {
   type FinanceHistory,
 } from "./finance-history";
 import { auditAction } from "./audit";
+import {
+  THROUGHPUT_ACCOUNTS,
+  throughputSupported,
+  toThroughputApi,
+  type ThroughputApiResponse,
+} from "./finance-throughput";
 import {
   FINANCE_PROVIDERS,
   type FetchLike,
@@ -84,6 +97,12 @@ export interface FinanceRouterDeps {
    * 测试传 `false`：不关的话每个 app 实例都挂一个定时器去打注入的假 fetch。
    */
   historyTick?: boolean;
+  /**
+   * 吞吐图的数据源：`llm_usage` 的按桶聚合。只用到 `throughput()` 这一个只读方法，
+   * 类型也只收窄到它——这是本路由唯一碰的仓储，别顺手把整个 UsageRepository
+   * 的写方法带进来，给人"财务页能改用量"的错觉。缺省时吞吐接口回 503。
+   */
+  usage?: Pick<UsageRepository, "throughput">;
 }
 
 /**
@@ -210,6 +229,8 @@ export function createFinanceRouter(deps: FinanceRouterDeps = {}): Router {
       FINANCE_PROVIDERS.map(async (p) => ({
         ...(await p.account(d)),
         billsSupported: Boolean(p.bills),
+        // 有没有吞吐可看与账单一样是"选卡之前就该知道的事"，随快照下发，页面不猜
+        throughputSupported: throughputSupported(p.id),
       })),
     );
   }
@@ -324,6 +345,58 @@ export function createFinanceRouter(deps: FinanceRouterDeps = {}): Router {
     requireRole("admin"),
     (_req: ConsoleRequest, res: Response) => {
       res.json(toApi(history, now()));
+    },
+  );
+
+  /*
+   * 调用吞吐：读我们自己的 `llm_usage` 表，永不打上游，因此与历史一样不落审计。
+   * 窗口与桶宽**逐字沿用余额历史的**（`intervalMs()` / `RETENTION_MS`）——
+   * 两张图叠在同一张卡上，横轴必须是同一条。
+   * 缓存 `ttlMs()`（默认 60s）：聚合一次是一条 group by，不贵，但一页开着轮询
+   * 也不该每次都扫 7 天的表；`?refresh=1` 绕过缓存，不限流（是自己的库）。
+   */
+  const throughputCache = new Map<string, { at: number; page: ThroughputApiResponse }>();
+  router.get(
+    "/console/finance/throughput/:accountId",
+    requireRole("admin"),
+    async (req: ConsoleRequest, res: Response) => {
+      const accountId = String(req.params.accountId ?? "");
+      const spec = THROUGHPUT_ACCOUNTS[accountId];
+      if (!spec) {
+        // 与账单那条的 unsupported 不同：这里根本没有这一栏，页面也不会来问，404 即可
+        res.status(404).json({ error: "throughput_unsupported", message: `该账户没有吞吐口径：${accountId}` });
+        return;
+      }
+      if (!deps.usage) {
+        res.status(503).json({ error: "throughput_unavailable", message: "用量仓储未接入，吞吐不可查" });
+        return;
+      }
+
+      const refresh = req.query.refresh === "1" || req.query.refresh === "true";
+      const hit = throughputCache.get(accountId);
+      if (!refresh && hit && now() - hit.at < ttlMs()) {
+        res.json({ ...hit.page, cached: true });
+        return;
+      }
+
+      const step = intervalMs();
+      const to = now();
+      const from = bucketStart(to, step) - RETENTION_MS;
+      try {
+        const rows = await deps.usage.throughput({
+          since: new Date(from),
+          until: new Date(to),
+          stepMs: step,
+          providers: spec.providers,
+          modelPrefix: spec.modelPrefix,
+        });
+        const page = toThroughputApi(accountId, spec, rows, { stepMs: step, from, to });
+        throughputCache.set(accountId, { at: to, page });
+        res.json(page);
+      } catch (err) {
+        // 查库失败就是失败，不回空数组——空数组会被画成"7 天一次调用都没有"
+        res.status(502).json({ error: "throughput_failed", message: String(err) });
+      }
     },
   );
 

@@ -303,8 +303,8 @@ cmd_status() {
           running:healthy) state="正常（容器 healthy）" ;;
           running:starting) state="⚠️ 启动中（health=starting）" ;;
           running:unhealthy) state="❌ 容器 unhealthy" ;;
-          running:*) state="⚠️ 容器运行中（health=$health）" ;;
-          exited:*|dead:*) state="❌ 容器已退出（health=$health）" ;;
+          running:*) state="⚠️ 容器运行中（health=${health}）" ;;
+          exited:*|dead:*) state="❌ 容器已退出（health=${health}）" ;;
           *) state="未运行"; pid="-" ;;
         esac
         # 容器没跑、端口却有人应答 = 老工作流的宿主进程还赖在那（迁移期专属症状）。
@@ -339,7 +339,7 @@ resolve() {
   if [ "$1" = "all" ]; then RESOLVED="$ALL_TARGETS"; return 0; fi
   local t
   for t in "$@"; do
-    known "$t" || { echo "未知目标：$t（可选：$ALL_TARGETS all）" >&2; return 2; }
+    known "$t" || { echo "未知目标：${t}（可选：$ALL_TARGETS all）" >&2; return 2; }
   done
   RESOLVED="$*"
 }
@@ -386,7 +386,7 @@ case "${1:-restart}" in
     cat <<EOF
 用法：corepack pnpm dev:<子命令> [目标...]
 
-  dev:restart [目标...]   停干净再起（不带目标 = $DEFAULT_TARGETS）
+  dev:restart [目标...]   停干净再起（不带目标 = ${DEFAULT_TARGETS}）
   dev:start   [目标...]   只起
   dev:stop    [目标...]   只停
   dev:status              看谁在跑、谁的监护层已死（还应答但不再热重载）

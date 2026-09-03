@@ -93,7 +93,7 @@ assert_owned_container() {
   project="$(docker inspect --type container -f '{{index .Config.Labels "com.docker.compose.project"}}' "$name")"
   owner_service="$(docker inspect --type container -f '{{index .Config.Labels "com.docker.compose.service"}}' "$name")"
   [[ "$project" == "carlife" && "$owner_service" == "$service" ]] ||
-    die "$name 已存在但不属于 carlife/$service，拒绝操作以保护其他容器"
+    die "$name 已存在但不属于 carlife/${service}，拒绝操作以保护其他容器"
 }
 
 validate_compose() {
@@ -159,12 +159,12 @@ wait_service_healthy() {
     fi
     if [[ "$state" == "exited" || "$state" == "dead" ]]; then
       docker logs --tail 20 "$name" >&2 || true
-      die "$name 未能运行（state=$state health=$health）"
+      die "$name 未能运行（state=$state health=${health}）"
     fi
     now="$(date +%s)"
     if (( now >= deadline )); then
       docker logs --tail 20 "$name" >&2 || true
-      die "$name 在 ${TIMEOUT_SECONDS}s 内未达到 healthy（state=$state health=$health）"
+      die "$name 在 ${TIMEOUT_SECONDS}s 内未达到 healthy（state=$state health=${health}）"
     fi
     sleep 1
   done
@@ -218,7 +218,7 @@ local_asr_down() {
 # 容器里跑的还是旧逻辑，而那看起来像"改了没生效"。
 mock_up() {
   local name="$1"
-  known_mock "$name" || die "未知 mock 服务：$name（可选：$MOCK_SERVICES）"
+  known_mock "$name" || die "未知 mock 服务：${name}（可选：${MOCK_SERVICES}）"
   assert_owned_container "$name"
   compose up -d --build "$name"
   wait_service_healthy "$name"
@@ -226,7 +226,7 @@ mock_up() {
 
 mock_down() {
   local name="$1"
-  known_mock "$name" || die "未知 mock 服务：$name（可选：$MOCK_SERVICES）"
+  known_mock "$name" || die "未知 mock 服务：${name}（可选：${MOCK_SERVICES}）"
   if container_exists "$name"; then
     compose stop "$name"
   else

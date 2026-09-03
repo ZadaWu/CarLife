@@ -44,4 +44,4 @@ stack_config() { compose config; }                    # 给 plan 用：合并后
 # —— 破坏动作：内部已经走 destructive，调用处不必再包一层 ——
 svc_remove()  { destructive "删除容器 $*（匿名卷一起删，命名卷保留）" -- compose rm -s -f -v "$@"; }
 stack_down()  { destructive "整组 down：$DEPLOY_COMPOSE_PROJECT 的全部容器与网络（卷保留）" -- compose down; }
-stack_down_with_volumes() { destructive "整组 down 并删除卷：$DEPLOY_COMPOSE_PROJECT（数据会丢）" -- compose down -v; }
+stack_down_with_volumes() { destructive "整组 down 并删除卷：${DEPLOY_COMPOSE_PROJECT}（数据会丢）" -- compose down -v; }
