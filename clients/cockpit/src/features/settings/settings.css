@@ -307,3 +307,100 @@
 .cset-note--error {
   color: var(--danger, #ff6b6b);
 }
+
+/* ── 播报音量滑块 ──
+   触屏可点：轨道本身只有 6px，但整个 input 高 48px（thumb 32px + 上下留白），
+   手指按在轨道附近就能拖到。thumb 用 amber 与开关的"开"同色。
+   只写 -webkit-（Tauri 两端都是 WKWebView）与 -moz-（浏览器走查）。 */
+.cset-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--cset-chip);
+}
+.cset-slider.is-disabled {
+  opacity: 0.45;
+}
+.cset-slider__head,
+.cset-slider__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cset-slider__label {
+  font-size: 19px;
+  font-weight: 600;
+}
+.cset-slider__value {
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-amber, #f5a623);
+  min-width: 3.2em;
+  text-align: right;
+}
+.cset-slider__hint {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--cset-dim);
+}
+.cset-slider__preview {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--cset-edge);
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cset-slider__preview:disabled {
+  cursor: default;
+}
+.cset-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cset-slider input[type="range"]:disabled {
+  cursor: default;
+}
+.cset-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cset-knob);
+}
+.cset-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  margin-top: -13px; /* (32 - 6) / 2：thumb 居中压在轨道上 */
+  border-radius: 50%;
+  border: none;
+  background: var(--hud-amber, #f5a623);
+  box-shadow: 0 1px 4px rgba(15, 27, 45, 0.35);
+}
+.cset-slider input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cset-knob);
+}
+.cset-slider input[type="range"]::-moz-range-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--hud-amber, #f5a623);
+  box-shadow: 0 1px 4px rgba(15, 27, 45, 0.35);
+}

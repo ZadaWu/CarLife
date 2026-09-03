@@ -28,6 +28,29 @@ pub fn set_broadcast_enabled(app: AppHandle, state: State<'_, Arc<TtsState>>, en
     enabled
 }
 
+/// 读取播报音量（百分比 0~100）。设置页「播报音量」滑块。
+#[tauri::command]
+pub fn get_broadcast_volume(state: State<'_, Arc<TtsState>>) -> u32 {
+    state.volume_percent()
+}
+
+/// 设置播报音量；对正在播的那句立即生效并持久化。返回钳过的实际值。
+///
+/// 与播报开关**分开**：0 不等于关（见 `TtsState::volume` 的说明）。
+#[tauri::command]
+pub fn set_broadcast_volume(state: State<'_, Arc<TtsState>>, percent: u32) -> u32 {
+    state.set_volume_percent(percent)
+}
+
+/// 试听：用当前音量说一句固定的话，让车主拖完滑块就能听到这一档有多响。
+///
+/// 走 `speak` 的正门——受播报开关约束、正常进 speaking 状态、正常让路哨兵。
+/// 不另开一条"只出声不改状态"的路：那种路一多，形象与声音迟早对不上。
+#[tauri::command]
+pub fn preview_broadcast_volume(app: AppHandle, state: State<'_, Arc<TtsState>>) {
+    crate::tts::speak(&app, &state, "我现在就是这么大声，听得清吗？");
+}
+
 /// 读取垫场话开关（true = 垫场开启）。M18-05，F-45-13。
 #[tauri::command]
 pub fn get_filler_enabled(state: State<'_, Arc<TtsState>>) -> bool {
@@ -217,6 +240,11 @@ pub fn prefs_path(app: &AppHandle) -> Option<std::path::PathBuf> {
         .app_data_dir()
         .ok()
         .map(|d| d.join("broadcast-pref"))
+}
+
+/// 播报音量偏好文件。单独一个，理由同下。
+pub fn volume_prefs_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("broadcast-volume-pref"))
 }
 
 /// 垫场话偏好文件（M18-05）。与播报开关分开存：两个开关语义不同，

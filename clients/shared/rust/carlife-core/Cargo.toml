@@ -21,4 +21,10 @@ keyring-core = "1"
 # keyring 的 v1 兼容层只装配 macOS/Windows/*nix，iOS 直接返回
 # `Error::Invalid("platform", …)`；而车机跑的正是 iPad（见 ACR-004）。
 # 所以按平台自己装配一次，见 src/auth.rs 的 `init_store`。
+#
+# 只在 Apple 平台声明：这个 crate 依赖 security-framework，在 Linux 上那个 crate 是空壳，
+# 编到它就是四个 `unresolved import security_framework::*`。auth.rs 里对它的引用本来就
+# 只在 `target_os = "macos" / "ios"` 下编译，所以 Linux CI（ubuntu runner 跑 check:all）
+# 根本不需要它——2026-09-03 之前它写在无条件段里，CI 的 test:rust 从那天起一直红。
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["keychain", "protected"] }

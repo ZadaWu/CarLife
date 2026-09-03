@@ -13,9 +13,9 @@
 </p>
 
 <p align="center">
-  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A524.20-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
-  <a href="https://pnpm.io"><img src="https://img.shields.io/badge/pnpm-%E2%89%A59.0-F69220?logo=pnpm&logoColor=white" alt="pnpm"></a>
-  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-24.20-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
+  <a href="https://pnpm.io"><img src="https://img.shields.io/badge/pnpm-9.15-F69220?logo=pnpm&logoColor=white" alt="pnpm"></a>
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.97-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri 2"></a>
   <a href="https://github.com/langchain-ai/langgraphjs"><img src="https://img.shields.io/badge/Orchestrator-LangGraph.js-FF6F00?logo=langchain&logoColor=white" alt="LangGraph.js"></a>
   <a href="https://www.deepseek.com"><img src="https://img.shields.io/badge/LLM-DeepSeek-4D6BFE" alt="DeepSeek"></a>

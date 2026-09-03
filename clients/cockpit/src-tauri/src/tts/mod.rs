@@ -15,7 +15,7 @@
 //! 端上播报开关（M3-07，设置页）。音色 `BYTEDANCE_TTS_SPEAKER`（豆包档）。
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -94,6 +94,16 @@ pub struct TtsState {
     /// 本 Sprint 只做全局开关。
     muted: AtomicBool,
     prefs_path: Mutex<Option<PathBuf>>,
+    /// 播报音量（百分比，0~100，默认 100）。设置页「播报音量」滑块。
+    ///
+    /// 与 `muted` 是两个量：0 也不等于关——关掉的语义是"不合成、不出声、
+    /// 状态机不进 speaking"，而音量 0 仍然走完整条播报链路（哨兵照样让路、
+    /// 回采判定照样有原文）。合成一个字段的话，"调到最小再拉回来"会把开关也翻了。
+    ///
+    /// 只作用于 rodio 那条路：macOS 的 `say` 降级没有音量参数，那一路
+    /// 按系统音量出声——这是降级路径的边界，不是本字段的 bug。
+    volume: VolumePercent,
+    volume_prefs_path: Mutex<Option<PathBuf>>,
     /// 当前播的是不是垫场话（施工单 M18-05，F-45-07）。
     ///
     /// `current` 只知道"有个子进程在播"，不知道播的是什么。没有这个标志就只能
@@ -163,6 +173,28 @@ pub struct TtsState {
      * 拿它当原文。只在窄通道消费，正常路径永远不拿旧话比对新语音。
      */
     last_spoken: Mutex<Option<(String, std::time::Instant)>>,
+}
+
+/// 播报音量的存放（百分比）。
+///
+/// 单独包一层只为一件事：`TtsState` 是 `#[derive(Default)]`，而 `AtomicU32`
+/// 的默认值是 0——直接放进去，"从没设过音量"的车机会**一声不响**，
+/// 且每条播报都正常走完、日志一行不缺。默认必须是 100。
+struct VolumePercent(AtomicU32);
+
+impl Default for VolumePercent {
+    fn default() -> Self {
+        Self(AtomicU32::new(DEFAULT_VOLUME_PERCENT))
+    }
+}
+
+/// 出厂音量：原始响度。
+pub const DEFAULT_VOLUME_PERCENT: u32 = 100;
+
+/// 百分比 → 下发给 rodio 的增益。**纯函数**：越界的百分比钳到 100，
+/// 不让一个写坏的偏好文件把喇叭推到 2.55 倍。
+pub fn gain_for_percent(percent: u32) -> f32 {
+    percent.min(100) as f32 / 100.0
 }
 
 /// 垫场话被正文接管的方式（施工单 M18-06）。
@@ -265,6 +297,42 @@ impl TtsState {
                 eprintln!("[tts] 播报偏好持久化失败: {e}");
             }
         }
+    }
+
+    /// 播报音量的持久化路径。文件内容是一个百分比整数；读不出（没有、写坏）= 默认 100。
+    pub fn load_volume_prefs(&self, path: PathBuf) {
+        let percent = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|c| c.trim().parse::<u32>().ok())
+            .map(|v| v.min(100))
+            .unwrap_or(DEFAULT_VOLUME_PERCENT);
+        self.volume.0.store(percent, Ordering::SeqCst);
+        *self.volume_prefs_path.lock().expect("tts prefs poisoned") = Some(path);
+    }
+
+    /// 当前播报音量（百分比）。
+    pub fn volume_percent(&self) -> u32 {
+        self.volume.0.load(Ordering::SeqCst)
+    }
+
+    /// 设置播报音量；**对正在播的那句立即生效**并持久化。返回实际落下的值（钳过）。
+    ///
+    /// 立即生效不是锦上添花：车主拖滑块时暖暖多半正在说话，拖完要等下一句
+    /// 才听得出变化的话，他会来回拖好几遍再断定"这个滑块没用"。
+    pub fn set_volume_percent(&self, percent: u32) -> u32 {
+        let percent = percent.min(100);
+        self.volume.0.store(percent, Ordering::SeqCst);
+        if let Some(Playback::Sink { player, .. }) =
+            self.current.lock().expect("tts state poisoned").as_ref()
+        {
+            player.set_volume(gain_for_percent(percent));
+        }
+        if let Some(path) = self.volume_prefs_path.lock().expect("tts prefs poisoned").as_ref() {
+            if let Err(e) = std::fs::write(path, percent.to_string()) {
+                eprintln!("[tts] 播报音量持久化失败: {e}");
+            }
+        }
+        percent
     }
 
     /// 垫场话开关的持久化路径（M18-05）。与播报开关同一形状，分开存。
@@ -476,10 +544,12 @@ pub fn stop_if_filler(state: &TtsState) -> bool {
 ///
 /// 输出流每次新开而不是全局共享：流的生命周期就是这一次播报的生命周期，
 /// 与 `Playback` 一起被 `halt`/drop 回收，不用管理"全局流该何时关"。
-fn start_mp3_playback(audio: Vec<u8>) -> Result<Playback, String> {
+fn start_mp3_playback(audio: Vec<u8>, gain: f32) -> Result<Playback, String> {
     let device = rodio::DeviceSinkBuilder::open_default_sink()
         .map_err(|e| format!("打开音频输出失败: {e}"))?;
     let player = rodio::Player::connect_new(device.mixer());
+    // 音量在 append 之前设：先出第一帧再压下去，每句开头都会有一小截原始响度。
+    player.set_volume(gain);
     let decoder = rodio::Decoder::new(std::io::Cursor::new(audio))
         .map_err(|e| format!("mp3 解码失败: {e}"))?;
     /*
@@ -786,7 +856,7 @@ fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wai
         };
 
         let playback = match audio {
-            Some(bytes) => start_mp3_playback(bytes),
+            Some(bytes) => start_mp3_playback(bytes, gain_for_percent(state.volume_percent())),
             None => {
                 // **say 路径此前一行日志都没有**，而云端路径有上面那条「合成 N 字」。
                 // 这个不对称的代价在 2026-08-27 兑现：`CARLIFE_TTS=say` 时
@@ -884,6 +954,18 @@ fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wai
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn 播报音量_默认满格_越界钳到一百() {
+        let state = super::TtsState::default();
+        assert_eq!(state.volume_percent(), 100, "没设过音量的车机不能一声不响");
+        assert_eq!(state.set_volume_percent(30), 30);
+        assert_eq!(state.volume_percent(), 30);
+        assert_eq!(state.set_volume_percent(255), 100, "写坏的值不能把喇叭推过原始响度");
+        assert_eq!(super::gain_for_percent(0), 0.0);
+        assert_eq!(super::gain_for_percent(50), 0.5);
+        assert_eq!(super::gain_for_percent(999), 1.0);
+    }
+
     use super::{
         await_filler_end, filler_slot, should_preempt, stop, stop_if_filler, strip_markdown_for_speech,
         FillerSlot,

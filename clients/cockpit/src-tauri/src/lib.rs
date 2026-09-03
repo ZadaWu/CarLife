@@ -140,6 +140,10 @@ pub fn run() {
             if let Some(p) = commands::prefs::prefs_path(app.handle()) {
                 tts_state.load_prefs(p);
             }
+            // 播报音量跨重启保持；文件缺省 = 100，不是 0。
+            if let Some(p) = commands::prefs::volume_prefs_path(app.handle()) {
+                tts_state.load_volume_prefs(p);
+            }
             // 播报期语音打断的偏好（M33-03）：跨重启保持，默认开。
             commands::prefs::load_barge_in_pref(app.handle());
             /*
@@ -207,6 +211,10 @@ pub fn run() {
             commands::voice::sentinel_set_windows,
             commands::prefs::get_broadcast_enabled,
             commands::prefs::set_broadcast_enabled,
+            // 播报音量（设置页滑块）：读 / 写 / 试听。
+            commands::prefs::get_broadcast_volume,
+            commands::prefs::set_broadcast_volume,
+            commands::prefs::preview_broadcast_volume,
             commands::prefs::get_filler_enabled,
             commands::prefs::set_filler_enabled,
             commands::prefs::get_barge_in_enabled,

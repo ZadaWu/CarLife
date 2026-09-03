@@ -23,7 +23,7 @@
  * 而不是渲染一个点了报错的开关——组件不造一个点了没反应的东西
  * （与 `AssistantDock` 的「退下」按钮同一条纪律）。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LocationSettings } from "@carlife/ui";
 import type { LocationFix } from "@carlife/shared";
@@ -32,6 +32,7 @@ import { GatewayForm } from "./GatewayForm";
 import { AccountSection } from "./AccountSection";
 import { IdentitySection } from "./IdentitySection";
 import { readSoundscapePref, writeSoundscapePref } from "../cabin/soundscape-prefs";
+import { clampVolume } from "./volume";
 import "./settings.css";
 
 /** 是不是在 Tauri 里（浏览器走查没有 invoke）。 */
@@ -106,6 +107,17 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
   const [bargeIn, setBargeIn] = useState(true);
   const [broadcast, setBroadcast] = useState(true);
   /**
+   * 播报音量（百分比）。与开关是两个量：0 不等于关（Rust 侧 `TtsState::volume`
+   * 的说明）。命令不在（升级中间态）就不渲染滑块，与打断开关同一条纪律。
+   */
+  const [volume, setVolume] = useState(100);
+  const [volumeAvailable, setVolumeAvailable] = useState(false);
+  /**
+   * 拖动期间落盘的节流句柄。滑块一次拖动会连发几十个 change：界面与出声
+   * 每一下都要跟（否则拖起来是"卡"的），但落盘只在手停下来之后做一次。
+   */
+  const volumeCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
    * 打断开关的命令在不在（M33-03）。
    *
    * 升级中间态里 Rust 侧可能还没有它——那时**整组不渲染**而不是显示一个
@@ -134,6 +146,14 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
       .then((m) => setPreempt(m === "immediate" ? "immediate" : "after_sentence"))
       .catch(() => {});
     void invoke<boolean>("get_broadcast_enabled").then(setBroadcast).catch(() => {});
+    void invoke<number>("get_broadcast_volume")
+      .then((v) => {
+        setVolume(clampVolume(v));
+        setVolumeAvailable(true);
+      })
+      .catch(() => {
+        // 旧版 Rust 侧没有这个命令：不渲染滑块，不报错
+      });
     void invoke<boolean>("get_sentinel_enabled")
       .then((v) => {
         setSentinel(v);
@@ -212,6 +232,34 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
     void invoke<boolean>("set_broadcast_enabled", { enabled: !broadcast }).then(setBroadcast);
   }, [broadcast]);
 
+  /**
+   * 拖动播报音量。**界面先动、声音跟着动、落盘最后**：
+   * 前两者每一下都做（Rust 侧对正在播的那句立即生效，拖的时候就能听出来），
+   * 落盘等手停下 200ms 再做一次——它是写文件，没必要一拖几十次。
+   */
+  const changeVolume = useCallback((next: number) => {
+    const v = clampVolume(next);
+    setVolume(v);
+    if (volumeCommit.current) clearTimeout(volumeCommit.current);
+    volumeCommit.current = setTimeout(() => {
+      volumeCommit.current = null;
+      void invoke<number>("set_broadcast_volume", { percent: v })
+        .then((applied) => setVolume(clampVolume(applied)))
+        .catch(() => {});
+    }, 200);
+  }, []);
+
+  const previewVolume = useCallback(() => {
+    // 试听前把还没落下去的那一档先落下去：不然听到的是上一档。
+    if (volumeCommit.current) {
+      clearTimeout(volumeCommit.current);
+      volumeCommit.current = null;
+    }
+    void invoke<number>("set_broadcast_volume", { percent: volume })
+      .then(() => invoke("preview_broadcast_volume"))
+      .catch(() => {});
+  }, [volume]);
+
   return (
     <div className={`cset cset--${theme}`}>
       {/* 没有页内返回按钮：车机端出口只有底部导航一处（2026-08-28 产品定调）。 */}
@@ -286,6 +334,39 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
                 checked={broadcast}
                 onChange={toggleBroadcast}
               />
+              {volumeAvailable && (
+                <div className={`cset-slider${broadcast ? "" : " is-disabled"}`}>
+                  <div className="cset-slider__head">
+                    <span className="cset-slider__label">播报音量</span>
+                    <span className="cset-slider__value" aria-live="polite">
+                      {volume}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={volume}
+                    disabled={!broadcast}
+                    aria-label="播报音量"
+                    onChange={(e) => changeVolume(Number(e.target.value))}
+                  />
+                  <div className="cset-slider__foot">
+                    <span className="cset-slider__hint">
+                      只管暖暖说话的响度，不动车内音乐。拖的时候她要是正在说，会立刻跟着变。
+                    </span>
+                    <button
+                      type="button"
+                      className="cset-slider__preview"
+                      disabled={!broadcast}
+                      onClick={previewVolume}
+                    >
+                      试听
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         ) : (
