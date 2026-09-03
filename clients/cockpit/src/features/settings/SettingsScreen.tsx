@@ -32,7 +32,7 @@ import { GatewayForm } from "./GatewayForm";
 import { AccountSection } from "./AccountSection";
 import { IdentitySection } from "./IdentitySection";
 import { readSoundscapePref, writeSoundscapePref } from "../cabin/soundscape-prefs";
-import { clampVolume } from "./volume";
+import { clampVolume, DEFAULT_VOLUME } from "./volume";
 import "./settings.css";
 
 /** 是不是在 Tauri 里（浏览器走查没有 invoke）。 */
@@ -110,7 +110,7 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
    * 播报音量（百分比）。与开关是两个量：0 不等于关（Rust 侧 `TtsState::volume`
    * 的说明）。命令不在（升级中间态）就不渲染滑块，与打断开关同一条纪律。
    */
-  const [volume, setVolume] = useState(100);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [volumeAvailable, setVolumeAvailable] = useState(false);
   /**
    * 拖动期间落盘的节流句柄。滑块一次拖动会连发几十个 change：界面与出声

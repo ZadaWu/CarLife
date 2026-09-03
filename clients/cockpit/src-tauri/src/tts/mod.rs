@@ -94,7 +94,7 @@ pub struct TtsState {
     /// 本 Sprint 只做全局开关。
     muted: AtomicBool,
     prefs_path: Mutex<Option<PathBuf>>,
-    /// 播报音量（百分比，0~100，默认 100）。设置页「播报音量」滑块。
+    /// 播报音量（百分比，0~100，默认 15）。设置页「播报音量」滑块。
     ///
     /// 与 `muted` 是两个量：0 也不等于关——关掉的语义是"不合成、不出声、
     /// 状态机不进 speaking"，而音量 0 仍然走完整条播报链路（哨兵照样让路、
@@ -179,7 +179,7 @@ pub struct TtsState {
 ///
 /// 单独包一层只为一件事：`TtsState` 是 `#[derive(Default)]`，而 `AtomicU32`
 /// 的默认值是 0——直接放进去，"从没设过音量"的车机会**一声不响**，
-/// 且每条播报都正常走完、日志一行不缺。默认必须是 100。
+/// 且每条播报都正常走完、日志一行不缺。默认必须是 `DEFAULT_VOLUME_PERCENT`。
 struct VolumePercent(AtomicU32);
 
 impl Default for VolumePercent {
@@ -188,8 +188,9 @@ impl Default for VolumePercent {
     }
 }
 
-/// 出厂音量：原始响度。
-pub const DEFAULT_VOLUME_PERCENT: u32 = 100;
+/// 出厂音量。2026-09-03 定为 15：车内近场、豆包合成本身响度偏高，
+/// 满格开箱第一句就把人吓一跳。与车内音乐的出厂 20 同一量级。
+pub const DEFAULT_VOLUME_PERCENT: u32 = 15;
 
 /// 百分比 → 下发给 rodio 的增益。**纯函数**：越界的百分比钳到 100，
 /// 不让一个写坏的偏好文件把喇叭推到 2.55 倍。
@@ -299,7 +300,7 @@ impl TtsState {
         }
     }
 
-    /// 播报音量的持久化路径。文件内容是一个百分比整数；读不出（没有、写坏）= 默认 100。
+    /// 播报音量的持久化路径。文件内容是一个百分比整数；读不出（没有、写坏）= 出厂默认。
     pub fn load_volume_prefs(&self, path: PathBuf) {
         let percent = std::fs::read_to_string(&path)
             .ok()
@@ -955,9 +956,9 @@ fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wai
 #[cfg(test)]
 mod tests {
     #[test]
-    fn 播报音量_默认满格_越界钳到一百() {
+    fn 播报音量_默认十五_越界钳到一百() {
         let state = super::TtsState::default();
-        assert_eq!(state.volume_percent(), 100, "没设过音量的车机不能一声不响");
+        assert_eq!(state.volume_percent(), 15, "出厂默认 15：既不哑（0）也不吓人（100）");
         assert_eq!(state.set_volume_percent(30), 30);
         assert_eq!(state.volume_percent(), 30);
         assert_eq!(state.set_volume_percent(255), 100, "写坏的值不能把喇叭推过原始响度");

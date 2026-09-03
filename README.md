@@ -38,6 +38,26 @@
 
 用车与售后两类问题采用双路检索：一路查通用知识库（说明书、维修手册），一路查这辆车自己的使用数据，两路一起交给模型，答案才带有「你这辆车」的判断。
 
+## 界面一览
+
+<table>
+  <tr>
+    <th align="center" width="45%">车机端</th>
+    <th align="center" width="20%">手机端</th>
+    <th align="center" width="35%">运营控制台</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-cockpit.jpg" alt="车机端主页：地图上的多天行程、景点导览与目的地推荐，左下角是助手暖暖与长按说话" width="100%"></td>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-mobile.jpg" alt="手机端主页：行程路线、行前提示与点击对话" width="100%"></td>
+    <td align="center" valign="top"><img src="docs/assets/screenshot-console.jpg" alt="运营控制台演示大屏：实时轨迹在 Agent 编排图上高亮走过的节点，下方是本轮的调用计数" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>主页：行程、导览与暖暖（iPad）</sub></td>
+    <td align="center"><sub>主页：行程与对话（iPhone）</sub></td>
+    <td align="center"><sub>演示大屏：编排图上的实时轨迹</sub></td>
+  </tr>
+</table>
+
 ## 安全边界
 
 - 三层内容管线：输入规则筛、内容审核、输出个人信息脱敏，对全部 Agent 统一生效。

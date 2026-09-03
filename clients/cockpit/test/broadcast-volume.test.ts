@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 
-import { clampVolume } from "../src/features/settings/volume";
+import { clampVolume, DEFAULT_VOLUME } from "../src/features/settings/volume";
 
 const read = (p: string): string => readFileSync(new URL(p, import.meta.url), "utf8");
 const SETTINGS = read("../src/features/settings/SettingsScreen.tsx");
@@ -18,8 +18,10 @@ const PREFS_RS = read("../src-tauri/src/commands/prefs.rs");
 const LIB_RS = read("../src-tauri/src/lib.rs");
 
 describe("播报音量：Rust 侧", () => {
-  it("默认满格——没设过音量的车机不能一声不响", () => {
-    assert.match(TTS_RS, /pub const DEFAULT_VOLUME_PERCENT: u32 = 100;/);
+  it("出厂默认 15，且两侧同值——没设过音量的车机既不哑也不吓人", () => {
+    assert.equal(DEFAULT_VOLUME, 15);
+    assert.match(TTS_RS, new RegExp(`pub const DEFAULT_VOLUME_PERCENT: u32 = ${DEFAULT_VOLUME};`));
+    assert.match(SETTINGS, /useState\(DEFAULT_VOLUME\)/);
     assert.match(TTS_RS, /Self\(AtomicU32::new\(DEFAULT_VOLUME_PERCENT\)\)/);
     assert.match(TTS_RS, /fn load_volume_prefs[\s\S]*?\.unwrap_or\(DEFAULT_VOLUME_PERCENT\)/);
   });
@@ -64,10 +66,10 @@ describe("播报音量：设置页", () => {
     assert.match(SETTINGS, /const previewVolume[\s\S]*?"set_broadcast_volume"[\s\S]*?"preview_broadcast_volume"/);
   });
 
-  it("clampVolume：只认 0~100 的整数，NaN 退回 100", () => {
+  it("clampVolume：只认 0~100 的整数，NaN 退回出厂默认", () => {
     assert.equal(clampVolume(37.4), 37);
     assert.equal(clampVolume(-5), 0);
     assert.equal(clampVolume(140), 100);
-    assert.equal(clampVolume(Number.NaN), 100);
+    assert.equal(clampVolume(Number.NaN), DEFAULT_VOLUME);
   });
 });
