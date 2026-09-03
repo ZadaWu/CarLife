@@ -26,6 +26,37 @@ description: >-
 
 流程标记：`[自动]` 直接执行；`[人工]` 用户在图形安装器、编辑器或浏览器里操作；`[交互]` 先说清、等用户确认再继续。
 
+## 谁来执行：自动做，还是交给用户
+
+助手的 shell **没有 TTY**：一条命令只要停下来等密码、等 `[y/N]`、等按回车，就永远不会返回，任务卡死在那里，
+用户看到的只是没有进展。所以先按下表判定，再决定是自己跑还是把命令交给用户。
+
+| 助手直接执行（纯用户态、不要密码、不弹窗） | 交给用户在自己的终端里跑（要密码 / 弹 GUI / 需要交互） |
+|---|---|
+| 本技能的三个脚本（preflight / ensure-env / inventory） | 任何带 `sudo` 的命令；助手永远不给命令加 `sudo` |
+| 所有 `corepack pnpm ...`（install / build / dev:* / demo:*） | `xcode-select --install`（弹安装器） |
+| `brew install <普通包>`（meson、ninja、fnm、rustup、tmux、lame…） | Homebrew 安装脚本（要 sudo） |
+| `fnm install / use`、`rustup-init -y --no-modify-path` | `brew install --cask docker-desktop`（装 pkg 要密码）与 Docker Desktop 首次启动（授权弹窗） |
+| `docker ps / logs / compose up`（daemon 已在跑时） | `bash infra/scripts/setup-macos.sh`——只要缺 Docker Desktop、Homebrew 或 Xcode CLT 中的任何一项，它就会走到要密码的分支，整条交给用户 |
+| `open http://localhost:5173` | Docker Desktop 的 File Sharing 设置（GUI） |
+| | `corepack enable` 报 permission denied 时（Node 装在系统目录） |
+| | 停掉任何不属于本项目的进程或容器 |
+
+左栏也不是想跑就跑：会往机器上装东西或会停服务的，先说一句要做什么、执行什么命令，等用户同意。
+右栏用固定的交接格式，说清三件事，然后停下来等：
+
+> **需要你在自己的终端里执行**（这一步会要求输入密码 / 会弹出安装窗口，我这边没法输入）：
+> 原因：<一句话，缺什么、不装会怎样>
+> ```bash
+> <可以整块复制的命令>
+> ```
+> 跑完（或装完点了 Apply）回复我一声，我会重新检查再继续。
+
+用户回复后，**重跑对应的检查脚本核实**（preflight / inventory），不要凭"好了"两个字往下走。
+
+万一某条命令意外卡住——超过一分钟没有新输出，且最后一行像 `Password:`、`[y/N]`、`Press RETURN`——
+把它终止掉，按交接格式把同一条命令交给用户，不要重试第二次。
+
 ## 平台
 
 宿主机开发路径在 macOS 上开发与验证，本技能默认按 macOS 走。Linux 可以跑服务端（容器化路径，
@@ -39,23 +70,22 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 - [自动] 在仓库根运行 `bash .claude/skills/dev-up/scripts/preflight.sh`。它逐项检查
   Node（版本必须等于根 `.nvmrc`）、corepack、Rust 工具链、Docker 与 Compose v2、Docker daemon 是否在跑、
   meson、ninja、macOS 上的 Xcode Command Line Tools，以及 **Docker Desktop 的 File Sharing 是否覆盖仓库目录**，
-  缺什么打印什么与处理方式，只检查不安装。
+  缺什么打印什么与处理方式，只检查不安装。每个缺项都带标记：`[auto]` 助手可以装，`[user]` 必须用户自己跑。
+  退出码 0 全绿；1 只缺 `[auto]` 项；5 至少有一个 `[user]` 项。
+- [交互] 退出码 1：把要装的项和命令列给用户，同意后逐条执行（`brew install meson ninja`、
+  `fnm install 24.20.0`、`rustup-init -y --no-modify-path` 这一类），装完重跑 preflight。
+- [人工] 退出码 5：按上面的交接格式，把 `[user]` 项的命令交给用户在自己终端里跑；`[auto]` 项可以一并
+  写进同一个命令块省得来回。缺 Docker Desktop / Homebrew / Xcode CLT 时直接交整条
+  `bash infra/scripts/setup-macos.sh`，它幂等、可重跑，会把缺的全装上（含要密码的那几步）。
+  用户回复后重跑 preflight 核实。
 - [人工] File Sharing 那一项红了，说明仓库不在 Docker Desktop 的共享目录内，起容器时会报
   `mounts denied: The path ... is not shared from the host`。让用户到 Docker Desktop → Settings → Resources →
   File sharing 把**整个工作区的上级目录**加进去（preflight 会打印建议的路径）。本仓有多处宿主挂载
   （`infra/postgres-init`、`mocks/cabin/media`、`.env`），只加一个子目录会连环报错。加完让用户点 Apply，
   再重跑 preflight。
-- [交互] 有缺项时，把缺的项和将要执行的安装命令列给用户，等同意再装。macOS 上一条命令装齐：
-
-  ```bash
-  bash infra/scripts/setup-macos.sh
-  ```
-
-  它会装 Brewfile 里的包（fnm、rustup、meson、ninja、lame、ffmpeg、poppler、tmux）、Docker Desktop、
-  Node 24.20.0 并启用 corepack、Rust 工具链，然后 `corepack pnpm install` 与 `check:node`。幂等，可重跑。
-  这条命令会往用户机器上装软件、可能切换默认 Node 版本，所以要先说明再执行。
-- [人工] 缺 Xcode Command Line Tools 或 Homebrew 时，安装器要交互确认，让用户自己执行
-  `xcode-select --install` 与 Homebrew 的安装命令，装完回来重跑前置检查。
+- `setup-macos.sh` 会装 Brewfile 里的包（fnm、rustup、meson、ninja、lame、ffmpeg、poppler、tmux）、
+  Docker Desktop、Node 24.20.0 并启用 corepack、Rust 工具链，然后 `corepack pnpm install` 与 `check:node`。
+  它幂等、可重跑，但因为含 Docker Desktop 的 cask 安装，**助手不要自己跑它**，一律交给用户。
 - [自动] 装完再跑一次 preflight，全绿才往下走。缺一个 meson 会在 `dev:upgrade` 最后的 cargo 阶段才失败，
   报错位置离根因很远。
 
@@ -177,6 +207,7 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 - 需要用户交互的安装器（Xcode CLT、Homebrew、Docker Desktop 首次初始化）。
 - `dev:upgrade` 连续两次在同一位置失败且排障参考里没有对应条目。
 - 端口被不认识的进程占用——让用户决定改端口还是停程序，不要替他杀。
+- 某条命令等密码或等交互而卡住——终止它，按交接格式交给用户，不要换个写法再试。
 
 ## 不做的事
 
@@ -185,6 +216,8 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 - 不执行 git 写操作，不删容器数据卷（`down -v`），不清 `target/` 与 `node_modules/`。
 - 不全局安装 pnpm、turbo、pi：pnpm 由 corepack 提供，turbo 由各包 devDependencies 提供，
   pi 只从 `enterprise/backend/pi-agents/node_modules/.bin` 解析。
+- 不执行任何带 `sudo` 的命令，不自己跑 `setup-macos.sh`、`xcode-select --install`、Homebrew 安装脚本、
+  Docker Desktop 的 cask 安装——这些都交给用户的终端。
 
 ## 收尾报告
 
@@ -192,7 +225,7 @@ Linux 用户装这些；Windows 未实测。开始前先说明当前平台走哪
 
 ```
 平台：macOS 15 / Node 24.20.0 / Rust 1.97.0 / Docker 28
-前置检查：全部通过（或：经用户同意装了 meson、ninja）
+前置检查：全部通过（或：助手装了 meson、ninja；用户自己装了 Docker Desktop 并加了 File Sharing）
 .env：新建，主密钥已生成；DEEPSEEK_API_KEY 已由用户填写（或：用户选择暂不填，LLM 走 Fake 模型）
 盘点：停掉并重启了本项目的 N 个容器、M 个进程（已经用户同意）；未动其它容器
 dev:upgrade：成功，耗时 N 分钟（或：失败在 <步骤>，原因 <一句话>）

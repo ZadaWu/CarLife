@@ -11,6 +11,7 @@
 | `check:node` 拒绝启动 | Node 版本与根 `.nvmrc` 不一致 | 按输出给出的命令切换，再 `corepack enable` |
 | `ERR_PNPM_OUTDATED_LOCKFILE` 或 install 报锁文件不匹配 | 本地改过 package.json 却没更新锁文件 | `corepack pnpm install`（不带 `--frozen-lockfile`）更新锁文件后重跑 |
 | cargo 报 `security_framework` 相关 `unresolved import` | Linux 上编到了 macOS 专用的 keyring 后端 | 当前只在 macOS 宿主路径验证客户端；Linux 走容器化路径跑服务端 |
+| 助手跑的命令一分钟没有新输出，最后一行是 `Password:`、`[y/N]` 或 `Press RETURN` | 助手的 shell 没有 TTY，命令在等交互输入，永远不会返回 | 终止它，把同一条命令按交接格式交给用户在自己终端里跑；带 `sudo` 的、装 cask 的、弹安装器的一律如此 |
 | 某个 shell 脚本报 `xxx：: unbound variable`，变量名后面粘着中文标点 | `set -u` 下部分 locale 的 bash 把紧跟在 `$var` 后的全角标点当成变量名的一部分 | 仓库脚本里已全部改成 `${var}`；新写脚本时凡是 `$var` 后面紧跟中文都用花括号 |
 
 ## 启动阶段

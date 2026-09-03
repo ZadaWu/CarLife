@@ -28,10 +28,10 @@ else
 fi
 
 section "③ 本项目的宿主进程与客户端窗口（dev:upgrade 会全部 stop 再 start）"
-status="$(bash infra/scripts/dev.sh status 2>/dev/null || true)"
-if [ -n "$status" ]; then
-  printf '%s\n' "$status" | sed 's/^/  /'
-  if printf '%s\n' "$status" | grep -qE '正常|运行中|监护层已死'; then touched=1; fi
+devup_status="$(bash infra/scripts/dev.sh status 2>/dev/null || true)"
+if [ -n "$devup_status" ]; then
+  printf '%s\n' "$devup_status" | sed 's/^/  /'
+  if printf '%s\n' "$devup_status" | grep -qE '正常|运行中|监护层已死'; then touched=1; fi
 else
   echo "  （dev:status 无输出）"
 fi
