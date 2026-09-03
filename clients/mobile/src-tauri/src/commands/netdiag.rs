@@ -409,8 +409,14 @@ fn sockaddr_bytes(addr: SocketAddr) -> (Vec<u8>, libc::socklen_t) {
     match addr {
         SocketAddr::V4(v4) => {
             let mut sa: libc::sockaddr_in = unsafe { std::mem::zeroed() };
-            sa.sin_len = std::mem::size_of::<libc::sockaddr_in>() as u8;
-            sa.sin_family = libc::AF_INET as u8;
+            // `sin_len` 是 BSD 系（macOS / iOS）才有的字段，Linux 的 sockaddr_in 没有；
+            // `sin_family` 的类型也不同（BSD 是 u8，Linux 是 u16），走 sa_family_t 两边都对。
+            // 2026-09-03 之前这里按 macOS 写死，Linux CI 报 no field `sin_len` + mismatched types。
+            #[cfg(target_vendor = "apple")]
+            {
+                sa.sin_len = std::mem::size_of::<libc::sockaddr_in>() as u8;
+            }
+            sa.sin_family = libc::AF_INET as libc::sa_family_t;
             sa.sin_port = v4.port().to_be();
             sa.sin_addr.s_addr = u32::from(*v4.ip()).to_be();
             let n = std::mem::size_of::<libc::sockaddr_in>();
@@ -419,8 +425,11 @@ fn sockaddr_bytes(addr: SocketAddr) -> (Vec<u8>, libc::socklen_t) {
         }
         SocketAddr::V6(v6) => {
             let mut sa: libc::sockaddr_in6 = unsafe { std::mem::zeroed() };
-            sa.sin6_len = std::mem::size_of::<libc::sockaddr_in6>() as u8;
-            sa.sin6_family = libc::AF_INET6 as u8;
+            #[cfg(target_vendor = "apple")]
+            {
+                sa.sin6_len = std::mem::size_of::<libc::sockaddr_in6>() as u8;
+            }
+            sa.sin6_family = libc::AF_INET6 as libc::sa_family_t;
             sa.sin6_port = v6.port().to_be();
             sa.sin6_addr.s6_addr = v6.ip().octets();
             sa.sin6_scope_id = v6.scope_id();
