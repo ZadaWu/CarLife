@@ -86,6 +86,7 @@ corepack pnpm dev:upgrade
 
 ## 文档
 
+- [逐步部署手册](docs/step-by-step.md)：不用 AI 助手，照着做到三个端都跑起来
 - [安装](docs/installation.md)
 - [快速体验](docs/quickstart.md)
 - [配置外部服务](docs/external-services.md)
