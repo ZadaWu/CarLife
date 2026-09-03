@@ -13,6 +13,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+import { AUTO_DECLARE_OWNER } from "../auth/boardingPolicy";
+
 interface AuthStatus {
   authenticated: boolean;
   userId: string | null;
@@ -80,21 +82,26 @@ export function AccountSection() {
         <h2>当前使用人</h2>
         <p className="cset-identity">{who ?? "…"}</p>
         <p className="cset-note">
-          车机不登录账号；这里的使用人决定会话记在谁名下，重启后保持（M54-10）。
+          {AUTO_DECLARE_OWNER
+            ? "车机不登录账号；当前版本默认由车主使用（临时策略，见 boardingPolicy.ts）。"
+            : "车机不登录账号；这里的使用人决定会话记在谁名下，重启后保持（M54-10）。"}
         </p>
-        <button
-          type="button"
-          className="cset-identity-switch"
-          onClick={() => {
-            // 清声明 → 重载 → BoardingGate 回到选择屏。换人是显式动作，
-            // 不靠重启擦除（重启恰恰不再擦除了）。
-            void invoke("boarding_reset")
-              .catch(() => undefined)
-              .finally(() => window.location.reload());
-          }}
-        >
-          更换使用人
-        </button>
+        {/* 自动以车主进入时没有"换人"这回事：清了声明也只会再自动选回车主，按钮只会让人困惑 */}
+        {AUTO_DECLARE_OWNER ? null : (
+          <button
+            type="button"
+            className="cset-identity-switch"
+            onClick={() => {
+              // 清声明 → 重载 → BoardingGate 回到选择屏。换人是显式动作，
+              // 不靠重启擦除（重启恰恰不再擦除了）。
+              void invoke("boarding_reset")
+                .catch(() => undefined)
+                .finally(() => window.location.reload());
+            }}
+          >
+            更换使用人
+          </button>
+        )}
       </section>
     );
   }

@@ -5,6 +5,7 @@
  *  1. **未绑定**：展示自己的 deviceId 给车主扫，然后输入车主念回来的 6 位配对码。
  *     车机上**不输入任何账号口令**（FL-07 F-07-04 的"免密"就是这个意思）。
  *  2. **已绑定未声明**：列出这辆车的成员让人点选，或选访客模式。
+ *     （`AUTO_DECLARE_OWNER` 为真时这一屏被跳过，直接以车主身份进入——见 boardingPolicy.ts，临时。）
  *
  * # 为什么声明这一步不能省、也不能替用户猜
  *
@@ -21,6 +22,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+import { AUTO_DECLARE_OWNER } from "./boardingPolicy";
 import { qrSvg } from "./qr";
 import "./boarding.css";
 
@@ -65,6 +67,11 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * 自动以车主身份声明是否已试过（`AUTO_DECLARE_OWNER`）。试过且失败（名单里没有车主、
+   * 或 create_session_as 抛错）就退回选择屏——自动路径不能把人锁在一个什么都不显示的屏上。
+   */
+  const [autoTried, setAutoTried] = useState(false);
 
   const loadMembers = useCallback(async (vin: string) => {
     const raw = await invoke<string>("vehicle_members", { vin });
@@ -201,6 +208,21 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
     [busy, onDeclared],
   );
 
+  /*
+   * 临时策略（boardingPolicy.ts）：进入选择屏时若开关为真，直接替用户点「车主」。
+   * 只自动一次；失败就显示原来的选择屏，错误原样露出——不吞。
+   */
+  useEffect(() => {
+    if (!AUTO_DECLARE_OWNER || phase.kind !== "declaring" || autoTried) return;
+    setAutoTried(true);
+    const owner = phase.members.find((m) => m.role === "owner");
+    if (!owner) {
+      setError("成员名单里没有车主，无法自动进入；请手动选择。");
+      return;
+    }
+    void declare(owner.userId);
+  }, [phase, autoTried, declare]);
+
   if (phase.kind === "probing" || phase.kind === "skip") return null;
 
   if (phase.kind === "blocked") {
@@ -288,6 +310,18 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
             </p>
           ) : null}
           {error ? <p className="boarding-error">{error}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  // 自动声明进行中（开关为真且还没失败）：不摊开名单，只说一句在干什么——一个空屏会被当成卡死。
+  if (AUTO_DECLARE_OWNER && !error) {
+    return (
+      <div className="boarding">
+        <div className="boarding-card">
+          <h1>正在以车主身份进入…</h1>
+          <p className="boarding-hint">这台车机默认由车主使用。</p>
         </div>
       </div>
     );

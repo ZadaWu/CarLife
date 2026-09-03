@@ -1,112 +1,73 @@
 # CarLife AI Agent
 
-面向车主全生命周期的智能用车智能体系统。帮助文档见 [`docs/README.md`](docs/README.md)。
+面向车主全生命周期的智能用车智能体：购车咨询、日常用车、出行规划、座舱陪伴、售后服务五个业务 Agent，由一个编排层统一调度，运行在车机端与手机端，服务端可私有化部署。
+
+本仓库是 CarLife 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)。
+
+## 能做什么
+
+| 场景 | 示例 | 由谁回答 |
+|---|---|---|
+| 购车 | 比较两款车的配置差异、按贷款方案算月供、估算五年用车成本 | 购车顾问 |
+| 用车 | 「这个功能怎么用」、「我这车续航掉得快正常吗」 | 用车助手 |
+| 出行 | 多天行程规划、沿途补能、酒店与景点、导航到达后的处置 | 出行规划 |
+| 座舱 | 空调、座椅、音乐等舒适域控制，以及与车无关的闲聊 | 座舱陪伴 |
+| 售后 | 保养到期推算、维修预约、维修历史、保险预检 | 售后服务 |
+
+用车与售后两类问题采用双路检索：一路查通用知识库（说明书、维修手册），一路查这辆车自己的使用数据，两路一起交给模型，答案才带有「你这辆车」的判断。
+
+## 安全边界
+
+- 三层内容管线：输入规则筛、内容审核、输出个人信息脱敏，对全部 Agent 统一生效。
+- 一道动作权限门：预约、日历写入等有副作用的工具在执行前经内部接口裁决，需要确认的动作会挂起等待用户确认。
+- 硬禁范畴：自动驾驶决策、车辆安全控制、替代专业维修的确定性结论。车机端与手机端的能力白名单不暴露任何车辆控制指令。
 
 ## 技术栈
 
 | 层 | 技术 |
 |---|---|
-| 移动 / 车机端 | Rust + Tauri 2.x（`clients/mobile`、`clients/cockpit`） |
-| Web 后台 / Demo | React 18 + TypeScript + React Flow（`enterprise/console`） |
-| 接入网关 | Node.js + TS（`enterprise/backend/gateway`，REST + SSE，不用 WS） |
-| Agent 编排 | LangGraph.js（`enterprise/backend/agent-runtime`，ACP Client） |
-| 单 Agent 运行时 | pi + 开源 `svkozak/pi-acp`（ACP Agent，`enterprise/backend/pi-agents` 提供配置） |
-| LLM | DeepSeek / Qwen，经 Vercel AI SDK 接入 |
-| RAG | RAGFlow Cloud（`enterprise/backend/shared/rag`） |
-| Memory | Mem0 OSS + 自建按类衰减层（`enterprise/backend/shared/memory`，6 类记忆） |
-| Guardrails | 自建三层管线 + 内部权限门（`enterprise/backend/shared/guardrails` + `agent-runtime/src/guard`） |
+| 车机端 / 手机端 | Rust + Tauri 2，React 负责界面（`clients/`） |
+| 运营控制台 | React + TypeScript（`enterprise/console`） |
+| 接入网关 | Node.js，REST + SSE（`enterprise/backend/gateway`） |
+| Agent 编排 | LangGraph.js，作为 ACP Client（`enterprise/backend/agent-runtime`） |
+| 单 Agent 运行时 | pi，经开源 `pi-acp` 以 ACP 协议接入（`enterprise/backend/pi-agents`） |
+| LLM | DeepSeek / Qwen，经 Vercel AI SDK 接入；未配置密钥时使用确定性 Fake 模型 |
+| RAG | RAGFlow（`enterprise/backend/shared/rag`） |
+| Memory | Mem0 OSS + 按类别衰减层（`enterprise/backend/shared/memory`） |
+| Guardrails | 自建内容管线 + 内部权限门（`enterprise/backend/shared/guardrails`、`agent-runtime/src/guard`） |
+| 数据 | PostgreSQL（含 pgvector）、Redis、MinIO |
 
-## Monorepo 布局
+## 仓库布局
 
-- `clients/*` — 面向车主的端（Tauri 车机/手机；`shared/` 是两端共用的 UI 与 Rust）
-- `enterprise/` — 企业内部系统：`console/` 运营控制台，`backend/` 网关/编排/worker 与它们的共享库
-- `contracts/` — 端云契约（唯一被两侧同时依赖的包）
-- `mocks/*` — 假第三方
-- `scripts/` — 仓库脚手架：`dev/`（不变量检查 / 探活 / 知识库 / demo / 发版，子目录名 = 根脚本前缀）
-- `infra/` — 运行部署与开发机起停
+- `clients/` — 车主使用的端：`cockpit`（车机）、`mobile`（手机）；`shared/` 是两端共用的 UI 与 Rust 层
+- `enterprise/` — 企业内部系统：`console/` 运营控制台，`backend/` 网关、编排、worker 与它们的共享库
+- `contracts/` — 端云契约，唯一被两侧同时依赖的包
+- `mocks/` — 模拟的第三方系统：经销商、座舱、维修站、保险，全部是虚构数据
+- `evals/` — 评测集与 runner
+- `infra/` — 容器编排、部署脚本与开发机起停
+- `scripts/dev/` — 不变量检查、探活、知识库工具、演示数据、发版
+- `data/` — 随仓库提供的示例数据，见 [data/README.md](data/README.md)
 
-## 开发
+## 快速开始
 
-前置：
-
-- **Node 24.20.0**（精确版本，钉在 `.nvmrc` / `engines`；`corepack pnpm check:node` 自检）
-- **pnpm 9** 经 corepack 提供：先执行一次 `corepack enable`（corepack 随 Node 24 自带，无需也不要 `npm i -g pnpm`）
-- **Rust 工具链**：`rust-toolchain.toml` 钉 1.97.0，装有 rustup 时 clone 后自动就位
-- **Docker**（Compose v2）：PostgreSQL(pgvector) / Redis / MinIO 容器
-
-**nvm 与 corepack 不是二选一，管的是两层**：nvm（或任何 Node 版本管理器）按 `.nvmrc` 提供
-Node 本体（`nvm use` 即可）；corepack 按 `package.json` 的 `packageManager` 提供 pnpm 9.15.0。
-误用 npm/yarn 会被 `preinstall` 的 only-allow 直接挡下，`.npmrc` 的 `engine-strict` 会在
-install 阶段就拦下版本不符的 Node/pnpm。（Node 25+ 不再内置 corepack；本仓 Node 钉在 24.x，不受影响。）
-
-`corepack pnpm install` 会经 `prepare` 自动装好 git hooks（husky）：pre-commit 跑
-`check:secrets` + `check:env-example` 快检查；全量门禁在 CI（`.github/workflows/ci.yml`）。
-
-**首次跑测试前先建测试库**：
+前提：Node.js 24.20.0、corepack、Rust 工具链、Docker（Compose v2）。macOS 可用一条脚本装齐，详见[安装](docs/installation.md)。
 
 ```bash
-corepack pnpm db:test:setup   # 建 carlife_test 并推 migration，幂等
-corepack pnpm test            # 3000+ 单测，约 20 秒
+cp .env.example .env
+corepack pnpm install
+corepack pnpm dev:upgrade
 ```
 
-测试与开发用**两个库**（同一个 PG 容器）：e2e 的准备阶段会清掉 `demo-user` 的车辆与行程，
-共用一个库时跑一次端到端演示数据就没了。库名必须以 `_test` 结尾，否则测试拒绝运行。
+不填任何付费密钥也能跑通核心链路：LLM、语音识别、知识库、门店系统都有 Fake 或 Mock 降级。接入真实外部服务的步骤见[配置外部服务](docs/external-services.md)。
 
-平台支持：宿主机开发路径（`dev:*` 脚本、mock-tts）在 **macOS** 上开发与验证；Linux 请走
-容器化路径（`infra/scripts/up.sh`，见 [`infra/README.md`](infra/README.md)），且编译 Tauri
-客户端需要系统依赖（webkit2gtk / gtk / ALSA）；Windows 未实测。
+## 文档
 
-```bash
-corepack pnpm install      # 安装 JS/TS 依赖
-corepack pnpm dev:infra-up # 启动开发依赖：PostgreSQL / Redis / MinIO
-corepack pnpm dev          # turbo 并行启动各服务/应用
-cargo build                # 构建 Rust workspace（crates + Tauri）
-```
-
-开发依赖容器由 `dev:infra-up`、`dev:infra-down`、`dev:infra-restart` 管理；三个命令只
-使用 `infra/docker-compose.yml`，不会启动 Gateway、Agent Runtime、Mock 或 Web 应用容器，
-也不会删除命名卷。完整容器化应用栈使用 `infra/scripts/up.sh`。
-
-pi/ACP 依赖已接线：ACP Client 用 `@agentclientprotocol/sdk`，Agent 侧 `pi-acp` 桥接
-`@earendil-works/pi-coding-agent`（均为公开 npm 包，钉版见 `enterprise/backend/pi-agents/package.json`），
-`corepack pnpm install` 一并装好，无需手工步骤。
-
-## 快速体验（零外部密钥）
-
-LLM / ASR / RAG / 门店 / TTS 全部有 fake 或 mock 降级：不填任何付费密钥即可跑通核心链路
-（`DEEPSEEK_API_KEY` 缺省时 runtime 自动用确定性 Fake 模型）。
-
-```bash
-cp .env.example .env                # 密钥全部留空即可；主密钥按 .env 内注释生成一个
-corepack pnpm dev:upgrade           # install → Prisma → 全量 build → 启动全套服务（含 worker）→ readiness
-corepack pnpm demo:seed            # 播种 Demo 数据（车辆档案等）
-corepack pnpm e2e:m2-02            # 验证：两轮记忆连续性（Fake 模型，确定性断言）
-corepack pnpm e2e:dualpath         # 验证：双路检索（RAGFlow 未配时自动起本地桩）
-```
-
-`dev:upgrade` 适用于已经合并/拉取最新代码的工作树：它会冻结安装依赖、生成 Prisma
-Client、构建全部前端与 Rust/Tauri debug 客户端，然后收拢本项目已有的旧实例并重新启动
-Gateway、Runtime、Mock、Vite、两个客户端窗口和全部 Worker。它不会替用户执行
-`git pull`、`git merge`、`git reset`，也不会删除数据库或对象存储卷。
-macOS 上如果 Docker Desktop 没启动，命令会尝试自动唤起并等待最多约 60 秒；仍未就绪时
-会在停止旧服务前失败。
-macOS 安装了 `tmux` 时，宿主服务由独立的 `carlife-dev` 会话托管，关闭当前终端不会回收
-watcher；可用 `tmux attach -t carlife-dev` 查看启动输出，停止服务仍用
-`corepack pnpm dev:stop`；需要清理空会话时再执行 `tmux kill-session -t carlife-dev`。
-
-只想快速重启当前代码时仍可用 `corepack pnpm dev:bootstrap` 或
-`corepack pnpm dev:restart`；前者不执行 install/build。升级完成后若 Worker 被单独停掉，
-`corepack pnpm dev:restart worker` 可以点名恢复。
-
-## 完整体验（真实外部服务）
-
-在 `.env` 里按需补：`DEEPSEEK_API_KEY`（LLM 推理，必填项里唯一计费的）；可选
-`RAGFLOW_*`（真实 RAG 检索）、`ARK_API_KEY`（豆包 ASR 语音）、`Aliyun_AccessKey_*`
-（内容安全护栏）、`AMAP_SERVER_KEY`（地图/天气）。各服务的作用与缺省降级行为逐项见
-[`infra/external-dependencies.md`](infra/external-dependencies.md)。验证：
-`corepack pnpm smoke:llm`（真实 LLM）、`corepack pnpm smoke:acp`（ACP 编排链路）。
-
+- [安装](docs/installation.md)
+- [快速体验](docs/quickstart.md)
+- [配置外部服务](docs/external-services.md)
+- [部署](docs/deployment.md)
+- [排障](docs/troubleshooting.md)
 
 ## License
 
-[MIT](LICENSE)。
+[MIT](LICENSE)
