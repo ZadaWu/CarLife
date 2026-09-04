@@ -7,9 +7,9 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 
-import { INTENT_INSTRUCTION, parseIntent, parseWhen } from "../src/graph/intent";
+import { INTENT_INSTRUCTION, MAX_SIDE_TASKS, buildIntentInstruction, parseIntent, parseWhen } from "../src/graph/intent";
 
 /**
  * `when`：时间点的标准化（施工单 M19-08）。
@@ -107,5 +107,72 @@ describe("INTENT_INSTRUCTION：route 候选说明写全了 M62-02 的四条边�
   it("问自己这辆车够不够跑长途归 ownership，itinerary 只收要规划或处置行程的", () => {
     assert.match(INTENT_INSTRUCTION, /续航够不够跑一次长途/);
     assert.match(INTENT_INSTRUCTION, /且要规划或处置行程的/);
+  });
+});
+
+/**
+ * 副任务解析（ACR-023，施工单 M69-01）。
+ *
+ * 纪律与 `route` / `action` / `when` 相同：**不合格当没给**。副任务多判一件，副 lane 会白跑一次；
+ * 少判一件，就是 INC-0125 那句「杭州这边没查到具体哪家」——所以校验只拦形状，不拦语义。
+ */
+describe("[F-11-06][AC-11-5] sideTasks：副任务解析（M69-01）", () => {
+  const base = (side: string) => `{"goal":"x","constraints":[],"context":"","riskBoundary":"","route":"itinerary","sideTasks":${side}}`;
+
+  afterEach(() => {
+    delete process.env.CARLIFE_SIDE_TASKS;
+  });
+
+  it("合法值收下，goal 原样", () => {
+    const r = parseIntent(base('[{"route":"service","goal":" 在杭州预约一次保养 "}]'), "原话");
+    assert.deepEqual(r.sideTasks, [{ route: "service", goal: "在杭州预约一次保养" }]);
+  });
+  it("与主路由相同 → 丢；general → 丢；表外 → 丢；goal 空/非字符串 → 该项丢", () => {
+    const r = parseIntent(base('[{"route":"itinerary","goal":"a"},{"route":"general","goal":"b"},{"route":"repair","goal":"c"},{"route":"service","goal":""},{"route":"cabin","goal":42}]'), "原话");
+    assert.equal(r.sideTasks, undefined);
+  });
+  it("两项 route 相同 → 去重保留首个；顺序不变", () => {
+    const r = parseIntent(base('[{"route":"service","goal":"第一"},{"route":"cabin","goal":"c"},{"route":"service","goal":"第二"}]'), "原话");
+    assert.deepEqual(r.sideTasks, [{ route: "service", goal: "第一" }, { route: "cabin", goal: "c" }]);
+  });
+  it(`四项不同 route → 截断到 MAX_SIDE_TASKS（${MAX_SIDE_TASKS}），保留前几项、顺序不变`, () => {
+    const r = parseIntent(base('[{"route":"service","goal":"1"},{"route":"testDrive","goal":"2"},{"route":"cabin","goal":"3"},{"route":"buying","goal":"4"}]'), "原话");
+    assert.equal(MAX_SIDE_TASKS, 3);
+    assert.deepEqual(r.sideTasks?.map((t) => t.route), ["service", "testDrive", "cabin"]);
+  });
+  it("主 route 缺席（只给 sideTasks）→ 返回对象无 sideTasks 键", () => {
+    const r = parseIntent('{"goal":"x","constraints":[],"context":"","riskBoundary":"","sideTasks":[{"route":"service","goal":"g"}]}', "原话");
+    assert.equal("sideTasks" in r, false);
+  });
+  it("非数组当没给", () => {
+    const r = parseIntent(base('{"route":"service","goal":"g"}'), "原话");
+    assert.equal("sideTasks" in r, false);
+  });
+  it("CARLIFE_SIDE_TASKS=off：提示词不含 sideTasks 字样，解析结果无 sideTasks 键", () => {
+    process.env.CARLIFE_SIDE_TASKS = "off";
+    assert.equal(buildIntentInstruction().includes("sideTasks"), false);
+    const r = parseIntent(base('[{"route":"service","goal":"g"}]'), "原话");
+    assert.equal("sideTasks" in r, false);
+  });
+  it("开关 on：提示词含 sideTasks 一栏与正反例；INTENT_INSTRUCTION 常量是 on 的版本", () => {
+    assert.match(buildIntentInstruction(), /sideTasks/);
+    assert.match(buildIntentInstruction(), /反例/);
+    assert.match(INTENT_INSTRUCTION, /"sideTasks":\[/);
+  });
+  it("开关只影响这一栏：其余每一句与开关无关", () => {
+    const onL = buildIntentInstruction(true).split("\n");
+    const offL = buildIntentInstruction(false).split("\n");
+    const onSet = new Set(onL);
+    const offSet = new Set(offL);
+    const onlyOff = offL.filter((l) => !onSet.has(l));
+    assert.equal(onlyOff.length, 1, `off 独有的只能是 schema 那一行：${onlyOff.join(" | ")}`);
+    assert.ok(onlyOff[0].startsWith('{"goal"'));
+    const onlyOn = onL.filter((l) => !offSet.has(l));
+    assert.ok(onlyOn[0].startsWith('{"goal"') && onlyOn[0].includes('"sideTasks"'));
+    for (const l of onlyOn.slice(1)) assert.match(l, /sideTasks|goal|正例|反例|^- 「|候选与 route|它会替代原话/, `on 独有的行不属于副任务一栏：${l}`);
+  });
+  it("降级路径（非法 JSON）返回对象的键集合与改动前相同", () => {
+    const r = parseIntent("{ 不是 JSON", "原话");
+    assert.deepEqual(Object.keys(r).sort(), ["constraints", "context", "degraded", "goal", "riskBoundary", "riskCategory"]);
   });
 });

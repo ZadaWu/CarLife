@@ -11,6 +11,7 @@
  */
 
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { thinkingForSite, withDeepSeekThinking, type ThinkingLevel } from "./thinking-policy";
 import { streamText } from "ai";
 
 import type { ConfigStore } from "@carlife/db";
@@ -144,13 +145,19 @@ export const NARRATOR_SYSTEM = [
 
 function createDeepSeekStreamer(
   apiKey: string,
+  /**
+   * 思考档（M70-01），**必填且排在可选参数之前**：`deepseek-v4-flash` 不带参数时默认思考，
+   * 这里漏传就等于把"是否思考"交给模型默认——narrator 撞 120 s 封顶那次就是这么来的。
+   */
+  thinking: ThinkingLevel,
   modelName = DEFAULT_DEEPSEEK_MODEL,
   baseURL?: string,
   system: string = SYSTEM_PROMPT,
   temperature?: number,
 ): ChatStreamer {
   const resolvedModelName = resolveDeepSeekModel(modelName);
-  const deepseek = createDeepSeek({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  // 档位写进请求体，走 fetch 包装（SDK 0.1.17 不透传思考参数）——见 thinking-policy.ts。
+  const deepseek = createDeepSeek({ apiKey, ...(baseURL ? { baseURL } : {}), fetch: withDeepSeekThinking(thinking) });
   const model = deepseek(resolvedModelName);
   return async function* (messages, hooks) {
     const started = Date.now();
@@ -266,6 +273,8 @@ export function createChatStreamer(env: NodeJS.ProcessEnv = process.env): ChatSt
   }
   return createDeepSeekStreamer(
     key,
+    // 没有 ACP 时直连主链路：有工具、给车主，与 pi 应答会话同档。
+    thinkingForSite("main-direct"),
     resolveDeepSeekModel(env.DEEPSEEK_MODEL),
     env.DEEPSEEK_BASE_URL,
   );
@@ -285,14 +294,17 @@ export interface ConfiguredStreamerOptions {
   /** 覆盖系统提示词。缺省是车载助手人设；表述路径传 `NARRATOR_SYSTEM`。 */
   system?: string;
   /**
-   * 覆盖模型 id，**并且刻意不回落到 `DEEPSEEK_MODEL`**。
+   * 覆盖模型 id，**并且刻意不回落到 `DEEPSEEK_MODEL`**（那是给主链路调档用的）。
    *
-   * 表述路径要的是"不推理"这个属性，而 `DEEPSEEK_MODEL` 是给主链路调档用的。
-   * 让它俩共用一个来源的话，有人把 `DEEPSEEK_MODEL` 调成 `deepseek-v4-pro`
-   * （`reasoning: true`），表述路径就会**静默继承一个推理模型**——
-   * 而这条路径存在的全部理由就是不推理。症状只是"怎么又慢回去了"。
+   * ⚠️ 它**管不了思不思考**：DeepSeek 现在的三个模型全是 `reasoning: true`、默认思考，
+   * 「换个非推理模型」这条路已经不存在。是否思考只由下面的 `thinking` 决定（M70-01）。
    */
   model?: string;
+  /**
+   * 思考档，**必填**（M70-01）：从 `thinking-policy.ts` 的 `DIRECT_CALL_SITES` 取，不要在调用点手写字面量。
+   * 漏声明 = 跟模型默认走 = 在思考；2026-08-28 到 09-04 narrator / 标题 / 填充语就是这么在隐式思考的。
+   */
+  thinking: ThinkingLevel;
   /**
    * 采样温度。缺省即不传，沿用 provider 默认。
    *
@@ -307,7 +319,7 @@ export interface ConfiguredStreamerOptions {
 
 export function createConfiguredChatStreamer(
   store: ConfigStore,
-  opts: ConfiguredStreamerOptions = {},
+  opts: ConfiguredStreamerOptions,
 ): ChatStreamer {
   let cached: { version: number; streamer: ChatStreamer } | undefined;
 
@@ -322,6 +334,7 @@ export function createConfiguredChatStreamer(
         ? createFakeStreamer(values.get("CARLIFE_LLM_FAKE_TAG"))
         : createDeepSeekStreamer(
             key,
+            opts.thinking,
             resolveDeepSeekModel(opts.model ?? values.get("DEEPSEEK_MODEL")),
             values.get("DEEPSEEK_BASE_URL"),
             opts.system,

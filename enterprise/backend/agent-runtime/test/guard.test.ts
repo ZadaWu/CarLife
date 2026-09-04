@@ -560,3 +560,115 @@ describe("舒适域平反：只撤销拦截，不新增拦截（M24 收口）", 
     });
   }
 });
+
+/**
+ * 同会话排队（ACR-023 设计要点 9，施工单 M69-04）。
+ *
+ * 端上确认层只有一个槽，两条确认同时到达时第二条会把第一条顶掉。门内改成同一会话同时只放一条出去，
+ * 后到的排队；出队按 lane 优先级（主先、副按登记顺序）。**排队不改任何裁决**——进队列的只有"已判定需确认"的请求，
+ * 出队后走的仍是原来的挂起路径。
+ */
+describe("[F-27-04][AC-27-4] 同会话排队（M69-04）", () => {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("两条同会话确认同时到 → 只发一条 onInterrupt；第一条 resume 后第二条才发，序号更大；各自的结果与不排队时相同", async () => {
+    const seen: string[] = [];
+    const gate = new GuardGate({ confirmTimeoutMs: 5_000, onInterrupt: (p) => seen.push(p.interruptId) });
+    const first = gate.check(req({ tool: "appointment", summary: "预约保养" }));
+    const second = gate.check(req({ tool: "test_drive_book", summary: "预约试驾" }));
+    await wait(10);
+    assert.equal(seen.length, 1, "同会话第二条不该对外");
+    assert.equal(gate.pendingCount(), 2, "排队中的也计入 pendingCount");
+    assert.equal(gate.listPending().filter((p) => p.queued).length, 1);
+
+    assert.equal(gate.resume(seen[0], true), true);
+    const r1 = await first;
+    assert.equal(r1.decision, "allow");
+    await wait(10);
+    assert.equal(seen.length, 2, "第一条落定后第二条才对外");
+    assert.ok(Number(seen[1].split("-").pop()) > Number(seen[0].split("-").pop()), "序号递增");
+
+    assert.equal(gate.resume(seen[1], false), true);
+    const r2 = await second;
+    assert.equal(r2.decision, "deny");
+    assert.match(r2.reason, /拒绝/);
+    assert.equal(gate.pendingCount(), 0);
+  });
+
+  it("出队按 lane 优先级：主（不在登记表）→ 副 1 → 副 2；同优先级按到达", async () => {
+    const seen: string[] = [];
+    const gate = new GuardGate({ confirmTimeoutMs: 5_000, onInterrupt: (p) => seen.push(`${p.request.agent}:${p.request.summary}`) });
+    gate.setLaneOrder("sess-1", ["service", "test-drive"]);
+    // 先占住一条，让后面三条都进队列
+    const holder = gate.check(req({ agent: "trip", summary: "占位" }));
+    await wait(5);
+    void gate.check(req({ agent: "test-drive", summary: "副2" }));
+    void gate.check(req({ agent: "trip", summary: "主" }));
+    void gate.check(req({ agent: "service", summary: "副1-a" }));
+    void gate.check(req({ agent: "service", summary: "副1-b" }));
+    await wait(5);
+    assert.deepEqual(seen, ["trip:占位"]);
+    const step = async () => {
+      const list = gate.listPending().filter((p) => !p.queued);
+      gate.resume(list[0].interruptId, true);
+      await wait(5);
+    };
+    // 每 resume 一条，下一条按优先级出队：占位 → 主 → 副1-a → 副1-b → 副2
+    await step();
+    await step();
+    await step();
+    await step();
+    assert.deepEqual(seen, ["trip:占位", "trip:主", "service:副1-a", "service:副1-b", "test-drive:副2"]);
+    await step();
+    await holder;
+  });
+
+  it("排队不计确认超时：出队后才起自己的计时", async () => {
+    const seen: string[] = [];
+    const gate = new GuardGate({ confirmTimeoutMs: 120, onInterrupt: (p) => seen.push(p.interruptId) });
+    const first = gate.check(req({ summary: "一" }));
+    const second = gate.check(req({ summary: "二" }));
+    await wait(80);
+    gate.resume(seen[0], true);
+    await first;
+    await wait(80); // 第二条出队 80ms：若从入队计时早已超时（160ms > 120ms）
+    assert.equal(seen.length, 2);
+    assert.equal(gate.pendingCount(), 1, "第二条仍在等用户，没有被超时收敛");
+    gate.resume(seen[1], true);
+    const r2 = await second;
+    assert.equal(r2.decision, "allow");
+  });
+
+  it("排队上限：前一条一直没人管，队列里的到点按「等待确认超时」deny，不无限等", async () => {
+    const gate = new GuardGate({ confirmTimeoutMs: 40 });
+    const first = gate.check(req({ summary: "一" }));
+    const second = gate.check(req({ summary: "二" }));
+    const r2 = await second;
+    assert.equal(r2.decision, "deny");
+    assert.match(r2.reason, /超时/);
+    const r1 = await first;
+    assert.equal(r1.decision, "deny");
+    assert.equal(gate.pendingCount(), 0);
+  });
+
+  it("不同会话互不阻塞", async () => {
+    const seen: string[] = [];
+    const gate = new GuardGate({ confirmTimeoutMs: 5_000, onInterrupt: (p) => seen.push(p.request.sessionId) });
+    void gate.check(req({ sessionId: "a" }));
+    void gate.check(req({ sessionId: "b" }));
+    await wait(5);
+    assert.deepEqual(seen.sort(), ["a", "b"]);
+  });
+
+  it("resume 一个排队中的（还没有 interruptId）→ false，队列不受影响；maxPending 按对外 + 排队计", async () => {
+    const gate = new GuardGate({ confirmTimeoutMs: 5_000, maxPending: 2 });
+    void gate.check(req({ summary: "一" }));
+    void gate.check(req({ summary: "二" }));
+    await wait(5);
+    assert.equal(gate.resume("(queued)", true), false);
+    assert.equal(gate.pendingCount(), 2);
+    const r3 = await gate.check(req({ summary: "三" }));
+    assert.equal(r3.decision, "deny");
+    assert.match(r3.reason, /过多/);
+  });
+});

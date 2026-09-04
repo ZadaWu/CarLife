@@ -32,6 +32,7 @@
 
 import { resolveDeepSeekModel } from "@carlife/shared";
 
+import { thinkingForSite } from "../llm/thinking-policy";
 import { createConfiguredChatStreamer } from "../llm";
 
 /** 标题长度上限（字符数，按码位算）。 */
@@ -154,9 +155,10 @@ export function createTitleWriter(
     ? undefined
     : createConfiguredChatStreamer(config, {
         system: TITLE_SYSTEM,
-        // 钉死非推理模型，**不跟 `DEEPSEEK_MODEL` 走**——同 NARRATOR / 导游那条理由：
-        // 有人把主链路调成推理模型，起个名字也要想十几秒。
+        // 模型 id 不跟 `DEEPSEEK_MODEL` 走（那是主链路调档用的）；但**是否思考由下面的 thinking 决定**——
+        // DeepSeek 现在的模型全默认思考，只换模型关不掉它，起个名字曾因此要想十几秒（M70-01）。
         model: resolveDeepSeekModel(process.env.CARLIFE_TITLE_MODEL),
+        thinking: thinkingForSite("title"),
       });
 
   return async (input) => {

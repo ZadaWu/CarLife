@@ -653,3 +653,30 @@ describe("「出发前」是时间状语，不是动身指令（M62-02，评测 
     assert.match(r.reason, /出发\/结束导航/);
   });
 });
+
+/**
+ * 副路由透传（ACR-023，施工单 M69-01）：与主路由同源，只在 LLM 路由生效那条路上透传；
+ * 规则表与粘性规则没有模型的判断，恒不带副路由。
+ */
+describe("[F-11-06][AC-11-5] 副路由透传（M69-01）", () => {
+  it("LLM 给了 route 与 sideTasks → secondary 深等于 sideTasks", () => {
+    const side = [{ route: "service", goal: "在杭州预约一次保养" }];
+    const r = decideRoute(withIntent({ route: "itinerary", sideTasks: side }), "下周末带父母去杭州自驾，顺路把保养做了");
+    assert.equal(r.agent, "itinerary");
+    assert.deepEqual(r.secondary, side);
+  });
+  it("LLM 给了 route 但没给 sideTasks → 没有 secondary 键", () => {
+    const r = decideRoute(withIntent({ route: "itinerary" }), "去杭州");
+    assert.equal("secondary" in r, false);
+  });
+  it("规则表兜底（无 route，原话「两日一晚游」）→ secondary 为空", () => {
+    const r = decideRoute(withIntent({ sideTasks: [{ route: "service", goal: "g" }] }), "两日一晚游");
+    assert.equal(r.agent, "itinerary");
+    assert.equal(r.secondary, undefined);
+  });
+  it("粘性路径（进行中的维修预约 + 「第一家」）→ secondary 为空", () => {
+    const r = decideRoute(withIntent({ sideTasks: [{ route: "cabin", goal: "g" }] }), "就第一家", { hasActiveRepairBooking: true });
+    assert.equal(r.agent, "service");
+    assert.equal(r.secondary, undefined);
+  });
+});

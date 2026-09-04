@@ -116,6 +116,15 @@ export const POS: Record<string, Point> = {
   buyingCatalog: { x: 1200, y: 390 },
   testDriveFlow: { x: 1200, y: 480 },
   cabinCompanion: { x: 1200, y: 570 },
+  /*
+   * 副 lane 节点（ACR-023）排在主分支列右侧同一高度区间：它们与主分支**同 superstep 并行**，
+   * 画在同一带上才读得出"并排跑"；不进 -task 那一列（那是行程 fan-out 的五支）。
+   */
+  sideItineraryPlan: { x: 1440, y: 300 },
+  sideOwnershipDual: { x: 1440, y: 380 },
+  sideBuyingCatalog: { x: 1440, y: 460 },
+  sideTestDriveFlow: { x: 1440, y: 540 },
+  sideCabinCompanion: { x: 1440, y: 620 },
   // 出行的五条分支贴着 itineraryPlan 右侧展开。
   "drive-task": { x: 1470, y: -70 },
   "hotel-task": { x: 1470, y: 0 },
@@ -135,11 +144,13 @@ export const POS: Record<string, Point> = {
    */
   tools: { x: 1220, y: 760 },
   guard: { x: 1490, y: 760 },
-  answer: { x: 1670, y: 300 },
+  // 汇合点在主副两列之后、应答之前；应答与它的两种说法整体右移一格。
+  join: { x: 1670, y: 300 },
+  answer: { x: 1900, y: 300 },
   // 应答的两种说法上下分开，END 仍在中线上——它才是图的终点。
-  narrator: { x: 1910, y: 150 },
-  "answer-agent": { x: 1910, y: 430 },
-  end: { x: 2150, y: 300 },
+  narrator: { x: 2140, y: 150 },
+  "answer-agent": { x: 2140, y: 430 },
+  end: { x: 2380, y: 300 },
   /*
    * HTTP 触发的两条子图排在**左下角**，与 START 同一列、在硬禁收口的下方：
    * 它们与主链路没有任何一条边相连（validateGraph 断言从 START 不可达），
@@ -275,8 +286,9 @@ const ANSWER_AGENT_LABEL_Y_OFFSET = -4;
 function labelLaneGroup(edge: WorkflowEdge): LabelLaneGroup | undefined {
   if (edge.to === "tools") return "tools";
   if (edge.to === "guard") return "guard";
+  // 汇合走廊：主分支节点 → join（ACR-023 之前它们直连 answer；lane 的语义通道不变，只是终点换成 join）。
   if (
-    edge.to === "answer" &&
+    edge.to === "join" &&
     [
       "itineraryPlan",
       "ownershipDual",

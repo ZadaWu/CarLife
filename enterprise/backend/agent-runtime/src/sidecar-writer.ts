@@ -18,6 +18,7 @@
 
 import { resolveDeepSeekModel } from "@carlife/shared";
 
+import { thinkingForSite } from "./llm/thinking-policy";
 import { createConfiguredChatStreamer } from "./llm";
 import { GUIDE_SYSTEM, guideMessages, type FillerWriter } from "./sidecar/l1";
 
@@ -80,14 +81,15 @@ export function createFillerWriter(
   if (process.env.CARLIFE_LLM === "fake") return undefined;
 
   /*
-   * 钉死非推理模型，**不跟 `DEEPSEEK_MODEL` 走**——同 `NARRATOR` 那条的理由：
-   * 有人把主链路调成推理模型，导游会静默继承它，于是"填等待的那句话"
-   * 自己也要想十几秒。而这条路径存在的全部理由就是快。
+   * 模型 id 不跟 `DEEPSEEK_MODEL` 走（那是主链路调档用的）；是否思考由 `thinking` 决定——
+   * 2026-08-28 到 09-04 这条路一直在隐式思考（DeepSeek 默认开），"填等待的那句话"自己也要想几秒，
+   * 靠写超时兜底才没露馅。这条路径存在的全部理由就是快，档位显式 off（M70-01）。
    */
   const streamer = createConfiguredChatStreamer(config, {
     system: GUIDE_SYSTEM,
     model: resolveDeepSeekModel(process.env.SIDECAR_FILLER_MODEL),
     temperature: Number(process.env.SIDECAR_FILLER_TEMPERATURE) || TEMPERATURE,
+    thinking: thinkingForSite("filler"),
   });
 
   return async (input) => {

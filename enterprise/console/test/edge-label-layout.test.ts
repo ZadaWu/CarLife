@@ -42,8 +42,9 @@ describe("流程图边标签布局", () => {
     const ownershipTools = layouts.get(edgeIndex("ownershipDual", "tools"));
     const buyingTools = layouts.get(edgeIndex("buyingCatalog", "tools"));
     const dispatchAnswer = layouts.get(edgeIndex("dispatch", "answer"));
-    const itineraryAnswer = layouts.get(edgeIndex("itineraryPlan", "answer"));
-    const ownershipAnswer = layouts.get(edgeIndex("ownershipDual", "answer"));
+    // ACR-023 起主分支先汇到 join 再到 answer；汇合走廊的语义通道不变。
+    const itineraryAnswer = layouts.get(edgeIndex("itineraryPlan", "join"));
+    const ownershipAnswer = layouts.get(edgeIndex("ownershipDual", "join"));
 
     assert.ok(itineraryTools && ownershipTools && buyingTools);
     assert.equal(itineraryTools.offsetX, ownershipTools.offsetX);

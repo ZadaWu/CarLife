@@ -68,6 +68,18 @@ export interface GuardCheckResult {
   interruptId?: string;
 }
 
+/**
+ * 还没对外的确认（ACR-023 / M69-04）：同一会话已经有一条确认在端上时，后到的在这里排队。
+ * 排队期间**不起确认计时**（那是用户的思考时间）、不发 `onInterrupt`；只起一个排队上限计时，防无限等。
+ */
+interface QueuedConfirmation {
+  request: GuardCheckRequest;
+  startedAt: number;
+  enqueuedAt: number;
+  resolve: (r: GuardCheckResult) => void;
+  queueTimer: ReturnType<typeof setTimeout>;
+}
+
 /** 挂起中的确认。**必须有超时**，否则没人管的确认会永久占住一个调用。 */
 interface PendingConfirmation {
   interruptId: string;
@@ -149,6 +161,21 @@ export const CONFIRM_REQUIRED_TOOLS = new Set([
 
 export class GuardGate {
   private pending = new Map<string, PendingConfirmation>();
+  /**
+   * 同会话排队（ACR-023 设计要点 9 / M69-04）。
+   *
+   * 端上确认层只有一个槽（`onPermission: (p) => setPermission(p)`），运行时却允许同一会话多条确认同时挂起：
+   * 两条同时到达时第二条把第一条从屏幕上顶掉，被顶掉的挂到 10 分钟超时按「不执行」收敛——用户以为没约上，
+   * 其实是没看见。行程 fan-out 里本就可能撞上，分叉—汇合的并行 lane 让它必然撞上。
+   *
+   * 所以**同一会话同时只放一条确认出去**：`active` 记这一条的 interruptId，后到的进 `queue`；前一条 resume 或超时后
+   * 按 lane 优先级出队（主 lane 先、副 lane 按意图顺序，同优先级按到达）。排在门内而不是端上，是因为端上单槽要改两个端
+   * 和一份契约，门内改一处所有端受益。裁决语义（硬禁 / 放行 / 拒绝记忆 / 幂等 / 超时 = 不执行）一个字不动。
+   */
+  private queue = new Map<string, QueuedConfirmation[]>();
+  private active = new Map<string, string>();
+  /** 副 lane 的 agent 顺序，`dispatch` 每轮登记；不在表里的 agent 一律算主 lane（优先级 0）。 */
+  private laneOrder = new Map<string, string[]>();
   /** 幂等：同一 key 的裁决只产生一次（F-27-10）。 */
   private decided = new Map<string, GuardCheckResult>();
   /**
@@ -168,8 +195,31 @@ export class GuardGate {
     return this.opts.now ?? Date.now;
   }
 
+  /** 对外挂起 + 门内排队的总数——排队不能成为新的无界增长。 */
   pendingCount(): number {
-    return this.pending.size;
+    return this.pending.size + this.queuedCount();
+  }
+
+  private queuedCount(): number {
+    let n = 0;
+    for (const q of this.queue.values()) n += q.length;
+    return n;
+  }
+
+  /**
+   * 登记本轮 lane 顺序（ACR-023）：`agents` 是副 lane 的 Agent 名按意图顺序。
+   * 出队优先级 = 主（不在表里）0，副按下标 1..N。每轮由 `dispatch` 覆盖；空表即删。
+   */
+  setLaneOrder(sessionId: string, agents: readonly string[]): void {
+    if (agents.length) this.laneOrder.set(sessionId, [...agents]);
+    else this.laneOrder.delete(sessionId);
+  }
+
+  private priorityOf(sessionId: string, agent: string | undefined): number {
+    const order = this.laneOrder.get(sessionId);
+    if (!order || !agent) return 0;
+    const i = order.indexOf(agent);
+    return i < 0 ? 0 : i + 1;
   }
 
   /**
@@ -222,7 +272,7 @@ export class GuardGate {
       return result;
     }
 
-    if (this.pending.size >= (this.opts.maxPending ?? DEFAULT_MAX_PENDING)) {
+    if (this.pendingCount() >= (this.opts.maxPending ?? DEFAULT_MAX_PENDING)) {
       const result: GuardCheckResult = {
         decision: "deny",
         reason: "当前待确认动作过多，已拒绝本次请求以保护系统",
@@ -231,41 +281,96 @@ export class GuardGate {
       return result;
     }
 
+    // ④ 需确认：进本会话的队列；没有对外挂起的确认时立即出队（ACR-023 / M69-04）。
+    return new Promise<GuardCheckResult>((resolve) => {
+      const item: QueuedConfirmation = {
+        request: req,
+        startedAt,
+        enqueuedAt: this.now(),
+        resolve,
+        // 排队上限：与确认超时同款时长——前面那条要是十分钟没人管，这条也不该无限等。
+        queueTimer: setTimeout(
+          () => this.expireQueued(req.sessionId, item),
+          this.opts.confirmTimeoutMs ?? DEFAULT_CONFIRM_TIMEOUT_MS,
+        ),
+      };
+      if (typeof item.queueTimer === "object" && "unref" in item.queueTimer) item.queueTimer.unref();
+      const q = this.queue.get(req.sessionId) ?? [];
+      q.push(item);
+      this.queue.set(req.sessionId, q);
+      this.dispatchNext(req.sessionId);
+    });
+  }
+
+  /** 排队中就到了上限：按「等待确认超时」deny，与超时语义同款；它没拿过 interruptId，不进拒绝记忆。 */
+  private expireQueued(sessionId: string, item: QueuedConfirmation): void {
+    const q = this.queue.get(sessionId);
+    if (!q) return;
+    const i = q.indexOf(item);
+    if (i < 0) return;
+    q.splice(i, 1);
+    if (q.length === 0) this.queue.delete(sessionId);
+    const result: GuardCheckResult = { decision: "deny", reason: "等待确认超时，本次动作未执行（排队中未轮到）" };
+    this.finish(item.request, result, item.startedAt);
+    item.resolve(result);
+  }
+
+  /**
+   * 出队：本会话没有对外挂起的确认时，按 lane 优先级取队首，走原来的挂起路径
+   * （同一个 interruptId 规则、同一个 `onInterrupt`、同一个确认计时——排队只改"什么时候对外"，不改裁决）。
+   */
+  private dispatchNext(sessionId: string): void {
+    if (this.active.has(sessionId)) return;
+    const q = this.queue.get(sessionId);
+    if (!q || q.length === 0) {
+      this.queue.delete(sessionId);
+      this.laneOrder.delete(sessionId);
+      return;
+    }
+    // 稳定排序：优先级小的先出（主 0 < 副 1..N），同优先级按到达。
+    q.sort((a, b) => this.priorityOf(sessionId, a.request.agent) - this.priorityOf(sessionId, b.request.agent) || a.enqueuedAt - b.enqueuedAt);
+    const item = q.shift()!;
+    clearTimeout(item.queueTimer);
+    if (q.length === 0) this.queue.delete(sessionId);
+
+    const req = item.request;
+    const startedAt = item.startedAt;
     this.seq += 1;
     // **引用集中声明的中断点 id**（F-04-10）：这是"这一处挂起属于哪个中断点"的
     // 唯一物理标记。新增中断点却不登记进 `INTERRUPT_POINTS` 时，那边的测试会红。
     const interruptId = `itr-${INTERRUPT_POINTS.guardConfirm.id}-${req.sessionId}-${this.seq}`;
 
-    return new Promise<GuardCheckResult>((resolve) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(interruptId);
-        // 超时按"未确认 = 不执行"收敛（F-04-05）——**不是默认同意**。
-        const result: GuardCheckResult = {
-          decision: "deny",
-          reason: "等待确认超时，本次动作未执行",
-          interruptId,
-        };
-        this.finish(req, result, startedAt);
-        resolve(result);
-      }, this.opts.confirmTimeoutMs ?? DEFAULT_CONFIRM_TIMEOUT_MS);
-
-      // Node 的定时器不该让进程活着等一个没人管的确认。
-      if (typeof timer === "object" && "unref" in timer) timer.unref();
-
-      this.pending.set(interruptId, {
+    const timer = setTimeout(() => {
+      this.pending.delete(interruptId);
+      if (this.active.get(sessionId) === interruptId) this.active.delete(sessionId);
+      // 超时按"未确认 = 不执行"收敛（F-04-05）——**不是默认同意**。
+      const result: GuardCheckResult = {
+        decision: "deny",
+        reason: "等待确认超时，本次动作未执行",
         interruptId,
-        sessionId: req.sessionId,
-        request: req,
-        resolve: (r) => {
-          this.finish(req, r, startedAt);
-          resolve(r);
-        },
-        createdAt: startedAt,
-        timer,
-      });
+      };
+      this.finish(req, result, startedAt);
+      item.resolve(result);
+      this.dispatchNext(sessionId);
+    }, this.opts.confirmTimeoutMs ?? DEFAULT_CONFIRM_TIMEOUT_MS);
 
-      this.opts.onInterrupt?.({ interruptId, request: req });
+    // Node 的定时器不该让进程活着等一个没人管的确认。
+    if (typeof timer === "object" && "unref" in timer) timer.unref();
+
+    this.pending.set(interruptId, {
+      interruptId,
+      sessionId: req.sessionId,
+      request: req,
+      resolve: (r) => {
+        this.finish(req, r, startedAt);
+        item.resolve(r);
+      },
+      createdAt: this.now(),
+      timer,
     });
+    this.active.set(sessionId, interruptId);
+
+    this.opts.onInterrupt?.({ interruptId, request: req });
   }
 
   /**
@@ -284,18 +389,29 @@ export class GuardGate {
         ? { decision: "allow", reason: "用户已确认", interruptId }
         : { decision: "deny", reason: "用户拒绝了本次动作", interruptId },
     );
+    // 这一条落定了，本会话排在后面的才出队（ACR-023 / M69-04）。
+    if (this.active.get(p.sessionId) === interruptId) this.active.delete(p.sessionId);
+    this.dispatchNext(p.sessionId);
     return true;
   }
 
-  /** 挂起中的确认列表（供运维面与 F-14-09 的可观测性）。 */
-  listPending(): Array<{ interruptId: string; sessionId: string; tool: string; waitingMs: number }> {
+  /** 挂起中的确认列表（供运维面与 F-14-09 的可观测性）；排队中的也列出并标 `queued`——运维面要能看到"卡在队里"。 */
+  listPending(): Array<{ interruptId: string; sessionId: string; tool: string; waitingMs: number; queued?: boolean }> {
     const now = this.now();
-    return [...this.pending.values()].map((p) => ({
+    const out: Array<{ interruptId: string; sessionId: string; tool: string; waitingMs: number; queued?: boolean }> = [
+      ...this.pending.values(),
+    ].map((p) => ({
       interruptId: p.interruptId,
       sessionId: p.sessionId,
       tool: p.request.tool,
       waitingMs: now - p.createdAt,
     }));
+    for (const [sessionId, q] of this.queue) {
+      for (const item of q) {
+        out.push({ interruptId: "(queued)", sessionId, tool: item.request.tool, waitingMs: now - item.enqueuedAt, queued: true });
+      }
+    }
+    return out;
   }
 
   private finish(req: GuardCheckRequest, result: GuardCheckResult, startedAt: number) {

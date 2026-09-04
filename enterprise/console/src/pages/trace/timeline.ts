@@ -504,6 +504,13 @@ const FLOW_LABELS: Record<string, string> = {
   "node.buyingCatalog": "购车车型检索",
   "node.testDriveFlow": "试驾预约",
   "node.cabinCompanion": "座舱偏好读取",
+  // 副 lane 与汇合（ACR-023 / M69-02）：同一批节点函数经 lane("side") 注册的第二份，与主分支同 superstep 并行。
+  "node.sideItineraryPlan": "副 lane · 行程规划",
+  "node.sideOwnershipDual": "副 lane · 用车 / 售后",
+  "node.sideBuyingCatalog": "副 lane · 购车",
+  "node.sideTestDriveFlow": "副 lane · 试驾预约",
+  "node.sideCabinCompanion": "副 lane · 座舱",
+  "node.join": "汇合（主原样 · 副改道）",
   "node.answer": "应答生成",
 };
 

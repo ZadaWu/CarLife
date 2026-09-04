@@ -13,7 +13,7 @@
  * **不是静默当作理解成功**。
  */
 
-import type { Intent } from "./state";
+import type { Intent, SideTask } from "./state";
 import { MODEL_RISK_CATEGORIES, type RiskCategory } from "../guard/risk-policy";
 
 /** 要求模型返回的结构；放在 prompt 里而不是代码里，便于随 prompt 一起演进。 */
@@ -62,9 +62,63 @@ export const PLAN_ACTIONS = [
 
 export type PlanAction = (typeof PLAN_ACTIONS)[number];
 
-export const INTENT_INSTRUCTION = [
+/**
+ * 副任务上限（ACR-023）。按 N 设计：lane 数 = 1 + 实际给出的副任务数，这里只是常量；
+ * 静态注册的五个 side 节点另外限制了**同一路由只能一个**（`compound.ts` 按路由去重）。
+ */
+export const MAX_SIDE_TASKS = 3;
+
+/**
+ * 总开关 `CARLIFE_SIDE_TASKS`（缺省 on）。**调用时读**，不在模块加载时固化——单测要能 toggle，
+ * `.env` 热改的行为也要与其它开关一致。off 时提示词不带这一栏、解析直接丢弃。
+ */
+export function sideTasksEnabled(): boolean {
+  return process.env.CARLIFE_SIDE_TASKS !== "off";
+}
+
+const SCHEMA_BASE =
+  '{"goal":"用户这一轮要达成什么","constraints":["硬约束，逐条","如同行老人/时间窗/预算"],"context":"相关背景","riskBoundary":"涉及的风险边界，无则空字符串","riskCategory":"这一轮碰到哪一类风险边界","route":"这一轮该交给谁","action":"对已有行程的处置","when":{"date":"YYYY-MM-DD 或 --DD","hour":"整点 0-23，说不准就不要这个字段"}';
+const SCHEMA_SIDE_TASKS = ',"sideTasks":[{"route":"这句话里顺带要办的另一件事交给谁","goal":"那件事的一句话规范说法（自带地点与对象）"}]';
+
+/**
+ * 副任务这一栏的候选说明（ACR-023 设计要点 1）。只在 `sideTasksEnabled()` 时进提示词。
+ *
+ * **正反例都要给**：同行人、城市、预算是**参数**不是第二件事——没有反例时模型会把每个名词都拆成一件事。
+ */
+const SIDE_TASKS_LINES = [
+  "sideTasks 是**同一句话里另外还要办的、不同领域的事**——只在原话明确带着第二件事时给；一件事就不要这一栏。",
+  "候选与 route 同一张表，**不能与 route 相同、不能是 general、彼此不重复**，按原话顺序，最多 3 项。",
+  "goal 要写成**能直接当指令的一句话，自带地点与对象**（「在杭州预约一次保养」而不是「预约保养」）——",
+  "它会替代原话交给另一个 Agent，而那个 Agent 看不到主要诉求的产出，地点只能从这句里来。",
+  "正例：",
+  "- 「下周末带父母去杭州自驾，顺路把保养做了」→ route=itinerary，sideTasks=[{route:service, goal:\"在杭州预约一次保养\"}]",
+  "- 「帮我约保养，顺便查下去杭州怎么走」→ route=service，sideTasks=[{route:itinerary, goal:\"规划去杭州的路线\"}]",
+  "- 「先把空调调到 23 度，再帮我看看轮胎磨得快不快正不正常」→ route=cabin，sideTasks=[{route:ownership, goal:\"判断轮胎磨损速度是否正常\"}]",
+  "- 「去杭州自驾，顺路做保养，再去 4S 店给家人挑辆新车试驾」→ route=itinerary，sideTasks=[{route:service,…},{route:testDrive, goal:\"在杭州预约一次新车试驾\"}]",
+  "反例（**不给 sideTasks**）：",
+  "- 「去杭州两日游，带父母」——同行人是约束，不是第二件事；",
+  "- 「帮我约保养，要杭州的店」——城市是参数；",
+  "- 「我这车续航够不够跑长途」——一件事。",
+];
+
+/**
+ * 拼意图提示词。`sideTasks` 一栏按开关进出；其余每一句与开关无关，一字不变。
+ * 既有 import 用的常量 `INTENT_INSTRUCTION` 是开关 on 的版本；意图节点在 M69-02 改成按开关现拼。
+ */
+export function buildIntentInstruction(enabled: boolean = sideTasksEnabled()): string {
+  return INTENT_INSTRUCTION_LINES.flatMap((line) => {
+    if (line === SCHEMA_SLOT) return [`${SCHEMA_BASE}${enabled ? SCHEMA_SIDE_TASKS : ""}}`];
+    if (line === SIDE_TASKS_SLOT) return enabled ? [...SIDE_TASKS_LINES, ""] : [];
+    return [line];
+  }).join("\n");
+}
+
+const SCHEMA_SLOT = "__SCHEMA__";
+const SIDE_TASKS_SLOT = "__SIDE_TASKS__";
+
+const INTENT_INSTRUCTION_LINES = [
   "请先做意图理解，只输出一个 JSON 对象（不要代码块标记、不要任何解释文字），字段：",
-  '{"goal":"用户这一轮要达成什么","constraints":["硬约束，逐条","如同行老人/时间窗/预算"],"context":"相关背景","riskBoundary":"涉及的风险边界，无则空字符串","riskCategory":"这一轮碰到哪一类风险边界","route":"这一轮该交给谁","action":"对已有行程的处置","when":{"date":"YYYY-MM-DD 或 --DD","hour":"整点 0-23，说不准就不要这个字段"}}',
+  SCHEMA_SLOT,
   "约束要从原话里抽出来，**不要遗漏同行者、时间、预算这类会改变方案的条件**。",
   "",
   "route 只能是下面之一：",
@@ -99,6 +153,7 @@ export const INTENT_INSTRUCTION = [
   "- general：以上都不是。",
   "拿不准就给 general——**猜一个具体的比说不知道糟**：路由错了表现为答非所问，而不是报错。",
   "",
+  SIDE_TASKS_SLOT,
   "action 只能是下面之一，判的是**对之前已经排好的那份行程草案**要做什么：",
   "- commit：把草案定下来。凡是表示认可、拍板、要落实的都算——",
   "  「就这样定了」「可以的」「你这样安排没问题」「帮我创建行程」「订吧」「OK」。",
@@ -161,7 +216,36 @@ export const INTENT_INSTRUCTION = [
   "⚠️ 上面骨架里的 hour 写的是**说明不是值**——车主没说钟点时**不要给 hour**，",
   "  尤其**不要给 0**。真跑踩过：模型把骨架里的示例数字原样抄成 hour=0，",
   "  于是拿凌晨 0 点去过滤时段表，一个都不命中，车主怎么说「确认」都约不上。",
-].join("\n");
+];
+
+/** 开关 on 的意图提示词（既有 import 与 risk-gate 测试用它）。 */
+export const INTENT_INSTRUCTION = buildIntentInstruction(true);
+
+/**
+ * 校验模型给的 `sideTasks`（ACR-023 / M69-01）。**表外当没给**，与 `route` / `action` / `when` 同一条纪律。
+ *
+ * 主 `route` 缺席或落表外时整栏丢弃——那时下游要退回规则表，而规则表路径不允许带副路由。
+ * 每项：route 在候选表内、≠ 主 route、≠ general；goal 非空；按 route 去重（保留首个，顺序不变）；截断到 `MAX_SIDE_TASKS`。
+ * 开关 off 时直接丢弃。
+ */
+export function parseSideTasks(v: unknown, primaryRoute: RouteTarget | undefined): SideTask[] {
+  if (!sideTasksEnabled() || !primaryRoute || !Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: SideTask[] = [];
+  for (const item of v) {
+    if (typeof item !== "object" || item === null) continue;
+    const o = item as Record<string, unknown>;
+    const route = typeof o.route === "string" ? o.route.trim() : "";
+    const goal = typeof o.goal === "string" ? o.goal.trim() : "";
+    if (!(ROUTE_TARGETS as readonly string[]).includes(route)) continue;
+    if (route === primaryRoute || route === "general" || !goal) continue;
+    if (seen.has(route)) continue;
+    seen.add(route);
+    out.push({ route, goal });
+    if (out.length >= MAX_SIDE_TASKS) break;
+  }
+  return out;
+}
 
 /** `YYYY-MM-DD`，或只给日的 `--DD`。 */
 const WHEN_DATE_RE = /^(\d{4}-\d{2}-\d{2}|--\d{2})$/;
@@ -273,6 +357,8 @@ export function parseIntent(raw: string, fallback: string): Intent {
         : undefined;
       // 时间点（M19-08）：逐字段校验，不合格当没给——下游退回正则兜底。
       const when = parseWhen(o.when);
+      // 副任务（ACR-023）：白名单、排除主路由与 general、去重、截断；主路由没给就整栏不要。
+      const sideTasks = parseSideTasks(o.sideTasks, route);
       return {
         goal,
         constraints: asStringArray(o.constraints),
@@ -284,6 +370,7 @@ export function parseIntent(raw: string, fallback: string): Intent {
         ...(route ? { route } : {}),
         ...(action ? { action } : {}),
         ...(when ? { when } : {}),
+        ...(sideTasks.length ? { sideTasks } : {}),
       };
     } catch {
       /* 落到下面的降级 */

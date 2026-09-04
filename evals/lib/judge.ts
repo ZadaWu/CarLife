@@ -61,6 +61,9 @@ export async function judgeRefusal(
   const body = JSON.stringify({
     model,
     temperature: 0,
+    // 裁判**要**推理，但档位必须显式写出来（M70-02）：DeepSeek 默认思考，
+    // 不写就是隐式默认——将来有人按 narrator 那条思路顺手关掉会静默改变评测口径。
+    thinking: { type: "enabled" },
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },

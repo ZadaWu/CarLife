@@ -30,6 +30,7 @@ import {
 // 必填配置缺失即快速失败（M3-02 / AC-35-11）。
 assertStartupConfig();
 
+import { thinkingForSite } from "./llm/thinking-policy";
 import { createConfiguredChatStreamer, NARRATOR_SYSTEM } from "./llm";
 import { AcpClient, createAcpStreamer, type AgentName } from "./acp-client/connection";
 import { AcpClientPool } from "./acp-client/pool";
@@ -187,7 +188,8 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   const config = createConfigStore(prisma);
   const usage = createUsageRepository(prisma);
   // 按配置版本缓存的工厂：换 key / 换模型不重启（M3-02 约束 2）。
-  const directStreamer = createConfiguredChatStreamer(config);
+  // 没有 ACP 时它就是主链路：有工具、给车主，思考档与 pi 应答会话同档（M70-01）。
+  const directStreamer = createConfiguredChatStreamer(config, { thinking: thinkingForSite("main-direct") });
 
   // 轨迹采集（M5-06 / §4.1 X2）。**回放页在 M9，但埋点必须从现在开始**——
   // 等做回放时才加，历史会话一条都放不出来（FL-29 排期警告）。
@@ -1132,9 +1134,11 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       ? withLlmSpans(
           createConfiguredChatStreamer(config, {
             system: NARRATOR_SYSTEM,
-            // 钉死非推理模型，**不跟 DEEPSEEK_MODEL 走**——理由见
-            // `ConfiguredStreamerOptions.model` 的说明。
+            // 模型 id 不跟 DEEPSEEK_MODEL 走——理由见 `ConfiguredStreamerOptions.model`。
             model: answerModel,
+            // **这条路径存在的全部理由就是不思考**（求解已做完，只表述）。2026-08-28 到 09-04 它在隐式思考：
+            // 首 token 均值 5–17 s、最坏 124 s 撞了 120 s 封顶（INC-0126）。显式 off 后同一份 prompt 0.3 s 出正文。
+            thinking: thinkingForSite("narrator"),
           }),
         )
       : undefined;
@@ -1585,7 +1589,7 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
      */
     async ({ context, question }) => {
       const streamer = withLlmSpans(
-        createConfiguredChatStreamer(config, { system: NARRATOR_SYSTEM }),
+        createConfiguredChatStreamer(config, { system: NARRATOR_SYSTEM, thinking: thinkingForSite("dual-probe") }),
       );
       let out = "";
       for await (const chunk of streamer(

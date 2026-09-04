@@ -33,7 +33,16 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import { GraphState } from "./state";
-import { INTENT_INSTRUCTION, parseIntent } from "./intent";
+import { buildIntentInstruction, parseIntent } from "./intent";
+import {
+  composeSolved,
+  dispatchTargets,
+  joinLanes,
+  laneOrderOf,
+  runLane,
+  type LaneId,
+  type WorkNode,
+} from "./compound";
 import {
   hasRegisteredMembers,
   maybeCompanionGuidance,
@@ -641,7 +650,8 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     try {
       const probe: ChatTurnMessage[] = [
         ...state.messages,
-        { role: "user", content: INTENT_INSTRUCTION },
+        // 按开关现拼（ACR-023）：`CARLIFE_SIDE_TASKS=off` 时不带 sideTasks 一栏。
+        { role: "user", content: buildIntentInstruction() },
       ];
       // 意图理解发给 **Supervisor** 的独立会话（§11 时序 `L->Sup: 意图理解`）。
       // 与应答分开是必须的：同一会话里插一段"请输出 JSON"会污染对话历史，
@@ -825,7 +835,11 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         state.repairBookingPlan.status !== "cancelled",
     });
     configurable?.onTrace?.({ kind: "route", data: { ...route } });
-    return { route };
+    // 分叉—汇合（ACR-023）：每轮清空三个 lane 通道；把副 lane 的顺序登记给权限门（M69-04 落地那一侧，
+    // 门上还没有该方法时跳过——排队与登记是门的事，图只负责告诉它顺序）。
+    const gate = getGuardGate() as { setLaneOrder?: (sessionId: string, agents: string[]) => void } | undefined;
+    if (configurable?.thread_id) gate?.setLaneOrder?.(configurable.thread_id, laneOrderOf(route));
+    return { route, primaryLane: undefined, sideLanes: null, sideResults: {} } as unknown as Partial<typeof GraphState.State>;
   };
 
     /**
@@ -1595,13 +1609,19 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       state.repairBookingPlan.status !== "cancelled";
     if (
       agent === "service" &&
-      (repairBookingIntent(rawText) || (bookingActive && REPAIR_BOOKING_REFINE.test(rawText)))
+      (repairBookingIntent(rawText) ||
+        // 副任务轮（ACR-023 / M69-03）：「顺路把保养做了」这句原话过不了 BOOKING_RE，意图层改写的
+        // goal「在杭州预约一次保养」过得了——不是加正则，是让模型的改写结果也能当输入。
+        repairBookingIntent(state.intent?.goal ?? "") ||
+        (bookingActive && REPAIR_BOOKING_REFINE.test(rawText)))
     ) {
       const threadId = configurable?.thread_id ?? "unknown";
       const turn = await runRepairBooking({
         raw: rawText,
         vin: vehicleProfile?.vin,
-        city: pickCityDistrict(rawText).city,
+        // 城市：原话没提就从意图层 goal 取（M69-03）。**不读 tripPlan.destination**——副 lane 与主 lane 同 superstep
+        // 并行，拿到的是主任务写之前的 state；地点只能来自意图层（goal 须自带地点，见 intent.ts）。
+        city: pickCityDistrict(rawText).city ?? pickCityDistrict(state.intent?.goal ?? "").city,
         prior: state.repairBookingPlan,
         userId: configurable?.userId,
         when: state.intent?.when,
@@ -2198,17 +2218,11 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     // 这里只是让模型把数字说成人话（F-13-02：LLM 不参与约束求解）。
     // 出行走 fan-out 求解，用车走双路检索——两者都是"编排层已经做完的部分"，
     // answer 只负责把它说成人话。
-    const solved =
-      state.agentResults?.trip ??
-      state.agentResults?.itinerary ??
-      state.agentResults?.ownership ??
-      state.agentResults?.service ??
-      state.agentResults?.buying ??
-      // **漏了这一行，子图查到的门店与时段就到不了应答**——现象是助手对刚查到的
-      // 真实门店只字不提，然后凭印象说话。与 ANSWER_AGENTS 漏加同一类，
-      // 而两处都不会报错。键名是 Agent 名（`test-drive`）不是路由目标（`testDrive`）。
-      state.agentResults?.["test-drive"] ??
-      state.agentResults?.cabin;
+    // 主取 `agentResults`、副取 `sideResults`，拼法在 `compound.ts` 的 `composeSolved`（ACR-023）。
+    // 路由目标 → 结果键名的映射（`testDrive` → `test-drive`）也在那边——漏了该 Agent 的结果就到不了应答，
+    // 现象是助手对刚查到的真实门店只字不提，然后凭印象说话；单路由时它与旧的固定优先级链逐字相同。
+    const composed = composeSolved(state);
+    const solved = composed.text;
     const messages = solved
       ? [
           ...state.messages,
@@ -2273,7 +2287,8 @@ ${solved}`,
      * 所以再加一道 `!state.solverDegraded`：**分支没跑成时回落到主链路**——
      * 那一侧有工具，还能自己补一部分回来。
      */
-    const useNarrator = Boolean(solved) && !state.solverDegraded && narrator !== undefined;
+    // 判据只看**主 lane**：副任务失败不把整轮拖回 ACP 主链路（那边有工具、能补主任务的缺口，补不了副任务的）。
+    const useNarrator = Boolean(composed.primary) && !state.solverDegraded && narrator !== undefined;
     const answerStreamer = useNarrator ? narrator : streamer;
 
     /*
@@ -2466,9 +2481,47 @@ ${solved}`,
     // 两条分支各自写成一条完整的链式调用而不是共用中间变量：
     // LangGraph 的 builder 类型是**累积式**的（每个 addNode 把节点名加进类型参数），
     // 拆开赋值会丢掉累积，后续 addEdge 就认不出节点名了。
-    // 映射本身在 `route.ts` 的 `branchFor`——单独一个可导出的函数，
+    // 映射本身在 `route.ts` 的 `branchFor` 与 `compound.ts` 的 `dispatchTargets`——单独可导出的函数，
     // 图装配处只负责把它接上去（见那边关于"闭包让缺陷测不到"的说明）。
-    const withBranches = branchFor;
+    type NodeFn = (s: typeof GraphState.State, c?: RunnableConfig) => Promise<Partial<typeof GraphState.State>>;
+    /**
+     * lane 包装器（ACR-023 分叉—汇合）：每个分支节点用它注册两次——主 lane 与副 lane 同形态，
+     * 进来只投影本 lane 的必要上下文，出去只写本 lane 的通道；主体在 `compound.ts` 的 `runLane`。
+     */
+    const lane = (laneId: LaneId, node: WorkNode, fn: NodeFn) => async (state: typeof GraphState.State, config?: RunnableConfig) => {
+      const configurable = config?.configurable as ChatGraphConfigurable | undefined;
+      return runLane({
+        lane: laneId,
+        node,
+        state,
+        run: (view) => fn(view, config) as Promise<Partial<typeof GraphState.State>>,
+        onBranch: (e) => configurable?.emit?.onBranch?.(e),
+        onTrace: configurable?.onTrace,
+      });
+    };
+    /** 汇合：规则全在 `joinLanes`，节点只负责把冲突键写进 trace。每轮都跑，单 lane 时是透传。 */
+    const joinNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
+      const configurable = config?.configurable as ChatGraphConfigurable | undefined;
+      const { patch, conflicts } = joinLanes(state);
+      configurable?.onTrace?.({
+        kind: "merge",
+        data: {
+          agent: "join",
+          lanes: [state.primaryLane, ...Object.values(state.sideLanes ?? {})]
+            .filter((l): l is NonNullable<typeof l> => Boolean(l))
+            .map((l) => ({ lane: l.lane, agent: l.agent, status: l.status })),
+          conflicts,
+        },
+      });
+      return patch as Partial<typeof GraphState.State>;
+    };
+    const nodeFns = {
+      ownershipDual: ownershipNode as unknown as NodeFn,
+      buyingCatalog: buyingNode as unknown as NodeFn,
+      testDriveFlow: testDriveNode as unknown as NodeFn,
+      cabinCompanion: cabinNode as unknown as NodeFn,
+      itineraryPlan: itineraryNode as unknown as NodeFn,
+    } satisfies Record<WorkNode, NodeFn>;
 
     if (enableIntent) {
       graph
@@ -2478,11 +2531,18 @@ ${solved}`,
         // state attribute"（buyingCatalog/buyingPlan 是同一个坑）。
         .addNode("riskGate", traced("riskGate", riskGateNode))
         .addNode("dispatch", traced("dispatch", routeNode))
-        .addNode("ownershipDual", traced("ownershipDual", ownershipNode))
-        .addNode("buyingCatalog", traced("buyingCatalog", buyingNode))
-        .addNode("testDriveFlow", traced("testDriveFlow", testDriveNode))
-        .addNode("cabinCompanion", traced("cabinCompanion", cabinNode))
-        .addNode("itineraryPlan", traced("itineraryPlan", itineraryNode))
+        .addNode("ownershipDual", traced("ownershipDual", lane("primary", "ownershipDual", nodeFns.ownershipDual)))
+        .addNode("buyingCatalog", traced("buyingCatalog", lane("primary", "buyingCatalog", nodeFns.buyingCatalog)))
+        .addNode("testDriveFlow", traced("testDriveFlow", lane("primary", "testDriveFlow", nodeFns.testDriveFlow)))
+        .addNode("cabinCompanion", traced("cabinCompanion", lane("primary", "cabinCompanion", nodeFns.cabinCompanion)))
+        .addNode("itineraryPlan", traced("itineraryPlan", lane("primary", "itineraryPlan", nodeFns.itineraryPlan)))
+        // 副 lane：同一批节点函数、同一个包装器，只是 lane id 不同（ACR-023）。
+        .addNode("sideOwnershipDual", traced("sideOwnershipDual", lane("side", "ownershipDual", nodeFns.ownershipDual)))
+        .addNode("sideBuyingCatalog", traced("sideBuyingCatalog", lane("side", "buyingCatalog", nodeFns.buyingCatalog)))
+        .addNode("sideTestDriveFlow", traced("sideTestDriveFlow", lane("side", "testDriveFlow", nodeFns.testDriveFlow)))
+        .addNode("sideCabinCompanion", traced("sideCabinCompanion", lane("side", "cabinCompanion", nodeFns.cabinCompanion)))
+        .addNode("sideItineraryPlan", traced("sideItineraryPlan", lane("side", "itineraryPlan", nodeFns.itineraryPlan)))
+        .addNode("join", traced("join", joinNode))
         .addNode("answer", traced("answer", answerNode))
         .addEdge(START, "understand")
         .addEdge("understand", "riskGate")
@@ -2498,31 +2558,52 @@ ${solved}`,
         )
         // 条件路由：出行类走并行 fan-out，用车类走双路检索，其余直接应答。
         // **不是每类请求都 fan-out**——那既浪费也拖慢首事件。
-        .addConditionalEdges("dispatch", (s: typeof GraphState.State) => withBranches(s.route))
-        .addEdge("ownershipDual", "answer")
-        .addEdge("buyingCatalog", "answer")
-        .addEdge("testDriveFlow", "answer")
-        .addEdge("cabinCompanion", "answer")
-        .addEdge("itineraryPlan", "answer")
+        // 分叉：返回一组 lane 节点即并行派出（ACR-023）；无副任务时只有主节点，与从前的 branchFor 逐一相等。
+        .addConditionalEdges("dispatch", (s: typeof GraphState.State) => dispatchTargets(s))
+        .addEdge("ownershipDual", "join")
+        .addEdge("buyingCatalog", "join")
+        .addEdge("testDriveFlow", "join")
+        .addEdge("cabinCompanion", "join")
+        .addEdge("itineraryPlan", "join")
+        .addEdge("sideOwnershipDual", "join")
+        .addEdge("sideBuyingCatalog", "join")
+        .addEdge("sideTestDriveFlow", "join")
+        .addEdge("sideCabinCompanion", "join")
+        .addEdge("sideItineraryPlan", "join")
+        .addEdge("join", "answer")
         .addEdge("answer", END);
     } else {
       // 没有意图节点时 `dispatch` 直接读用户原文做规则匹配——
       // `decideRoute` 本来就同时吃 intent 与原文，缺 intent 只是少了约束项。
       graph
         .addNode("dispatch", traced("dispatch", routeNode))
-        .addNode("ownershipDual", traced("ownershipDual", ownershipNode))
-        .addNode("buyingCatalog", traced("buyingCatalog", buyingNode))
-        .addNode("testDriveFlow", traced("testDriveFlow", testDriveNode))
-        .addNode("cabinCompanion", traced("cabinCompanion", cabinNode))
-        .addNode("itineraryPlan", traced("itineraryPlan", itineraryNode))
+        .addNode("ownershipDual", traced("ownershipDual", lane("primary", "ownershipDual", nodeFns.ownershipDual)))
+        .addNode("buyingCatalog", traced("buyingCatalog", lane("primary", "buyingCatalog", nodeFns.buyingCatalog)))
+        .addNode("testDriveFlow", traced("testDriveFlow", lane("primary", "testDriveFlow", nodeFns.testDriveFlow)))
+        .addNode("cabinCompanion", traced("cabinCompanion", lane("primary", "cabinCompanion", nodeFns.cabinCompanion)))
+        .addNode("itineraryPlan", traced("itineraryPlan", lane("primary", "itineraryPlan", nodeFns.itineraryPlan)))
+        // 副 lane：同一批节点函数、同一个包装器，只是 lane id 不同（ACR-023）。
+        .addNode("sideOwnershipDual", traced("sideOwnershipDual", lane("side", "ownershipDual", nodeFns.ownershipDual)))
+        .addNode("sideBuyingCatalog", traced("sideBuyingCatalog", lane("side", "buyingCatalog", nodeFns.buyingCatalog)))
+        .addNode("sideTestDriveFlow", traced("sideTestDriveFlow", lane("side", "testDriveFlow", nodeFns.testDriveFlow)))
+        .addNode("sideCabinCompanion", traced("sideCabinCompanion", lane("side", "cabinCompanion", nodeFns.cabinCompanion)))
+        .addNode("sideItineraryPlan", traced("sideItineraryPlan", lane("side", "itineraryPlan", nodeFns.itineraryPlan)))
+        .addNode("join", traced("join", joinNode))
         .addNode("answer", traced("answer", answerNode))
         .addEdge(START, "dispatch")
-        .addConditionalEdges("dispatch", (s: typeof GraphState.State) => withBranches(s.route))
-        .addEdge("ownershipDual", "answer")
-        .addEdge("buyingCatalog", "answer")
-        .addEdge("testDriveFlow", "answer")
-        .addEdge("cabinCompanion", "answer")
-        .addEdge("itineraryPlan", "answer")
+        // 分叉：返回一组 lane 节点即并行派出（ACR-023）；无副任务时只有主节点，与从前的 branchFor 逐一相等。
+        .addConditionalEdges("dispatch", (s: typeof GraphState.State) => dispatchTargets(s))
+        .addEdge("ownershipDual", "join")
+        .addEdge("buyingCatalog", "join")
+        .addEdge("testDriveFlow", "join")
+        .addEdge("cabinCompanion", "join")
+        .addEdge("itineraryPlan", "join")
+        .addEdge("sideOwnershipDual", "join")
+        .addEdge("sideBuyingCatalog", "join")
+        .addEdge("sideTestDriveFlow", "join")
+        .addEdge("sideCabinCompanion", "join")
+        .addEdge("sideItineraryPlan", "join")
+        .addEdge("join", "answer")
         .addEdge("answer", END);
     }
   } else {

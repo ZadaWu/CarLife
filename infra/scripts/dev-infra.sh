@@ -44,8 +44,10 @@ load_env() {
   set +a
 }
 
+# 档位与网关看同一处（.env 钉档 → 后台热配置 → ark），见 asr-engine.sh 的说明。
+. "$ROOT/infra/scripts/asr-engine.sh"
 local_asr_enabled() {
-  [[ "${ASR_ENGINE:-}" == "mock" ]]
+  [[ "$(effective_asr_engine)" == "mock" ]]
 }
 
 local_asr_model_dir() {

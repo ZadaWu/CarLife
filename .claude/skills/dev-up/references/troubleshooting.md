@@ -32,6 +32,7 @@
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | 端口有人应答、状态表正常，客户端窗口没出现 | 只起了 `cockpit`（Vite），没起 `cockpit-app`（窗口） | `corepack pnpm dev:restart cockpit cockpit-app`；mobile 同理 |
+| 长按显示「正在聆听」但没录进声音；系统设置的麦克风列表里没有 CarLife，只有 Terminal / VS Code / Claude | 客户端是从终端直接派生的（旧版 dev.sh 的 `nohup target/debug/cockpit`，或手工跑二进制 / `tauri dev`），macOS 把麦克风授权记到了那个终端头上；终端没授权时 CoreAudio 照样给设备但回调全是零 | 用 `corepack pnpm dev:restart cockpit-app` 拉起（现在经 `open` 起 `target/debug/cockpit.app`，责任进程是它自己），第一次长按时允许「CarLife Cockpit」使用麦克风；不需要给终端授权 |
 | 客户端窗口出现但白屏 | debug 客户端走 devUrl，Vite 没先就绪 | 同上，让 Vite 先起 |
 | 助手说「门店系统没连上」 | `mock-dealer` 没起，或 `.env` 缺 `MOCK_DEALER_URL`；两者现象一样 | `corepack pnpm dev:restart mock-dealer runtime` |
 | 车内音乐在容器里不出声 | 设计如此：出声位在车机端，服务端只留状态机，`mock-cabin` 的 `/health` 报 `backend:"none"` 是正常的 | 无需处理 |

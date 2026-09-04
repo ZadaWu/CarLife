@@ -105,8 +105,16 @@ export function AssistantDock({
   /*
    * 次行默认是「长按说话」。tapOpensDialog=false 时主行已经是这句，
    * 再来一遍就是同一句话说两次——那时默认收掉，调用方仍可显式覆盖。
+   *
+   * 「点一下打断」放**次行**而不是接在主行后面（2026-09-03 iPad 真机走查）：
+   * 原来主行是「正在回答…（点一下打断）」，在车机卡片上必然折行，很难看。
+   * 量过（走查面板，单位 = hud-unit）：卡片右侧的音波圆片占掉右边 87，文字又是
+   * 居中排的，所以主行不碰音波的上限只有约 200，而「正在回答…」自己就 170——
+   * 提示语字号再小也挤不进同一行。卡片本来就是"状态一行 + 细线 + 小号灰字一行"
+   * 的形态，提示语正好落在第二行（120 宽，绰绰有余）。
    */
-  const secondary = secondaryLabel ?? (tapOpensDialog ? "长按说话" : "");
+  const secondary =
+    secondaryLabel ?? (tapOpensDialog ? "长按说话" : interruptible ? "点一下打断" : "");
   // 未知值回落 rest：这个 prop 会从 App 层的派生值传下来，
   // 传错一个字符串不该让整屏 HUD 白掉（F-01-01 的边界纪律）。
   const working = mode === "work";
@@ -175,20 +183,9 @@ export function AssistantDock({
       >
         {/* 两行文案在卡内**水平居中**（定稿 §3.4）。音波不参与这个居中——
             它绝对定位贴右边，否则 flex 行会把文字挤到左侧，看起来像没对齐。 */}
+        {/* 主行只放状态，**不接任何提示语**——接了就折行（见上面 `secondary` 的量数）。 */}
         <span className="hud-assistant__primary">
-          {primaryLabel ??
-            (state === "idle"
-              ? idleLabel
-              : interruptible
-                ? (
-                    <>
-                      {STATE_TEXT[state]}
-                      {/* 「点一下打断」是操作提示不是状态：缩小、变灰，
-                          不与状态文案抢同一视觉级（aria-label 不受影响）。 */}
-                      <span className="hud-assistant__hint">（点一下打断）</span>
-                    </>
-                  )
-                : STATE_TEXT[state])}
+          {primaryLabel ?? (state === "idle" ? idleLabel : STATE_TEXT[state])}
         </span>
         {/* 次行为空时连分隔线一起收掉：一条底下没有内容的横线看着像没加载完 */}
         {secondary !== "" && (

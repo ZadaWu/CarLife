@@ -124,6 +124,15 @@ describe("tapInterrupts：点一下打断", () => {
     assert.ok(html.includes("正在回答…，点一下打断，长按说话"));
   });
 
+  it("提示语落在次行，主行只有状态——接在主行后面会在车机卡片上折行（2026-09-03 iPad 走查）", () => {
+    const html = render({ state: "speaking", tapOpensDialog: false, tapInterrupts: true });
+    const primary = html.match(/class="hud-assistant__primary">([^<]*)</)?.[1];
+    assert.equal(primary, "正在回答…");
+    assert.ok(html.includes('class="hud-assistant__secondary">点一下打断<'));
+    // 分隔线跟着次行一起出现：有第二行就该有那条线
+    assert.ok(html.includes("hud-assistant__rule"));
+  });
+
   it("进对话与打断不同时出现——一块区域只能有一个短按含义", () => {
     const html = render({ state: "speaking", tapInterrupts: true, tapOpensDialog: true });
     assert.ok(html.includes("点击进入对话"));

@@ -48,6 +48,15 @@ export interface Intent {
    */
   route?: string;
   /**
+   * 顺带的副任务（ACR-023 / M69-01，F-11-06）：这一轮里**另外**要办的、不同领域的事。
+   *
+   * **只有 LLM 给**——规则表与粘性规则不产生副路由，也没有正则兜底（§4.5：判据是字面的而人的说法不是）。
+   * 每项的 `route` 取值同 `ROUTE_TARGETS`、不得等于主 `route`、不得是 general；`goal` 是意图层改写的一句规范说法，
+   * **必须自带地点与对象**（「在杭州预约一次保养」）：副 lane 与主 lane 并行、看不到主 lane 本轮的产出，地点只能从这里来。
+   * 按 N 设计，上限 `MAX_SIDE_TASKS`（intent.ts）；可选是为了旧检查点。
+   */
+  sideTasks?: SideTask[];
+  /**
    * 对已有行程草案的处置（M13-14）：`commit` / `cancel` / `cancel_all` / `none`，
    * 取值见 `PLAN_ACTIONS`。同样由 LLM 给，没给时退回 `itinerary.ts` 的正则兜底。
    *
@@ -87,10 +96,42 @@ export interface Intent {
   degraded?: boolean;
 }
 
+/** 一件顺带的副任务：交给谁 + 一句自带地点的规范说法（ACR-023）。 */
+export interface SideTask {
+  route: string;
+  goal: string;
+}
+
 /** 路由决策与依据（F-11-07：路由错误只表现为"答非所问"，没有埋点就无法归因）。 */
 export interface RouteDecision {
   agent: string;
   reason: string;
+  /**
+   * 副路由（ACR-023）：与主路由同源——同一次意图理解给出，`decideRoute` 只在 LLM 路由生效时透传。
+   * 规则表兜底、粘性规则路径下恒为空：那两条路没有模型的判断，不该凭空长出第二件事。
+   */
+  secondary?: SideTask[];
+}
+
+/**
+ * 一条 lane 跑完的结果（ACR-023 分叉—汇合）。主 lane 写 `primaryLane`，副 lane 写 `sideLanes[本节点名]`。
+ *
+ * `patch` 用结构化写法不引用图类型：图状态要能序列化进检查点（与 `BuyingPlanState` 同一取向）。
+ * `join` 节点按 `compound.ts` 的 `joinLanes` 把它们汇进主状态——lane 自己**不直接写** `agentResults` / `tripPlan` 这些通道，
+ * 否则同 superstep 并行的两条 lane 会在 last-write reducer 上互相覆盖。
+ */
+export interface LaneResult {
+  lane: "primary" | "side";
+  /** 图节点名（`branchFor` 的返回值，副 lane 记的是主节点名，副节点名由 `sideNodeOf` 推）。 */
+  node: string;
+  /** 路由目标（主 lane 是 `route.agent`，副 lane 是 `SideTask.route`）。 */
+  agent: string;
+  goal?: string;
+  status: "ok" | "failed" | "skipped";
+  patch: Record<string, unknown>;
+  startedAt: number;
+  endedAt: number;
+  error?: string;
 }
 
 /**
@@ -328,6 +369,35 @@ export const GraphState = Annotation.Root({
   companionConstraints: Annotation<CompanionConstraint[]>({
     reducer: (_left, right) => right,
     default: () => [],
+  }),
+
+  /**
+   * 主 lane 的结果（ACR-023 / M69-01）。每轮由 `dispatch` 清空，`join` 读。
+   * last-write：一轮只有一条主 lane。
+   */
+  primaryLane: Annotation<LaneResult | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 副 lane 的结果，按副节点名键控（`sideOwnershipDual` …）。
+   *
+   * **这是本 ACR 唯一一个不是 last-write 的新通道**：多个副节点在同一个 superstep 各写自己的键，
+   * last-write 会让后落的覆盖先落的。更新为 `null` 即清空（`dispatch` 每轮发一次）。
+   */
+  sideLanes: Annotation<Record<string, LaneResult>, Record<string, LaneResult> | null>({
+    reducer: (left, right) => (right === null ? {} : { ...left, ...right }),
+    default: () => ({}),
+  }),
+
+  /**
+   * 副任务的求解文本，键 = Agent 名（与 `agentResults` 同口径，由 `join` 从各副 lane 的 patch 改道而来）。
+   * 主副分两个通道是为了同 superstep 不撞 last-write；`answer` 的 `composeSolved` 主取 `agentResults`、副取这里。
+   */
+  sideResults: Annotation<Record<string, string>>({
+    reducer: (_left, right) => right,
+    default: () => ({}),
   }),
 });
 

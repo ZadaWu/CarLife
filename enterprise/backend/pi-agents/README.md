@@ -116,6 +116,14 @@ turn-c0ea193e 里它以 `off` 跑，推演全写进了可见正文，10 轮 1500
 管线（`models.json` 覆盖 + `PI_CODING_AGENT_DIR`）留着。正文过长的真因是 08-28 起
 tour.md 让模型在正文里做体检/时间轴/住宿的取舍，要修的是提示词。
 
+### 应答会话 `low` 对照（M70-03，2026-09-04）
+
+`CARLIFE_PI_ANSWER_THINKING=low` 只覆盖 `supervisor` / `ownership` / `service` / `cabin` / `test-drive` 五个表述型应答会话
+（`llm/thinking-policy.ts` 的 `piThinkingLevelFor`）。8 句 × 2 次 × 两档经网关真跑，落到 `supervisor` 的有效样本 11 vs 11：
+凭知识作答的两句（限行规则、长江大桥）low 首 token 快 1.2–3.5 倍、思考时长减半，简单问答持平，事实与免责话术无退化；
+**但 low 有 3/11 轮漏出 markdown 项目符号与加粗**（high 0/11），语音播报场景这是退化。结论留 high、不钉 `PI_OVERRIDES`；
+开关与 `models.json` 的 low 映射保留。要翻案先把格式纪律钉进提示词，再 n≥30 复测。见 `内部文档`。
+
 ### 试过但没用：`thinkingBudgets`
 
 pi 有 `thinkingBudgets`（按档位设思考 token 预算），看上去正是"想少一点"这个中间档。

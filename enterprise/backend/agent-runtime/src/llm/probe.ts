@@ -13,6 +13,7 @@
  */
 
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { thinkingForSite, withDeepSeekThinking } from "./thinking-policy";
 import { generateText, streamText, tool } from "ai";
 import { z } from "zod";
 
@@ -121,7 +122,8 @@ export async function probeLlm(store: ConfigStore): Promise<ProbeReport> {
     };
   }
 
-  const provider = createDeepSeek({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  // 探针 8 个 token 就够，思考纯白烧——档位显式 off（M70-01，thinking-policy.ts）。
+  const provider = createDeepSeek({ apiKey, ...(baseURL ? { baseURL } : {}), fetch: withDeepSeekThinking(thinkingForSite("probe")) });
   const chat = provider(model);
 
   const checks: ProbeCheck[] = [

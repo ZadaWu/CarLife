@@ -76,7 +76,8 @@ worker:@carlife/worker:8796:enterprise/backend/worker:svc
 # 换来的教训（见上），不重演第三次：URL 在 .env 里而进程不在默认集合里的话，
 # 将来接上工具的那天，"进程没起"和"缺配置"会是同一副面孔。
 #
-# local-asr（ACR-006）在 ASR_ENGINE=mock 时自动加入默认集合，并排在 Gateway 前面（ACR-017 改名）；
+# local-asr（ACR-006）在生效档位为 mock 时自动加入默认集合，并排在 Gateway 前面（ACR-017 改名；
+# 档位的取法见 asr-engine.sh——.env 钉档，没钉就问后台热配置，与网关同源）；
 # 它由项目自己的 Compose image 提供，不查找也不调用 Host whisper-server。未启用 local
 # 时不创建这个旁车，Ark/Fake 的既有启动行为保持不变。
 #
@@ -95,9 +96,13 @@ DEFAULT_TARGETS="$DEFAULT_TARGETS runtime cockpit mobile web cockpit-app mobile-
 BASE_DEFAULT_TARGETS="$DEFAULT_TARGETS"
 ALL_TARGETS="gateway mock-dealer mock-cabin mock-repair mock-insurance mock-tts local-asr runtime cockpit mobile web cockpit-app mobile-app worker"
 
+. "$ROOT/infra/scripts/asr-engine.sh"
+
+# 档位看 effective_asr_engine（.env 钉档 → 后台热配置 → ark），不只看 shell 环境变量——
+# 网关就是这么选的，起停脚本另看一处会出现"网关往 8795 发、容器没起"（INC-0124）。
 refresh_default_targets() {
   DEFAULT_TARGETS="$BASE_DEFAULT_TARGETS"
-  if [ "${ASR_ENGINE:-}" = "mock" ] &&
+  if [ "$(effective_asr_engine)" = "mock" ] &&
     [ "${CARLIFE_DEV_INFRA_LOCAL_ASR_READY:-0}" != "1" ]; then
     DEFAULT_TARGETS="local-asr $DEFAULT_TARGETS"
   fi
@@ -127,6 +132,9 @@ cwd_pids() {
 }
 
 # 客户端二进制按完整路径认，不能按 cwd——它的 cwd 是仓库根，会和别的进程撞上。
+# macOS 上它跑在 `target/debug/<名>.app/Contents/MacOS/<名>` 里（见 make_app_bundle），
+# 前缀 `^$ROOT/target/debug/cockpit` 同时罩住裸二进制与 bundle 里那份——
+# 这样升级前用旧方式拉起的窗口，restart 也能把它停掉。
 bin_pids() { pgrep -f "^$ROOT/$1" 2>/dev/null; }
 
 target_pids() {
@@ -177,34 +185,92 @@ stop_one() {
   printf '  %-12s 已停 (%s)\n' "$name" "$(echo $pids)"
 }
 
-# 给 debug 二进制签上**稳定身份**（M54-08，macOS only）。
+# macOS 上 app 目标不直接跑裸二进制，而是包成最小 .app 经 LaunchServices（`open`）拉起。
 #
-# cargo 的产物只有链接器顺手打的 ad-hoc 签名，Identifier 是 `cockpit-<构建哈希>`
-# ——**每次重编身份都变**。macOS 钥匙串的条目 ACL 按代码签名认 app：重编之后
-# 它眼里就是一个陌生程序来读机密，要么弹授权框（没人点就失败），要么直接拒。
-# 于是 carlife-core 的凭证库降级到内存，车辆凭证随进程消失——外部症状是
-# "每次 dev:restart 之后车机都要重新输 6 位配对码"（2026-09-01 走查）。
+# 为什么（INC-0100 第二次踩，2026-09-04，换了台 Mac 又出现）：macOS 的隐私授权
+# （TCC）不按"哪个进程在调麦克风"记账，按**责任进程**记账。从终端派生出来的
+# 进程，责任进程就是那个终端——Terminal / VS Code / Claude / Codex——nohup、
+# disown、ppid=1 一个都改不了这层归属，它由 launchd 在 spawn 时定死
+# （`responsibility_get_pid_responsible_for_pid` 能查到，实测指向 VS Code 的 Electron）。于是：
+#   - 授权框弹的是"VS Code 想使用麦克风"，系统设置的麦克风列表里只有终端，没有 CarLife；
+#   - 那个终端没被授权（或以前拒过）时，CoreAudio 照样给设备、回调却全是零——
+#     界面显示"正在聆听"，网关 ASR 收到一段静音，报 asr_empty_result；
+#   - 换台电脑、换个终端就重来一遍，而且每次症状都离根因很远。
+# 经 `open` 拉起的进程由 launchd 直接 spawn，责任进程是它自己；TCC 按 bundle id
+# 记账，系统设置里显示的就是「CarLife Cockpit」，授权一次后重编也认（签名身份稳定）。
+# 代价是 `open` 只认 .app，所以把裸二进制拷进 `target/debug/<名>.app`——
+# Info.plist 由 src-tauri/Info.plist（用途声明）+ tauri.conf.json（名字、版本）拼出，
+# 二进制没重编就不重拷、不重签。实测 `open --stdout/--stderr` 是追加写，
+# 环境变量照样传给子进程，只有 cwd 变成 `/`（客户端不依赖 cwd：dev_env.rs 用
+# 编译期路径找 .env，其余文件都走 app data 目录）。
 #
-# 用本机的 Apple Development 证书重签并钉死 Identifier：签名的 designated
-# requirement 变成"这个 identifier + 这张证书"，重编后重签仍是同一身份，
-# 钥匙串在第一次"始终允许"之后不再过问。没有证书的机器跳过并提示——
-# 行为退回原样，不新增故障。已签过稳定身份的产物（identifier 不带哈希后缀）
-# 不重签，避免每次 restart 都白做一遍。
-stabilize_signature() {
-  local name="$1" bin="$ROOT/$2"
-  [ "$(uname)" = "Darwin" ] || return 0
-  local want="com.carlife.${name%-app}"
-  local now; now="$(codesign -dv "$bin" 2>&1 | sed -n 's/^Identifier=//p')"
-  [ "$now" = "$want" ] && return 0
-  local ident; ident="$(security find-identity -p codesigning -v 2>/dev/null     | sed -n 's/^ *[0-9]*) *\([0-9A-F]*\) .*/\1/p' | head -1)"
-  if [ -z "$ident" ]; then
-    printf '  %-12s ⚠ 无签名证书：钥匙串每次重编都会重新询问（凭证可能存不住）\n' "$name"
-    return 0
+# 稳定签名（M54-08）随之挪到 bundle 上。原因不变：cargo 的产物只有链接器顺手
+# 打的 ad-hoc 签名，Identifier 是 `cockpit-<构建哈希>`，**每次重编身份都变**，
+# 钥匙串眼里就是陌生程序来读机密，凭证库降级到内存，外部症状是"每次 dev:restart
+# 之后车机都要重新输 6 位配对码"（2026-09-01 走查）。用本机 Apple Development 证书
+# 重签后 designated requirement 是"这个 identifier + 这张证书"，identifier 现在由
+# CFBundleIdentifier 给出，与之前 `--identifier` 钉的值相同，钥匙串条目继续有效。
+# 没有证书的机器退到 ad-hoc 签 bundle：TCC 仍按 bundle id 显示 CarLife，
+# 只是每次重编后钥匙串与麦克风都会再问一次。
+app_bundle() { echo "$ROOT/target/debug/${1%-app}.app"; }
+
+# app 目标的日志真身在 ~/Library/Logs/CarLife/<名>.log，.dev-logs/<名>.log 只是指过去的
+# 符号链接（`dev:logs`、tail -f、人眼看，路径都不变）。
+#
+# 不能直接把 .dev-logs/<名>.log 交给 `open --stdout`：那个文件句柄是 launchd 一侧
+# 代开的，而仓库若 clone 在「文稿 / 桌面 / 下载」这类 TCC 保护目录下，它打不开
+# **由开发者 shell 创建的**已有文件——`open` 报 -10810 "LSOpenURLs failed"，
+# 一个字不提文件。实测同一目录下由 `open` 自己新建的文件反而没事，所以这个坑
+# 只在"日志已经存在"时出现，也就是第二次启动起——第一次总是好的。
+# ~/Library/Logs 不受 TCC 管，通过符号链接过去也认。老日志（普通文件）迁移时
+# 整段追加进真身再换成链接，跨重启取证（M54-13）不丢。
+app_log() {
+  local name="$1" real="$HOME/Library/Logs/CarLife/$1.log" link="$LOGDIR/$1.log"
+  mkdir -p "$HOME/Library/Logs/CarLife" "$LOGDIR"
+  if [ -f "$link" ] && [ ! -L "$link" ]; then
+    cat "$link" >>"$real" && rm -f "$link"
   fi
-  if codesign --force --sign "$ident" --identifier "$want" "$bin" 2>>"$LOGDIR/$name.log"; then
-    printf '  %-12s 已签稳定身份 %s\n' "$name" "$want"
+  [ -L "$link" ] || ln -sfn "$real" "$link"
+  touch "$real"
+  echo "$real"
+}
+
+# 从 tauri.conf.json 取一个顶层字符串字段（只用于 productName / version，
+# 两者都是简单字面量，不值得为此拉起 node）。
+tauri_conf_str() { sed -n "s/^ *\"$2\": *\"\([^\"]*\)\".*/\1/p" "$ROOT/$1/src-tauri/tauri.conf.json" | head -1; }
+
+make_app_bundle() {
+  local name="$1" bin="$ROOT/$2" dir="$3"
+  local bundle exe plist
+  bundle="$(app_bundle "$name")"; exe="$bundle/Contents/MacOS/$(basename "$bin")"
+  plist="$bundle/Contents/Info.plist"
+  # 二进制没变（bundle 里那份不比 cargo 产物旧）就什么都不做——签名也还在。
+  if [ -x "$exe" ] && [ ! "$bin" -nt "$exe" ] && codesign -v "$bundle" 2>/dev/null; then return 0; fi
+  mkdir -p "$bundle/Contents/MacOS" || return 1
+  cp -f "$bin" "$exe" || return 1
+  cp -f "$ROOT/$dir/src-tauri/Info.plist" "$plist" || return 1
+  local pb=/usr/libexec/PlistBuddy product version
+  product="$(tauri_conf_str "$dir" productName)"; version="$(tauri_conf_str "$dir" version)"
+  "$pb" -c "Add :CFBundleExecutable string $(basename "$bin")" \
+        -c "Add :CFBundleIdentifier string com.carlife.${name%-app}" \
+        -c "Add :CFBundleName string ${product:-CarLife}" \
+        -c "Add :CFBundleDisplayName string ${product:-CarLife}" \
+        -c "Add :CFBundlePackageType string APPL" \
+        -c "Add :CFBundleInfoDictionaryVersion string 6.0" \
+        -c "Add :CFBundleShortVersionString string ${version:-0.0.0}" \
+        -c "Add :CFBundleVersion string ${version:-0.0.0}" \
+        -c "Add :LSMinimumSystemVersion string 12.0" \
+        -c "Add :NSHighResolutionCapable bool true" \
+        "$plist" >/dev/null 2>>"$LOGDIR/$name.log" || return 1
+  local ident; ident="$(security find-identity -p codesigning -v 2>/dev/null | sed -n 's/^ *[0-9]*) *\([0-9A-F]*\) .*/\1/p' | head -1)"
+  if [ -z "$ident" ]; then
+    printf '  %-12s ⚠ 无签名证书，改用 ad-hoc 签名：每次重编后钥匙串与麦克风授权都会再问一次\n' "$name"
+    ident="-"
+  fi
+  if codesign --force --sign "$ident" "$bundle" 2>>"$LOGDIR/$name.log"; then
+    printf '  %-12s 已包成 %s 并签为 com.carlife.%s\n' "$name" "target/debug/${name%-app}.app" "${name%-app}"
   else
-    printf '  %-12s ⚠ 重签失败（看 .dev-logs/%s.log），钥匙串可能反复询问\n' "$name" "$name"
+    printf '  %-12s ⚠ 签名失败（看 .dev-logs/%s.log），钥匙串可能反复询问\n' "$name" "$name"
   fi
 }
 
@@ -219,17 +285,28 @@ start_one() {
       return 1
     fi
     cd "$ROOT" || return 1
-    stabilize_signature "$name" "$filter"
     # **追加而不是覆盖**（M54-13）：跨重启的日志才有取证价值。
     # 2026-09-01 查"车辆凭证为什么消失"时，怀疑对象（auth 的 clear 日志）
     # 恰好在上一轮里，而那一轮的日志被这次启动的 `>` 抹掉了——
     # 于是"没有日志"既可能是没发生，也可能是被自己删了，两者不可分辨。
-    printf '\n===== 启动 %s =====\n' "$(date '+%F %T')" >>"$LOGDIR/$name.log"
-    nohup "$ROOT/$filter" >>"$LOGDIR/$name.log" 2>&1 </dev/null &
-    disown 2>/dev/null || true
-    sleep 1.5
-    local pid; pid="$(bin_pids "$filter" | head -1)"
-    if [ -n "$pid" ]; then printf '  %-12s 已拉起窗口 (pid %s)\n' "$name" "$pid"; return 0; fi
+    if [ "$(uname)" = "Darwin" ]; then
+      # 经 `open` 拉起（理由见 make_app_bundle；日志为何绕道见 app_log）。
+      # `-n` 保持旧语义：已有窗口时再开一个，而不是把旧的激活一下就当启动成功。
+      local real_log; real_log="$(app_log "$name")"
+      printf '\n===== 启动 %s =====\n' "$(date '+%F %T')" >>"$real_log"
+      make_app_bundle "$name" "$filter" "$(field "$name" 4)" || return 1
+      open -n "$(app_bundle "$name")" --stdout "$real_log" --stderr "$real_log" || return 1
+    else
+      printf '\n===== 启动 %s =====\n' "$(date '+%F %T')" >>"$LOGDIR/$name.log"
+      nohup "$ROOT/$filter" >>"$LOGDIR/$name.log" 2>&1 </dev/null &
+      disown 2>/dev/null || true
+    fi
+    local i pid
+    for i in $(seq 1 10); do
+      pid="$(bin_pids "$filter" | head -1)"
+      [ -n "$pid" ] && { printf '  %-12s 已拉起窗口 (pid %s)\n' "$name" "$pid"; return 0; }
+      sleep 0.5
+    done
     printf '  %-12s ❌ 起来就退了 —— 看 .dev-logs/%s.log\n' "$name" "$name"
     tail -n 8 "$LOGDIR/$name.log" | sed 's/^/       /'
     return 1
@@ -286,8 +363,8 @@ cmd_status() {
 
     if [ "$kind" = "compose" ]; then
       pid="$(port_pids "$port" | head -1)"
-      if [ "$name" = "local-asr" ] && [ "${ASR_ENGINE:-}" != "mock" ]; then
-        printf '  %-12s %-7s %-8s %s\n' "$name" "$disp" "-" "未启用（ASR_ENGINE 不是 mock）"
+      if [ "$name" = "local-asr" ] && [ "$(effective_asr_engine)" != "mock" ]; then
+        printf '  %-12s %-7s %-8s %s\n' "$name" "$disp" "-" "未启用（生效档位 $(effective_asr_engine)，来源 $ASR_ENGINE_SOURCE）"
         continue
       fi
       if ! command -v docker >/dev/null 2>&1; then
@@ -392,8 +469,9 @@ case "${1:-restart}" in
   dev:status              看谁在跑、谁的监护层已死（还应答但不再热重载）
   dev:logs    <目标>      tail -f 该目标日志
 
-  macOS 默认集合会额外启动 mock-tts（依赖系统 say）；ASR_ENGINE=mock 时默认集合
-  还会启动项目 Compose 中的 local-asr（不依赖 Host whisper-server）
+  macOS 默认集合会额外启动 mock-tts（依赖系统 say）；ASR 档位为 mock 时默认集合
+  还会启动项目 Compose 中的 local-asr（不依赖 Host whisper-server）。档位与网关看
+  同一处：.env 的 ASR_ENGINE 钉档，没写则取后台热配置（运营控制台可热切）
 
 目标：$ALL_TARGETS
       all = 全部（含 worker cron；默认集合已经包含 worker）

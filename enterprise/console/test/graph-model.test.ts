@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import {
   AGENT_ROSTER,
   BRANCH_NODES,
+  SIDE_LANE_NODES,
   SIDECAR_EDGES,
   SIDECAR_NODES,
   WORKFLOW_EDGES,
@@ -81,7 +82,8 @@ describe("图结构与实际代码一致", () => {
   it("每条条件分支都在 branchFor 的目标里，且一个不缺", () => {
     const targets = WORKFLOW_EDGES.filter((e) => e.from === "dispatch").map((e) => e.to);
     // 漏画一个分支的症状是"图上没有这条路"，而那正好等同于"这个 Agent 不存在"。
-    assert.deepEqual([...targets].sort(), [...BRANCH_NODES].sort());
+    // ACR-023 起 dispatch 还会并行派出副 lane 节点（compound.ts sideNodeOf）——两张表合起来才是全部去向。
+    assert.deepEqual([...targets].sort(), [...BRANCH_NODES, ...SIDE_LANE_NODES].sort());
   });
 
   it("fan-out 分支是**叶子**：结果由驱动它的节点汇聚，不自己流向下一步", () => {

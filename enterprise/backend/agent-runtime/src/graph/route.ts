@@ -480,7 +480,12 @@ export function decideRoute(intent: Intent, userText: string, opts?: RouteOption
     intent.route !== "general" &&
     (ROUTE_TARGETS as readonly string[]).includes(intent.route)
   ) {
-    return { agent: intent.route, reason: "意图理解给出的路由（LLM）" };
+    return {
+      agent: intent.route,
+      reason: "意图理解给出的路由（LLM）",
+      // 副路由与主路由同源（ACR-023）：只在这条 LLM 路径上透传；下面的规则表与粘性规则没有模型的判断，恒不带。
+      ...(intent.sideTasks?.length ? { secondary: intent.sideTasks } : {}),
+    };
   }
 
   const scored = RULES.map((r) => scoreRule(r, intent, userText))

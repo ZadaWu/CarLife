@@ -130,12 +130,14 @@ describe("一轮轨迹投影到主链路图", () => {
       { kind: "route", at: 1, data: { agent: "buying" } },
       span("node.dispatch", 5),
       span("node.buyingCatalog", 2000),
+      span("node.join", 3),
       span("node.answer", 6000),
     ]);
     assert.ok(run.edges.has("dispatch→buyingCatalog"));
     assert.equal(run.edges.has("dispatch→answer"), false);
-    // 分支到应答是无条件边，两端都走过就该亮。
-    assert.ok(run.edges.has("buyingCatalog→answer"));
+    // 分支到汇合、汇合到应答是无条件边（ACR-023 起分支先汇到 join），两端都走过就该亮。
+    assert.ok(run.edges.has("buyingCatalog→join"));
+    assert.ok(run.edges.has("join→answer"));
   });
 
   it("非硬禁时 `riskGate → dispatch` 也要显式记——两支都是条件边", () => {

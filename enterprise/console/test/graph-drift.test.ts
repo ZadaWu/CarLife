@@ -27,6 +27,7 @@ import { describe, it } from "node:test";
 import {
   AGENT_ROSTER,
   BRANCH_NODES,
+  SIDE_LANE_NODES,
   SIDECAR_NODES,
   WAKE_NODES,
   WORKFLOW_NODES,
@@ -37,6 +38,7 @@ const read = (rel: string): string => readFileSync(new URL(rel, root), "utf8");
 
 const SUPERVISOR = "enterprise/backend/agent-runtime/src/graph/supervisor.ts";
 const ROUTE = "enterprise/backend/agent-runtime/src/graph/route.ts";
+const COMPOUND = "enterprise/backend/agent-runtime/src/graph/compound.ts";
 /** Agent 名的真相源：`AgentName` 联合类型（`connection.ts` 有第二份，两处必须同步）。 */
 const REGISTRY = "enterprise/backend/shared/tools/src/registry.ts";
 const PROMPTS_DIR = "enterprise/backend/pi-agents/";
@@ -99,6 +101,16 @@ describe("图与实际编排代码不漂", () => {
       (n) => n.graphNode && !endpoints.has(n.id) && !assembled.has(n.id),
     ).map((n) => n.id);
     assert.deepEqual(extra, [], "图上画了一个编排里并不存在的节点");
+  });
+
+  it("`sideNodeOf` 的每个副 lane 节点，都在 SIDE_LANE_NODES 里，反之亦然（ACR-023）", () => {
+    const src = read(COMPOUND);
+    const from = src.indexOf("const SIDE_NODE");
+    assert.notEqual(from, -1, `没能在 ${COMPOUND} 里找到 SIDE_NODE`);
+    const body = src.slice(from, src.indexOf("};", from));
+    const names = [...body.matchAll(/"(side[A-Z][A-Za-z]*)"/g)].map((m) => m[1]);
+    assert.ok(names.length > 0, "没能从 SIDE_NODE 抽到任何副节点名——正则该跟着改动更新了");
+    assert.deepEqual([...new Set(names)].sort(), [...SIDE_LANE_NODES].sort(), "副 lane 节点漂了：图上画的与 compound.ts 注册的不是同一批");
   });
 
   it("`branchFor` 的每个去向，都在 BRANCH_NODES 里，反之亦然", () => {

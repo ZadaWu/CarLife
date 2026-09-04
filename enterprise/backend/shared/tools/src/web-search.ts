@@ -177,6 +177,13 @@ export async function callAnthropicWebSearch(
     body: JSON.stringify({
       model: cfg.model ?? "deepseek-v4-flash",
       max_tokens: opts.maxTokens ?? 4000,
+      /*
+       * 显式关思考（M70-01）：这个端点不带字段时**默认思考**（2026-09-04 实测返回块 `thinking, text`），
+       * 而这里的输出是给代码解析的。关掉后 `server_tool_use → web_search_tool_result → text` 照常。
+       * 字面量而不是 import agent-runtime 的策略表：依赖方向是 runtime → tools，
+       * runtime 的 `thinking-policy.test.ts` 会扫本文件核对这一行还在。
+       */
+      thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
       // ⚠️ 刻意不带 `allowed_domains`：DeepSeek 侧静默忽略它（见文件头第 3 条）。
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: opts.maxUses ?? 3 }],

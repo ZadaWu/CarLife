@@ -843,3 +843,16 @@ describe("下单：图直调必须自己过权限门", () => {
     assert.match(keys[0], /td-book-7.*s2_a/);
   });
 });
+
+/**
+ * 城市从副任务 goal 取（ACR-023 / M69-03）：副 lane 与主 lane 同 superstep 并行，看不到主任务写的 tripPlan，
+ * 地点只能来自意图层的 goal。取法仍经词表归一——不把 goal 整句当城市发给 repair_stations。
+ */
+describe("[F-11-07][AC-11-6] pickCityDistrict 对副任务 goal 的归一（M69-03）", () => {
+  it("「在杭州预约一次保养」→ 杭州", () => {
+    assert.equal(pickCityDistrict("在杭州预约一次保养").city, "杭州");
+  });
+  it("没有城市词的 goal → undefined（不把整句当城市）", () => {
+    assert.equal(pickCityDistrict("预约一次保养").city, undefined);
+  });
+});

@@ -303,3 +303,18 @@ describe("runRepairBooking：booking args 形状", () => {
     setMemberStores(undefined, undefined as never);
   });
 });
+
+/**
+ * goal 门（ACR-023 / M69-03）：副任务轮里原话是「顺路把保养做了，帮我安排」，过不了 BOOKING_RE；
+ * 意图层改写的 goal「在杭州预约一次保养」过得了。supervisor 的门改成"原话或 goal 任一命中"——
+ * 不是加正则，是让模型的改写结果也能当输入。
+ */
+describe("[F-20-12][AC-20-9] 副任务的 goal 也能过预约门（M69-03）", () => {
+  it("原话「顺路把保养做了，帮我安排」过不了字面门——这就是为什么要看 goal", () => {
+    assert.equal(repairBookingIntent("下周末带父母去杭州自驾，顺路把保养做了，帮我安排"), false);
+  });
+  it("意图层改写的规范说法过得了", () => {
+    assert.equal(repairBookingIntent("在杭州预约一次保养"), true);
+    assert.equal(repairBookingIntent("预约一次新车试驾"), false, "试驾不是维修预约");
+  });
+});

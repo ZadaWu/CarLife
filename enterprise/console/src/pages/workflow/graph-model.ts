@@ -154,6 +154,20 @@ export const BRANCH_NODES = [
   "answer",
 ] as const;
 
+/**
+ * 副 lane 节点（ACR-023 / M69-02）：`dispatch` 的条件边除了 `branchFor` 的主节点，还会按 `route.secondary`
+ * 并行派出这些——同一批节点函数经同一个 `lane()` 包装注册的第二份，与 `compound.ts` 的 `sideNodeOf` 一一对应。
+ * 单独列出来是为了让 `validateGraph()` 与 `graph-drift.test.ts` 能各守一头：
+ * 图上 `dispatch` 的去向 = 主节点 ∪ 副节点，且副节点名与 `compound.ts` 逐字相同。
+ */
+export const SIDE_LANE_NODES = [
+  "sideItineraryPlan",
+  "sideOwnershipDual",
+  "sideBuyingCatalog",
+  "sideTestDriveFlow",
+  "sideCabinCompanion",
+] as const;
+
 // ── 总链路（全量：主链路 + 旁路 + 两条跨链路，一个都不省）──────
 
 /**
@@ -453,6 +467,58 @@ export const WORKFLOW_NODES: readonly WorkflowNode[] = [
       "登记与按人调好宁可如实说「这次没处理成」，也不让正则猜一个动作去写用户家人的档案",
   },
   {
+    id: "sideItineraryPlan",
+    label: "副 lane · 行程规划\n（同一节点函数，lane(side)）",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/supervisor.ts lane(\"side\", …) + compound.ts runLane",
+    note:
+      "复合意图（ACR-023）：意图层给了 sideTasks 时，dispatch 把主分支节点与副 lane 节点**同 superstep 并行**派出。" +
+      "副 lane 与主 lane 同形态：进来只投影本 lane 的必要上下文（laneChannelsOf 白名单），出去只写 sideLanes[本节点名]，" +
+      "看不到主 lane 本轮的产出——地点等由意图层写进 goal。五个副节点是静态注册的，所以同一路由只能有一个副任务",
+  },
+  {
+    id: "sideOwnershipDual",
+    label: "副 lane · 用车 / 售后",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/supervisor.ts lane(\"side\", \"ownershipDual\", …)",
+    note: "「去杭州顺路保养」的那条：售后节点以副 lane 身份跑维修预约状态机，站与窗口经 sideResults 到应答；下单前的门与主 lane 共用",
+  },
+  {
+    id: "sideBuyingCatalog",
+    label: "副 lane · 购车",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/supervisor.ts lane(\"side\", \"buyingCatalog\", …)",
+  },
+  {
+    id: "sideTestDriveFlow",
+    label: "副 lane · 试驾预约",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/supervisor.ts lane(\"side\", \"testDriveFlow\", …)",
+    note: "购车主 lane 与试驾副 lane 共写 testDrivePlan 时，join 让主 lane 赢并把冲突键记进 trace",
+  },
+  {
+    id: "sideCabinCompanion",
+    label: "副 lane · 座舱",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/supervisor.ts lane(\"side\", \"cabinCompanion\", …)",
+  },
+  {
+    id: "join",
+    label: "汇合 join\n主原样 · 副改道 sideResults · 冲突主赢",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/compound.ts joinLanes（节点只写 trace）",
+    note:
+      "分叉—汇合总有一次汇合：每轮都跑，单路由时是透传（主 lane 的 patch 逐键原样落进图状态——单测钉住）。" +
+      "副 lane 的 agentResults 改道到 sideResults，solverDegraded / route / intent 丢弃，其余键只在本 lane 白名单内且主未写时应用；" +
+      "冲突主 lane 赢、副之间先序先写，冲突键进 merge trace",
+  },
+  {
     id: "answer",
     label: "应答\n（流式）",
     kind: "orchestration",
@@ -613,6 +679,16 @@ export const WORKFLOW_EDGES: readonly WorkflowEdge[] = [
   { from: "dispatch", to: "testDriveFlow", label: "试驾", conditional: true },
   { from: "dispatch", to: "cabinCompanion", label: "座舱", conditional: true },
   { from: "dispatch", to: "answer", label: "其余", conditional: true },
+  /*
+   * 分叉（ACR-023）：`dispatchTargets` 返回一组节点时 LangGraph 把它们放进同一个 superstep 并行执行——
+   * 主分支节点 + 按意图顺序的副 lane 节点。**画成并行边**是因为它们真的并行；**画成虚线**是因为只在
+   * 意图层给了 sideTasks 的轮次才发生。哪个副节点被派出取决于副任务的路由（与主节点同名的跳过）。
+   */
+  { from: "dispatch", to: "sideItineraryPlan", label: "副任务：出行（与主 lane 并行）", conditional: true, parallel: true },
+  { from: "dispatch", to: "sideOwnershipDual", label: "副任务：用车 / 售后", conditional: true, parallel: true },
+  { from: "dispatch", to: "sideBuyingCatalog", label: "副任务：购车", conditional: true, parallel: true },
+  { from: "dispatch", to: "sideTestDriveFlow", label: "副任务：试驾", conditional: true, parallel: true },
+  { from: "dispatch", to: "sideCabinCompanion", label: "副任务：座舱", conditional: true, parallel: true },
 
   // fan-out：各分支是独立的 session/prompt。**画成叶子是刻意的**——
   // 分支不自己往下走，结果由编排层汇聚回图状态（见 validateGraph 的叶子检查）。
@@ -642,14 +718,21 @@ export const WORKFLOW_EDGES: readonly WorkflowEdge[] = [
   { from: "testDriveFlow", to: "guard", label: "下单前，子图直调", conditional: true },
   { from: "ownershipDual", to: "guard", label: "售后留档前，子图直调", conditional: true },
 
-  // 汇聚：各分支把结果写回图状态，由 answer 统一表述。
-  // 后三条刻意不带标签：五条写同一句"汇聚回图状态"只会在 answer 左边叠成一团，
+  // 汇合（ACR-023）：每条 lane 把结果写进**自己的通道**（primaryLane / sideLanes[节点名]），
+  // 由 join 按固定规则汇进图状态，再由 answer 统一表述。
+  // 后三条刻意不带标签：五条写同一句"汇聚回图状态"只会在 join 左边叠成一团，
   // 而那句话前两条已经说清楚了——重复的标签不增加信息，只挡住别的边。
-  { from: "itineraryPlan", to: "answer", label: "代码汇聚后的求解结果" },
-  { from: "ownershipDual", to: "answer", label: "合成上下文回图状态" },
-  { from: "buyingCatalog", to: "answer" },
-  { from: "testDriveFlow", to: "answer" },
-  { from: "cabinCompanion", to: "answer" },
+  { from: "itineraryPlan", to: "join", label: "代码汇聚后的求解结果" },
+  { from: "ownershipDual", to: "join", label: "合成上下文回图状态" },
+  { from: "buyingCatalog", to: "join" },
+  { from: "testDriveFlow", to: "join" },
+  { from: "cabinCompanion", to: "join" },
+  { from: "sideItineraryPlan", to: "join", label: "写 sideLanes[节点名]" },
+  { from: "sideOwnershipDual", to: "join" },
+  { from: "sideBuyingCatalog", to: "join" },
+  { from: "sideTestDriveFlow", to: "join" },
+  { from: "sideCabinCompanion", to: "join" },
+  { from: "join", to: "answer", label: "主取 agentResults · 副取 sideResults（composeSolved）" },
 
   // 应答的两条出路。**这不是路由分支**，是同一个节点用哪种方式把话说出来。
   {
@@ -1241,18 +1324,31 @@ function structuralProblems(
 export function validateGraph(): string[] {
   const problems = structuralProblems(WORKFLOW_NODES, WORKFLOW_EDGES, "start");
 
-  // `dispatch` 的条件边必须覆盖 branchFor 的全部目标——漏一个等于图上没有这个 Agent。
+  // `dispatch` 的条件边必须覆盖 branchFor 的全部主目标 + compound.ts 的全部副 lane 节点——
+  // 漏一个等于图上没有这个 Agent（或这个 Agent 不能当副任务）。
   const dispatchTargets = new Set(
     WORKFLOW_EDGES.filter((e) => e.from === "dispatch").map((e) => e.to),
   );
   for (const b of BRANCH_NODES) {
     if (!dispatchTargets.has(b)) problems.push(`dispatch 缺少分支：${b}（见 route.ts branchFor）`);
   }
+  for (const b of SIDE_LANE_NODES) {
+    if (!dispatchTargets.has(b)) problems.push(`dispatch 缺少副 lane：${b}（见 compound.ts dispatchTargets）`);
+  }
   for (const t of dispatchTargets) {
-    if (!(BRANCH_NODES as readonly string[]).includes(t)) {
-      problems.push(`dispatch 多了一个 branchFor 里没有的分支：${t}`);
+    if (!(BRANCH_NODES as readonly string[]).includes(t) && !(SIDE_LANE_NODES as readonly string[]).includes(t)) {
+      problems.push(`dispatch 多了一个 branchFor / sideNodeOf 里都没有的分支：${t}`);
     }
   }
+  // 副 lane 的边必须标并行：它们与主分支节点同 superstep 执行，不标就把"真并行"画成了"又一条路由"。
+  for (const e of WORKFLOW_EDGES.filter((x) => x.from === "dispatch" && (SIDE_LANE_NODES as readonly string[]).includes(x.to))) {
+    if (!e.parallel) problems.push(`dispatch → ${e.to} 是并行派出的副 lane，必须标 parallel`);
+  }
+  // 每条 lane 都汇到 join，join 再到 answer——分叉—汇合的形状本身也要被守住。
+  for (const n of [...BRANCH_NODES.filter((b) => b !== "answer"), ...SIDE_LANE_NODES]) {
+    if (!WORKFLOW_EDGES.some((e) => e.from === n && e.to === "join")) problems.push(`lane 节点 ${n} 没有汇到 join`);
+  }
+  if (!WORKFLOW_EDGES.some((e) => e.from === "join" && e.to === "answer")) problems.push("join 没有接到 answer");
 
   /*
    * HTTP 触发的子图**从 START 不可达**，且它们的入口是图上唯一的第二个源头。

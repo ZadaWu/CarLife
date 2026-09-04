@@ -25,6 +25,7 @@
  * 本文件于是只剩**加载与规范名**两职：读盘、缓存、抛错语义、后缀家族。
  */
 
+import { piThinkingLevelFor, type ThinkingLevel } from "../llm/thinking-policy";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -86,26 +87,15 @@ export function canonicalAgent(agent: string): string {
  * 一个工具没调，到 60 秒汇聚超时都没吐出第一个 token。它的输出本来就只被
  * `parseTripDraft` 拿正则抠一个 JSON 出来——那 49.5 秒没有任何人看得到。
  */
-export type ThinkingLevel = "off" | "low" | "high";
+/** 档位类型与规则的真相源在 `llm/thinking-policy.ts`（M70-01）；这里只是 pi 侧的入口，保留旧名字给 connection.ts。 */
+export type { ThinkingLevel } from "../llm/thinking-policy";
 
 /**
- * 按会话名单独钉档位的例外表。**只放实测证明"改了会更快"的会话**——目前为空。
- *
- * 试过一次 `tour-task: "low"`（turn-c0ea193e，2026-09-03），动机是 off 档下模型把推演
- * 全写进可见正文（10 轮约 15000 字、117 s 到超时都没调 `submit_tour_days`）。
- * 结果 low 更糟：turn-8ddc78e7 同场景 7 轮输出 18459 token，其中推理 15194 token、
- * 思考块 46770 字，157 s 才提交——DeepSeek 上 low 没有把推演压短，只是把它从正文挪进
- * 思考块，token 烧了三倍。所以撤回到 off。正文过长的真因是 08-28 起 tour.md 让模型
- * 在正文里做体检/时间轴/住宿的取舍（同为两天行程，正文 1428 字→5731 字，12 s→42 s），
- * 要修的是提示词，不是档位。low 的管线（`.pi/agent/models.json`、`PI_CODING_AGENT_DIR`）
- * 留着，下次要用时不必重铺。
+ * pi 会话的思考档：`-task` / `-intent` 后缀 off，应答会话 high；例外表与 `CARLIFE_PI_ANSWER_THINKING`
+ * 对照实验开关都在 `piThinkingLevelFor`（thinking-policy.ts）。
  */
-const THINKING_LEVEL_OVERRIDES: Readonly<Record<string, ThinkingLevel>> = {};
-
 export function thinkingLevelFor(agent: string): ThinkingLevel {
-  const pinned = THINKING_LEVEL_OVERRIDES[agent];
-  if (pinned) return pinned;
-  return /-(task|intent)$/.test(agent) ? "off" : "high";
+  return piThinkingLevelFor(agent);
 }
 
 /**

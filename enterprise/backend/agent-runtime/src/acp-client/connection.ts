@@ -377,8 +377,8 @@ export class AcpClient {
     // 业务 prompt 不再前置到第一条消息——它已经在系统提示词里（M23-02，`connect()` 的
     // `CARLIFE_PI_APPEND_PROMPT`）。这里只剩回灌语义：新会话用图状态回灌一次历史。
     const primed = fresh ? primeWithHistory(args.messages) : currentUserText(args.messages);
-    const text = primed;
-    if (!text) return;
+    if (!primed) return;
+    const text = withDateline(primed);
 
     // 记的是**这一行真正发出去的 text**，不是入参 messages（TD-08）：
     // 新会话回灌历史、前置业务 prompt、稳态只取最后一条——三种形态差别很大，
@@ -712,6 +712,31 @@ function primeWithHistory(messages: ChatTurnMessage[]): string | undefined {
     "",
     `车主现在问：${current}`,
   ].join("\n");
+}
+
+/**
+ * 每次 `session/prompt` 前置一行「今天是几号」。
+ *
+ * 模型不知道今天的日期，而车主的话里全是相对日期（「下周末」「后天」「十七号」）。
+ * turn-45356a1a（2026-09-04）里车主说「下周末去杭州」，意图会话拿 `2027-04-17`、
+ * drive 分支拿 `2025-01-01` 去查天气，两次都在窗口判定上失败；drive 是从报错信息里
+ * 带的「至 2026-09-07」反推出今天，改成不传日期才查到。此前提示词里没有任何一处
+ * 给过当天日期——`elicitation/extract.ts` 有先例，但只在信息抽取那条路径上。
+ *
+ * **放在这里而不放系统提示词**：系统提示词在 pi 进程启动时一次拼死（`--append-system-prompt`），
+ * 进程跨过零点日期就错了；这一行按轮拼，跨零点自然对。
+ * 时区取北京时间，与天气/门店时段的口径一致（见 `weather.ts` 的 `today()`），
+ * 否则跨零点前后会差一天。
+ */
+export function dateline(now: number = Date.now()): string {
+  const bj = new Date(now + 8 * 3_600_000);
+  const ymd = bj.toISOString().slice(0, 10);
+  const weekday = "日一二三四五六"[bj.getUTCDay()];
+  return `【今天是 ${ymd}（周${weekday}），北京时间】`;
+}
+
+export function withDateline(text: string, now: number = Date.now()): string {
+  return `${dateline(now)}\n${text}`;
 }
 
 function sleep(ms: number) {
