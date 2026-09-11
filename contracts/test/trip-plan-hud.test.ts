@@ -380,3 +380,12 @@ test("推荐页不触发「每页最多 3 件」这条校验（它没有物品�
   };
   assert.deepEqual(validateHudSnapshot(snap), []);
 });
+
+test("出发段 leg：行程带着就投影到 HudSnapshot，不带就没有——不从 base 取、不编常数", () => {
+  const leg = { distanceKm: 599.9, durationMin: 414, road: { label: "高速", status: "畅通" as const }, computedAt: "2026-09-11T00:00:00Z" };
+  const withLeg = tripPlanToHud(plan({ leg }), "2026-08-12", BASE);
+  assert.deepEqual(withLeg?.leg, leg);
+  const without = tripPlanToHud(plan(), "2026-08-12", BASE);
+  assert.equal(without?.leg, undefined, "base 里没有出发段，也不该从 energy.distanceKm 拼一个出来");
+  assert.ok(!("leg" in (without ?? {})), "没有就整个不带这个键，端上按「暂无」渲染");
+});

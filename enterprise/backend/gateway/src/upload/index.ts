@@ -29,8 +29,8 @@ import type { ObjectStore } from "./storage";
 export { createObjectStore, type ObjectStore, type StorageConfig } from "./storage";
 export { checkUpload, newHandle, objectKeyFor, LIMITS, type AttachmentKind, type PolicyVerdict } from "./policy";
 
-/** 单次请求体上限：比最大的白名单项再宽一点，防止在读完之前就被截断。 */
-const BODY_LIMIT = 40 * 1024 * 1024;
+/** 单次请求体上限：比最大的白名单项（视频 64 MiB，M80-01）再宽一点，防止在读完之前就被截断。 */
+const BODY_LIMIT = 72 * 1024 * 1024;
 
 async function readBody(req: AuthedRequest): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -84,10 +84,10 @@ export function createUploadRouter(store: ObjectStore, repo: AttachmentRepositor
       return;
     }
 
-    const verdict = checkUpload(contentType, body.length);
+    // 魔数与声明一起判（M80-04）：相册给不出 MIME 的 HEIC 不该被当成"不支持的格式"拒掉。
+    const verdict = checkUpload(contentType, body.length, body);
     if (!verdict.ok) {
-      // 视频单独给 415 + 引导文案（约束 4）：用户会本能地拍视频，
-      // 回一句"格式不支持"他只会觉得 App 坏了。
+      // 拒绝一律带面向用户的 reason（F-09-10）：写的是"怎么办"，不是"什么错了"。
       res.status(verdict.code === "too_large" ? 413 : 415).json({
         error: verdict.code,
         reason: verdict.reason,
@@ -96,26 +96,28 @@ export function createUploadRouter(store: ObjectStore, repo: AttachmentRepositor
     }
 
     const kind = verdict.kind as AttachmentKind;
+    // 落库用**纠正后**的 MIME：回看渲染与"要不要为模型转码"都读这一列，认错了两处都跟着错。
+    const resolvedType = verdict.contentType ?? contentType.split(";")[0].trim().toLowerCase();
     const handle = newHandle();
     const objectKey = objectKeyFor(kind, handle);
 
     // 先落对象存储再写元数据：反过来的话，元数据存在而文件不在，
     // 用户会看到一个点开就 404 的附件——比"上传失败"更难排查。
-    await store.put(objectKey, body, contentType);
+    await store.put(objectKey, body, resolvedType);
     await repo.create({
       id: handle,
       sessionId,
       turnId: header(req, "x-turn-id"),
       userId,
       kind,
-      contentType: contentType.split(";")[0].trim(),
+      contentType: resolvedType,
       bytes: body.length,
       filename: decodeFilename(header(req, "x-filename")),
       objectKey,
       idempotencyKey,
     });
 
-    res.status(201).json({ handle, kind, bytes: body.length });
+    res.status(201).json({ handle, kind, bytes: body.length, contentType: resolvedType });
   });
 
   /**

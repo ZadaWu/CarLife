@@ -12,6 +12,7 @@
  */
 
 import type { PermissionRequest } from "@carlife/shared";
+import { AuditLists, AuditSummaryBar } from "@carlife/ui";
 import { parseConfirm, scopeLabel, type TransitOption } from "./parseConfirm";
 
 export interface ConfirmSheetProps {
@@ -36,6 +37,15 @@ function IconAction() {
       <rect x="3" y="4.5" width="18" height="16" rx="3" />
       <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
       <path d="M9 14.5l2.2 2.2 4.3-4.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconWarn() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3.5L21.5 20H2.5z" />
+      <path d="M12 9.5v5M12 17.2v.3" />
     </svg>
   );
 }
@@ -157,6 +167,9 @@ export function ConfirmSheet({ request, busy = false, notice, onDismissNotice, o
           )}
         </header>
 
+        {/* 体检摘要条（M77-04，Brief §3.2）：三个胶囊一行，3 秒读出"验了几项、几项要看、几项验不了"。 */}
+        {view.audit && <AuditSummaryBar summary={view.audit} />}
+
         <div className={`hitl-body${split ? " hitl-body--split" : ""}`}>
           {(view.days.length > 0 || view.rows.length > 0) && (
             <section className="hitl-plan">
@@ -164,7 +177,17 @@ export function ConfirmSheet({ request, busy = false, notice, onDismissNotice, o
                 <article className="hitl-day" key={d.day}>
                   <div className="hitl-day__badge">{d.day}</div>
                   <div className="hitl-day__main">
-                    {d.theme && <div className="hitl-day__theme">{d.theme}</div>}
+                    {d.theme && (
+                      <div className="hitl-day__theme">
+                        {d.theme}
+                        {/* 这一天有未消解项：三角徽标与「出发前请看」同色（Brief §3.3）。 */}
+                        {d.flags?.attention && (
+                          <span className="hitl-day__flag" title="这一天有未消解的体检项" aria-label="有未消解项">
+                            <IconWarn />
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {d.spots.length > 0 && (
                       <ul className="hitl-chips">
                         {d.spots.map((s, i) => (
@@ -193,12 +216,16 @@ export function ConfirmSheet({ request, busy = false, notice, onDismissNotice, o
                             {d.stay.estimated && <EstimateTag />}
                           </>
                         )}
+                        {/* 住宿是修复循环补的：用户看到的酒店是系统补的，不是他定的，这一点不能藏（Brief §2）。 */}
+                        {d.flags?.repaired && <span className="hitl-tag hitl-tag--ok">已自动补</span>}
                       </div>
                     )}
                   </div>
                 </article>
               ))}
 
+              {/* 「出发前请看」/「验不了」（M77-04，Brief §3.4 / §3.5）：跟着天序走，在明细之后、大交通之前。 */}
+              {view.audit && <AuditLists summary={view.audit} />}
               {/* 结构化不了的明细原样显示——版式退化好过内容失真。 */}
               {view.rows.map((d, i) => (
                 <div className="hitl-detail" key={i}>

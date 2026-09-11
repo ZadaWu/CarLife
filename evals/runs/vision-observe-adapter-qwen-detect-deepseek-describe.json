@@ -1,0 +1,1354 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-v4.1-flash-expires-on-0910",
+  "provider": "deepseek",
+  "at": "2026-09-09T13:25:03.861Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "87.5%",
+      "denom": "7/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "0",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.912",
+      "denom": "7 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "85.7%",
+      "denom": "6/7"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "85.7%",
+      "denom": "6/7",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "100.0%",
+      "denom": "7/7",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "85.7%",
+      "denom": "6/7"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "1.000",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "0.0%",
+      "denom": "0/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "14/14"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "7",
+      "denom": "21 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "5",
+      "denom": "13 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 7,
+      "matched": 7,
+      "wlTruth": 4,
+      "wlMatched": 4,
+      "extra": 0,
+      "ious": [
+        0.9666666666666667,
+        0.9523809523809523,
+        0.9411764705882353,
+        0.9302325581395349,
+        0.893042575285566,
+        0.8768115942028986,
+        0.8240963855421687
+      ],
+      "shape": {
+        "n": 7,
+        "agree": 6
+      },
+      "color": {
+        "n": 7,
+        "agree": 6
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 7,
+        "agree": 7
+      },
+      "colorCodeRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "state": {
+        "n": 7,
+        "agree": 6
+      },
+      "stateWarn": {
+        "n": 4,
+        "agree": 4
+      },
+      "text": {
+        "n": 4,
+        "hit": 4
+      },
+      "elementsJaccard": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 [left,right,top,bottom]",
+        "漏检：black car_outline -（component，bbox 468,452,508,565）",
+        "颜色不一致（battery/）：期望 gray，实际 green",
+        "形状不一致（warning_light）：期望 lamp，实际 other",
+        "状态不一致（black letter_only）：期望 lit，实际 unlit"
+      ]
+    },
+    {
+      "id": "neg-01",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 15,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-02",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-03",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 17,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 15,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 16,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 []，实际 [top,right]"
+      ]
+    },
+    {
+      "id": "neg-08",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 13,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-09",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-10",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-11",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 16,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-12",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 15,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-13",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 15,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-14",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：Bad control character in string literal in JSON at position 609 (line 31 column 7)",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：Bad control character in string literal in JSON at position 609 (line 31 column 7)"
+      ]
+    },
+    {
+      "id": "neg-15",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：Bad control character in string literal in JSON at position 619 (line 31 column 7)",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：Bad control character in string literal in JSON at position 619 (line 31 column 7)"
+      ]
+    },
+    {
+      "id": "neg-16",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"orange\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      12,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"orange\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      12,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "neg-17",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：Bad control character in string literal in JSON at position 614 (line 31 column 7)",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：Bad control character in string literal in JSON at position 614 (line 31 column 7)"
+      ]
+    },
+    {
+      "id": "neg-18",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      8,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      8,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "neg-19",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      7,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  },\n  {\n    \"received\": \"purple\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      10,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'purple'\"\n  },\n  {\n    \"received\": \"orange\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      12,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      7,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  },\n  {\n    \"received\": \"purple\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      10,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'purple'\"\n  },\n  {\n    \"received\": \"orange\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      12,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "neg-20",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      7,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      7,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]"
+      ]
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": 15535,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[\"left\",\"right\",\"top\",\"bottom\"],\"cutOffSource\":\"model\",\"item_count\":7,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[\"P\",\"R\",\"N\",\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 PRND\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[456,123,534,152],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"舒适\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 舒适\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[577,120,620,150],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"battery\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"60\",\"%\"],\"elements\":[\"plus\",\"minus\"],\"literal\":\"绿色 电池形 加减号 60%\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[642,123,772,152],\"colorByModel\":\"green\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 五条斜线\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[554,192,594,238],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[\"A\"],\"elements\":[\"straight_lines\"],\"literal\":\"灰色 圆环内字母A 左侧横线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"state\",\"elements_detail\"],\"bbox\":[554,280,594,322],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 两个D形 两侧直线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[554,362,598,395],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"diagonal_band\"],\"literal\":\"红色 人形 斜带\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[564,435,596,485],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":13455,\"describeMs\":2080,\"totalMs\":15535},\"notes\":[]}"
+    },
+    "neg-01": {
+      "ms": 26172,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":15,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"95\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字95 下方KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[156,108,203,167],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"103\",\"MAX\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 103 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\"],\"bbox\":[368,115,394,140],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 内 100\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[406,118,428,148],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[280,817,314,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[722,808,756,842],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"The Feel Good Static\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 读数\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\"],\"bbox\":[468,722,572,742],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Sky Radio DAB\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Sky Radio DAB\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[492,747,572,765],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 D\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[192,62,202,82],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"circle_ring\",\"straight_lines\"],\"literal\":\"灰色 圆形 环内横线\",\"confidence\":0.35,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"similar_symbols\"],\"bbox\":[208,62,220,82],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"rectangle\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 长方形 横条\",\"confidence\":0.3,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"text\",\"color\"],\"bbox\":[412,72,422,92],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 模糊\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"text\",\"color\",\"state\"],\"bbox\":[428,72,438,92],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 锁形\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[444,72,454,92],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"5\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 5\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[460,72,470,92],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"5:40\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 5:40\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[476,72,486,92],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"A28\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"红色 字母数字 A28 pm\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\"],\"bbox\":[492,72,502,92],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":22137,\"describeMs\":4035,\"totalMs\":26172},\"notes\":[\"item_count=14 与 items 长度 15 不一致（模型自检没过）\"]}"
+    },
+    "neg-02": {
+      "ms": 22535,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":12,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"89\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 89 KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[164,105,208,167],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"103\",\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字103 文字MAX\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[372,117,400,142],\"colorByModel\":\"gray\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[410,120,432,145],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"312\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 312 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[382,72,412,90],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"5:40\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 5:40 pm\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[468,72,502,90],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"6:01\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 6:01 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[452,192,478,208],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"21\",\"min\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字21 min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[492,192,512,208],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"24\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 24km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[528,192,546,208],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"85%\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 85%\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[572,220,592,235],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[282,817,318,847],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[722,817,758,847],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.75,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[174,817,202,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":19308,\"describeMs\":3227,\"totalMs\":22535},\"notes\":[]}"
+    },
+    "neg-03": {
+      "ms": 33661,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":17,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"102\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 102 与 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[168,102,230,164],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"103\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 103\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[372,114,392,138],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[372,142,392,162],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字100\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[410,114,428,142],\"colorByModel\":\"red\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"299\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 299km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[380,74,408,92],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5:49\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 5:49 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[464,74,498,92],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"20°C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 20°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[514,74,542,92],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"11\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 11 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[488,120,508,138],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"9\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字9\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[518,120,528,138],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Hilversum-Noord/Laren\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Hilversum-Noord/Laren\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[490,146,582,164],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"6:00\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 6:00 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[452,192,478,210],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"11\",\"min\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字11 min 文字\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[490,192,508,210],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"12\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字12 km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[528,192,546,210],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"85%\"],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 电池形 85%\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"elements_detail\"],\"bbox\":[458,214,552,232],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"85%\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 85%\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[578,214,596,232],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[282,814,318,848],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[722,814,758,848],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":28375,\"describeMs\":5286,\"totalMs\":33661},\"notes\":[\"item_count=15 与 items 长度 17 不一致（模型自检没过）\"]}"
+    },
+    "neg-04": {
+      "ms": 24003,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":12,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"86\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字86 下方KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[168,104,213,165],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"103\",\"MAX\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字103 下方MAX\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[375,117,402,142],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 内 100\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[412,120,432,145],\"colorByModel\":\"red\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[375,145,402,165],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5:49\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 5:49 pm\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[475,77,505,102],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"20\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 20°C\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[518,77,542,102],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"11\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字11 字母km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[492,120,507,138],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"9\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 9\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[520,120,530,138],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Hilversum-Noord/Laren\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Hilversum-Noord/Laren\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[492,142,582,165],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"6:00\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 6:00 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[455,192,482,210],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"11\",\"min\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字11 min 文字\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[495,192,512,210],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"12\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字12 km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[525,192,542,210],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":20663,\"describeMs\":3340,\"totalMs\":24003},\"notes\":[]}"
+    },
+    "neg-05": {
+      "ms": 26212,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":15,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"39\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字39 下方KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[172,109,223,175],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"53\",\"MAX\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字53 蓝色 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[386,124,412,152],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[386,152,412,172],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"50\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字50\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[422,124,448,159],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"128\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 128 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[402,80,432,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 挂锁形\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[472,80,522,102],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"17\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 17°C\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[532,80,552,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[282,809,322,852],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[178,812,202,849],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 弯折弧形\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[398,812,422,852],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"白色 圆点 外圈紫色环\",\"confidence\":0.3,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[442,812,466,852],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 三个圆点 横排\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[486,812,510,852],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 方形 白色小方框\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[512,812,536,852],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"rectangle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 圆角矩形 块\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"text\",\"color\"],\"bbox\":[462,617,532,662],\"colorByModel\":\"blue\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Cancel\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[552,627,592,657],\"colorByModel\":\"gray\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":22713,\"describeMs\":3499,\"totalMs\":26212},\"notes\":[\"item_count=14 与 items 长度 15 不一致（模型自检没过）\"]}"
+    },
+    "neg-06": {
+      "ms": 24442,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":14,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"89\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 89 与 KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[178,115,220,173],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"101\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 101\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[386,132,412,156],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[422,137,442,162],\"colorByModel\":\"red\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[386,156,412,173],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2.8\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 2.8\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\"],\"bbox\":[492,137,512,156],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2,8\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 2,8 km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[518,137,542,156],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"arrow_right\"],\"literal\":\"灰色 箭头 折线\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[492,162,568,180],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5\",\"pm\",\"5\",\"mi\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母数字 5pm 5mi\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\"],\"bbox\":[492,208,512,225],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"min\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 min\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[518,208,532,225],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5.3\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字字母 5.3km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[538,208,552,225],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 km\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[560,208,578,225],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 无可见形状\",\"confidence\":0.1,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[584,208,598,225],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Gemaal Veenpolder\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Gemaal Veenpolder\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[492,232,542,250],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母文字 Cancel\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[508,272,532,289],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":21090,\"describeMs\":3352,\"totalMs\":24442},\"notes\":[]}"
+    },
+    "neg-07": {
+      "ms": 32620,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[\"top\",\"right\"],\"cutOffSource\":\"model\",\"item_count\":16,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"45\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字45 下方KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[176,120,223,180],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"slash\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[176,175,202,190],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 80\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[388,132,407,155],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[388,155,407,170],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[420,132,440,155],\"colorByModel\":\"red\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"140\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字140km\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[392,88,417,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"灰色 锁形 圆环\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\"],\"bbox\":[458,88,467,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"3:52\",\"PM\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 3:52 PM\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[478,88,512,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"16°C\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 16°C\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[530,88,550,102],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2,0\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 2,0 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[502,132,532,147],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Haarlem-Noord\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Haarlem-Noord\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[502,150,567,165],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Haarlem-Noord\",\"Velserbroek\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 两行\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[502,165,567,180],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"4:03\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 4:03 pm\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[462,208,487,223],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"pm\",\"11\",\"mir\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母数字 读数\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\"],\"bbox\":[497,208,517,223],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"min\",\"8,1\",\"kn\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 min 8,1 kn\",\"confidence\":0.75,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\"],\"bbox\":[527,208,547,223],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[\"Indischestraat\",\"190\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 街道名与数字\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"state\"],\"bbox\":[462,228,512,243],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":29033,\"describeMs\":3587,\"totalMs\":32620},\"notes\":[\"item_count=15 与 items 长度 16 不一致（模型自检没过）\"]}"
+    },
+    "neg-08": {
+      "ms": 24935,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":13,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"58\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字58 下方KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[176,114,223,170],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"slash\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[176,170,202,184],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"3.0\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 3.0 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[282,134,312,149],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Leimuiderweg\"],\"elements\":[\"arrow_left\",\"straight_lines\"],\"literal\":\"黑色 左转箭头 文字\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[282,154,344,170],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字80\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[422,127,442,154],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字5\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[478,84,486,104],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"cross\"],\"literal\":\"黑色 交叉 两斜线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"state\",\"elements_detail\",\"color\"],\"bbox\":[482,210,502,234],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 方形 白色雪花状\",\"confidence\":0.55,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[462,234,478,260],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 C\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[462,374,478,400],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 斜线 局部\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\",\"state\"],\"bbox\":[462,324,478,350],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 方形底 白色折线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[522,824,542,850],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"circle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"wavy_lines\"],\"literal\":\"绿色 圆形 三条弧线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"],\"bbox\":[562,824,582,850],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 方形 白色小方块\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[602,824,622,850],\"colorByModel\":\"blue\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":21399,\"describeMs\":3536,\"totalMs\":24935},\"notes\":[\"item_count=12 与 items 长度 13 不一致（模型自检没过）\"]}"
+    },
+    "neg-09": {
+      "ms": 22258,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":12,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"1\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字1 下方KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[170,114,213,185],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2,9\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 2,9 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[262,134,312,152],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2,3\",\"km\",\"Leimuiderweg\"],\"elements\":[\"arrow_left\",\"straight_lines\"],\"literal\":\"灰色 箭头 文字 读数\",\"confidence\":0.72,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\"],\"bbox\":[285,154,347,172],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 内 数字80\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[422,127,447,157],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"component\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 锁形 轮廓\",\"confidence\":0.35,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[472,82,482,104],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"5:04\",\"p\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 5:04 p\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[482,82,502,104],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 折线 两段\",\"confidence\":0.3,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"elements_detail\",\"similar_symbols\",\"color\"],\"bbox\":[482,234,502,254],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"16°C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 16°C\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[522,82,542,104],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"16\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 16°C\",\"confidence\":0.95,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[532,82,552,104],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Bluetooth Settings\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Bluetooth Settings\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[627,214,712,234],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Add New Device\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Add New Device\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[502,292,567,312],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"+\"],\"elements\":[\"plus\"],\"literal\":\"黑色 十字 加号\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[582,289,607,314],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":19889,\"describeMs\":2369,\"totalMs\":22258},\"notes\":[]}"
+    },
+    "neg-10": {
+      "ms": 22431,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":12,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"28\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字28 下方KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[175,116,218,174],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"33\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 33\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[386,129,404,154],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字30\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[416,132,438,158],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[386,154,404,172],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"4:48\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字字母 4:48 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[488,89,528,109],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"17\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字17°C\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[532,89,550,109],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"130\",\"m\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 130 m\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[488,134,524,152],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_right\",\"straight_lines\"],\"literal\":\"黑色 折线 右向箭头\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[488,154,584,174],\"colorByModel\":\"black\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"500\",\"m\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 500 m\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[488,207,524,225],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"500 m\",\"Cruquiusweg\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 500 m Cruquiusweg\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[488,225,550,245],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"4:56\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 4:56 pm\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[458,280,492,298],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"8\",\"min\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字8 字母min\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[502,280,516,298],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":19655,\"describeMs\":2776,\"totalMs\":22431},\"notes\":[]}"
+    },
+    "neg-11": {
+      "ms": 34126,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":16,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"21\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字21 下方KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[172,118,214,176],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\"],\"bbox\":[172,176,214,193],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\",\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Manual 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[284,822,324,858],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[732,822,772,858],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 D\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[202,82,214,100],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"state\",\"color\"],\"bbox\":[302,82,332,100],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"131km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字字母 131km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[394,88,424,106],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"4:08\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 4:08 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[478,88,514,106],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"15\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 15°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[528,88,552,106],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"1km\"],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 数字1km\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"text\",\"elements_detail\"],\"bbox\":[418,92,448,112],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 锁形 实心\",\"confidence\":0.55,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[458,88,472,108],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[\"PASSENGER\",\"AIRBAG\"],\"elements\":[\"diagonal_band\",\"circle_ring\"],\"literal\":\"黑色 圆形 斜杠 文字\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[824,98,864,128],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字30\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[420,132,448,172],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[176,822,202,858],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"circle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"白色 圆点 外有圆环\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[432,822,458,858],\"colorByModel\":\"white\",\"colorByPixels\":\"green\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"rectangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"19\"],\"elements\":[\"none\"],\"literal\":\"白色 方形 数字19\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[556,822,582,858],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":30294,\"describeMs\":3832,\"totalMs\":34126},\"notes\":[\"item_count=15 与 items 长度 16 不一致（模型自检没过）\"]}"
+    },
+    "neg-12": {
+      "ms": 27836,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":15,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"18\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字18 下方KM/H\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[182,115,223,176],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"slash\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[182,176,212,190],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"132\",\"km\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 132 km\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[398,88,428,107],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"4:07\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 4:07 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[478,92,512,112],\"colorByModel\":\"gray\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"15\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 15°C\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[528,92,552,112],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 内黑色 30\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[422,132,448,168],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[\"PASSENGER\",\"AIRBAG\"],\"elements\":[\"diagonal_band\",\"circle_ring\"],\"literal\":\"黑色 圆圈 斜杠 文字\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[828,100,862,125],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"S\",\"SW\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 S SW\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[848,142,872,162],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[178,822,202,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\",\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[285,818,322,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\",\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[732,818,768,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 弯曲弧形\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[405,822,425,852],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"白色 圆形 亮点\",\"confidence\":0.3,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"color\"],\"bbox\":[442,822,462,852],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 三个圆点 横排\",\"confidence\":0.3,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"text\",\"color\"],\"bbox\":[478,822,498,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"rectangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"19\"],\"elements\":[\"none\"],\"literal\":\"白色 圆角矩形 数字19\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[558,822,578,852],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":24266,\"describeMs\":3570,\"totalMs\":27836},\"notes\":[\"item_count=14 与 items 长度 15 不一致（模型自检没过）\"]}"
+    },
+    "neg-13": {
+      "ms": 27673,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":15,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"23\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"白色 数字23 下方KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[179,115,223,178],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"slash\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[179,178,223,194],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"201km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 201km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[396,87,422,107],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"2:50\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 2:50 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[475,92,512,112],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"15\",\"°\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 15°C 文字\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[527,92,552,112],\"colorByModel\":\"black\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆环 数字30\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[422,132,447,167],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"unlit\",\"text\":[\"PASSENGER\",\"AIRBAG\"],\"elements\":[\"diagonal_band\",\"circle_ring\"],\"literal\":\"白色 圆形 斜杠 文字\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[827,102,872,127],\"colorByModel\":\"white\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形轮廓\",\"confidence\":0.75,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[177,822,202,852],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\",\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[285,822,322,857],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"text\",\"color\"],\"bbox\":[737,822,772,857],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 弯曲弧形\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[398,822,422,857],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"amber\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"紫色 圆形 亮斑\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":true,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[440,822,462,857],\"colorByModel\":\"unknown\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"unknown\"},{\"category\":\"readout\",\"shape\":\"rectangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"19\"],\"elements\":[\"none\"],\"literal\":\"白色 方形 数字19\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[555,822,577,857],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 折线 方块底\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[590,822,612,857],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 圆角方形 块\",\"confidence\":0.35,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\",\"text\",\"similar_symbols\",\"color\"],\"bbox\":[632,822,654,857],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":23687,\"describeMs\":3986,\"totalMs\":27673},\"notes\":[\"item_count=14 与 items 长度 15 不一致（模型自检没过）\"]}"
+    },
+    "neg-14": {
+      "ms": 35866,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":35866,\"describeMs\":0,\"totalMs\":35866},\"notes\":[\"检测失败：两次均不可解析：Bad control character in string literal in JSON at position 609 (line 31 column 7)\"]}"
+    },
+    "neg-15": {
+      "ms": 38929,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":38929,\"describeMs\":0,\"totalMs\":38929},\"notes\":[\"检测失败：两次均不可解析：Bad control character in string literal in JSON at position 619 (line 31 column 7)\"]}"
+    },
+    "neg-16": {
+      "ms": 48962,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":48962,\"describeMs\":0,\"totalMs\":48962},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"orange\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      12,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\\\"\\n  }\\n]\"]}"
+    },
+    "neg-17": {
+      "ms": 36672,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":36672,\"describeMs\":0,\"totalMs\":36672},\"notes\":[\"检测失败：两次均不可解析：Bad control character in string literal in JSON at position 614 (line 31 column 7)\"]}"
+    },
+    "neg-18": {
+      "ms": 36812,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":36812,\"describeMs\":0,\"totalMs\":36812},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      8,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  }\\n]\"]}"
+    },
+    "neg-19": {
+      "ms": 48267,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":48267,\"describeMs\":0,\"totalMs\":48267},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      7,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  },\\n  {\\n    \\\"received\\\": \\\"purple\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      10,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'purple'\\\"\\n  },\\n  {\\n    \\\"received\\\": \\\"orange\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      12,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'orange'\\\"\\n  }\\n]\"]}"
+    },
+    "neg-20": {
+      "ms": 41302,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-v4.1-flash-expires-on-0910\"},\"timings\":{\"detectMs\":41302,\"describeMs\":0,\"totalMs\":41302},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      7,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  }\\n]\"]}"
+    }
+  },
+  "latencyMs": [
+    15535,
+    26172,
+    22535,
+    33661,
+    24003,
+    26212,
+    24442,
+    32620,
+    24935,
+    22258,
+    22431,
+    34126,
+    27836,
+    27673,
+    35866,
+    38929,
+    48962,
+    36672,
+    36812,
+    48267,
+    41302
+  ],
+  "root": "<repo>/"
+}

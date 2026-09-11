@@ -53,6 +53,24 @@ export interface ChunkPrepOptions {
   minTokens?: number;
   /** 切开长节时的重叠比例（RAGFlow 给不了 overlap，在这里给）。 */
   overlapRatio?: number;
+  /**
+   * 图占位 `[[fig:键]]` → 图注（ACR-029）。有图注的占位换成一句「（图：图注原文）」并入所在切片，
+   * 没有的剥掉。不给这张表就全部剥掉——RAGFlow 只收文本，占位留着就是一行死代码。
+   */
+  figureCaptions?: Record<string, string>;
+}
+
+const FIG_LINE = /^[ \t]*\[\[fig:([0-9a-f]{8,64})\]\][ \t]*$/gm;
+
+/** 把段落里的图占位换成图注句或删掉。导出是为了单测。 */
+export function resolveFigurePlaceholders(text: string, captions: Record<string, string> = {}): string {
+  return text
+    .replace(FIG_LINE, (_m, key: string) => {
+      const cap = captions[key]?.trim();
+      return cap ? `（图：${cap}）` : "";
+    })
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 interface Block {
@@ -91,12 +109,12 @@ export function tableToText(html: string): string {
 const TABLE_FLATTEN_MAX_TOKENS = 160;
 
 /** 拆成块序列，`<table>` 整块保留。 */
-function toBlocks(md: string): Block[] {
+function toBlocks(md: string, figureCaptions?: Record<string, string>): Block[] {
   const out: Block[] = [];
   let last = 0;
   const push = (raw: string): void => {
     for (const para of raw.split(/\n{2,}/)) {
-      const t = para.trim();
+      const t = resolveFigurePlaceholders(para, figureCaptions);
       if (!t) continue;
       const h = HEADING.exec(t);
       if (h) {
@@ -178,7 +196,7 @@ export function prepareMarkdownForChunking(md: string, opts: ChunkPrepOptions): 
   const min = opts.minTokens ?? 120;
   const overlap = Math.round(target * (opts.overlapRatio ?? 0.15));
 
-  const blocks = toBlocks(md);
+  const blocks = toBlocks(md, opts.figureCaptions);
   const stack: string[] = [];
   const units: string[] = [];
 

@@ -25,3 +25,7 @@ export * from "./cabin-preference";
 export * from "./elicitation";
 // 定位授权与地图视图：两者刻意同文件，分界见 location.ts 文件头。
 export * from "./location";
+// 行程每日核查（M72-01）：核查结果的形状与"变没变"的判据，worker / 网关 / 端上共用一份。
+export * from "./trip-review";
+// 行程可执行性体检的结论形状、分级表与弹窗 details 的往返（M77-01，F-58-01）。
+export * from "./trip-audit";

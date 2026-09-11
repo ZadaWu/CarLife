@@ -164,6 +164,8 @@ const RULES: readonly Rule[] = [
     signals: [
       s(/(行程|路线|自驾|导航去|沿途|服务区|途经)/, 3, "行程规划词"),
       s(/(出发|几点走|返程|当天往返|过夜)/, 3, "出发/返程"),
+      // 车机端替车主发的两句固定开头（M72-05）：「调整行程 <id>：…」与「【行程提醒】…」。
+      s(/(^\s*调整行程\s|^\s*【行程提醒】)/, 3, "端上发来的调整/提醒"),
       // `去 + 地名` 只在**没有被后面的动词接管**时算数。
       // 「去做保养」「去修车」「去 4S 店」里的「去」是"前往办事"，不是目的地。
       // 这是走查里判错的那一条：一个 `去` 字曾经压过整句话的语义。
@@ -454,6 +456,44 @@ export interface RouteOptions {
    * 维修词，不粘会掉进 general，而选站选时段全靠它们。
    */
   hasActiveRepairBooking?: boolean;
+}
+
+/**
+ * 附了仪表照片的轮，路由的两道守卫（纯函数，`routeNode` 调）。
+ *
+ *  1. 落到 general → ownership（M71-04）：照片本身就是「我这车 X 正不正常」的证据，通用应答没有双路答不了。
+ *  2. 落到 service 且车主没在要修车 / 预约 / 留档 → ownership（M80-09）：
+ *     **指示灯的解释在车主手册，维修知识库里没有**。2026-09-10 两轮真跑（turn-0d9714f4 / turn-d2d04bcb）
+ *     都被意图层按「警示灯亮 → service」判走，去翻《保养手册》，翻出来的是胎压与座椅清洁。
+ *     文字轮的「警示灯亮了要紧吗」仍归 service——那条规则是给没有照片的症状描述定的，这里只管带照片的。
+ *
+ *  3. 读出了车机警报列表 → service（M80-10）：逐条代码的官方解释在维修知识库，见下。
+ *
+ * 视频不在这里：它没有「对上手册图标」这一说，M80-02 的 general → ownership 那条留在 routeNode。
+ */
+export function guardRouteForPhoto(
+  route: RouteDecision,
+  photo: { readable: boolean; symbols: number; alerts?: number } | undefined,
+  /** 车主这一轮是不是明确在要修车 / 预约 / 留档——是的话不动，售后那条链路要接着走。 */
+  wantsService: boolean,
+): RouteDecision {
+  if (!photo || !photo.readable) return route;
+  /*
+   * 警报页优先判（M80-10）：车机「警报」列表拍下来的那种照片，逐条代码的含义与措施在
+   * **官方警报代码表**里，而那份语料在维修知识库（`repair-kb`，与故障码表同类）。
+   * 这条排在图标那条之前——两者同时成立时（截图里既有仪表灯又弹了警报）以警报为准：
+   * 车主专门去点开警报页拍照，问的就是那几条，不是旁边亮着的近光灯。
+   */
+  if ((photo.alerts ?? 0) > 0 && route.agent !== "service") {
+    return { ...route, agent: "service", reason: `${route.reason}；照片是车机警报列表，代码表在维修知识库→售后双路（M80-10）` };
+  }
+  if (route.agent === "general") {
+    return { ...route, agent: "ownership", reason: `${route.reason}；附了仪表照片→用车双路（M71-04）` };
+  }
+  if (route.agent === "service" && photo.symbols > 0 && (photo.alerts ?? 0) === 0 && !wantsService) {
+    return { ...route, agent: "ownership", reason: `${route.reason}；照片认出仪表符号，解释在车主手册→用车双路（M80-09）` };
+  }
+  return route;
 }
 
 export function decideRoute(intent: Intent, userText: string, opts?: RouteOptions): RouteDecision {

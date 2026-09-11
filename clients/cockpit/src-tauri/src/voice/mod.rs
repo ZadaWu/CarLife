@@ -101,6 +101,28 @@ pub fn on_transcript(app: &AppHandle, text: &str, truncated: bool, duration_ms: 
             state.sidecar_on.fetch_add(1, Ordering::Relaxed);
             set_sidecar(app, true);
         }
+        /*
+         * 途中提醒的口令（施工单 M77-07，F-62-10 / F-62-12）。三者都是**端上设置动作**：
+         * 不成轮、不落库、不进 LLM——车主说「闭嘴」的时候再等一轮模型是同一个错误的延续。
+         */
+        WakeOutcome::Repeat => {
+            eprintln!("[sentinel] 语音口令：再说一遍（重播最近一句提醒）");
+            state.repeated.fetch_add(1, Ordering::Relaxed);
+            repeat_reminder(app);
+        }
+        WakeOutcome::Hush => {
+            eprintln!("[sentinel] 语音口令：闭嘴（停播 + 本段不再提醒）");
+            state.hushed.fetch_add(1, Ordering::Relaxed);
+            hush_reminders(app);
+        }
+        WakeOutcome::DensityDown => {
+            state.density_changed.fetch_add(1, Ordering::Relaxed);
+            step_density(app, false);
+        }
+        WakeOutcome::DensityUp => {
+            state.density_changed.fetch_add(1, Ordering::Relaxed);
+            step_density(app, true);
+        }
         WakeOutcome::Dismiss => {
             state.dismissed.fetch_add(1, Ordering::Relaxed);
             state.clear_windows();
@@ -244,6 +266,14 @@ pub fn on_transcript_during_tts(app: &AppHandle, text: &str, truncated: bool, du
         crate::interrupt::interrupt_assistant(app, crate::interrupt::InterruptSource::Voice);
         return;
     }
+    // 「闭嘴」也进窄通道（M77-07）：提醒正在播的时候说的，晚一步就没意义。
+    // 只停播、不取消轮——与打断的差别就在这一点。
+    if wake::is_hush(text) {
+        eprintln!("[sentinel] 播报期语音闭嘴");
+        state.hushed.fetch_add(1, Ordering::Relaxed);
+        hush_reminders(app);
+        return;
+    }
 
     // 丢弃纪律：只计数，文本到此为止（AC-52-5）。
     state.missed.fetch_add(1, Ordering::Relaxed);
@@ -356,6 +386,61 @@ fn set_sidecar(app: &AppHandle, on: bool) {
 /// 拨开关的回执。**短到一句**——车主刚说完"别废话了"，回一段话是同一个错误的延续。
 const SIDECAR_OFF_ACK: &str = "好，我少说点。";
 const SIDECAR_ON_ACK: &str = "好，路上我陪你聊。";
+
+// ── 途中提醒的口令承接（施工单 M77-07）────────────────────────────────
+
+/// 「再说一遍」：重播最近一句**提醒**。最近没提醒过就说一句，不静默——
+/// 静默会让人以为没听见然后反复说。**不重播对话回复**（`last_reminder_text` 只记提醒）。
+fn repeat_reminder(app: &AppHandle) {
+    let Some(tts) = app.try_state::<Arc<crate::tts::TtsState>>() else { return };
+    match tts.last_reminder_text() {
+        Some(text) => {
+            if !crate::tts::speak_reminder(app, &tts, &text) {
+                eprintln!("[sentinel] 重播被正文 / 总开关挡下");
+            }
+        }
+        None => crate::tts::speak(app, &tts, REPEAT_NONE_ACK),
+    }
+}
+
+/// 「闭嘴」：停掉正在播的（提醒多半正在播），再让前端把本段记成静默。
+/// **不出声回执**——车主要的就是安静。**不取消会话轮**（那是打断的事）。
+fn hush_reminders(app: &AppHandle) {
+    if let Some(tts) = app.try_state::<Arc<crate::tts::TtsState>>() {
+        crate::tts::stop(&tts);
+    }
+    use tauri::Emitter;
+    if let Err(e) = app.emit(crate::commands::reminders::EVENT_HUSHED, ()) {
+        eprintln!("[sentinel] en-route-hushed 事件发送失败：{e}");
+    }
+}
+
+/// 「少提醒点 / 多提醒点」：拨一档并回一句极短确认（照旁路开关的形态）。
+/// 已到顶 / 到底时也回一句，否则车主分不清"没听见"和"已经是最少了"。
+fn step_density(app: &AppHandle, up: bool) {
+    use crate::commands::reminders::{apply_en_route_density, current_density, Density};
+    let cur = current_density();
+    let next = if up { cur.higher() } else { cur.lower() };
+    let ack = match (next == cur, next) {
+        (true, Density::Low) => "已经是最少提醒了。",
+        (true, Density::High) => "已经是最多提醒了。",
+        (true, _) => "好。",
+        (false, Density::Low) => DENSITY_DOWN_ACK,
+        (false, Density::High) => DENSITY_UP_ACK,
+        (false, Density::Normal) => "好，提醒适中。",
+    };
+    if next != cur {
+        apply_en_route_density(app, next);
+    }
+    eprintln!("[sentinel] 语音口令：提醒密度 {} → {}", cur.as_str(), next.as_str());
+    if let Some(tts) = app.try_state::<Arc<crate::tts::TtsState>>() {
+        crate::tts::speak(app, &tts, ack);
+    }
+}
+
+const REPEAT_NONE_ACK: &str = "刚才没有提醒。";
+const DENSITY_DOWN_ACK: &str = "好，路上少提醒。";
+const DENSITY_UP_ACK: &str = "好，多提醒你。";
 
 /// 此刻要不要让服务端产垫场（施工单 M33-04）。
 ///

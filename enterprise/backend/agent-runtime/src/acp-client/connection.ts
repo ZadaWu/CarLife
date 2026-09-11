@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 
 import type { ChatStreamer, ChatStreamHooks, ChatTurnMessage } from "../llm";
+import { messageText } from "../llm";
 import { CancelledError } from "../trace";
 import { recordPrompt, recordSpan, span } from "../trace/span";
 import {
@@ -683,7 +684,8 @@ function currentUserText(messages: ChatTurnMessage[]): string | undefined {
   const parts = messages
     .slice(start)
     .filter((m) => m.role === "user")
-    .map((m) => m.content)
+    // 附件备注一并带上（M80-02）：pi 那条路看不到图片，至少要知道车主附了东西。
+    .map((m) => messageText(m))
     .filter((c) => c && c.trim().length > 0);
   return parts.length ? parts.join("\n\n") : undefined;
 }
@@ -704,7 +706,7 @@ function primeWithHistory(messages: ChatTurnMessage[]): string | undefined {
   if (prior.length === 0) return current;
 
   const transcript = prior
-    .map((m) => `${m.role === "user" ? "车主" : "助手"}：${m.content}`)
+    .map((m) => `${m.role === "user" ? "车主" : "助手"}：${messageText(m)}`)
     .join("\n");
   return [
     "以下是本次会话此前的对话记录（供你接上下文，不要复述）：",

@@ -50,6 +50,9 @@ function fullState(): State {
     testDrivePlan: { model: "Model Y", stores: [], slots: [], status: "choosing_store", at: 1 },
     repairBookingPlan: { items: "保养", stations: [], slots: [], status: "choosing_station", at: 1 },
     companionConstraints: [{ memberId: "m", displayName: "妈", constraint: "单段 90 分钟", source: "profile" }],
+    // M71-04：照片输入只归观察节点（任何 lane 都不该看到字节）；观察结果是共享上下文
+    photoInput: [{ handle: "att_1", contentType: "image/png", bytesBase64: "AAAA" }],
+    photoObservation: { handle: "att_1", unreadable: false, frame: { cut_off_sides: [], cutOffSource: "model", quality: {} }, items: [], notes: [], caveats: [], retakeHints: [], timings: { detectMs: 0, describeMs: 0, totalMs: 0 }, model: { detect: "fake", describe: "fake" } },
     primaryLane: { lane: "primary", node: "itineraryPlan", agent: "itinerary", status: "ok", patch: {}, startedAt: 1, endedAt: 2 },
     sideLanes: { sideOwnershipDual: { lane: "side", node: "ownershipDual", agent: "service", status: "ok", patch: {}, startedAt: 1, endedAt: 2 } },
     sideResults: { service: "旧副结果" },

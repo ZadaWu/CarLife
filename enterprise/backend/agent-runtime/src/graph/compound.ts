@@ -50,7 +50,7 @@ export type WorkNode = Exclude<BranchNode, "answer" | "tripFanout">;
  * 每条 lane 都看得到的上下文：原话、意图（含约束）、路由、风险裁决、本轮同行人约束。
  * 不在这里、也不在 `laneChannelsOf` 里的通道，投影时一律给默认值。
  */
-export const SHARED_CHANNELS = ["messages", "intent", "route", "risk", "companionConstraints"] as const satisfies readonly ChannelKey[];
+export const SHARED_CHANNELS = ["messages", "intent", "route", "risk", "companionConstraints", "photoObservation", "videoInput"] as const satisfies readonly ChannelKey[];
 
 /**
  * 分支节点拥有的通道（白名单）。**按各节点函数实际读到的 `state.*` 列**，不按"看起来相关"列：

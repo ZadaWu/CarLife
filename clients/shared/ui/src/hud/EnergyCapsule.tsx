@@ -8,7 +8,9 @@
  * Brief §4：不得展示 VIN、维修档案或任何车辆控制入口。
  */
 
-import type { EnergySummary, LiveEnergy } from "@carlife/shared";
+import type { EnergySummary, LiveEnergy, TripLeg } from "@carlife/shared";
+
+import { durationLabel } from "./StatusBar";
 
 // 契约在 `@carlife/shared`（端云唯一真相源）。这里只转出，方便既有的
 // `import { type EnergySummary } from "@carlife/ui"` 不必改。
@@ -16,6 +18,11 @@ export type { EnergySummary, LiveEnergy };
 
 export interface EnergyCapsuleProps {
   summary: EnergySummary;
+  /**
+   * 出发地 → 今天第一站的高德驾车规划（与车机屏底状态栏同一份数据，2026-09-11）。
+   * 「预计里程」「预计用时」两格只认它，缺席显示「暂无」——`summary.distanceKm` 是 mock 快照里的常数。
+   */
+  leg?: TripLeg;
   /** 数据是否正在更新（弱网降级：保留最近有效值 + 标记，不空白）。 */
   stale?: boolean;
   /** 最近一次有效更新时间，stale 时展示。 */
@@ -71,15 +78,18 @@ function LiveMetric({ summary }: { summary: EnergySummary }) {
         </svg>
       )}
       <span className="hud-energy__caption">{fuel ? "剩余油量" : charging ? "充电中" : "剩余电量"}</span>
-      <span className="hud-energy__value">{Math.round(percent)}</span>
-      <span className="hud-energy__unit">%</span>
+      <span className="hud-energy__figure">
+        <span className="hud-energy__value">{Math.round(percent)}</span>
+        <span className="hud-energy__unit">%</span>
+      </span>
       {/* 早返回已排除 unavailable，此处 live 必是 battery | fuel */}
       {live && <span className="hud-energy__range">≈{live.rangeKm} km</span>}
     </div>
   );
 }
 
-export function EnergyCapsule({ summary, stale, updatedAt }: EnergyCapsuleProps) {
+export function EnergyCapsule({ summary, leg, stale, updatedAt }: EnergyCapsuleProps) {
+  const road = leg?.road;
   return (
     <section
       className={`hud-card hud-energy${stale ? " is-stale" : ""}`}
@@ -104,9 +114,15 @@ export function EnergyCapsule({ summary, stale, updatedAt }: EnergyCapsuleProps)
             opacity="0.8"
           />
         </svg>
-        <span className="hud-energy__caption">预计</span>
-        <span className="hud-energy__value">{summary.distanceKm}</span>
-        <span className="hud-energy__unit">km</span>
+        <span className="hud-energy__caption">预计里程</span>
+        {leg ? (
+          <span className="hud-energy__figure">
+            <span className="hud-energy__value">{leg.distanceKm}</span>
+            <span className="hud-energy__unit">km</span>
+          </span>
+        ) : (
+          <span className="hud-energy__value hud-energy__value--none">暂无</span>
+        )}
       </div>
 
       <span className="hud-energy__sep" aria-hidden="true" />
@@ -115,13 +131,35 @@ export function EnergyCapsule({ summary, stale, updatedAt }: EnergyCapsuleProps)
 
       <span className="hud-energy__sep" aria-hidden="true" />
 
+      {/*
+        第三格从「预计需 N%」换成「预计用时」（2026-09-11，对齐车机状态栏）：
+        预计需电量在两端都没有数据源，那个 21% 是 mock 快照里的常数；用时是高德算的。
+        路况折进这一格的说明里（「高速 畅通」），手机的一条胶囊放不下第四格。
+        「拥堵」走红——红色纪律点名允许的两个判定之一；缓行走 warn。
+      */}
       <div className="hud-energy__metric">
         <svg className="hud-energy__glyph" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M13.5 2 4 13.6h6.2L9.6 22 20 9.9h-6.6z" fill="var(--hud-amber)" />
+          <circle cx="12" cy="12" r="9" fill="none" stroke="var(--hud-pin)" strokeWidth="2" />
+          <path d="M12 7v5l3.5 2" fill="none" stroke="var(--hud-pin)" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <span className="hud-energy__caption">预计需</span>
-        <span className="hud-energy__value">{summary.requiredPercent}</span>
-        <span className="hud-energy__unit">%</span>
+        <span className="hud-energy__caption">
+          预计用时
+          {road && (
+            <span
+              className={`hud-energy__road${road.status === "拥堵" ? " is-jam" : road.status === "缓行" ? " is-slow" : ""}`}
+            >
+              {" "}
+              · {road.label} {road.status}
+            </span>
+          )}
+        </span>
+        {leg ? (
+          <span className="hud-energy__figure">
+            <span className="hud-energy__value">{durationLabel(leg.durationMin)}</span>
+          </span>
+        ) : (
+          <span className="hud-energy__value hud-energy__value--none">暂无</span>
+        )}
       </div>
 
       {stale && (

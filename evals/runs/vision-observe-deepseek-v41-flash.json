@@ -1,0 +1,1580 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-v4.1-flash-expires-on-0910",
+  "provider": "deepseek",
+  "at": "2026-09-09T12:59:06.760Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "87.5%",
+      "denom": "7/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "5",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.643",
+      "denom": "7 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "85.7%",
+      "denom": "6/7"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "7/7",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "本档位不适用",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "本档位不适用"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "7/7"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "100.0%",
+      "denom": "3/3"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "1.000",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "0.0%",
+      "denom": "0/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "20/20"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "23"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "1",
+      "denom": "21 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "12",
+      "denom": "19 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 12,
+      "matched": 7,
+      "wlTruth": 4,
+      "wlMatched": 4,
+      "extra": 5,
+      "ious": [
+        0.7238095238095238,
+        0.6857142857142857,
+        0.6440092165898618,
+        0.6384180790960452,
+        0.629757785467128,
+        0.5993031358885017,
+        0.5784499054820416
+      ],
+      "shape": {
+        "n": 7,
+        "agree": 6
+      },
+      "color": {
+        "n": 7,
+        "agree": 7
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 7,
+        "agree": 7
+      },
+      "stateWarn": {
+        "n": 4,
+        "agree": 4
+      },
+      "text": {
+        "n": 3,
+        "hit": 3
+      },
+      "elementsJaccard": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 [left,right,bottom]",
+        "漏检：gray battery -（readout，bbox 642,122,772,152）",
+        "误检：「灰色 电池形 分格」（readout，bbox 640,120,700,155）",
+        "误检：「绿色 小方块形」（readout，bbox 700,120,730,155）",
+        "误检：「灰色 数字 60%」（readout，bbox 735,120,800,155）",
+        "误检：「灰色 字母 D」（readout，bbox 470,225,500,270）",
+        "误检：「灰色 字母 R」（readout，bbox 470,745,500,790）",
+        "形状不一致（readout）：期望 letter_only，实际 other"
+      ]
+    },
+    {
+      "id": "neg-01",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-02",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-03",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 24,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-08",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-09",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 22,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-10",
+      "negative": true,
+      "unparseable": "terminated",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：terminated"
+      ]
+    },
+    {
+      "id": "neg-11",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 24,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-12",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 22,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 2,
+      "reasons": [
+        "负样本报出 2 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-13",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-14",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 8,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[4].bbox 不是 0–1000 四元组",
+        "词表越界：items[5].bbox 不是 0–1000 四元组",
+        "词表越界：items[6].bbox 不是 0–1000 四元组",
+        "词表越界：items[7].bbox 不是 0–1000 四元组",
+        "词表越界：items[10].bbox 不是 0–1000 四元组",
+        "词表越界：items[11].bbox 不是 0–1000 四元组",
+        "词表越界：items[12].bbox 不是 0–1000 四元组",
+        "词表越界：items[13].bbox 不是 0–1000 四元组"
+      ]
+    },
+    {
+      "id": "neg-15",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[4].bbox 不是 0–1000 四元组",
+        "词表越界：items[5].bbox 不是 0–1000 四元组",
+        "词表越界：items[6].bbox 不是 0–1000 四元组",
+        "词表越界：items[7].bbox 不是 0–1000 四元组",
+        "词表越界：items[8].bbox 不是 0–1000 四元组",
+        "词表越界：items[13].bbox 不是 0–1000 四元组"
+      ]
+    },
+    {
+      "id": "neg-16",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 3,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[7].bbox 不是 0–1000 四元组",
+        "词表越界：items[8].bbox 不是 0–1000 四元组",
+        "词表越界：items[9].bbox 不是 0–1000 四元组"
+      ]
+    },
+    {
+      "id": "neg-17",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 5,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[4].bbox 不是 0–1000 四元组",
+        "词表越界：items[5].bbox 不是 0–1000 四元组",
+        "词表越界：items[6].bbox 不是 0–1000 四元组",
+        "词表越界：items[7].bbox 不是 0–1000 四元组",
+        "词表越界：items[8].bbox 不是 0–1000 四元组"
+      ]
+    },
+    {
+      "id": "neg-18",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 1,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[13].bbox 不是 0–1000 四元组"
+      ]
+    },
+    {
+      "id": "neg-19",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 1,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-20",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 1,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": 173,
+      "usage": {
+        "prompt_tokens": 1948,
+        "completion_tokens": 1011,
+        "total_tokens": 2959,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1948
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":true,\"occluded\":false},\"cut_off_sides\":[\"left\",\"right\",\"bottom\"],\"item_count\":12},\"items\":[{\"category\":\"readout\",\"bbox\":[455,120,545,155],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"P\",\"R\",\"N\",\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 PRND\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[575,120,625,155],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"舒适\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 舒适\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[640,120,700,155],\"shape\":\"battery\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 电池形 分格\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[700,120,730,155],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 小方块形\",\"confidence\":0.5,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"readout\",\"bbox\":[735,120,800,155],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"60\",\"%\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 60%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[470,225,500,270],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 D\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[555,190,600,245],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 斜线\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[555,275,600,330],\"shape\":\"lamp\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[\"A\"],\"elements\":[\"straight_lines\"],\"literal\":\"灰色 灯形 字母A 斜线\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[555,360,600,415],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 两侧斜线\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[555,440,600,495],\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"diagonal_band\"],\"literal\":\"红色 人形 斜带\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[470,440,520,570],\"shape\":\"car_outline\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 车形轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[470,745,500,790],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"R\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 R\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-01": {
+      "ms": 310,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1157,
+        "total_tokens": 3096,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[160,100,230,175],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"95\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 95\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[160,165,215,185],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[370,110,420,150],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"103\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 103\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[370,145,415,165],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[405,115,440,155],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[285,70,330,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,70,425,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"311km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 311km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,70,530,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"5:40\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 5:40pm\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[535,70,575,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"18°C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 18°C\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,830,320,870],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[720,830,760,870],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[175,830,205,865],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[400,830,430,865],\"shape\":\"circle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 圆形 图标\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[620,830,650,865],\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 蓝牙 符号\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-02": {
+      "ms": 240,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1162,
+        "total_tokens": 3101,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[168,100,215,160],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"89\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 89\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[168,160,215,180],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,110,420,150],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"103\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 103\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,150,420,170],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[410,115,445,155],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,70,420,90],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"312 km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 312 km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[285,70,330,90],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,70,200,90],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 D\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[285,820,330,860],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[715,820,760,860],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[545,820,575,850],\"shape\":\"rectangle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"28\"],\"elements\":[\"none\"],\"literal\":\"白色 方块 数字28\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,190,530,215],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"6:01 pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 6:01 pm\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[540,190,590,215],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"21 min\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 21 min\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[600,190,650,215],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"24 km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 24 km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-03": {
+      "ms": 558,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1985,
+        "total_tokens": 3924,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":24},\"items\":[{\"category\":\"readout\",\"bbox\":[170,60,240,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"102\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 102\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[170,160,240,180],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,115,425,150],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"103\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 103\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,150,425,170],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[410,115,440,155],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[290,65,340,85],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 CHILL\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[375,65,430,85],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"299\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 299km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[440,65,470,85],\"shape\":\"battery\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 电池形\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,65,530,85],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"5:49\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 5:49pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[540,65,590,85],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"20\",\"C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 20C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,120,530,140],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"11\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 11km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[540,120,560,140],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"9\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 9\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,140,620,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Hilversum-Noord/Laren\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 地名\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,185,540,205],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"6:00\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 6:00pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[545,185,590,205],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"11\",\"min\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 11min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[595,185,640,205],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"12\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 12km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,205,620,225],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Stichting\",\"Het\",\"Reclame...\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 地名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[625,205,660,225],\"shape\":\"battery\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"85%\"],\"elements\":[\"none\"],\"literal\":\"白色 电池形 85%\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,250,540,270],\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 Cancel\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[560,250,600,270],\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"...\"],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 三点\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,720,620,740],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"The\",\"Feel\",\"Good\",\"Static\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 歌名\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,740,620,760],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Sky\",\"Radio\",\"DAB\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 电台名\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,780,340,810],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[720,780,780,810],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.0\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-04": {
+      "ms": 331,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1223,
+        "total_tokens": 3162,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[170,100,230,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"86\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 86\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[170,160,230,180],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[380,110,430,150],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"103\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 103\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[380,150,430,170],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[410,115,445,155],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,70,360,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"300 km\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 300 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[460,70,520,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"5:49 pm\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 5:49 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[520,70,570,90],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"20°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 20°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,120,560,140],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"11 km\",\"9\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 11 km 9\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,140,620,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Hilversum-Noord/Laren\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Hilversum-Noord/Laren\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,180,620,200],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"6:00 pm\",\"11 min\",\"12 km\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 6:00 pm 11 min 12 km\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,200,620,220],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Stichting Het Reclame...\",\"85%\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Stichting Het Reclame 85%\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,240,540,260],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Cancel\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,700,620,720],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"The Feel Good Static\",\"Sky Radio DAB\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 The Feel Good Static Sky Radio DAB\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-05": {
+      "ms": 226,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1153,
+        "total_tokens": 3092,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":true},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[178,110,240,180],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"39\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 39\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[178,180,240,200],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[380,120,420,160],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"53\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 53\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[378,160,420,180],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[425,120,465,165],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"50\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字50\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,80,360,100],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[385,80,440,100],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"128\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 128 km\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[465,80,520,100],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"4:50\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 4:50 pm\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[525,80,570,100],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"17\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 17 C\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,800,340,850],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[180,790,220,830],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[400,790,440,830],\"shape\":\"circle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 圆形 图标\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[450,790,490,830],\"shape\":\"circle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 圆形 图标\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[500,790,540,830],\"shape\":\"circle\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 圆形 图标\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "neg-06": {
+      "ms": 302,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1160,
+        "total_tokens": 3099,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[180,120,250,190],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"89\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 89\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,185,250,205],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[385,125,435,165],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"101\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 101\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[385,160,435,185],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[425,130,465,175],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,90,455,110],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"155 km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 155 km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,90,350,110],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,90,225,110],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 D\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,90,540,110],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"3:30 pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 3:30 pm\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[545,90,590,110],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"15°C\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 15°C\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,830,330,880],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,810,330,830],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 Manual\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,830,780,880],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,810,780,830],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 Manual\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-07": {
+      "ms": 319,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1196,
+        "total_tokens": 3135,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[180,120,240,180],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"45\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 45\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,180,240,200],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[380,120,430,180],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 80\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[380,180,430,200],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"MAX\"],\"elements\":[\"none\"],\"literal\":\"蓝色 字母 MAX\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[420,120,460,180],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"100\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字100\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[400,80,470,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"140\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 140km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,80,360,110],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,80,560,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"3:52\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 3:52pm\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[560,80,620,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"16\",\"C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 16C\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,120,560,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2,0\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2,0km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,160,620,200],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Haarlem-Noord\",\"Velserbroek\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 地名\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,200,620,240],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"4:03\",\"pm\",\"11\",\"min\",\"8,1\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 时间距离\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,240,620,280],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Indischestraat\",\"190\",\"39%\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 地址电量\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,280,560,320],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 Cancel\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-08": {
+      "ms": 258,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1197,
+        "total_tokens": 3136,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[178,110,240,175],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"58\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 58\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[178,168,240,190],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[196,70,215,95],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 D\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,70,345,95],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,70,440,95],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"118\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 118 km\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,125,330,150],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"3,0\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 3,0 km\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,150,375,175],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Leimuiderweg\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 Leimuiderweg\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[420,120,460,165],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字 80\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,70,560,95],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"5:03\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 5:03 pm\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[575,70,620,95],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"16\",\"C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 16 C\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[630,200,720,225],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Bluetooth\",\"Settings\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 Bluetooth Settings\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,280,620,305],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Add\",\"New\",\"Device\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 Add New Device\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,355,620,380],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"A52s\",\"van\",\"Jasmijn\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 A52s van Jasmijn\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,420,620,445],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"A32\",\"van\",\"Bart\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 A32 van Bart\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-09": {
+      "ms": 296,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1753,
+        "total_tokens": 3692,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":22},\"items\":[{\"category\":\"readout\",\"bbox\":[200,70,225,100],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 D\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,70,345,100],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 CHILL\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,70,445,100],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"118\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 118 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[185,120,215,175],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"1\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 1\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,165,220,185],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 KM/H\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[255,130,285,165],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_left\"],\"literal\":\"白色 箭头 左转\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[290,130,330,150],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2,9\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2,9 km\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[290,150,360,170],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Leimuiderweg\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Leimuiderweg\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[420,125,455,165],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"80\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字 80\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[300,310,320,340],\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 车形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[225,510,275,580],\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 车形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[290,520,330,590],\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 车形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[190,620,250,720],\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 车形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[285,800,320,820],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[285,820,330,860],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[735,800,770,820],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[735,820,780,860],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[180,820,210,860],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[405,820,435,860],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 电话形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[525,820,555,860],\"shape\":\"other\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝色 蓝牙形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[560,820,590,860],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 圆形\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[840,820,870,860],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"cross\"],\"literal\":\"白色 喇叭形 叉\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-10": {
+      "ms": null,
+      "text": ""
+    },
+    "neg-11": {
+      "ms": 6298,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 2004,
+        "total_tokens": 3943,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":24},\"items\":[{\"category\":\"readout\",\"bbox\":[180,120,240,180],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 D\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[295,90,345,110],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 CHILL\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,90,440,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"131\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 131km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,130,240,180],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"21\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 21 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[420,130,460,175],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字30\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,90,530,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"4:08\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"白色 时间 4:08pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[540,90,580,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"15\",\"C\"],\"elements\":[\"none\"],\"literal\":\"白色 温度 15C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,140,560,160],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"150\",\"m\",\"Schoterweg\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 150m Schoterweg\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,210,560,230],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"200\",\"m\",\"Kleverlaan\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 200m Kleverlaan\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,270,540,290],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"4:31\",\"pm\",\"23\",\"min\",\"11\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 时间距离\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,295,540,315],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Spieringweg\",\"35%\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 35%\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,340,550,360],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Cancel\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[620,360,700,385],\"shape\":\"rectangle\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"Schoterweg\"],\"elements\":[\"none\"],\"literal\":\"蓝色 矩形 文字\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[620,670,700,690],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Dr.\",\"Leidsstraat\",\"Haarlem\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 街道名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[460,740,480,760],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"DAB\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 DAB\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,740,650,760],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"The\",\"Feel\",\"Good\",\"Static\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 曲名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,765,620,785],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Sky\",\"Radio\",\"DAB\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 电台名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,810,320,830],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,830,330,870],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,810,780,830],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,830,780,870],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[180,830,210,870],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 图标\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[400,830,430,870],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 电话 图标\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[820,830,850,870],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 喇叭 图标\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-12": {
+      "ms": 328,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1828,
+        "total_tokens": 3767,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":22},\"items\":[{\"category\":\"readout\",\"bbox\":[185,120,240,180],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"18\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 18\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[185,180,240,200],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,85,225,105],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 D\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,85,345,105],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 CHILL\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,85,450,105],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"132\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 132 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[425,125,460,165],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字30\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[490,85,530,105],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"4:07\",\"pm\"],\"elements\":[\"none\"],\"literal\":\"黑色 时间 4:07 pm\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[540,85,580,105],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"15\",\"C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 15 C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[830,100,880,130],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[\"PASSENGER\",\"AIRBAG\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 乘客气囊\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"readout\",\"bbox\":[860,140,890,170],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"S\",\"SW\"],\"elements\":[\"none\"],\"literal\":\"黑色 字母 S SW\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,140,540,160],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"40\",\"m\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 40 m\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[470,140,500,170],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_left\"],\"literal\":\"黑色 左转箭头\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[620,450,700,480],\"shape\":\"rectangle\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"Soendastraat\"],\"elements\":[\"none\"],\"literal\":\"蓝色 矩形 街道名\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[660,510,680,540],\"shape\":\"other\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 箭头 位置标记\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[460,590,560,610],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"Dr.\",\"Leijdstraat\",\"83\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 地址\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[470,630,560,660],\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 按钮 Cancel\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[700,670,800,690],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"Lombokstraat\",\"Haarlem\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 街道名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,730,700,760],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"The\",\"Feel\",\"Good\",\"Static\",\"Sky\",\"Radio\",\"DAB\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 电台名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,790,340,830],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,770,340,790],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,790,790,830],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,770,790,790],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"Manual\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 Manual\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-13": {
+      "ms": 325,
+      "usage": {
+        "prompt_tokens": 1939,
+        "completion_tokens": 1208,
+        "total_tokens": 3147,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1171
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[180,120,240,180],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"D\"],\"elements\":[\"none\"],\"literal\":\"白色 字母 D\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,90,350,110],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"CHILL\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 CHILL\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[395,90,455,110],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"201km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 201km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,125,240,180],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"23\",\"KM/H\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 23 KM/H\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[420,130,460,175],\"shape\":\"circle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"30\"],\"elements\":[\"circle_ring\"],\"literal\":\"红色 圆圈 数字30\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,90,540,110],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2:50 pm\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 2:50 pm\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[545,90,590,110],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"15°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 15°C\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,140,560,165],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"30 m\",\"Olympiastraat\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 30m 街道名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,210,560,235],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"200 m\",\"Flevostraat\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 200m 街道名\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[480,270,560,300],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"3:13 pm\",\"23 min\",\"20 km\",\"Westdijk\",\"53%\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 时间 距离 电量\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,330,560,355],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Cancel\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Cancel\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[500,730,620,760],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"The Feel Good Static\",\"Sky Radio DAB\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 电台名\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,800,340,850],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"Manual\",\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 Manual 17.5\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[730,800,790,850],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"17.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 17.5\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-14": {
+      "ms": 298,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 1289,
+        "total_tokens": 3205,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[140,880,215,905],\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"528\",\"km\"],\"elements\":[\"none\"],\"literal\":\"绿色 数字 528km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[455,880,510,905],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"36\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 36km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[700,880,790,905],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"4\",\"h\",\"30\",\"min\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 4h30min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[930,880,985,905],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"21\",\"%\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 21%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1240,880,1330,905],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1240,905,1330,930],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"24\",\"°C\",\"/\",\"31\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 24/31°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,20,1560,45],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1580,20,1740,45],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"9\",\"月\",\"3\",\"日\",\"周\",\"四\",\"14\",\":\",\"26\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 日期时间\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[140,120,600,160],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"DAY\",\"2\",\"·\",\"杭\",\"州\",\"西\",\"湖\",\"文\",\"化\",\"之\",\"旅\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 标题\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[140,165,600,195],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"约\",\"36\",\"km\",\"约\",\"4\",\"h\",\"30\",\"min\",\"6\",\"个\",\"景\",\"点\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 行程信息\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,220,1560,250],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"DAY\",\"2\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 DAY2\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,280,1560,310],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"杭\",\"州\",\"西\",\"湖\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 杭州西湖\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,400,1560,430],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"吃\",\"什\",\"么\",\"·\",\"FOOD\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 吃什么FOOD\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,400,1560,430],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"怎\",\"么\",\"拍\",\"·\",\"PHOTO\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 怎么拍PHOTO\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-15": {
+      "ms": 532,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 1210,
+        "total_tokens": 3126,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[243,880,318,905],\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"528\",\"km\"],\"elements\":[\"none\"],\"literal\":\"绿色 文字 528km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[470,880,520,905],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"36\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 36km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[700,880,775,905],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"4\",\"h\",\"30\",\"min\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 4h30min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[905,880,950,905],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"21\",\"%\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 21%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1245,880,1300,905],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1245,905,1330,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"24\",\"°C\",\"/\",\"31\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 24/31°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1420,10,1500,35],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1520,10,1660,35],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"9\",\"月\",\"3\",\"日\",\"周\",\"四\",\"14\",\":\",\"26\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 日期时间\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1330,700,1370,730],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2\",\"/\",\"2\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 2/2\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[30,880,215,955],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[420,880,455,910],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 定位 标记\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[650,880,685,910],\"shape\":\"circle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"白色 圆形 时钟\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[855,880,890,910],\"shape\":\"other\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"橙色 闪电 形状\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[1195,880,1240,910],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 云朵 太阳\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "neg-16": {
+      "ms": 324,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 1223,
+        "total_tokens": 3139,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[205,265,300,310],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"800\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 800\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,265,340,310],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"米\"],\"elements\":[\"none\"],\"literal\":\"黑色 汉字 米\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,315,340,350],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"右转进入\",\"南山路\"],\"elements\":[\"none\"],\"literal\":\"黑色 汉字 右转进入南山路\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,355,340,385],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"沿西湖湖滨景区行驶\"],\"elements\":[\"none\"],\"literal\":\"灰色 汉字 沿西湖湖滨景区行驶\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,395,290,425],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"剩余\",\"3.2\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 剩余3.2km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[300,395,390,425],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"预计\",\"13\",\"min\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 预计13min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[400,395,490,425],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"预计\",\"14:39\",\"到达\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 预计14:39到达\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1130,300,1230,340],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"3.2\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 3.2km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1330,300,1420,340],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"13\",\"min\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 13min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1500,300,1590,340],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"14:39\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 14:39\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[205,880,300,910],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"续航\",\"528\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 续航528km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[400,880,490,910],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"3.2\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 3.2km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[600,880,690,910],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"13\",\"min\"],\"elements\":[\"none\"],\"literal\":\"黑色 文字 13min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[800,880,860,910],\"shape\":\"letter_only\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"2\",\"%\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 2%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-17": {
+      "ms": 100,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 1206,
+        "total_tokens": 3122,
+        "prompt_tokens_details": {
+          "cached_tokens": 1664
+        },
+        "prompt_cache_hit_tokens": 1664,
+        "prompt_cache_miss_tokens": 252
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[140,880,240,930],\"shape\":\"rectangle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"528\",\"km\"],\"elements\":[\"none\"],\"literal\":\"绿色 条块 数字 528km\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[430,880,500,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"36\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 36km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[600,880,700,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"4\",\"h\",\"30\",\"min\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 4h30min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[790,880,860,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"21\",\"%\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 21%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1180,880,1300,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1180,930,1300,970],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"24\",\"°C\",\"/\",\"31\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 24/31°C\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1400,20,1560,60],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"28\",\"°C\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 28°C\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1580,20,1700,60],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"9\",\"月\",\"3\",\"日\",\"周\",\"四\",\"14\",\":\",\"26\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 日期时间\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1330,700,1400,740],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2\",\"/\",\"2\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2/2\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[60,120,120,180],\"shape\":\"other\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"橙色 方块 图标\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[60,220,120,280],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 图标 地图\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[60,320,120,380],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 图标 定位\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[60,420,120,480],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 图标 充电\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[60,520,120,580],\"shape\":\"other\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 图标 车辆\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "neg-18": {
+      "ms": 316,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 1237,
+        "total_tokens": 3153,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[222,10,300,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"导航\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 导航\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[330,10,420,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"行程规划\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 行程规划\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[450,10,540,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"车辆控制\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 车辆控制\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[570,10,660,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"影音娱乐\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 影音娱乐\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[690,10,740,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"设置\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 设置\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[790,10,900,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"杭州市\",\"28°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 杭州市 28°C\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[920,10,990,40],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"9月3日\",\"周四\",\"14:26\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 日期时间\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[200,850,300,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"我的座驾\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 我的座驾\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[200,900,300,930],\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"续航\",\"528 km\"],\"elements\":[\"none\"],\"literal\":\"绿色 文字 续航 528 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[400,850,500,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"预计里程\",\"36 km\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 预计里程 36 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[550,850,650,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"预计用时\",\"4 h 30 min\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 预计用时 4 h 30 min\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[700,850,800,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"预计电量消耗\",\"21 %\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 预计电量消耗 21 %\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[850,850,950,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"道路情况\",\"城市道路\",\"畅通\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 道路情况 城市道路 畅通\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[1000,850,1100,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"杭州市·多云\",\"28°C\",\"24°C / 31°C\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 天气温度\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "neg-19": {
+      "ms": 314,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 125,
+        "total_tokens": 2041,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":1},\"items\":[{\"category\":\"other\",\"bbox\":[0,0,1000,1000],\"shape\":\"other\",\"color\":\"white\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 界面 地图\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "neg-20": {
+      "ms": 343,
+      "usage": {
+        "prompt_tokens": 1916,
+        "completion_tokens": 135,
+        "total_tokens": 2051,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1148
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":1},\"items\":[{\"category\":\"other\",\"bbox\":[0,0,1000,1000],\"shape\":\"other\",\"color\":\"unknown\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"地图界面 风景插画\",\"confidence\":0.2,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"color\",\"state\",\"elements_detail\",\"text\"]}]}"
+    }
+  },
+  "latencyMs": [
+    173,
+    310,
+    240,
+    558,
+    331,
+    226,
+    302,
+    319,
+    258,
+    296,
+    6298,
+    328,
+    325,
+    298,
+    532,
+    324,
+    100,
+    316,
+    314,
+    343
+  ],
+  "root": "<repo>/"
+}

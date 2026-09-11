@@ -96,7 +96,20 @@ describe("查询串拼装", () => {
     assert.equal(q.get("title"), "保养");
   });
 
-  it("hasFilters：任一条填了就算", () => {
+  /*
+   * 空白对话的开关（用户 2026-09-11：空白对话只在管理端露面，且要能过滤掉）。
+   * 只在"开"的时候进 URL——接口只认 "1"/"true"，传个 `nonEmpty=0` 过去
+   * 既不生效又让人以为筛过了。
+   */
+  it("nonEmpty：开了才进 URL，关着一个字都不传", () => {
+    assert.equal(sessionQuery({ nonEmpty: true }).get("nonEmpty"), "1");
+    assert.equal(sessionQuery({ nonEmpty: false }).get("nonEmpty"), null);
+    assert.equal(sessionQuery({}).get("nonEmpty"), null);
+  });
+
+  it("hasFilters：任一条填了就算（勾上 nonEmpty 也算——否则「清空」按钮不出来）", () => {
+    assert.equal(hasFilters({ nonEmpty: true }), true);
+    assert.equal(hasFilters({ nonEmpty: false }), false);
     assert.equal(hasFilters({}), false);
     assert.equal(hasFilters({ since: "2026-08-01" }), true);
     assert.equal(hasFilters({ title: "x" }), true);

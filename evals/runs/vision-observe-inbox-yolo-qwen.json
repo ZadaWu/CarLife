@@ -1,0 +1,558 @@
+{
+  "suite": "vision-observe",
+  "model": "qwen3-vl-plus",
+  "provider": "dashscope",
+  "at": "2026-09-10T15:43:59.266Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "26.7%",
+      "denom": "4/15",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "30.8%",
+      "denom": "4/13"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "1",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.730",
+      "denom": "4 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "75.0%",
+      "denom": "3/4"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "0.833",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "33.3%",
+      "denom": "1/3"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "7/7"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "7 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "0",
+      "denom": "4 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "inbox-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 5,
+      "predCount": 1,
+      "matched": 1,
+      "wlTruth": 3,
+      "wlMatched": 1,
+      "extra": 0,
+      "ious": [
+        0.7106557377049181
+      ],
+      "shape": {
+        "n": 1,
+        "agree": 1
+      },
+      "color": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 1,
+        "agree": 1
+      },
+      "stateWarn": {
+        "n": 1,
+        "agree": 1
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [
+        1
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [top,right]，实际 []",
+        "漏检：green letter_only -（readout，bbox 66,24,173,52）",
+        "漏检：green battery -（readout，bbox 764,4,806,36）",
+        "漏检：green lamp straight_lines（warning_light，bbox 136,324,197,356）",
+        "漏检：amber triangle exclamation（warning_light，bbox 255,933,304,968）"
+      ]
+    },
+    {
+      "id": "inbox-02",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 3,
+      "predCount": 2,
+      "matched": 2,
+      "wlTruth": 3,
+      "wlMatched": 2,
+      "extra": 0,
+      "ious": [
+        0.806282722513089,
+        0.5764192139737991
+      ],
+      "shape": {
+        "n": 2,
+        "agree": 1
+      },
+      "color": {
+        "n": 2,
+        "agree": 2
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 2,
+        "agree": 2
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 2,
+        "agree": 2
+      },
+      "stateWarn": {
+        "n": 2,
+        "agree": 2
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [
+        1,
+        0.3333333333333333
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 []",
+        "漏检：red car_outline exclamation（warning_light，bbox 291,763,323,787）",
+        "形状不一致（warning_light）：期望 lamp，实际 letter_only",
+        "元素不一致（green lamp）：期望 [straight_lines]，实际 [straight_lines,arrow_left,arrow_right]，Jaccard 0.33"
+      ]
+    },
+    {
+      "id": "inbox-03",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 7,
+      "predCount": 2,
+      "matched": 1,
+      "wlTruth": 7,
+      "wlMatched": 1,
+      "extra": 1,
+      "ious": [
+        0.8260869565217391
+      ],
+      "shape": {
+        "n": 1,
+        "agree": 1
+      },
+      "color": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCodeRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "state": {
+        "n": 1,
+        "agree": 1
+      },
+      "stateWarn": {
+        "n": 1,
+        "agree": 1
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [
+        1
+      ],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "漏检：green lamp straight_lines（warning_light，bbox 62,317,89,329）",
+        "漏检：green lamp straight_lines（warning_light，bbox 62,346,90,354）",
+        "漏检：green other arrow_left（warning_light，bbox 225,358,248,372）",
+        "漏检：green other arrow_right（warning_light，bbox 298,358,320,372）",
+        "漏检：white triangle exclamation（warning_light，bbox 555,523,575,536）",
+        "漏检：red triangle exclamation（warning_light，bbox 312,720,331,732）",
+        "误检：「红色 三角形 带感叹号」（warning_light，bbox 982,393,1000,409）"
+      ]
+    },
+    {
+      "id": "inbox-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "inbox-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 2,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "inbox-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "inbox-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    }
+  ],
+  "raw": {
+    "inbox-01": {
+      "ms": 3403,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":1,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 左侧四条竖直线\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[134,254,185,288],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":173,\"describeMs\":3230,\"totalMs\":3403},\"notes\":[]}"
+    },
+    "inbox-02": {
+      "ms": 3769,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":2,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"D\",\"O\"],\"elements\":[\"straight_lines\",\"arrow_left\",\"arrow_right\"],\"literal\":\"绿色 字母DO 两侧有直线与左右箭头\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"],\"bbox\":[63,72,113,89],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 左侧三竖线\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"state\",\"elements_detail\"],\"bbox\":[64,23,110,47],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":79,\"describeMs\":3690,\"totalMs\":3769},\"notes\":[]}"
+    },
+    "inbox-03": {
+      "ms": 3869,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":2,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"diagonal_band\"],\"literal\":\"红色 人形 带斜杠\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[64,365,87,383],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角形 带感叹号\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"],\"bbox\":[982,393,1000,409],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":70,\"describeMs\":3799,\"totalMs\":3869},\"notes\":[]}"
+    },
+    "inbox-04": {
+      "ms": 78,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":78,\"describeMs\":0,\"totalMs\":78},\"notes\":[]}"
+    },
+    "inbox-05": {
+      "ms": 3845,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":2,\"unreadable\":false},\"items\":[{\"category\":\"other\",\"shape\":\"rectangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"矩形底座上含黄星、橙半圆、青方块\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"shape\",\"elements_detail\"],\"bbox\":[397,927,430,952],\"colorByModel\":\"unknown\",\"colorByPixels\":\"red\",\"colorAgreement\":\"unknown\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"座椅\"],\"elements\":[\"none\"],\"literal\":\"白色 汉字 座椅\",\"confidence\":0.95,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[92,643,117,661],\"colorByModel\":\"white\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"disagree\"}],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":55,\"describeMs\":3790,\"totalMs\":3845},\"notes\":[]}"
+    },
+    "inbox-06": {
+      "ms": 74,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":74,\"describeMs\":0,\"totalMs\":74},\"notes\":[]}"
+    },
+    "inbox-07": {
+      "ms": 43,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":43,\"describeMs\":0,\"totalMs\":43},\"notes\":[]}"
+    }
+  },
+  "latencyMs": [
+    3403,
+    3769,
+    3869,
+    78,
+    3845,
+    74,
+    43
+  ],
+  "root": "<repo>/"
+}

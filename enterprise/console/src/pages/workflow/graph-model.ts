@@ -324,6 +324,17 @@ export const BRIDGE_EDGES: readonly WorkflowEdge[] = [
 export const WORKFLOW_NODES: readonly WorkflowNode[] = [
   { id: "start", label: "START", kind: "entry", graphNode: true },
   {
+    id: "observeAttachments",
+    label: "看图\n（照片→受控观察）",
+    kind: "orchestration",
+    graphNode: true,
+    source: "graph/vision.ts observeAttachmentsNode",
+    note:
+      "本轮带图片附件时才干活（M71-04）：两遍 Qwen-VL 出受控观察（无名称/级别字段），" +
+      "颜色由代码从像素算，再对手册图标目录做双路召回 + 闸门 + 核验。" +
+      "没附件直通；CARLIFE_VISION=off 直通并写 caveat。图片不进 pi、不进任何 LLM 文本上下文",
+  },
+  {
     id: "understand",
     label: "意图理解\n（四要素）",
     kind: "orchestration",
@@ -649,7 +660,8 @@ export const WORKFLOW_NODES: readonly WorkflowNode[] = [
 ];
 
 export const WORKFLOW_EDGES: readonly WorkflowEdge[] = [
-  { from: "start", to: "understand" },
+  { from: "start", to: "observeAttachments" },
+  { from: "observeAttachments", to: "understand", label: "观察摘要一行进意图；【图片观察】段进双路" },
   { from: "understand", to: "supervisor-intent", label: "四要素 JSON 抽取" },
   /*
    * 抽取结果**经图状态**回到路由，不是 supervisor-intent 直接把路由决定了。

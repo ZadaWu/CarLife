@@ -14,7 +14,7 @@ import { useCallback, useRef, useState } from "react";
 import { guideBriefIsEmpty, type GuideBriefResponse } from "@carlife/shared";
 
 import { devFetch } from "../../devAuth";
-import type { GuideScreenState } from "@carlife/ui";
+import { DEMO_GUIDE_BRIEF, isGuideDemo, type GuideScreenState } from "@carlife/ui";
 
 export interface GuideRequestBody {
   spotName: string;
@@ -49,7 +49,14 @@ export async function requestGuideBrief(body: GuideRequestBody): Promise<GuideBr
  * （迟到结果按序号丢弃——旧请求的数据盖上新页面是最迷惑的一种错，同 cockpit）。
  */
 export function useGuideBrief(context?: Omit<GuideRequestBody, "spotName">) {
-  const [guide, setGuide] = useState<{ spot: string; state: GuideScreenState } | null>(null);
+  /*
+   * `?guide=demo`：直接落在 ready 态——版式截图入口，与 `?plan=demo` / `?hitl=demo` 同一类。
+   * 真实简报要经网关 → runtime → 联网检索（冷启约 50 秒），浏览器走查里拿不到，
+   * 于是这一页的 ready 态没有任何地方可看。演示数据在 `@carlife/ui`，两端同一份。
+   */
+  const [guide, setGuide] = useState<{ spot: string; state: GuideScreenState } | null>(() =>
+    isGuideDemo() ? { spot: DEMO_GUIDE_BRIEF.spot, state: { status: "ready", brief: DEMO_GUIDE_BRIEF } } : null,
+  );
   const seqRef = useRef(0);
   const contextRef = useRef(context);
   contextRef.current = context;

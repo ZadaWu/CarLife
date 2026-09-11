@@ -14,7 +14,7 @@ describe("arrivalNote", () => {
   });
 });
 
-describe("createArrivalAnnouncer", () => {
+describe("[F-62-15][AC-62-6] createArrivalAnnouncer", () => {
   it("同一站第二帧不再发；没有 arrivedStopName 的帧什么都不发", async () => {
     const sent: string[] = [];
     const a = createArrivalAnnouncer(async (n) => {

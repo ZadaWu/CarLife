@@ -12,3 +12,8 @@ export function invokeFetchTripPlan(refreshPretrip = false): Promise<string> {
 export function invokeFetchEnergy(vin: string): Promise<string> {
   return invoke<string>("fetch_vehicle_energy", { vin });
 }
+
+/** 行程核查「知道了」（M75-02）：Rust 侧 `ack_trip_review(plan_id, body_json)`，body 原样 JSON。 */
+export function invokeAckTripReview(planId: string, reviewId: string): Promise<string> {
+  return invoke<string>("ack_trip_review", { planId, bodyJson: JSON.stringify({ reviewId }) });
+}

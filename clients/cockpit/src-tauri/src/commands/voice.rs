@@ -54,6 +54,11 @@ pub struct SentinelState {
     pub echo_filtered: AtomicU64,
     /// 未命中（§13-22 误唤醒率数据的分母起步）。
     pub missed: AtomicU64,
+    /// 途中提醒口令（M77-07）：再说一遍 / 闭嘴 / 拨密度档。
+    /// 分开数的理由同旁路：只有闭嘴没有重播，说明提醒说得太密而不是没听清。
+    pub repeated: AtomicU64,
+    pub hushed: AtomicU64,
+    pub density_changed: AtomicU64,
 }
 
 impl Default for SentinelState {
@@ -71,6 +76,9 @@ impl Default for SentinelState {
             interrupted: AtomicU64::new(0),
             echo_filtered: AtomicU64::new(0),
             missed: AtomicU64::new(0),
+            repeated: AtomicU64::new(0),
+            hushed: AtomicU64::new(0),
+            density_changed: AtomicU64::new(0),
         }
     }
 }

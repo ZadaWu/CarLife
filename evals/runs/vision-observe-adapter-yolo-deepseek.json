@@ -1,0 +1,1326 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "at": "2026-09-10T02:59:39.180Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "25.0%",
+      "denom": "2/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "50.0%",
+      "denom": "2/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "0",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.711",
+      "denom": "2 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "50.0%",
+      "denom": "1/2"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "2/2",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "100.0%",
+      "denom": "2/2",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "2/2"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "2/2",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "1.000",
+      "denom": "2 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "0.0%",
+      "denom": "0/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "21/21"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "21 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "1",
+      "denom": "20 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 2,
+      "matched": 2,
+      "wlTruth": 4,
+      "wlMatched": 2,
+      "extra": 0,
+      "ious": [
+        0.756578947368421,
+        0.6654589371980676
+      ],
+      "shape": {
+        "n": 2,
+        "agree": 1
+      },
+      "color": {
+        "n": 2,
+        "agree": 2
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 2,
+        "agree": 2
+      },
+      "colorCodeRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "state": {
+        "n": 2,
+        "agree": 2
+      },
+      "stateWarn": {
+        "n": 2,
+        "agree": 2
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [
+        1,
+        1
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 []",
+        "漏检：black letter_only -（readout，bbox 456,120,532,150）",
+        "漏检：black letter_only -（readout，bbox 578,120,618,150）",
+        "漏检：gray battery -（readout，bbox 642,122,772,152）",
+        "漏检：green lamp straight_lines（warning_light，bbox 552,195,594,238）",
+        "漏检：gray lamp straight_lines（warning_light，bbox 552,280,594,322）",
+        "漏检：black car_outline -（component，bbox 468,452,508,565）",
+        "形状不一致（warning_light）：期望 lamp，实际 other"
+      ]
+    },
+    {
+      "id": "neg-01",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-02",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-03",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-08",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-09",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-10",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-11",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-12",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-13",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-14",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-15",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 4,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-16",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 1,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-17",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 4,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-18",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-19",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-20",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 4,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": 818,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":2,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 两个半圆 两侧斜线\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"similar_symbols\"],\"bbox\":[558,366,596,395],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"diagonal_band\"],\"literal\":\"红色 人形 斜带\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[566,439,598,486],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":119,\"describeMs\":699,\"totalMs\":818},\"notes\":[]}"
+    },
+    "neg-01": {
+      "ms": 83,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":83,\"describeMs\":0,\"totalMs\":83},\"notes\":[]}"
+    },
+    "neg-02": {
+      "ms": 44,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":44,\"describeMs\":0,\"totalMs\":44},\"notes\":[]}"
+    },
+    "neg-03": {
+      "ms": 49,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":49,\"describeMs\":0,\"totalMs\":49},\"notes\":[]}"
+    },
+    "neg-04": {
+      "ms": 47,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":46,\"describeMs\":1,\"totalMs\":47},\"notes\":[]}"
+    },
+    "neg-05": {
+      "ms": 44,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":44,\"describeMs\":0,\"totalMs\":44},\"notes\":[]}"
+    },
+    "neg-06": {
+      "ms": 47,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":47,\"describeMs\":0,\"totalMs\":47},\"notes\":[]}"
+    },
+    "neg-07": {
+      "ms": 45,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":45,\"describeMs\":0,\"totalMs\":45},\"notes\":[]}"
+    },
+    "neg-08": {
+      "ms": 43,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":43,\"describeMs\":0,\"totalMs\":43},\"notes\":[]}"
+    },
+    "neg-09": {
+      "ms": 63,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":63,\"describeMs\":0,\"totalMs\":63},\"notes\":[]}"
+    },
+    "neg-10": {
+      "ms": 80,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":80,\"describeMs\":0,\"totalMs\":80},\"notes\":[]}"
+    },
+    "neg-11": {
+      "ms": 175,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":175,\"describeMs\":0,\"totalMs\":175},\"notes\":[]}"
+    },
+    "neg-12": {
+      "ms": 81,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":81,\"describeMs\":0,\"totalMs\":81},\"notes\":[]}"
+    },
+    "neg-13": {
+      "ms": 90,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":90,\"describeMs\":0,\"totalMs\":90},\"notes\":[]}"
+    },
+    "neg-14": {
+      "ms": 94,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":94,\"describeMs\":0,\"totalMs\":94},\"notes\":[]}"
+    },
+    "neg-15": {
+      "ms": 1269,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":4,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"1\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字1\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[690,486,710,519],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"2\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字2\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[690,552,710,586],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"蓝绿相间 弯曲形状\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[421,431,438,454],\"colorByModel\":\"unknown\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"unknown\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"行程\"],\"elements\":[\"none\"],\"literal\":\"橙色 文字 行程\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[15,158,34,176],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":227,\"describeMs\":1042,\"totalMs\":1269},\"notes\":[]}"
+    },
+    "neg-16": {
+      "ms": 850,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":1,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"橙色 三个人形 并排\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[676,544,693,571],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":77,\"describeMs\":773,\"totalMs\":850},\"notes\":[]}"
+    },
+    "neg-17": {
+      "ms": 1274,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":4,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"1\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字1\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[690,486,710,519],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"2\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字2\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[690,552,710,586],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"blue\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"浅绿 弯曲 带状\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[421,431,438,454],\"colorByModel\":\"unknown\",\"colorByPixels\":\"blue\",\"colorAgreement\":\"unknown\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"行程\"],\"elements\":[\"none\"],\"literal\":\"橙色 文字 行程\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[15,158,34,176],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":73,\"describeMs\":1201,\"totalMs\":1274},\"notes\":[]}"
+    },
+    "neg-18": {
+      "ms": 71,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":71,\"describeMs\":0,\"totalMs\":71},\"notes\":[]}"
+    },
+    "neg-19": {
+      "ms": 50,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":0,\"unreadable\":false},\"items\":[],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":50,\"describeMs\":0,\"totalMs\":50},\"notes\":[]}"
+    },
+    "neg-20": {
+      "ms": 864,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":4,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"2\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字2\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[666,372,678,393],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"1\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字1\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[666,316,678,338],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"2\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字2\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[833,369,846,392],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"circle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"3\"],\"elements\":[\"none\"],\"literal\":\"橙色 圆形 白色数字3\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[665,425,678,446],\"colorByModel\":\"amber\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260909-141540-e8c0\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":47,\"describeMs\":817,\"totalMs\":864},\"notes\":[]}"
+    }
+  },
+  "latencyMs": [
+    818,
+    83,
+    44,
+    49,
+    47,
+    44,
+    47,
+    45,
+    43,
+    63,
+    80,
+    175,
+    81,
+    90,
+    94,
+    1269,
+    850,
+    1274,
+    71,
+    50,
+    864
+  ],
+  "root": "<repo>/"
+}

@@ -48,6 +48,13 @@ pub struct ChatMessage {
     /// 缺省（`None`）与 `Some(false)` 一样都表示"正常收口"。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cancelled: Option<bool>,
+    /// 这条**用户**消息随轮带上的附件（施工单 M80-01，F-03-08 / F-09-09）。
+    ///
+    /// 只有引用，没有字节：端上拿 `handle` 经 Rust 侧 `GET /v1/attachments/:handle` 取原件
+    /// （WebView 里没有令牌，`<img src>` 加不了 Authorization 头）。
+    /// 助手消息恒无此字段；老数据与老端上没有这个字段，缺省与空数组同义。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<AttachmentRef>>,
 }
 
 /// 历史分页查询请求（游标向前翻页）。
@@ -72,8 +79,11 @@ pub struct HistoryPage {
     pub next_before: Option<String>,
 }
 
-/// 附件引用占位（FL-03 F-03-12 / FL-09 引用句柄语义）。M2 Sprint 不消费。
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+/// 附件引用（FL-03 F-03-12 / FL-09 引用句柄语义）。M80-01 起随 `ChatMessage` 与 `PromptAccepted` 下发。
+///
+/// `attachment_id` 与 `handle` 目前是同一个值（网关的附件主键就是句柄）；两个字段都保留，
+/// 是给"句柄可轮换而 id 不变"留位。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AttachmentRef {
@@ -81,6 +91,20 @@ pub struct AttachmentRef {
     pub kind: AttachmentKind,
     /// 对象存储引用句柄（不可枚举，§3）。
     pub handle: String,
+    /// MIME（如 `image/jpeg`、`video/mp4`）；端上据此决定用 `<img>` 还是 `<video>`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    /// 原件字节数；端上用来决定要不要先问一句再拉 40 MB 的视频。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub bytes: Option<i64>,
+    /// 端上给的原始文件名，只用于展示。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+    /// 视频时长（毫秒），网关在解析视频后回填；照片没有。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -90,6 +114,8 @@ pub enum AttachmentKind {
     Image,
     Audio,
     Pdf,
+    /// M80-01 起可上传（≤ 1 分钟；更长的只分析前 60 秒）。
+    Video,
 }
 
 /// 思考步骤占位（FL-03 F-03-04 后续消费；对话层默认折叠展示）。

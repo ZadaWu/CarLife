@@ -8,3 +8,5 @@ export {
   readyGuideSpots,
   shouldPollGuideJobs,
 } from "./jobs-logic";
+// 版式截图入口用的演示数据（`?guide=demo`）：两端共用一份。
+export { DEMO_GUIDE_BRIEF, isGuideDemo } from "./demo-guide-brief";

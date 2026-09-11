@@ -6,13 +6,12 @@
  *   放大卡通助手（点击对话 / 长按说话）   集中行前温馨提示卡（3项/页）
  *                                        预计里程 · 当前电量 · 预计需电量
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   AmapBackdrop,
   AmapTripLayer,
   AssistantDock,
-  EnergyCapsule,
   HudScene,
   HudStage,
   LifeRing,
@@ -25,7 +24,10 @@ import {
   SPRITES,
   HighlightsCard,
   LocateButton,
+  StatusBar,
   TipsCard,
+  TripCalendarCard,
+  TripDateBanner,
   spriteFor,
   type HudTripMapProps,
   type ListenState,
@@ -38,7 +40,8 @@ import {
 export type { HudNavProps, HudTripMapProps } from "@carlife/ui";
 
 import { CabinArrivalDemo } from "../features/cabin/CabinArrivalDemo";
-import type { TripPlanSnapshot } from "@carlife/shared";
+import type { TripPlanLeg, TripPlanListEntry, TripPlanSnapshot } from "@carlife/shared";
+import { EnRouteReminderCard, useEnRouteReminders, type EnRouteEvent, type ReminderDensity } from "@carlife/ui";
 import { isHighlightsPage, type HudSnapshot } from "../data/types";
 
 export interface HudScreenProps {
@@ -94,6 +97,43 @@ export interface HudScreenProps {
    * 对住在别处的车主就是「地图停在一个他没去过的城市」，所以它只是兜底不是答案。
    */
   home?: { city: string; lat: number; lon: number };
+  /**
+   * 右上角行程列表（M72-04）。`entries` 为空时**不渲染**且提示卡窗保持原尺寸——
+   * 空列表卡比没有更像故障。选中与打开摘要都上抛给 App（卡不碰网络、不做判断）。
+   */
+  trips?: {
+    entries: readonly TripPlanListEntry[];
+    /** 选中的那程；空 = 未选中态（周日历卡、无提示卡、地图跟列表首条）。 */
+    selectedPlanId?: string;
+    /** 本地今天（YYYY-MM-DD）：周条与相对时间的口径。 */
+    today: string;
+    onSelect: (planId: string) => void;
+    onOpenReview: (planId: string) => void;
+    /** 顶部日期条的 ×：回未选中态。 */
+    onClearSelection: () => void;
+  };
+  /**
+   * 我的座驾（新版 UI 的屏底状态栏）：车型名 + 形象图。形象由档案页的活动车辆决定
+   * （`vehicleCharacter`），匹配不到就 undefined，状态栏画中性车图标——不拿别的车顶替。
+   */
+  vehicle?: { model?: string; art?: string };
+  /**
+   * 途中提醒（M77-06，FL-62）：跟车中按快照分段与进度出停靠提前 / 连续驾驶提醒。
+   * `speak` 不传就只卡片（浏览器走查）；`onRestActive` 让 App 把暖暖切到 alert 态。
+   */
+  reminders?: {
+    legs?: TripPlanLeg[];
+    limitMin?: number;
+    density?: ReminderDensity;
+    enabled?: boolean;
+    muted?: boolean;
+    speak?: (line: string, kind: "stop" | "rest") => Promise<boolean>;
+    isInFlight?: () => boolean;
+    onEvent?: (e: EnRouteEvent) => void;
+    onRestActive?: (active: boolean) => void;
+    /** 语音「闭嘴」的计数信号（M77-07）：每变一次，控制器 hush 一次（本段静默）。 */
+    hushSignal?: number;
+  };
 }
 
 export function HudScreen({
@@ -111,6 +151,9 @@ export function HudScreen({
   assistantMode,
   onAssistantDismiss,
   mic,
+  trips,
+  vehicle,
+  reminders,
 }: HudScreenProps) {
   // 哨兵指示：两个布局分支共用一份，贴在暖暖身侧（M26 走查）。
   // 原先浮在右上角，与「暖暖出发演示」的重播/关闭按钮叠在同一块位置；
@@ -129,7 +172,7 @@ export function HudScreen({
     />
   ) : null;
   const sprites = SPRITES[theme];
-  const { trip, energy, tips, weather, assistantState, freshness } = snapshot;
+  const { trip, energy, tips, weather, assistantState, freshness, leg } = snapshot;
 
   /*
    * 跟车进度（M31-03）。**hook 必须在任何 return 之前**——下面的
@@ -138,13 +181,47 @@ export function HudScreen({
    */
   const [navProgress, setNavProgress] = useState<NavTripProgress | undefined>(undefined);
   const navOnProgress = tripMap?.nav?.onProgress;
+  /*
+   * 途中提醒（M77-06）：判据与卡片状态在 @carlife/ui 的控制器里，这里只把进度帧喂进去。
+   * 换一次导航（nav.key 变）控制器重建；不在跟车时归零。
+   */
+  const enRoute = useEnRouteReminders({
+    active: Boolean(tripMap?.nav),
+    navKey: tripMap?.nav?.key,
+    legs: reminders?.legs,
+    limitMin: reminders?.limitMin,
+    density: reminders?.density,
+    enabled: reminders?.enabled,
+    speak: reminders?.speak,
+    isInFlight: reminders?.isInFlight,
+    onEvent: reminders?.onEvent,
+  });
+  const hushSignal = reminders?.hushSignal ?? 0;
+  const enRouteHush = enRoute.hush;
+  useEffect(() => {
+    if (hushSignal > 0) enRouteHush();
+  }, [hushSignal, enRouteHush]);
+  const onRestActive = reminders?.onRestActive;
+  const restActive = enRoute.card?.reminder.kind === "rest" && !enRoute.card.collapsed;
+  useEffect(() => {
+    onRestActive?.(Boolean(restActive));
+  }, [onRestActive, restActive]);
+  const enRouteOnProgress = enRoute.onProgress;
   const handleNavProgress = useCallback(
     (p: NavTripProgress) => {
       setNavProgress(p);
       navOnProgress?.(p);
+      enRouteOnProgress(p);
     },
-    [navOnProgress],
+    [navOnProgress, enRouteOnProgress],
   );
+
+  /*
+   * 屏底状态栏的「开始行程」→ 出发动画（CabinArrivalDemo）。信号计数在这里，
+   * 两条路径（钥匙 / 状态栏）播的是同一段动画，见 CabinArrivalDemo 的 `playSignal`。
+   */
+  const [departSignal, setDepartSignal] = useState(0);
+  const startTrip = useCallback(() => setDepartSignal((n) => n + 1), []);
 
   const terminal = trip.nodes[trip.nodes.length - 1];
   const finalAnchor = terminal ? NODE_ANCHORS[terminal.anchor] : undefined;
@@ -169,7 +246,15 @@ export function HudScreen({
         .filter((it) => sprites.items[it.key] !== undefined)
         .map((it) => ({ ...it, icon: sprites.items[it.key] }));
 
-  const windowCard = isHighlightsPage(page) ? (
+  /*
+   * 三态（M73-02）：无行程 = 只有提示卡；有行程未选中 = 右列只有周日历卡；选中 = 顶部日期条 + 紧凑列表 + 提示卡。
+   * 提示卡在「有行程且未选中」时**不渲染**（由 React 决定，不靠 CSS 藏）。
+   */
+  const hasTrips = Boolean(trips && trips.entries.length > 0);
+  const selectedTrip = trips && trips.selectedPlanId ? trips.entries.find((e) => e.planId === trips.selectedPlanId) : undefined;
+  const showTips = !hasTrips || selectedTrip !== undefined;
+
+  const windowCard = !showTips ? null : isHighlightsPage(page) ? (
     <HighlightsCard
       highlights={page.highlights}
       page={tipsPage}
@@ -189,11 +274,57 @@ export function HudScreen({
     />
   );
 
+  /*
+   * 行程列表卡（M72-04）：与 `windowCard` 同一条纪律——**只写一处、用两处**。
+   * 没有行程不渲染，`hud-stage--has-trips` 也不加，提示卡窗尺寸一字不变。
+   */
+  /*
+   * 选中态**不再显示行程卡**（2026-09-08 产品走查）：右列只剩提示卡，顶部日期条是唯一的行程锚点，
+   * 点 × 才回到周日历卡。所以 `hud-stage--has-trips`（提示卡下移让位）也只在未选中态加——
+   * 那时提示卡本来就不渲染，这个类此刻只是给舞台一个"有行程"的标记。
+   */
+  const tripsCard = !trips || !hasTrips || selectedTrip ? null : (
+    <TripCalendarCard
+      entries={trips.entries}
+      today={trips.today}
+      homeCity={home?.city}
+      weatherIcons={sprites.weather}
+      poiIcons={sprites.poi}
+      onSelect={trips.onSelect}
+      onOpenReview={trips.onOpenReview}
+    />
+  );
+  /*
+   * 顶部日期条只在选中态，且**跟车时不渲染**——跟车顶栏占的是同一带（下一站与 ETA 比日期要紧）。
+   */
+  const dateBanner =
+    trips && selectedTrip && !tripMap?.nav ? (
+      <TripDateBanner entry={selectedTrip} today={trips.today} onClose={trips.onClearSelection} />
+    ) : null;
+  const stageClass = selectedTrip ? "hud-stage--trip-selected" : hasTrips ? "hud-stage--has-trips" : undefined;
+
+  /*
+   * 暖暖的对话气泡（新版 UI 定稿）。只在**没选中行程、她也闲着**时说「说说你的下一段旅程吧」——
+   * 选中了行程再问下一段是答非所问；她在听/在想/在说时气泡会盖住状态卡的语义。
+   * 覆盖文案（麦克风未授权那类）在场时也不说：那时卡上写的是故障，旁边还笑着邀约就很怪。
+   */
+  const bubble =
+    !selectedTrip && assistantState === "idle" && !assistantHint ? "说说\n你的下一段旅程吧！" : undefined;
+
+  /*
+   * 屏底状态栏：两个布局分支共用一份（与 windowCard 同一条"只写一处"纪律）。
+   * 它接替了右下角的能量胶囊。预计里程 / 用时 / 道路情况只认 `snapshot.leg`
+   * （出发地 → 今天第一站的高德规划，网关每轮带来）；没有就三格「暂无」。
+   */
+  const statusBar = (
+    <StatusBar summary={energy} leg={leg} stale={freshness.stale} vehicle={vehicle} onStart={startTrip} />
+  );
+
   // ── 真实地图行程模式（M13-06）：真实坐标标注 + 路线动画 + 逐日切换。
   //    装饰生活环整套不渲染——两套坐标系叠加会打架。
   if (tripMap) {
     return (
-      <HudStage theme={theme}>
+      <HudStage theme={theme} className={stageClass}>
         <AmapTripLayer
           theme={theme}
           stops={tripMap.stops}
@@ -210,6 +341,15 @@ export function HudScreen({
         />
         {tripMap.nav && (
           <NavBar nav={tripMap.nav} progress={navProgress} />
+        )}
+        {tripMap.nav && enRoute.card && (
+          <EnRouteReminderCard
+            card={enRoute.card}
+            density={reminders?.density}
+            muted={reminders?.muted}
+            onAck={enRoute.ack}
+            onRestDecision={enRoute.decideRest}
+          />
         )}
         {tripMap.tabs.length > 1 && (
           <div className="hud-daytabs" role="tablist" aria-label="行程视图切换">
@@ -238,8 +378,10 @@ export function HudScreen({
             ))}
           </div>
         )}
+        {dateBanner}
+        {tripsCard}
         {windowCard}
-        <EnergyCapsule summary={energy} stale={freshness.stale} updatedAt={freshness.updatedAt} />
+        {statusBar}
         <AssistantDock
           sprite={sprites.assistant}
           workingSprite={sprites.assistantWorking}
@@ -253,16 +395,18 @@ export function HudScreen({
           // 那块短按手势现在归**打断**（M33-02）：她在说/在想时点一下就停。
           tapOpensDialog={false}
           tapInterrupts
+          compact
+          bubble={bubble}
         />
         {/* assistantState 下传给音景：暖暖说话时它全静（M64-03）。 */}
-        <CabinArrivalDemo theme={theme} plan={departurePlan} assistantState={assistantState} />
+        <CabinArrivalDemo theme={theme} plan={departurePlan} assistantState={assistantState} playSignal={departSignal} />
         {micNode}
       </HudStage>
     );
   }
 
   return (
-    <HudStage theme={theme}>
+    <HudStage theme={theme} className={stageClass}>
       {/* ① 地图：铺满视口，任意屏幕比例都无信箱黑边。
           配了 AMAP_JS_KEY 走高德真实底图，未配/离线/加载失败回退程序化底图
           —— 回退在 AmapBackdrop 内部完成，这里不需要分支（M10-01）。 */}
@@ -335,13 +479,11 @@ export function HudScreen({
       </HudScene>
 
       {/* ④ 悬浮层：横屏贴视口边缘；竖屏按 V2 连续信息区重新落位。 */}
+      {dateBanner}
+      {tripsCard}
       {windowCard}
 
-      <EnergyCapsule
-        summary={energy}
-        stale={freshness.stale}
-        updatedAt={freshness.updatedAt}
-      />
+      {statusBar}
 
       {/* ⚠️ 本文件有**两处** AssistantDock（行程地图模式与默认模式）。
           只改一处的表现是"进了行程视图暖暖就永远在休息"，而那一屏不报任何错。 */}
@@ -358,9 +500,11 @@ export function HudScreen({
           // 那块短按手势现在归**打断**（M33-02）：她在说/在想时点一下就停。
           tapOpensDialog={false}
           tapInterrupts
+          compact
+          bubble={bubble}
       />
       {/* assistantState 下传给音景：暖暖说话时它全静（M64-03）。 */}
-      <CabinArrivalDemo theme={theme} plan={departurePlan} assistantState={assistantState} />
+      <CabinArrivalDemo theme={theme} plan={departurePlan} assistantState={assistantState} playSignal={departSignal} />
       {micNode}
     </HudStage>
   );

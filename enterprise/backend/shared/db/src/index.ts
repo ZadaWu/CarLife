@@ -144,6 +144,13 @@ export {
   type TripPlanStatus,
   type TripPlanQuery,
 } from "./repositories/trip-plan";
+// 行程每日核查（M72-01）：核查另存一张表，不碰批准过的行程。
+export {
+  createTripPlanReviewRepository,
+  type TripPlanReviewRepository,
+  type TripPlanReviewInput,
+  type StoredTripPlanReview,
+} from "./repositories/trip-plan-review";
 export {
   createOwnerProfileRepository,
   DEFAULT_HOME,
@@ -204,3 +211,19 @@ export {
   type KillSwitch,
 } from "./repositories/guard-setting";
 export { createGuideBriefRepository, type GuideBriefStore } from "./repositories/guide-brief";
+export {
+  createIconEmbeddingRepository,
+  type IconEmbeddingRepository,
+  type IconEmbeddingRow,
+  type IconEmbeddingInput,
+  type IconNearestQuery,
+  type IconNearestRow,
+} from "./repositories/icon-embedding";
+export {
+  createManualFigureRepository,
+  type ManualFigureRepository,
+  type ManualFigureRow,
+  type ManualFigureInput,
+  type ManualFigureNearestQuery,
+  type ManualFigureNearestRow,
+} from "./repositories/manual-figure";

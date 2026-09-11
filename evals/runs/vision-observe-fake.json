@@ -1,0 +1,181 @@
+{
+  "suite": "vision-observe",
+  "model": "fake（回放 fixture qwen3-vl-plus）",
+  "provider": "fake",
+  "at": "2026-09-08T01:37:53.735Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "100.0%",
+      "denom": "8/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "0",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "1.000",
+      "denom": "8 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "87.5%",
+      "denom": "7/8"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "8/8",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "8/8"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "1.000",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "1 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "本档位不适用",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 8,
+      "matched": 8,
+      "wlTruth": 4,
+      "wlMatched": 4,
+      "extra": 0,
+      "ious": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "shape": {
+        "n": 8,
+        "agree": 7
+      },
+      "color": {
+        "n": 8,
+        "agree": 8
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "state": {
+        "n": 8,
+        "agree": 8
+      },
+      "stateWarn": {
+        "n": 4,
+        "agree": 4
+      },
+      "text": {
+        "n": 4,
+        "hit": 4
+      },
+      "elementsJaccard": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "形状不一致（readout）：期望 battery，实际 rectangle"
+      ]
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": null,
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": true,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [\n      \"right\",\n      \"bottom\"\n    ],\n    \"item_count\": 8\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [\n        456,\n        120,\n        532,\n        150\n      ],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\n        \"P\",\n        \"R\",\n        \"N\",\n        \"D\"\n      ],\n      \"elements\": [\n        \"none\"\n      ],\n      \"literal\": \"黑色 字母 P R N D\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [\n        578,\n        120,\n        618,\n        150\n      ],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\n        \"舒\",\n        \"适\"\n      ],\n      \"elements\": [\n        \"none\"\n      ],\n      \"literal\": \"黑色 汉字 舒适\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [\n        642,\n        122,\n        772,\n        152\n      ],\n      \"shape\": \"rectangle\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\n        \"60\",\n        \"%\"\n      ],\n      \"elements\": [\n        \"none\"\n      ],\n      \"literal\": \"灰色 矩形 电量 60%\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [\n        552,\n        195,\n        594,\n        238\n      ],\n      \"shape\": \"lamp\",\n      \"color\": \"green\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\n        \"straight_lines\"\n      ],\n      \"literal\": \"绿色 灯形 直线\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [\n        552,\n        280,\n        594,\n        322\n      ],\n      \"shape\": \"lamp\",\n      \"color\": \"gray\",\n      \"state\": \"unlit\",\n      \"text\": [\n        \"A\"\n      ],\n      \"elements\": [\n        \"straight_lines\"\n      ],\n      \"literal\": \"灰色 灯形 A 直线\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [\n        552,\n        362,\n        598,\n        398\n      ],\n      \"shape\": \"lamp\",\n      \"color\": \"green\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\n        \"wavy_lines\"\n      ],\n      \"literal\": \"绿色 灯形 波浪线\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [\n        562,\n        435,\n        596,\n        485\n      ],\n      \"shape\": \"person\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\n        \"diagonal_band\"\n      ],\n      \"literal\": \"红色 人形 斜杠\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"component\",\n      \"bbox\": [\n        468,\n        452,\n        508,\n        565\n      ],\n      \"shape\": \"car_outline\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\n        \"none\"\n      ],\n      \"literal\": \"黑色 车轮廓\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    }
+  },
+  "latencyMs": [],
+  "root": "<repo>/"
+}

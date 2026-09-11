@@ -1,0 +1,5496 @@
+{
+ "suite": "vision-observe-real-positives",
+ "at": "2026-09-10",
+ "how": "pick_positives（颜色判据切灯）+ label_positives_rule（位置+形状两信号同意）；by-class 联系表人眼过：80/80 与 80/80 无混入",
+ "summary": {
+  "low_beam": 104,
+  "parking_lights": 104,
+  "（未认出）": 65
+ },
+ "frames": {
+  "两信号同意": 104,
+  "形状不合": 10,
+  "1 盏": 17,
+  "4 盏": 1,
+  "3 盏": 8
+ },
+ "excludedVideos": [
+  "GH019597",
+  "GH029597",
+  "GX010026",
+  "GX020026",
+  "GX030025",
+  "GX070025",
+  "GX080025",
+  "GX100025"
+ ],
+ "valVideos": [
+  "GX030024",
+  "GH139598",
+  "GX090025",
+  "GX050024",
+  "GH099598"
+ ],
+ "labels": [
+  {
+   "id": "GH019598_00011_split_556-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH019598_00011_split_556_jpg.rf.9091ca47fe8c22777cc18fc220a2d9a0.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    936
+   ],
+   "bbox": [
+    327,
+    214,
+    360,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.22）"
+  },
+  {
+   "id": "GH019598_00011_split_556-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH019598_00011_split_556_jpg.rf.9091ca47fe8c22777cc18fc220a2d9a0.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    936
+   ],
+   "bbox": [
+    327,
+    265,
+    360,
+    284
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH019598_00007_split_909-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_00007_split_909_jpg.rf.ffb57ced9bb1b126f202daa6abc7412f.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    215,
+    360,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.28）"
+  },
+  {
+   "id": "GH019598_00007_split_909-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_00007_split_909_jpg.rf.ffb57ced9bb1b126f202daa6abc7412f.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    265,
+    361,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.83）"
+  },
+  {
+   "id": "GH019598_205_jpg.rf.5c24-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_205_jpg.rf.5c2463aae6a007d11c79de4d14499b29.jpg",
+   "screen": [
+    288,
+    56,
+    1680,
+    864
+   ],
+   "bbox": [
+    312,
+    220,
+    344,
+    246
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH019598_205_jpg.rf.5c24-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_205_jpg.rf.5c2463aae6a007d11c79de4d14499b29.jpg",
+   "screen": [
+    288,
+    56,
+    1680,
+    864
+   ],
+   "bbox": [
+    311,
+    270,
+    342,
+    290
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.55）"
+  },
+  {
+   "id": "GH019598_257_jpg.rf.9ece-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_257_jpg.rf.9ece69d63c93e753ca6d3f9cc34521b5.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    214,
+    358,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.20）"
+  },
+  {
+   "id": "GH019598_257_jpg.rf.9ece-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_257_jpg.rf.9ece69d63c93e753ca6d3f9cc34521b5.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    265,
+    360,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.78）"
+  },
+  {
+   "id": "GH019598_376_jpg.rf.d6a0-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_376_jpg.rf.d6a0fba28cdf424cd4d859e0582b6389.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    936
+   ],
+   "bbox": [
+    328,
+    215,
+    362,
+    238
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.48 / 下 1.82"
+  },
+  {
+   "id": "GH019598_376_jpg.rf.d6a0-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_376_jpg.rf.d6a0fba28cdf424cd4d859e0582b6389.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    936
+   ],
+   "bbox": [
+    331,
+    265,
+    362,
+    282
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.48 / 下 1.82"
+  },
+  {
+   "id": "GH019598_560_jpg.rf.6300-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_560_jpg.rf.6300e7fbae47d1e019f9c06098b4c52a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    325,
+    215,
+    356,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH019598_560_jpg.rf.6300-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_560_jpg.rf.6300e7fbae47d1e019f9c06098b4c52a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    325,
+    265,
+    361,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.80）"
+  },
+  {
+   "id": "GH019598_666_jpg.rf.60f8-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_666_jpg.rf.60f893f692a57b7677f8a30630e576fa.jpg",
+   "screen": [
+    312,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    334,
+    214,
+    362,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.12）"
+  },
+  {
+   "id": "GH019598_666_jpg.rf.60f8-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH019598_666_jpg.rf.60f893f692a57b7677f8a30630e576fa.jpg",
+   "screen": [
+    312,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    334,
+    263,
+    366,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH019598_501_jpg.rf.06b9-0",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH019598_501_jpg.rf.06b90e9072823b3dca12205984e10ff8.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    319,
+    216,
+    350,
+    243
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH019598_501_jpg.rf.06b9-1",
+   "video": "GH019598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH019598_501_jpg.rf.06b90e9072823b3dca12205984e10ff8.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    319,
+    268,
+    352,
+    288
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.65）"
+  },
+  {
+   "id": "GH029598_00021_split_81_-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH029598_00021_split_81_jpg.rf.4e4afb03baf9b1fe7770da2995995f4e.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    215,
+    362,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.29）"
+  },
+  {
+   "id": "GH029598_00021_split_81_-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH029598_00021_split_81_jpg.rf.4e4afb03baf9b1fe7770da2995995f4e.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    333,
+    265,
+    362,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.61）"
+  },
+  {
+   "id": "GH029598_152_jpg.rf.b547-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH029598_152_jpg.rf.b547109b8cc773076a8a08e600eb7137.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    323,
+    213,
+    370,
+    241
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.68 / 下 1.92"
+  },
+  {
+   "id": "GH029598_152_jpg.rf.b547-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH029598_152_jpg.rf.b547109b8cc773076a8a08e600eb7137.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    323,
+    263,
+    369,
+    287
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.68 / 下 1.92"
+  },
+  {
+   "id": "GH029598_00003_split_311-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_00003_split_311_jpg.rf.547e51dbb3f3e5e2a03420b0ba865f5a.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    334,
+    213,
+    366,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH029598_00003_split_311-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_00003_split_311_jpg.rf.547e51dbb3f3e5e2a03420b0ba865f5a.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    335,
+    263,
+    369,
+    284
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.62）"
+  },
+  {
+   "id": "GH029598_142_jpg.rf.174c-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_142_jpg.rf.174c43e34212aa87453512ddb0ec7945.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    216,
+    358,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.21）"
+  },
+  {
+   "id": "GH029598_142_jpg.rf.174c-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_142_jpg.rf.174c43e34212aa87453512ddb0ec7945.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    265,
+    362,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.89）"
+  },
+  {
+   "id": "GH029598_332_jpg.rf.e744-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_332_jpg.rf.e74404b2be02f2f5a65510d2e2e19d83.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    214,
+    358,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH029598_332_jpg.rf.e744-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_332_jpg.rf.e74404b2be02f2f5a65510d2e2e19d83.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    264,
+    360,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH029598_407_jpg.rf.db8c-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_407_jpg.rf.db8cffa2872a4ef0dbf6ae485c692e17.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    343,
+    212,
+    376,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.18）"
+  },
+  {
+   "id": "GH029598_407_jpg.rf.db8c-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_407_jpg.rf.db8cffa2872a4ef0dbf6ae485c692e17.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    343,
+    263,
+    376,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH029598_63_jpg.rf.60a5a-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_63_jpg.rf.60a5a81f58869b3c0b783f7d0a8d0cf4.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    330,
+    215,
+    362,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.28）"
+  },
+  {
+   "id": "GH029598_63_jpg.rf.60a5a-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_63_jpg.rf.60a5a81f58869b3c0b783f7d0a8d0cf4.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    264,
+    363,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH029598_764_jpg.rf.0d6e-0",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_764_jpg.rf.0d6e12db56a6873f9e1cab2899db64ac.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    326,
+    214,
+    357,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.24）"
+  },
+  {
+   "id": "GH029598_764_jpg.rf.0d6e-1",
+   "video": "GH029598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH029598_764_jpg.rf.0d6e12db56a6873f9e1cab2899db64ac.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    263,
+    360,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.83）"
+  },
+  {
+   "id": "GH039597_717_jpg.rf.ed14-0",
+   "video": "GH039597",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH039597_717_jpg.rf.ed143b9b65d3a2ed1a107075ed77de90.jpg",
+   "screen": [
+    312,
+    64,
+    1672,
+    864
+   ],
+   "bbox": [
+    338,
+    222,
+    362,
+    247
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（0.96）"
+  },
+  {
+   "id": "GH039597_717_jpg.rf.ed14-1",
+   "video": "GH039597",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH039597_717_jpg.rf.ed143b9b65d3a2ed1a107075ed77de90.jpg",
+   "screen": [
+    312,
+    64,
+    1672,
+    864
+   ],
+   "bbox": [
+    338,
+    271,
+    370,
+    290
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH049598_00018_split_442-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH049598_00018_split_442_jpg.rf.bdfb6ad6748cc8388f3c356b281dee3c.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    216,
+    356,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.16）"
+  },
+  {
+   "id": "GH049598_00018_split_442-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH049598_00018_split_442_jpg.rf.bdfb6ad6748cc8388f3c356b281dee3c.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    265,
+    359,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH049598_00016_split_729-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_00016_split_729_jpg.rf.81718dd8e57ac3bfaf5c6186e1852a4d.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    330,
+    214,
+    362,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH049598_00016_split_729-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_00016_split_729_jpg.rf.81718dd8e57ac3bfaf5c6186e1852a4d.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    263,
+    364,
+    284
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.67）"
+  },
+  {
+   "id": "GH049598_108_jpg.rf.e932-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_108_jpg.rf.e932b6a9f9a9350f3cda2b6810737fe0.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    314,
+    217,
+    346,
+    243
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH049598_108_jpg.rf.e932-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_108_jpg.rf.e932b6a9f9a9350f3cda2b6810737fe0.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    312,
+    266,
+    349,
+    287
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.76）"
+  },
+  {
+   "id": "GH049598_277_jpg.rf.b2d4-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_277_jpg.rf.b2d4588e74e8d8debd186e613c69bdb2.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    330,
+    215,
+    356,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（0.96）"
+  },
+  {
+   "id": "GH049598_277_jpg.rf.b2d4-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_277_jpg.rf.b2d4588e74e8d8debd186e613c69bdb2.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    330,
+    267,
+    361,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GH049598_359_jpg.rf.ccf0-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_359_jpg.rf.ccf0ee9ba6731041daf624cb62fd1d85.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    216,
+    364,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.44）"
+  },
+  {
+   "id": "GH049598_359_jpg.rf.ccf0-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_359_jpg.rf.ccf0ee9ba6731041daf624cb62fd1d85.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    266,
+    364,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.84）"
+  },
+  {
+   "id": "GH049598_449_jpg.rf.71ba-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_449_jpg.rf.71babf42bddee110a2b56e0c86b62792.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    325,
+    215,
+    354,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.07）"
+  },
+  {
+   "id": "GH049598_449_jpg.rf.71ba-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_449_jpg.rf.71babf42bddee110a2b56e0c86b62792.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    327,
+    266,
+    360,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH049598_573_jpg.rf.ce33-0",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_573_jpg.rf.ce339adc17ea456e2e1e7a84dce6f8a0.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    318,
+    216,
+    353,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.35）"
+  },
+  {
+   "id": "GH049598_573_jpg.rf.ce33-1",
+   "video": "GH049598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH049598_573_jpg.rf.ce339adc17ea456e2e1e7a84dce6f8a0.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    318,
+    267,
+    354,
+    288
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.71）"
+  },
+  {
+   "id": "GH059598_00018_split_492-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH059598_00018_split_492_jpg.rf.1738e6ce1c634199c54094a1ff4f95d9.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    341,
+    208,
+    369,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.00）"
+  },
+  {
+   "id": "GH059598_00018_split_492-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH059598_00018_split_492_jpg.rf.1738e6ce1c634199c54094a1ff4f95d9.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    340,
+    259,
+    372,
+    279
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH059598_00001_split_469-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00001_split_469_jpg.rf.dbdc4f1641a43eab8937f481b922454a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    214,
+    358,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH059598_00001_split_469-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00001_split_469_jpg.rf.dbdc4f1641a43eab8937f481b922454a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    264,
+    362,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.84）"
+  },
+  {
+   "id": "GH059598_00018_split_488-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_488_jpg.rf.eef07a359f0c0a77453d7365de6c2336.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    339,
+    209,
+    370,
+    235
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH059598_00018_split_488-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_488_jpg.rf.eef07a359f0c0a77453d7365de6c2336.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    339,
+    261,
+    370,
+    279
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GH059598_00018_split_502-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_502_jpg.rf.ceba60fbc7a4488a984d86cb97c9ca3c.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    341,
+    210,
+    369,
+    235
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.12）"
+  },
+  {
+   "id": "GH059598_00018_split_502-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_502_jpg.rf.ceba60fbc7a4488a984d86cb97c9ca3c.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    339,
+    261,
+    370,
+    279
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GH059598_00018_split_529-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_529_jpg.rf.3dc4720cba326974b974607ba2d54cb3.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    341,
+    210,
+    370,
+    235
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.16）"
+  },
+  {
+   "id": "GH059598_00018_split_529-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_00018_split_529_jpg.rf.3dc4720cba326974b974607ba2d54cb3.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    341,
+    260,
+    372,
+    278
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GH059598_29_jpg.rf.72920-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_29_jpg.rf.7292014f1cbe4605f9f8aea9eb507313.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    213,
+    360,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.00）"
+  },
+  {
+   "id": "GH059598_29_jpg.rf.72920-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_29_jpg.rf.7292014f1cbe4605f9f8aea9eb507313.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    265,
+    364,
+    286
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.57）"
+  },
+  {
+   "id": "GH059598_579_jpg.rf.30d8-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_579_jpg.rf.30d8f1a361b49c3c3c25adbc509a5cb6.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    216,
+    366,
+    243
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.37）"
+  },
+  {
+   "id": "GH059598_579_jpg.rf.30d8-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_579_jpg.rf.30d8f1a361b49c3c3c25adbc509a5cb6.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    265,
+    365,
+    287
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.73）"
+  },
+  {
+   "id": "GH059598_791_jpg.rf.4aa3-0",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_791_jpg.rf.4aa397b75f95a82f4542e887a1d9ff98.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    315,
+    214,
+    361,
+    238
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.92 / 下 1.67"
+  },
+  {
+   "id": "GH059598_791_jpg.rf.4aa3-1",
+   "video": "GH059598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH059598_791_jpg.rf.4aa397b75f95a82f4542e887a1d9ff98.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    263,
+    362,
+    284
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.92 / 下 1.67"
+  },
+  {
+   "id": "GH069598_00008_split_493-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH069598_00008_split_493_jpg.rf.1ab0c0444789291198fdb10495a7e58e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    212,
+    364,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.31）"
+  },
+  {
+   "id": "GH069598_00008_split_493-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH069598_00008_split_493_jpg.rf.1ab0c0444789291198fdb10495a7e58e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    262,
+    362,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.55）"
+  },
+  {
+   "id": "GH069598_00001_split_682-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00001_split_682_jpg.rf.8cf2dd237633f8a42ae6d9ca8ca77836.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    332,
+    212,
+    362,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.20）"
+  },
+  {
+   "id": "GH069598_00001_split_682-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00001_split_682_jpg.rf.8cf2dd237633f8a42ae6d9ca8ca77836.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    261,
+    365,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH069598_00009_split_557-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00009_split_557_jpg.rf.bf7e7629183cd5cf70e1fe9648bc36bf.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    212,
+    369,
+    238
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.46 / 下 1.60"
+  },
+  {
+   "id": "GH069598_00009_split_557-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00009_split_557_jpg.rf.bf7e7629183cd5cf70e1fe9648bc36bf.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    334,
+    262,
+    366,
+    282
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.46 / 下 1.60"
+  },
+  {
+   "id": "GH069598_00012_split_35_-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00012_split_35_jpg.rf.7f93d4f830b2a3a66b2e416f0954201d.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    213,
+    362,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.21）"
+  },
+  {
+   "id": "GH069598_00012_split_35_-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_00012_split_35_jpg.rf.7f93d4f830b2a3a66b2e416f0954201d.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    262,
+    364,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.63）"
+  },
+  {
+   "id": "GH069598_195_jpg.rf.f201-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_195_jpg.rf.f201392565acf401504593ab857056d1.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    336,
+    211,
+    370,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.31）"
+  },
+  {
+   "id": "GH069598_195_jpg.rf.f201-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_195_jpg.rf.f201392565acf401504593ab857056d1.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    335,
+    260,
+    370,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.75）"
+  },
+  {
+   "id": "GH069598_350_jpg.rf.adb2-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_350_jpg.rf.adb24adb5f4820fa81165b70b2af9bb0.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    211,
+    360,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.07）"
+  },
+  {
+   "id": "GH069598_350_jpg.rf.adb2-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_350_jpg.rf.adb24adb5f4820fa81165b70b2af9bb0.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    262,
+    363,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.70）"
+  },
+  {
+   "id": "GH069598_549_jpg.rf.3a6b-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_549_jpg.rf.3a6b4d4afbbdeede2d2cb32d82f06b20.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    212,
+    360,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.33）"
+  },
+  {
+   "id": "GH069598_549_jpg.rf.3a6b-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_549_jpg.rf.3a6b4d4afbbdeede2d2cb32d82f06b20.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    264,
+    358,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.94）"
+  },
+  {
+   "id": "GH069598_623_jpg.rf.f26c-0",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_623_jpg.rf.f26cbf7c0d80172d290cdb904514acc3.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    337,
+    211,
+    369,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.28）"
+  },
+  {
+   "id": "GH069598_623_jpg.rf.f26c-1",
+   "video": "GH069598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH069598_623_jpg.rf.f26cbf7c0d80172d290cdb904514acc3.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    337,
+    260,
+    369,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.52）"
+  },
+  {
+   "id": "GH099598_00022_split_436-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH099598_00022_split_436_jpg.rf.f367b3794e7019a7ca48a591e4890a83.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    340,
+    209,
+    374,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.26）"
+  },
+  {
+   "id": "GH099598_00022_split_436-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH099598_00022_split_436_jpg.rf.f367b3794e7019a7ca48a591e4890a83.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    341,
+    261,
+    374,
+    279
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.83）"
+  },
+  {
+   "id": "GH099598_00003_split_98_-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00003_split_98_jpg.rf.d54e032a43ed66eb9a3154c57f95b0fd.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    213,
+    364,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.32）"
+  },
+  {
+   "id": "GH099598_00003_split_98_-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00003_split_98_jpg.rf.d54e032a43ed66eb9a3154c57f95b0fd.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    263,
+    364,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.80）"
+  },
+  {
+   "id": "GH099598_00017_split_203-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00017_split_203_jpg.rf.c74010aa3f1c9d012d5841be4acb4ec8.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    210,
+    362,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.14）"
+  },
+  {
+   "id": "GH099598_00017_split_203-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00017_split_203_jpg.rf.c74010aa3f1c9d012d5841be4acb4ec8.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    262,
+    364,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.65）"
+  },
+  {
+   "id": "GH099598_00018_split_238-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00018_split_238_jpg.rf.5244062ba6bd9b8b6d6f45c8f804247b.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    211,
+    363,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH099598_00018_split_238-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_00018_split_238_jpg.rf.5244062ba6bd9b8b6d6f45c8f804247b.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    261,
+    364,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.48）"
+  },
+  {
+   "id": "GH099598_313_jpg.rf.8e88-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_313_jpg.rf.8e8808e4d5cb46f3699ba47a01fc826a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    212,
+    360,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH099598_313_jpg.rf.8e88-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_313_jpg.rf.8e8808e4d5cb46f3699ba47a01fc826a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    262,
+    362,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.70）"
+  },
+  {
+   "id": "GH099598_624_jpg.rf.6520-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_624_jpg.rf.65200275034e3c47081fa97c299c5a12.jpg",
+   "screen": [
+    320,
+    48,
+    1688,
+    848
+   ],
+   "bbox": [
+    346,
+    208,
+    377,
+    233
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.24）"
+  },
+  {
+   "id": "GH099598_624_jpg.rf.6520-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH099598_624_jpg.rf.65200275034e3c47081fa97c299c5a12.jpg",
+   "screen": [
+    320,
+    48,
+    1688,
+    848
+   ],
+   "bbox": [
+    347,
+    258,
+    378,
+    278
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.55）"
+  },
+  {
+   "id": "GH099598_00019_split_559-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH099598_00019_split_559_jpg.rf.8d2e7972799f7ffe68b57ce3a7b9e61a.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    212,
+    361,
+    234
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.41 / 下 1.47"
+  },
+  {
+   "id": "GH099598_00019_split_559-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH099598_00019_split_559_jpg.rf.8d2e7972799f7ffe68b57ce3a7b9e61a.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    334,
+    262,
+    362,
+    281
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.41 / 下 1.47"
+  },
+  {
+   "id": "GH099598_689_jpg.rf.f17a-0",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH099598_689_jpg.rf.f17aee9593dbcf11d9b660e60c8d450e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    210,
+    362,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH099598_689_jpg.rf.f17a-1",
+   "video": "GH099598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH099598_689_jpg.rf.f17aee9593dbcf11d9b660e60c8d450e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    262,
+    362,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH109598_42_jpg.rf.10124-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH109598_42_jpg.rf.10124c3271f663024ec12dd044c18ae2.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    257,
+    362,
+    285
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.14）"
+  },
+  {
+   "id": "GH109598_42_jpg.rf.10124-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH109598_42_jpg.rf.10124c3271f663024ec12dd044c18ae2.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    308,
+    362,
+    329
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.48）"
+  },
+  {
+   "id": "GH109598_00022_split_452-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_00022_split_452_jpg.rf.c2a1d51c7e25aadbaea79b37b084fb2f.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    319,
+    215,
+    348,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.07）"
+  },
+  {
+   "id": "GH109598_00022_split_452-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_00022_split_452_jpg.rf.c2a1d51c7e25aadbaea79b37b084fb2f.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    322,
+    267,
+    354,
+    287
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH109598_143_jpg.rf.fbf4-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_143_jpg.rf.fbf4703a77c160f962ebba78a8bb75c0.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    210,
+    362,
+    235
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.32）"
+  },
+  {
+   "id": "GH109598_143_jpg.rf.fbf4-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_143_jpg.rf.fbf4703a77c160f962ebba78a8bb75c0.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    332,
+    261,
+    362,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.58）"
+  },
+  {
+   "id": "GH109598_274_jpg.rf.f185-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_274_jpg.rf.f185332fda73da10d78c74d490558b75.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    326,
+    210,
+    360,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.21）"
+  },
+  {
+   "id": "GH109598_274_jpg.rf.f185-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_274_jpg.rf.f185332fda73da10d78c74d490558b75.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    261,
+    362,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.75）"
+  },
+  {
+   "id": "GH109598_38_jpg.rf.37462-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_38_jpg.rf.37462c0faff0641d2c5099f8dabc7981.jpg",
+   "screen": [
+    288,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    309,
+    218,
+    344,
+    242
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.46 / 下 1.46"
+  },
+  {
+   "id": "GH109598_38_jpg.rf.37462-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_38_jpg.rf.37462c0faff0641d2c5099f8dabc7981.jpg",
+   "screen": [
+    288,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    309,
+    266,
+    344,
+    290
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.46 / 下 1.46"
+  },
+  {
+   "id": "GH109598_618_jpg.rf.4a04-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_618_jpg.rf.4a044ac2dd75a91de3651e595ed62c9b.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    212,
+    360,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.20）"
+  },
+  {
+   "id": "GH109598_618_jpg.rf.4a04-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_618_jpg.rf.4a044ac2dd75a91de3651e595ed62c9b.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    263,
+    361,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.56）"
+  },
+  {
+   "id": "GH109598_632_jpg.rf.8dd8-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_632_jpg.rf.8dd8aa4f374d52e79d44f908ccc88b38.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    211,
+    360,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH109598_632_jpg.rf.8dd8-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH109598_632_jpg.rf.8dd8aa4f374d52e79d44f908ccc88b38.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    263,
+    363,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH109598_211_jpg.rf.1fc2-0",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH109598_211_jpg.rf.1fc2af5218494296a2f8652cc84302c3.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    212,
+    362,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.29）"
+  },
+  {
+   "id": "GH109598_211_jpg.rf.1fc2-1",
+   "video": "GH109598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH109598_211_jpg.rf.1fc2af5218494296a2f8652cc84302c3.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    262,
+    363,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.50）"
+  },
+  {
+   "id": "GH119598_102_jpg.rf.eb87-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH119598_102_jpg.rf.eb87ecdd70b2b55d5270553b0e4478ba.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    328,
+    213,
+    362,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.42）"
+  },
+  {
+   "id": "GH119598_102_jpg.rf.eb87-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH119598_102_jpg.rf.eb87ecdd70b2b55d5270553b0e4478ba.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    262,
+    361,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.58）"
+  },
+  {
+   "id": "GH119598_00002_split_195-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00002_split_195_jpg.rf.2e01152801bb514b7d0144018a09a327.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    339,
+    210,
+    370,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH119598_00002_split_195-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00002_split_195_jpg.rf.2e01152801bb514b7d0144018a09a327.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    338,
+    261,
+    370,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH119598_00003_split_366-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00003_split_366_jpg.rf.33e8ab6bb7832227e7f9fdf3b861af9e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    211,
+    362,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.14）"
+  },
+  {
+   "id": "GH119598_00003_split_366-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00003_split_366_jpg.rf.33e8ab6bb7832227e7f9fdf3b861af9e.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    261,
+    365,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.71）"
+  },
+  {
+   "id": "GH119598_00007_split_237-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00007_split_237_jpg.rf.79bd08e2f225f3e886c74856337b9f90.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    211,
+    362,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH119598_00007_split_237-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_00007_split_237_jpg.rf.79bd08e2f225f3e886c74856337b9f90.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    334,
+    262,
+    364,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.58）"
+  },
+  {
+   "id": "GH119598_162_jpg.rf.b557-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_162_jpg.rf.b557ef9920bc8ec9fabaf592883d87e2.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    322,
+    211,
+    348,
+    235
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.08）"
+  },
+  {
+   "id": "GH119598_162_jpg.rf.b557-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_162_jpg.rf.b557ef9920bc8ec9fabaf592883d87e2.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    323,
+    263,
+    348,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.47）"
+  },
+  {
+   "id": "GH119598_231_jpg.rf.7495-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_231_jpg.rf.749577561e77ffd7460d92e3c521e31b.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    210,
+    359,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.27）"
+  },
+  {
+   "id": "GH119598_231_jpg.rf.7495-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_231_jpg.rf.749577561e77ffd7460d92e3c521e31b.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    328,
+    261,
+    361,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH119598_583_jpg.rf.f195-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_583_jpg.rf.f1956203816fd45eb7f36a569dfd7d0d.jpg",
+   "screen": [
+    288,
+    56,
+    1656,
+    864
+   ],
+   "bbox": [
+    311,
+    219,
+    337,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.13）"
+  },
+  {
+   "id": "GH119598_583_jpg.rf.f195-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_583_jpg.rf.f1956203816fd45eb7f36a569dfd7d0d.jpg",
+   "screen": [
+    288,
+    56,
+    1656,
+    864
+   ],
+   "bbox": [
+    311,
+    269,
+    340,
+    287
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.61）"
+  },
+  {
+   "id": "GH119598_85_jpg.rf.2bf17-0",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_85_jpg.rf.2bf1717324cee1cb9d1cbf02da657ceb.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    328,
+    257,
+    362,
+    286
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.17）"
+  },
+  {
+   "id": "GH119598_85_jpg.rf.2bf17-1",
+   "video": "GH119598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH119598_85_jpg.rf.2bf1717324cee1cb9d1cbf02da657ceb.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    309,
+    362,
+    329
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH129598_412_jpg.rf.f3d1-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH129598_412_jpg.rf.f3d1a638a81a287651318eb23c5b9590.jpg",
+   "screen": [
+    312,
+    32,
+    1688,
+    848
+   ],
+   "bbox": [
+    334,
+    198,
+    362,
+    225
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.04）"
+  },
+  {
+   "id": "GH129598_412_jpg.rf.f3d1-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH129598_412_jpg.rf.f3d1a638a81a287651318eb23c5b9590.jpg",
+   "screen": [
+    312,
+    32,
+    1688,
+    848
+   ],
+   "bbox": [
+    333,
+    251,
+    367,
+    269
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.89）"
+  },
+  {
+   "id": "GH129598_00010_split_601-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00010_split_601_jpg.rf.a054adabf29f7f60b655015908d5a80a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    324,
+    202,
+    358,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.31）"
+  },
+  {
+   "id": "GH129598_00010_split_601-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00010_split_601_jpg.rf.a054adabf29f7f60b655015908d5a80a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    253,
+    358,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.65）"
+  },
+  {
+   "id": "GH129598_00013_split_657-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00013_split_657_jpg.rf.8a2bebfef563d32b323dbe04abbf71fa.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    315,
+    206,
+    358,
+    231
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.72 / 下 1.76"
+  },
+  {
+   "id": "GH129598_00013_split_657-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00013_split_657_jpg.rf.8a2bebfef563d32b323dbe04abbf71fa.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    258,
+    359,
+    275
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.72 / 下 1.76"
+  },
+  {
+   "id": "GH129598_00018_split_547-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00018_split_547_jpg.rf.5cbeaf941292b3ec4bb5e1070967451f.jpg",
+   "screen": [
+    312,
+    40,
+    1688,
+    848
+   ],
+   "bbox": [
+    334,
+    203,
+    360,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.08）"
+  },
+  {
+   "id": "GH129598_00018_split_547-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_00018_split_547_jpg.rf.5cbeaf941292b3ec4bb5e1070967451f.jpg",
+   "screen": [
+    312,
+    40,
+    1688,
+    848
+   ],
+   "bbox": [
+    334,
+    254,
+    368,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.70）"
+  },
+  {
+   "id": "GH129598_230_jpg.rf.b151-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_230_jpg.rf.b15166cea59be4c421ab636ef16b4083.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    848
+   ],
+   "bbox": [
+    325,
+    198,
+    355,
+    226
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.07）"
+  },
+  {
+   "id": "GH129598_230_jpg.rf.b151-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_230_jpg.rf.b15166cea59be4c421ab636ef16b4083.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    848
+   ],
+   "bbox": [
+    326,
+    251,
+    358,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.45）"
+  },
+  {
+   "id": "GH129598_383_jpg.rf.c12e-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_383_jpg.rf.c12e418e07a6c65b871520e8a34fd33f.jpg",
+   "screen": [
+    296,
+    48,
+    1672,
+    864
+   ],
+   "bbox": [
+    322,
+    215,
+    352,
+    241
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH129598_383_jpg.rf.c12e-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_383_jpg.rf.c12e418e07a6c65b871520e8a34fd33f.jpg",
+   "screen": [
+    296,
+    48,
+    1672,
+    864
+   ],
+   "bbox": [
+    325,
+    264,
+    354,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.61）"
+  },
+  {
+   "id": "GH129598_755_jpg.rf.9a22-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_755_jpg.rf.9a22a2dcbb4ee67945321a8af81b1b94.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    330,
+    204,
+    356,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.13）"
+  },
+  {
+   "id": "GH129598_755_jpg.rf.9a22-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH129598_755_jpg.rf.9a22a2dcbb4ee67945321a8af81b1b94.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    329,
+    254,
+    362,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH129598_467_jpg.rf.3f27-0",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH129598_467_jpg.rf.3f275564d9d771478110dd03b15a8dc9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    213,
+    360,
+    236
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.35）"
+  },
+  {
+   "id": "GH129598_467_jpg.rf.3f27-1",
+   "video": "GH129598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH129598_467_jpg.rf.3f275564d9d771478110dd03b15a8dc9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    263,
+    360,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GH139598_00012_split_53_-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH139598_00012_split_53_jpg.rf.d0e4a4ea9ec7a6f5c3ee7ac4f3c4916b.jpg",
+   "screen": [
+    296,
+    40,
+    1672,
+    856
+   ],
+   "bbox": [
+    318,
+    202,
+    350,
+    230
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.14）"
+  },
+  {
+   "id": "GH139598_00012_split_53_-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH139598_00012_split_53_jpg.rf.d0e4a4ea9ec7a6f5c3ee7ac4f3c4916b.jpg",
+   "screen": [
+    296,
+    40,
+    1672,
+    856
+   ],
+   "bbox": [
+    319,
+    254,
+    353,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.70）"
+  },
+  {
+   "id": "GH139598_00013_split_848-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00013_split_848_jpg.rf.2f818e445c9a325c0e9805a361033f78.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    322,
+    201,
+    354,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH139598_00013_split_848-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00013_split_848_jpg.rf.2f818e445c9a325c0e9805a361033f78.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    321,
+    253,
+    356,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.67）"
+  },
+  {
+   "id": "GH139598_00015_split_782-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00015_split_782_jpg.rf.72d56c9e0351839c4697e6feeea3716c.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    928
+   ],
+   "bbox": [
+    317,
+    213,
+    391,
+    244
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 2.39 / 下 1.65"
+  },
+  {
+   "id": "GH139598_00015_split_782-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00015_split_782_jpg.rf.72d56c9e0351839c4697e6feeea3716c.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    928
+   ],
+   "bbox": [
+    324,
+    253,
+    357,
+    273
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 2.39 / 下 1.65"
+  },
+  {
+   "id": "GH139598_00017_split_157-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00017_split_157_jpg.rf.7e6c74f3d6991e90b051153677d7e822.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    323,
+    202,
+    354,
+    230
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.11）"
+  },
+  {
+   "id": "GH139598_00017_split_157-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00017_split_157_jpg.rf.7e6c74f3d6991e90b051153677d7e822.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    323,
+    252,
+    356,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.50）"
+  },
+  {
+   "id": "GH139598_00018_split_276-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00018_split_276_jpg.rf.29339fa703e72ab4f41da9dc5be392c7.jpg",
+   "screen": [
+    296,
+    40,
+    1680,
+    928
+   ],
+   "bbox": [
+    321,
+    206,
+    346,
+    229
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.09）"
+  },
+  {
+   "id": "GH139598_00018_split_276-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_00018_split_276_jpg.rf.29339fa703e72ab4f41da9dc5be392c7.jpg",
+   "screen": [
+    296,
+    40,
+    1680,
+    928
+   ],
+   "bbox": [
+    321,
+    255,
+    354,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.83）"
+  },
+  {
+   "id": "GH139598_298_jpg.rf.7b91-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_298_jpg.rf.7b91d71baf8ceff56e944c9b4692095a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    202,
+    356,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH139598_298_jpg.rf.7b91-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_298_jpg.rf.7b91d71baf8ceff56e944c9b4692095a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    254,
+    356,
+    272
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.67）"
+  },
+  {
+   "id": "GH139598_563_jpg.rf.f279-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_563_jpg.rf.f27972b27385aac599366f714dbfa48b.jpg",
+   "screen": [
+    288,
+    40,
+    1664,
+    856
+   ],
+   "bbox": [
+    309,
+    207,
+    340,
+    234
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH139598_563_jpg.rf.f279-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_563_jpg.rf.f27972b27385aac599366f714dbfa48b.jpg",
+   "screen": [
+    288,
+    40,
+    1664,
+    856
+   ],
+   "bbox": [
+    309,
+    258,
+    340,
+    278
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.55）"
+  },
+  {
+   "id": "GH139598_678_jpg.rf.bd70-0",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_678_jpg.rf.bd70db92d14b5dcf7992f11e218f6fa2.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    323,
+    201,
+    361,
+    231
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.27）"
+  },
+  {
+   "id": "GH139598_678_jpg.rf.bd70-1",
+   "video": "GH139598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH139598_678_jpg.rf.bd70db92d14b5dcf7992f11e218f6fa2.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    326,
+    253,
+    362,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.71）"
+  },
+  {
+   "id": "GH159598_00007_split_649-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH159598_00007_split_649_jpg.rf.ee517d0b357ea0e07654c3c0e35634e4.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    206,
+    359,
+    231
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.32）"
+  },
+  {
+   "id": "GH159598_00007_split_649-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GH159598_00007_split_649_jpg.rf.ee517d0b357ea0e07654c3c0e35634e4.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    255,
+    358,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.74）"
+  },
+  {
+   "id": "GH159598_00007_split_628-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00007_split_628_jpg.rf.0383a8a8fe4c4e6ae8b43f4442bb9668.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    205,
+    354,
+    230
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.16）"
+  },
+  {
+   "id": "GH159598_00007_split_628-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00007_split_628_jpg.rf.0383a8a8fe4c4e6ae8b43f4442bb9668.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    255,
+    355,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.53）"
+  },
+  {
+   "id": "GH159598_00010_split_482-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_482_jpg.rf.ce7fa1818e9705bf45dd7729131924e3.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    328,
+    201,
+    358,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH159598_00010_split_482-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_482_jpg.rf.ce7fa1818e9705bf45dd7729131924e3.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    327,
+    253,
+    362,
+    271
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.94）"
+  },
+  {
+   "id": "GH159598_00010_split_573-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_573_jpg.rf.b44e9b802321a591d7a442352a721b9f.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    330,
+    203,
+    362,
+    229
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH159598_00010_split_573-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_573_jpg.rf.b44e9b802321a591d7a442352a721b9f.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    333,
+    254,
+    363,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.58）"
+  },
+  {
+   "id": "GH159598_00010_split_647-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_647_jpg.rf.f676b75b6b7d63ddc57645217b036d6a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    325,
+    204,
+    348,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.00）"
+  },
+  {
+   "id": "GH159598_00010_split_647-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00010_split_647_jpg.rf.f676b75b6b7d63ddc57645217b036d6a.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    326,
+    254,
+    355,
+    272
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.61）"
+  },
+  {
+   "id": "GH159598_00011_split_91_-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00011_split_91_jpg.rf.1889774d36d08d8c99288962bd099c7d.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    329,
+    204,
+    360,
+    229
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.24）"
+  },
+  {
+   "id": "GH159598_00011_split_91_-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_00011_split_91_jpg.rf.1889774d36d08d8c99288962bd099c7d.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    327,
+    254,
+    362,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.75）"
+  },
+  {
+   "id": "GH159598_97_jpg.rf.997cc-0",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_97_jpg.rf.997cc1b04f78a72cbf58650e162e94a7.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    202,
+    356,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH159598_97_jpg.rf.997cc-1",
+   "video": "GH159598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH159598_97_jpg.rf.997cc1b04f78a72cbf58650e162e94a7.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    324,
+    255,
+    355,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.72）"
+  },
+  {
+   "id": "GX020024_00001_split_544-0",
+   "video": "GX020024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX020024_00001_split_544_jpg.rf.8ac7740f838afd3fdf0e587685c81c59.jpg",
+   "screen": [
+    264,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    276,
+    500,
+    318,
+    529
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX020024_309_jpg.rf.0843-0",
+   "video": "GX020024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX020024_309_jpg.rf.08434075d7dd8526525099cb5bfc2d04.jpg",
+   "screen": [
+    288,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    300,
+    413,
+    308,
+    482
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX020025_598_jpg.rf.6ef5-0",
+   "video": "GX020025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GX020025_598_jpg.rf.6ef5da0dc2f5f7f9db5103cce0c84405.jpg",
+   "screen": [
+    288,
+    64,
+    1680,
+    880
+   ],
+   "bbox": [
+    299,
+    424,
+    309,
+    480
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_00009_split_671-0",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_00009_split_671_jpg.rf.cb1d30f8a18cc16c7553cdd6e8096e5f.jpg",
+   "screen": [
+    0,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    14,
+    217,
+    106,
+    261
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 4 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_00009_split_671-1",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_00009_split_671_jpg.rf.cb1d30f8a18cc16c7553cdd6e8096e5f.jpg",
+   "screen": [
+    0,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    14,
+    274,
+    106,
+    306
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 4 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_00009_split_671-2",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_00009_split_671_jpg.rf.cb1d30f8a18cc16c7553cdd6e8096e5f.jpg",
+   "screen": [
+    0,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    14,
+    344,
+    106,
+    363
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 4 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_00009_split_671-3",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_00009_split_671_jpg.rf.cb1d30f8a18cc16c7553cdd6e8096e5f.jpg",
+   "screen": [
+    0,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    62,
+    413,
+    106,
+    435
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 4 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_436_jpg.rf.a1c5-0",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_436_jpg.rf.a1c54b76774177143429469450a82ac2.jpg",
+   "screen": [
+    184,
+    0,
+    1920,
+    872
+   ],
+   "bbox": [
+    199,
+    376,
+    293,
+    449
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_533_jpg.rf.7106-0",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_533_jpg.rf.710644b6b19713f455d86897532eb526.jpg",
+   "screen": [
+    264,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    278,
+    270,
+    321,
+    313
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX030024_72_jpg.rf.93f76-0",
+   "video": "GX030024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX030024_72_jpg.rf.93f7691d747a279953d1f46fb960002f.jpg",
+   "screen": [
+    0,
+    0,
+    1384,
+    872
+   ],
+   "bbox": [
+    11,
+    401,
+    87,
+    442
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX040024_520_jpg.rf.7201-0",
+   "video": "GX040024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX040024_520_jpg.rf.720176bc4b8bc949efc77948ef6ab5d1.jpg",
+   "screen": [
+    0,
+    0,
+    1440,
+    872
+   ],
+   "bbox": [
+    12,
+    402,
+    91,
+    445
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX050024_324_jpg.rf.9ceb-0",
+   "video": "GX050024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX050024_324_jpg.rf.9ceb9c766052f27d0382e80e7aace44f.jpg",
+   "screen": [
+    0,
+    0,
+    1416,
+    872
+   ],
+   "bbox": [
+    12,
+    410,
+    89,
+    443
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX050024_47_jpg.rf.39c52-0",
+   "video": "GX050024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX050024_47_jpg.rf.39c5219d2c02ac645d47e9fc99436c26.jpg",
+   "screen": [
+    0,
+    0,
+    1416,
+    872
+   ],
+   "bbox": [
+    12,
+    405,
+    89,
+    439
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 2.26 / 下 2.85"
+  },
+  {
+   "id": "GX050024_47_jpg.rf.39c52-1",
+   "video": "GX050024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX050024_47_jpg.rf.39c5219d2c02ac645d47e9fc99436c26.jpg",
+   "screen": [
+    0,
+    0,
+    1416,
+    872
+   ],
+   "bbox": [
+    12,
+    488,
+    89,
+    515
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 2.26 / 下 2.85"
+  },
+  {
+   "id": "GX060024_344_jpg.rf.9cf8-0",
+   "video": "GX060024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/test/images/GX060024_344_jpg.rf.9cf80303d6e2c13bb193e7e2fc8b937b.jpg",
+   "screen": [
+    0,
+    0,
+    1920,
+    864
+   ],
+   "bbox": [
+    17,
+    408,
+    121,
+    445
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX060024_460_jpg.rf.19be-0",
+   "video": "GX060024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX060024_460_jpg.rf.19be74546f90b6de4103c5337ad533dd.jpg",
+   "screen": [
+    272,
+    64,
+    1568,
+    880
+   ],
+   "bbox": [
+    286,
+    474,
+    337,
+    498
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX070024_6_jpg.rf.5311db-0",
+   "video": "GX070024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX070024_6_jpg.rf.5311db20a8ac7a7e950e5e924b38093f.jpg",
+   "screen": [
+    0,
+    64,
+    1688,
+    880
+   ],
+   "bbox": [
+    15,
+    278,
+    106,
+    294
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_00000_split_13_-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00000_split_13_jpg.rf.9085c2c8a4f06285e627696ae9aa68a6.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    214,
+    361,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.14）"
+  },
+  {
+   "id": "GH039598_00000_split_13_-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00000_split_13_jpg.rf.9085c2c8a4f06285e627696ae9aa68a6.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    265,
+    361,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.76）"
+  },
+  {
+   "id": "GH039598_00000_split_746-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00000_split_746_jpg.rf.e74b39e202a885229b038610e2fd9ce9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    330,
+    214,
+    362,
+    240
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.23）"
+  },
+  {
+   "id": "GH039598_00000_split_746-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00000_split_746_jpg.rf.e74b39e202a885229b038610e2fd9ce9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    334,
+    263,
+    364,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.50）"
+  },
+  {
+   "id": "GH039598_00004_split_280-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00004_split_280_jpg.rf.3ac3818ce89a0783a9bd56e404b691b4.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    214,
+    359,
+    238
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_00004_split_280-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00004_split_280_jpg.rf.3ac3818ce89a0783a9bd56e404b691b4.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    265,
+    360,
+    283
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_00004_split_280-2",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00004_split_280_jpg.rf.3ac3818ce89a0783a9bd56e404b691b4.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    352,
+    355,
+    368,
+    380
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_00014_split_38_-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00014_split_38_jpg.rf.f7661832c6aa573b5d539dfd5487ed19.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    215,
+    360,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.43）"
+  },
+  {
+   "id": "GH039598_00014_split_38_-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_00014_split_38_jpg.rf.f7661832c6aa573b5d539dfd5487ed19.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    266,
+    360,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（2.00）"
+  },
+  {
+   "id": "GH039598_135_jpg.rf.657b-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_135_jpg.rf.657b8ea5bc2cd8b1b85b8630bb215c5c.jpg",
+   "screen": [
+    288,
+    56,
+    1656,
+    864
+   ],
+   "bbox": [
+    310,
+    218,
+    339,
+    243
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.16）"
+  },
+  {
+   "id": "GH039598_135_jpg.rf.657b-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_135_jpg.rf.657b8ea5bc2cd8b1b85b8630bb215c5c.jpg",
+   "screen": [
+    288,
+    56,
+    1656,
+    864
+   ],
+   "bbox": [
+    310,
+    269,
+    346,
+    289
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.80）"
+  },
+  {
+   "id": "GH039598_262_jpg.rf.3d07-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_262_jpg.rf.3d07fa71626e6b961df13c99286d475b.jpg",
+   "screen": [
+    288,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    312,
+    217,
+    344,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.28）"
+  },
+  {
+   "id": "GH039598_262_jpg.rf.3d07-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_262_jpg.rf.3d07fa71626e6b961df13c99286d475b.jpg",
+   "screen": [
+    288,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    312,
+    268,
+    348,
+    286
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（2.00）"
+  },
+  {
+   "id": "GH039598_670_jpg.rf.d9f7-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_670_jpg.rf.d9f7cc32ceefa7a70aee2cb6e55fd914.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    215,
+    360,
+    240
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_670_jpg.rf.d9f7-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_670_jpg.rf.d9f7cc32ceefa7a70aee2cb6e55fd914.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    330,
+    265,
+    364,
+    283
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_670_jpg.rf.d9f7-2",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH039598_670_jpg.rf.d9f7cc32ceefa7a70aee2cb6e55fd914.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    335,
+    447,
+    353,
+    466
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH039598_00006_split_545-0",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH039598_00006_split_545_jpg.rf.2729be932c32349802ae6207798aa166.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    335,
+    213,
+    362,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.08）"
+  },
+  {
+   "id": "GH039598_00006_split_545-1",
+   "video": "GH039598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH039598_00006_split_545_jpg.rf.2729be932c32349802ae6207798aa166.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    334,
+    263,
+    366,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH079598_00010_split_356-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00010_split_356_jpg.rf.98d5f821c7b55776364c10319b255ea9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    215,
+    360,
+    239
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.33）"
+  },
+  {
+   "id": "GH079598_00010_split_356-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00010_split_356_jpg.rf.98d5f821c7b55776364c10319b255ea9.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    265,
+    361,
+    283
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.83）"
+  },
+  {
+   "id": "GH079598_00016_split_238-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00016_split_238_jpg.rf.4e12742f53f7704a770c40b5c27810c5.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    325,
+    213,
+    360,
+    236
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.52 / 下 1.75"
+  },
+  {
+   "id": "GH079598_00016_split_238-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00016_split_238_jpg.rf.4e12742f53f7704a770c40b5c27810c5.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    263,
+    362,
+    283
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "形状不合：上 1.52 / 下 1.75"
+  },
+  {
+   "id": "GH079598_00017_split_764-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00017_split_764_jpg.rf.013cb35803d3a83e2634640cc25320fe.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    212,
+    364,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.36）"
+  },
+  {
+   "id": "GH079598_00017_split_764-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00017_split_764_jpg.rf.013cb35803d3a83e2634640cc25320fe.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    262,
+    362,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH079598_00019_split_829-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00019_split_829_jpg.rf.1b841fab50ce30c6b8278d5124cba987.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    213,
+    361,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.36）"
+  },
+  {
+   "id": "GH079598_00019_split_829-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_00019_split_829_jpg.rf.1b841fab50ce30c6b8278d5124cba987.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    328,
+    264,
+    362,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.89）"
+  },
+  {
+   "id": "GH079598_110_jpg.rf.d5bf-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_110_jpg.rf.d5bfb7d1f8a314a8d78e8381b35e7170.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    324,
+    211,
+    360,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.38）"
+  },
+  {
+   "id": "GH079598_110_jpg.rf.d5bf-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_110_jpg.rf.d5bfb7d1f8a314a8d78e8381b35e7170.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    327,
+    263,
+    361,
+    280
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（2.00）"
+  },
+  {
+   "id": "GH079598_373_jpg.rf.6962-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_373_jpg.rf.69622d9eed383909de7bd7fb94062f07.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    209,
+    360,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.11）"
+  },
+  {
+   "id": "GH079598_373_jpg.rf.6962-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_373_jpg.rf.69622d9eed383909de7bd7fb94062f07.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    262,
+    362,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH079598_535_jpg.rf.bb10-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_535_jpg.rf.bb10c866e0cea4b50bbfd9e569cce59a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    213,
+    360,
+    239
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH079598_535_jpg.rf.bb10-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_535_jpg.rf.bb10c866e0cea4b50bbfd9e569cce59a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    263,
+    362,
+    283
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH079598_535_jpg.rf.bb10-2",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH079598_535_jpg.rf.bb10c866e0cea4b50bbfd9e569cce59a.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    345,
+    442,
+    372,
+    482
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH079598_00020_split_446-0",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH079598_00020_split_446_jpg.rf.f8fb8c9fbddb6e97416e60b5e4167df6.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    329,
+    212,
+    360,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH079598_00020_split_446-1",
+   "video": "GH079598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH079598_00020_split_446_jpg.rf.f8fb8c9fbddb6e97416e60b5e4167df6.jpg",
+   "screen": [
+    304,
+    48,
+    1672,
+    856
+   ],
+   "bbox": [
+    331,
+    264,
+    361,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.67）"
+  },
+  {
+   "id": "GH089598_00000_split_286-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00000_split_286_jpg.rf.01fb11460d0079ecee9866e919e94f68.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    213,
+    359,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.21）"
+  },
+  {
+   "id": "GH089598_00000_split_286-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00000_split_286_jpg.rf.01fb11460d0079ecee9866e919e94f68.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    263,
+    362,
+    282
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.63）"
+  },
+  {
+   "id": "GH089598_00003_split_257-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00003_split_257_jpg.rf.2054243e925ebb9e77a6eeb002acf8ef.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    331,
+    214,
+    362,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.29）"
+  },
+  {
+   "id": "GH089598_00003_split_257-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00003_split_257_jpg.rf.2054243e925ebb9e77a6eeb002acf8ef.jpg",
+   "screen": [
+    312,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    262,
+    364,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.63）"
+  },
+  {
+   "id": "GH089598_00015_split_514-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00015_split_514_jpg.rf.573be42bd95f0798842f0e21dcf1215e.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    328,
+    217,
+    358,
+    242
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.20）"
+  },
+  {
+   "id": "GH089598_00015_split_514-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00015_split_514_jpg.rf.573be42bd95f0798842f0e21dcf1215e.jpg",
+   "screen": [
+    304,
+    56,
+    1672,
+    864
+   ],
+   "bbox": [
+    327,
+    269,
+    360,
+    285
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（2.06）"
+  },
+  {
+   "id": "GH089598_00015_split_542-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00015_split_542_jpg.rf.896e6296979757dda7e83ea58b602b4e.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    317,
+    217,
+    344,
+    244
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.00）"
+  },
+  {
+   "id": "GH089598_00015_split_542-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_00015_split_542_jpg.rf.896e6296979757dda7e83ea58b602b4e.jpg",
+   "screen": [
+    296,
+    56,
+    1664,
+    864
+   ],
+   "bbox": [
+    318,
+    271,
+    347,
+    287
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.81）"
+  },
+  {
+   "id": "GH089598_402_jpg.rf.d44b-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_402_jpg.rf.d44b3f209986ad6fc1c4e39085026427.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    211,
+    362,
+    237
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.27）"
+  },
+  {
+   "id": "GH089598_402_jpg.rf.d44b-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_402_jpg.rf.d44b3f209986ad6fc1c4e39085026427.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    329,
+    260,
+    364,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.67）"
+  },
+  {
+   "id": "GH089598_458_jpg.rf.42f8-0",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_458_jpg.rf.42f8c5b576bb7b78f404bbed40de2e39.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    330,
+    212,
+    360,
+    238
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.15）"
+  },
+  {
+   "id": "GH089598_458_jpg.rf.42f8-1",
+   "video": "GH089598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH089598_458_jpg.rf.42f8c5b576bb7b78f404bbed40de2e39.jpg",
+   "screen": [
+    304,
+    48,
+    1680,
+    856
+   ],
+   "bbox": [
+    333,
+    264,
+    361,
+    281
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.65）"
+  },
+  {
+   "id": "GH149598_00005_split_358-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00005_split_358_jpg.rf.4a112ab6073f0daa63acec80dc81e63b.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    856
+   ],
+   "bbox": [
+    321,
+    201,
+    352,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH149598_00005_split_358-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00005_split_358_jpg.rf.4a112ab6073f0daa63acec80dc81e63b.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    856
+   ],
+   "bbox": [
+    323,
+    254,
+    354,
+    271
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.82）"
+  },
+  {
+   "id": "GH149598_00005_split_407-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00005_split_407_jpg.rf.8352600cef3fdbdcb24ebf8ded8d2b6d.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    206,
+    354,
+    231
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.16）"
+  },
+  {
+   "id": "GH149598_00005_split_407-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00005_split_407_jpg.rf.8352600cef3fdbdcb24ebf8ded8d2b6d.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    255,
+    357,
+    274
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.68）"
+  },
+  {
+   "id": "GH149598_00009_split_209-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00009_split_209_jpg.rf.946de1c549fe40689427963da47dca3c.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    325,
+    203,
+    353,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.12）"
+  },
+  {
+   "id": "GH149598_00009_split_209-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00009_split_209_jpg.rf.946de1c549fe40689427963da47dca3c.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    254,
+    356,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.58）"
+  },
+  {
+   "id": "GH149598_00018_split_73_-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00018_split_73_jpg.rf.c622d398b47bdb4f22574200776327b5.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    206,
+    360,
+    232
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.31）"
+  },
+  {
+   "id": "GH149598_00018_split_73_-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_00018_split_73_jpg.rf.c622d398b47bdb4f22574200776327b5.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    326,
+    256,
+    360,
+    276
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.70）"
+  },
+  {
+   "id": "GH149598_412_jpg.rf.4260-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_412_jpg.rf.426011c80aa00f67cf630b0bf55909da.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    325,
+    200,
+    360,
+    228
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.25）"
+  },
+  {
+   "id": "GH149598_412_jpg.rf.4260-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_412_jpg.rf.426011c80aa00f67cf630b0bf55909da.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    848
+   ],
+   "bbox": [
+    326,
+    253,
+    361,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.75）"
+  },
+  {
+   "id": "GH149598_445_jpg.rf.52d5-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_445_jpg.rf.52d5c53140641d14226bdc2929a1efe0.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    324,
+    201,
+    355,
+    227
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH149598_445_jpg.rf.52d5-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH149598_445_jpg.rf.52d5c53140641d14226bdc2929a1efe0.jpg",
+   "screen": [
+    304,
+    40,
+    1680,
+    856
+   ],
+   "bbox": [
+    324,
+    253,
+    356,
+    273
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.60）"
+  },
+  {
+   "id": "GH149598_00002_split_156-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH149598_00002_split_156_jpg.rf.193452d1393f88cfea100f3742017683.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    848
+   ],
+   "bbox": [
+    329,
+    202,
+    356,
+    226
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH149598_00002_split_156-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH149598_00002_split_156_jpg.rf.193452d1393f88cfea100f3742017683.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    848
+   ],
+   "bbox": [
+    330,
+    252,
+    362,
+    272
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH149598_00002_split_156-2",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH149598_00002_split_156_jpg.rf.193452d1393f88cfea100f3742017683.jpg",
+   "screen": [
+    304,
+    32,
+    1680,
+    848
+   ],
+   "bbox": [
+    360,
+    375,
+    381,
+    402
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH149598_00006_split_187-0",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH149598_00006_split_187_jpg.rf.c9ab4aec5a8f0e51994ce4a053541dd9.jpg",
+   "screen": [
+    304,
+    32,
+    1688,
+    848
+   ],
+   "bbox": [
+    329,
+    200,
+    360,
+    226
+   ],
+   "symbolId": "low_beam",
+   "verified": true,
+   "reason": "位置在上 + 近似方形（1.19）"
+  },
+  {
+   "id": "GH149598_00006_split_187-1",
+   "video": "GH149598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GH149598_00006_split_187_jpg.rf.c9ab4aec5a8f0e51994ce4a053541dd9.jpg",
+   "screen": [
+    304,
+    32,
+    1688,
+    848
+   ],
+   "bbox": [
+    333,
+    252,
+    362,
+    271
+   ],
+   "symbolId": "parking_lights",
+   "verified": true,
+   "reason": "位置在下 + 明显更宽（1.53）"
+  },
+  {
+   "id": "GH169598_557_jpg.rf.5d10-0",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_557_jpg.rf.5d10c5e3347890336fc6042fc528b9ba.jpg",
+   "screen": [
+    320,
+    32,
+    1696,
+    848
+   ],
+   "bbox": [
+    331,
+    195,
+    370,
+    222
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH169598_557_jpg.rf.5d10-1",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_557_jpg.rf.5d10c5e3347890336fc6042fc528b9ba.jpg",
+   "screen": [
+    320,
+    32,
+    1696,
+    848
+   ],
+   "bbox": [
+    347,
+    247,
+    376,
+    265
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH169598_557_jpg.rf.5d10-2",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_557_jpg.rf.5d10c5e3347890336fc6042fc528b9ba.jpg",
+   "screen": [
+    320,
+    32,
+    1696,
+    848
+   ],
+   "bbox": [
+    350,
+    287,
+    376,
+    322
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH169598_693_jpg.rf.8c19-0",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_693_jpg.rf.8c19c9b06d94049008c2d4fb3f7c0563.jpg",
+   "screen": [
+    312,
+    32,
+    1736,
+    848
+   ],
+   "bbox": [
+    338,
+    196,
+    370,
+    224
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH169598_693_jpg.rf.8c19-1",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_693_jpg.rf.8c19c9b06d94049008c2d4fb3f7c0563.jpg",
+   "screen": [
+    312,
+    32,
+    1736,
+    848
+   ],
+   "bbox": [
+    338,
+    245,
+    371,
+    267
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GH169598_693_jpg.rf.8c19-2",
+   "video": "GH169598",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GH169598_693_jpg.rf.8c19c9b06d94049008c2d4fb3f7c0563.jpg",
+   "screen": [
+    312,
+    32,
+    1736,
+    848
+   ],
+   "bbox": [
+    343,
+    287,
+    368,
+    321
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX010025_279_jpg.rf.e2b6-0",
+   "video": "GX010025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX010025_279_jpg.rf.e2b677ad9513347e6b6da3c5149f17e4.jpg",
+   "screen": [
+    0,
+    0,
+    1360,
+    872
+   ],
+   "bbox": [
+    11,
+    404,
+    86,
+    438
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX060025_515_jpg.rf.30bd-0",
+   "video": "GX060025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX060025_515_jpg.rf.30bd185ae7d8323d485d2d7764a9ae40.jpg",
+   "screen": [
+    0,
+    0,
+    1696,
+    872
+   ],
+   "bbox": [
+    15,
+    296,
+    107,
+    314
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX060025_515_jpg.rf.30bd-1",
+   "video": "GX060025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX060025_515_jpg.rf.30bd185ae7d8323d485d2d7764a9ae40.jpg",
+   "screen": [
+    0,
+    0,
+    1696,
+    872
+   ],
+   "bbox": [
+    14,
+    328,
+    107,
+    385
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX060025_515_jpg.rf.30bd-2",
+   "video": "GX060025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX060025_515_jpg.rf.30bd185ae7d8323d485d2d7764a9ae40.jpg",
+   "screen": [
+    0,
+    0,
+    1696,
+    872
+   ],
+   "bbox": [
+    14,
+    408,
+    107,
+    453
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX080024_213_jpg.rf.b584-0",
+   "video": "GX080024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX080024_213_jpg.rf.b58427fc5bc430a9156a108f0d1ec200.jpg",
+   "screen": [
+    80,
+    0,
+    1920,
+    824
+   ],
+   "bbox": [
+    96,
+    265,
+    146,
+    279
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX080024_213_jpg.rf.b584-1",
+   "video": "GX080024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX080024_213_jpg.rf.b58427fc5bc430a9156a108f0d1ec200.jpg",
+   "screen": [
+    80,
+    0,
+    1920,
+    824
+   ],
+   "bbox": [
+    96,
+    397,
+    196,
+    441
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX080024_213_jpg.rf.b584-2",
+   "video": "GX080024",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX080024_213_jpg.rf.b58427fc5bc430a9156a108f0d1ec200.jpg",
+   "screen": [
+    80,
+    0,
+    1920,
+    824
+   ],
+   "bbox": [
+    96,
+    460,
+    196,
+    496
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 3 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX090025_560_jpg.rf.8033-0",
+   "video": "GX090025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX090025_560_jpg.rf.803378e992ec1f365fd417225bc9f982.jpg",
+   "screen": [
+    312,
+    0,
+    1920,
+    880
+   ],
+   "bbox": [
+    326,
+    253,
+    334,
+    306
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX090025_642_jpg.rf.fdb7-0",
+   "video": "GX090025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX090025_642_jpg.rf.fdb71609d3d8256aaa930e324a65c120.jpg",
+   "screen": [
+    312,
+    0,
+    1712,
+    880
+   ],
+   "bbox": [
+    324,
+    165,
+    339,
+    188
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX110025_386_jpg.rf.6668-0",
+   "video": "GX110025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX110025_386_jpg.rf.6668811eecc4f8c15932ae5d20b2b96c.jpg",
+   "screen": [
+    312,
+    0,
+    1920,
+    872
+   ],
+   "bbox": [
+    326,
+    163,
+    338,
+    210
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX110025_645_jpg.rf.d7ac-0",
+   "video": "GX110025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/train/images/GX110025_645_jpg.rf.d7ac39ace45d4552a76e980fa84ee6fb.jpg",
+   "screen": [
+    312,
+    80,
+    1704,
+    880
+   ],
+   "bbox": [
+    323,
+    391,
+    333,
+    450
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  },
+  {
+   "id": "GX110025_397_jpg.rf.0a9f-0",
+   "video": "GX110025",
+   "frame": "evals/vision-observe/datasets/roboflow-tesla-new-hmi/valid/images/GX110025_397_jpg.rf.0a9f03bf2e822cf6c3e0cebba3f15751.jpg",
+   "screen": [
+    584,
+    0,
+    1920,
+    864
+   ],
+   "bbox": [
+    595,
+    466,
+    668,
+    520
+   ],
+   "symbolId": null,
+   "verified": false,
+   "reason": "这一帧有 1 盏灯，规则只认恰好两盏"
+  }
+ ]
+}

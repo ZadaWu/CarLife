@@ -191,6 +191,7 @@ export {
   recommendPretripItems,
   fallbackPretripItems,
   reduceSegments,
+  classifyWeatherKind,
   allPretripKeysKnown,
   MAX_PRETRIP_ITEMS,
   type PretripItemsArgs,
@@ -261,6 +262,7 @@ export {
   type RouteStrategy,
   type RouteSummary,
 } from "./map-route";
+export { computeTripLeg, roadCondition, roadLabel, type TripLegInput } from "./trip-leg";
 export {
   ragflowTool,
   setRagClient,
@@ -316,6 +318,14 @@ export {
   type EnergyGapData,
   type EnergyUnit,
 } from "./energy-gap";
+export {
+  planAuditTool,
+  auditPlan,
+  hasBlocker,
+  normalizePlace,
+  type PlanAuditArgs,
+  type PlanAuditLimits,
+} from "./plan-audit";
 export {
   refuelLogTool,
   setRefuelStore,
@@ -508,3 +518,7 @@ export {
   type PrecheckResult,
   type PrecheckBreakdownRow,
 } from "./insurance-claims";
+// 视觉观察层（M71-02，ACR-024）：不是工具、不进任何 Agent 的 ACL——它是与 ASR 同位的输入转换。
+export * from "./vision";
+// 视频抽帧与分段转写（M80-01，ACR-027）：同上，输入转换，不进 ACL；调用方是网关。
+export * from "./media";

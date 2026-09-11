@@ -16,6 +16,7 @@ import {
   MINIMAP_H,
   labelVariants,
   placeLabels,
+  projectEditorial,
   spreadClusteredPoints,
   textWidth,
   type LabelBox,
@@ -212,5 +213,41 @@ describe("小地图·标签渲染", () => {
     for (const [i, s] of spots.entries()) {
       assert.ok(html.includes(`<title>${i + 1} ${s.name}</title>`), `${s.name} 的全名要在 title 里`);
     }
+  });
+});
+
+/**
+ * 示意布点在**点很少**时的形态。
+ *
+ * 两个点的景区不是边角料：2026-09-11 iPad 实拍的水下兵马俑就只有两个点位。
+ * 原来两条都按"满格 3 列 × 多行"算，两个点于是挤在左上角，底下大半张浅蓝空着，
+ * 看起来像图没画完——而点多的时候一切正常，所以只在真数据上才会撞见。
+ */
+describe("示意布点：点少时也要铺开、居中", () => {
+  const PAD = 52; // 与实现同值；判据独立算，不从实现里借
+  const W = 520;
+
+  it("一行放得下时竖直居中，而不是顶着上边", () => {
+    for (const n of [1, 2, 3]) {
+      const pts = projectEditorial(n, W);
+      assert.equal(pts.length, n);
+      for (const p of pts) {
+        assert.equal(p.y, MINIMAP_H / 2, `${n} 个点应该在画布竖直中线上，实际 y=${p.y}`);
+      }
+    }
+  });
+
+  it("列数按实际点数收，两个点要占满左右而不是挤在左边三分之二", () => {
+    const [a, b] = projectEditorial(2, W);
+    assert.equal(a!.x, PAD);
+    assert.equal(b!.x, W - PAD, "第二个点应该落在右边距上");
+  });
+
+  it("四个点起恢复蛇形多行：第二行折返，且铺满上下", () => {
+    const pts = projectEditorial(4, W);
+    assert.equal(pts[0]!.y, PAD);
+    assert.equal(pts[3]!.y, MINIMAP_H - PAD, "最后一行要落在下边距上");
+    // 折返：第 4 个点（第二行第一个）与第 3 个点同列，连线不跨图跳回
+    assert.equal(pts[3]!.x, pts[2]!.x, "折返后新行从上一行的末列起步，连线不跨图跳回");
   });
 });

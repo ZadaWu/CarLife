@@ -54,6 +54,7 @@ mock-insurance:@carlife/mock-insurance:8798:mocks/insurance:compose
 mock-tts:@carlife/mock-tts:8794:mocks/tts:svc
 local-asr:local-asr:8795:.:compose
 worker:@carlife/worker:8796:enterprise/backend/worker:svc
+vision-trainer:vision-trainer:8799:enterprise/backend/vision-trainer:py
 "
 
 # 默认集合。顺序即启动顺序：
@@ -94,7 +95,7 @@ if [ "$DEV_HOST_OS" = "Darwin" ]; then
 fi
 DEFAULT_TARGETS="$DEFAULT_TARGETS runtime cockpit mobile web cockpit-app mobile-app worker"
 BASE_DEFAULT_TARGETS="$DEFAULT_TARGETS"
-ALL_TARGETS="gateway mock-dealer mock-cabin mock-repair mock-insurance mock-tts local-asr runtime cockpit mobile web cockpit-app mobile-app worker"
+ALL_TARGETS="gateway mock-dealer mock-cabin mock-repair mock-insurance mock-tts local-asr runtime cockpit mobile web cockpit-app mobile-app worker vision-trainer"
 
 . "$ROOT/infra/scripts/asr-engine.sh"
 
@@ -341,8 +342,19 @@ start_one() {
   # `pnpm dev:start | tail` 会挂到服务被杀为止——看起来像脚本卡死。
   # 直接后台 + disown，并把 stdin 也断开，否则子进程还攥着调用方的管道。
   cd "$ROOT" || return 1
-  nohup corepack pnpm --filter "$filter" dev >"$LOGDIR/$name.log" 2>&1 </dev/null &
-  disown 2>/dev/null || true
+  if [ "$kind" = "py" ]; then
+    # Python 服务（ACR-026 vision-trainer）：uv 管的独立 venv，不在 pnpm workspace 里。
+    # 跑在宿主机而不是容器——它要 MPS。没装 uv 就直说，别让它在 20s 超时后才报"没监听"。
+    command -v uv >/dev/null 2>&1 || { printf '  %-12s ❌ 没有 uv（brew install uv）\n' "$name"; return 1; }
+    # 同上：不能包在 `( ... & )` 里，否则子 shell 等到服务退出才返回。
+    cd "$ROOT/$(field "$name" 4)" || return 1
+    nohup uv run serve.py >"$LOGDIR/$name.log" 2>&1 </dev/null &
+    disown 2>/dev/null || true
+    cd "$ROOT" || return 1
+  else
+    nohup corepack pnpm --filter "$filter" dev >"$LOGDIR/$name.log" 2>&1 </dev/null &
+    disown 2>/dev/null || true
+  fi
   if [ "$port" = "0" ]; then printf '  %-12s 已拉起（无端口，看日志确认）\n' "$name"; return 0; fi
   local i
   for i in $(seq 1 40); do

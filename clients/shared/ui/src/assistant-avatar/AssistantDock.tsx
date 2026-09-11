@@ -61,6 +61,17 @@ export interface AssistantDockProps {
    * **不给回调就不渲染这个按钮**——组件不造一个点了没反应的按钮。
    */
   onDismiss?: () => void;
+  /**
+   * 紧凑胶囊形态（新版车机 UI）：卡片收成一行——麦克风图标 + 状态文案 + 音波，
+   * 次行提示语不再渲染（那一行在胶囊里放不下；它说的事在 aria-label 里仍然念得出）。
+   * 手机端不传，维持原来的两行卡。
+   */
+  compact?: boolean;
+  /**
+   * 暖暖身旁的对话气泡（新版车机 UI 定稿：「说说 你的下一段旅程吧！」）。
+   * 只在传了文字时渲染；调用方决定什么状态下该说这句——组件不替它猜。
+   */
+  bubble?: string;
 }
 
 const STATE_TEXT: Record<AssistantState, string> = {
@@ -91,6 +102,8 @@ export function AssistantDock({
   tapOpensDialog = true,
   tapInterrupts = false,
   onDismiss,
+  compact = false,
+  bubble,
 }: AssistantDockProps) {
   const wave = state === "listening" || state === "speaking";
   // idle 的默认主提示与"点一下会怎样"绑死：tapOpensDialog=false 时还写
@@ -125,7 +138,17 @@ export function AssistantDock({
   const dismissable = working && typeof onDismiss === "function";
 
   return (
-    <div className="hud-assistant" data-state={state} data-mode={working ? "work" : "rest"}>
+    <div
+      className={`hud-assistant${compact ? " hud-assistant--compact" : ""}`}
+      data-state={state}
+      data-mode={working ? "work" : "rest"}
+    >
+      {/* 气泡挂在英雄区外面：它不接手势，点它不该算作点了暖暖。 */}
+      {bubble && (
+        <span className="hud-assistant__bubble" role="note">
+          {bubble}
+        </span>
+      )}
       <div
         className="hud-assistant__hero"
         role="button"
@@ -183,12 +206,20 @@ export function AssistantDock({
       >
         {/* 两行文案在卡内**水平居中**（定稿 §3.4）。音波不参与这个居中——
             它绝对定位贴右边，否则 flex 行会把文字挤到左侧，看起来像没对齐。 */}
+        {/* 紧凑形态在文案前带一枚麦克风：定稿里这枚图标就是"长按说话"的视觉锚。 */}
+        {compact && (
+          <svg className="hud-assistant__mic" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <rect x="8.5" y="2.5" width="7" height="12" rx="3.5" stroke="currentColor" strokeWidth="1.9" />
+            <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+          </svg>
+        )}
         {/* 主行只放状态，**不接任何提示语**——接了就折行（见上面 `secondary` 的量数）。 */}
         <span className="hud-assistant__primary">
           {primaryLabel ?? (state === "idle" ? idleLabel : STATE_TEXT[state])}
         </span>
-        {/* 次行为空时连分隔线一起收掉：一条底下没有内容的横线看着像没加载完 */}
-        {secondary !== "" && (
+        {/* 次行为空时连分隔线一起收掉：一条底下没有内容的横线看着像没加载完。
+            紧凑胶囊没有第二行，次行整个不渲染。 */}
+        {!compact && secondary !== "" && (
           <>
             <div className="hud-assistant__rule" />
             <span className="hud-assistant__secondary">{secondary}</span>

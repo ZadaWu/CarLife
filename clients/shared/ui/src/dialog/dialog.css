@@ -27,6 +27,17 @@
 .dlg-main {
   flex: 1;
   min-width: 0;
+  /*
+   * ⚠️ `min-height: 0` 与上面那行 `min-width: 0` 是一对，缺了纵向这半会出人命：
+   * flex 子项的自动最小尺寸是**内容的最小尺寸**，不是 0。这一栏里装着会滚动的
+   * `.dlg-list` 和输入条，对话一长，主栏就按内容撑高、把自己顶出视口——
+   * 于是**列表不再滚动，输入条被推到底部导航底下看不见了**
+   * （用户 2026-09-10 真机反馈「这个回答完后看不到对话框了」）。
+   *
+   * 判据是内容量，不是屏幕：短对话怎么看都正常，所以走查时很容易漏。
+   * 真机 440×956 上实测，主栏由 973 收回 894，列表这才开始滚。
+   */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative; /* .dlg-newmsg 是绝对定位，锚点要跟着主栏走 */
@@ -58,7 +69,7 @@
   border: 1px solid var(--hud-text-muted);
   border-radius: 8px;
   background: transparent;
-  color: var(--hud-text, inherit);
+  color: var(--hud-text);
   font-size: var(--hud-font-caption);
   padding: 6px 12px;
   cursor: pointer;
@@ -126,7 +137,7 @@
   font-size: var(--hud-font-caption);
   color: var(--hud-text-muted);
 }
-.dlg-sessions__hint--error { color: #f85149; }
+.dlg-sessions__hint--error { color: var(--hud-danger); }
 /* 回看态的出口条：与输入框同高，避免切换时整块布局跳一下。 */
 .dlg-input--viewing { align-items: center; gap: 14px; }
 .dlg-viewing__note { flex: 1; color: var(--hud-text-muted); font-size: var(--hud-font-body); }
@@ -155,10 +166,21 @@
   color: var(--hud-text-muted);
   font-size: 17px;
 }
-.dlg-row { display: flex; }
-.dlg-row--user { justify-content: flex-end; }
-.dlg-row--assistant { justify-content: flex-start; }
+/*
+ * 一行 = 「语音」小标签 + 气泡，纵向叠放，整体靠向自己那一侧。
+ * 竖着排是因为标签在气泡**外面的上方**（见 `DialogScreen.tsx` 的 Bubble）；
+ * 靠 `align-items` 而不是 `justify-content` 定左右，气泡的 `max-width` 才照常生效。
+ */
+.dlg-row { display: flex; flex-direction: column; }
+.dlg-row--user { align-items: flex-end; }
+.dlg-row--assistant { align-items: flex-start; }
 .dlg-bubble {
+  /*
+   * `max-width` 是给**外框**定的，所以要 border-box。本仓没有全局 box-sizing 复位，
+   * 缺省 content-box 会把左右内边距加在百分比之外——车机上气泡因此宽出 76px（74% 写成了 80%），
+   * 而百分比看起来明明是对的。
+   */
+  box-sizing: border-box;
   max-width: 78%;
   padding: 12px 16px;
   border-radius: 18px;
@@ -177,12 +199,10 @@
   color: var(--hud-badge-text);
 }
 .dlg-bubble__tag {
+  /* 气泡外的来源标记：不做胶囊底片，一行小灰字就够——它不是可点的东西。 */
   display: inline-block;
-  margin-right: 8px;
-  padding: 1px 8px;
-  border-radius: 999px;
+  margin: 0 2px 4px;
   font-size: 12px;
-  background: var(--hud-map-base);
   color: var(--hud-text-muted);
 }
 .dlg-cursor {
@@ -243,7 +263,13 @@
   border-top: 1px solid var(--hud-divider);
 }
 .dlg-input input {
-  flex: 1; padding: 12px 14px; border-radius: 10px;
+  /*
+   * `min-width: 0` 不是可有可无的：flex 子项的 min-width 缺省是 auto，而**表单控件的
+   * 自动最小尺寸来自它的默认字符宽度**（约 20 个字符），`flex: 1` 压不过这个地板。
+   * 两侧再各站一枚定宽按钮（📎 与「发送」）时，这一行就直接顶破视口——
+   * 症状是「发送」被裁在右边缘外，而不是输入框变窄。手机端 440pt 上实测踩到。
+   */
+  flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px;
   border: 1px solid var(--hud-divider);
   background: rgba(255, 255, 255, .06); color: inherit;
   font-size: var(--hud-font-body);
@@ -254,11 +280,13 @@
   font-size: var(--hud-font-body); cursor: pointer;
 }
 .dlg-input button:disabled { opacity: .45; cursor: not-allowed; }
-.dlg-banner--error { color: #f85149; }
+.dlg-banner--error { color: var(--hud-danger); }
 /* 去向提示（M15-05），与错误横幅区分：它不是故障。 */
-.dlg-banner--info { color: #8ab4d8; }
+.dlg-banner--info { color: var(--hud-text-muted); }
 .dlg-toolbar { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.dlg-toggle__icon { width: 1.15em; height: 1.15em; flex: 0 0 auto; }
 .dlg-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 16px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--hud-divider);
   background: transparent; color: inherit; font-size: var(--hud-font-caption);
@@ -297,3 +325,385 @@
 .dlg-rail--drawer .dlg-sessions__head > span { display: none; }
 .dlg-rail--drawer .dlg-sessions__list { padding-bottom: 12px; }
 
+
+/* ============================================================
+ * 新版车机 UI（2026-09-09，定稿 `内部文档`）。
+ *
+ * ⚠️ 这一段**全部挂在 `[data-surface="cockpit"]` 下**：本组件两端共用，
+ * 手机端仍是旧版式（抽屉式历史栏 + 底部导航）。那个属性由车机的
+ * `main.tsx` 写在 <html> 上，手机端没有，于是这一整段对它不生效。
+ *
+ * 改的是视觉层：左栏与对话区各成一张白卡、用户气泡从实心橙改成浅橙底深蓝字
+ * （长句子读起来才不刺眼）、发送按钮走主行动橙、给旧底部导航留的 110px 空白收掉。
+ * ============================================================ */
+[data-surface="cockpit"] .dlg-screen {
+  background: #eaf2fa;
+  /* 面板内分栏间距 32 / 页面左右边距 24（design-system.md §6）。 */
+  gap: calc(32 * var(--hud-unit));
+  padding: calc(24 * var(--hud-unit));
+}
+
+/* 左栏：独立白卡，不再是靠一条竖线分隔的侧栏。 */
+[data-surface="cockpit"] .dlg-sessions {
+  /*
+   * ⚠️ `width` 和 `flex` 要一起写。基础规则是 `width: 268px; flex: 0 0 268px`，
+   * 只改 `width` 的话 flex-basis 仍是 268——**栏宽一个像素都不会变**，而且不报错。
+   * 452 是从定稿量的：卡片 x30–583（2048 宽的图），554 device px ÷ 1.2249。
+   */
+  width: calc(452 * var(--hud-unit));
+  flex: 0 0 calc(452 * var(--hud-unit));
+  border-right: none;
+  border: 1px solid var(--hud-card-border);
+  border-radius: calc(28 * var(--hud-unit));
+  background: #fff;
+  box-shadow: var(--hud-card-shadow);
+  overflow: hidden;
+}
+/* 栏头两行：标题一行，「＋ 新对话」自成一行（定稿如此，挤在一行时按钮只剩一点点）。 */
+[data-surface="cockpit"] .dlg-sessions__head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(14 * var(--hud-unit));
+  padding: calc(24 * var(--hud-unit)) calc(24 * var(--hud-unit)) calc(18 * var(--hud-unit));
+  font-size: var(--hud-font-title);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--hud-text);
+}
+[data-surface="cockpit"] .dlg-sessions__new {
+  border: 1px solid var(--hud-amber);
+  border-radius: 999px;
+  color: var(--hud-amber);
+  font-size: var(--hud-font-poi);
+  font-weight: 700;
+  padding: calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit));
+}
+/* 底部那 110px 是给旧底部导航留的；新版车机的页签在顶栏。 */
+[data-surface="cockpit"] .dlg-sessions__list {
+  padding: 0 calc(16 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  gap: 0;
+}
+[data-surface="cockpit"] .dlg-sessions__item {
+  /*
+   * 行高 100 基准（定稿实测：分隔线间距 123 device px ÷ 1.2249）。六条正好铺满卡片，
+   * 再高一点第六条就被卡片下沿切掉——而它看起来只是"列表可以滚"，不像版式错了。
+   */
+  gap: calc(4 * var(--hud-unit));
+  border-radius: calc(16 * var(--hud-unit));
+  padding: calc(13 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  /*
+   * 行高钉死，因为**不是每条都有两行**：无标题的会话只有一行（见 `SessionList.tsx`，
+   * 那时标题位就是时间，下面不再写第二遍）。不钉的话列表里高矮参差，看起来像加载坏了。
+   */
+  box-sizing: border-box;
+  min-height: calc(100 * var(--hud-unit));
+  justify-content: center;
+  /* 定稿里每条之间一道细线；靠 gap 分不出"哪两行是一条"。 */
+  border-bottom-color: var(--hud-divider);
+}
+[data-surface="cockpit"] .dlg-sessions__item:last-child { border-bottom-color: transparent; }
+/* 选中：浅橙底 + 左缘一道橙条（原来是蓝描边，和顶栏选中态不是一家）。 */
+[data-surface="cockpit"] .dlg-sessions__item.is-active {
+  background: rgba(245, 166, 35, 0.10);
+  border-color: transparent;
+  /* 选中那条底下的细线照留——定稿是"整条着色"，不是"整条脱离列表"。 */
+  border-bottom-color: var(--hud-divider);
+  box-shadow: inset 3px 0 0 var(--hud-amber);
+}
+[data-surface="cockpit"] .dlg-sessions__title {
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 700;
+}
+/*
+ * ⚠️ 时间戳必须显式给字号。基础规则用的是 `var(--hud-font-caption)`，那是**跟 --hud-unit
+ * 缩放的**（21 基准 px → 车机上 25.7px），而标题那时写死 19px——**时间比标题还大**，
+ * 于是每条都折成两行（2026-09-10 走查实拍）。这一段里凡是与写死 px 相邻的 token 字号，
+ * 都要一起换算成基准单位，不能一半 token 一半绝对值。
+ */
+[data-surface="cockpit"] .dlg-sessions__meta {
+  font-size: var(--hud-font-body);
+  gap: calc(10 * var(--hud-unit));
+  line-height: 1.2;
+}
+[data-surface="cockpit"] .dlg-sessions__badge {
+  font-size: calc(19 * var(--hud-unit));
+  padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
+}
+[data-surface="cockpit"] .dlg-sessions__empty,
+[data-surface="cockpit"] .dlg-sessions__hint { font-size: var(--hud-font-body); padding: calc(16 * var(--hud-unit)); }
+
+/* 对话区：同样是一张白卡。 */
+[data-surface="cockpit"] .dlg-main {
+  border: 1px solid var(--hud-card-border);
+  border-radius: calc(28 * var(--hud-unit));
+  background: #fff;
+  box-shadow: var(--hud-card-shadow);
+  overflow: hidden;
+}
+[data-surface="cockpit"] .dlg-list {
+  padding: calc(16 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  gap: calc(20 * var(--hud-unit));
+}
+
+[data-surface="cockpit"] .dlg-bubble {
+  max-width: 74%;
+  /* 左右内边距 30 基准：定稿里文字离气泡边 42 device px。 */
+  padding: calc(16 * var(--hud-unit)) calc(30 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
+  /*
+   * 30 基准 px。定稿量下来是 32（汉字墨高 35 device px ÷ 0.89 字面率 ÷ 1.2249），
+   * 就近落到字号阶梯上的 30；原来写的是绝对 20px，**连 design-system.md §5
+   * 「最小 21 基准 px」都不到**——车机上那是 20 device px，比手机端还小。
+   */
+  font-size: calc(30 * var(--hud-unit));
+  line-height: 1.55;
+}
+/*
+ * 用户气泡：浅橙底 + 深蓝字。定稿是这样，理由也成立——实心橙上压白字，
+ * 一段三行的行程描述读起来是刺的，而用户说的话往往正是最长的那几句。
+ */
+[data-surface="cockpit"] .dlg-bubble--user {
+  background: rgba(245, 166, 35, 0.14);
+  border-color: rgba(245, 166, 35, 0.55);
+  color: var(--hud-text);
+}
+[data-surface="cockpit"] .dlg-bubble__tag { font-size: var(--hud-font-body); }
+[data-surface="cockpit"] .dlg-progress {
+  font-size: var(--hud-font-body);
+  padding: calc(4 * var(--hud-unit)) calc(26 * var(--hud-unit)) calc(10 * var(--hud-unit));
+}
+[data-surface="cockpit"] .dlg-progress__dot { background: var(--hud-amber); }
+
+/* 播报开关：开着时走琥珀（它是"正在生效"，与顶栏选中态同一支色）。 */
+[data-surface="cockpit"] .dlg-toolbar { padding: calc(20 * var(--hud-unit)) calc(24 * var(--hud-unit)) 0; }
+[data-surface="cockpit"] .dlg-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+  padding: calc(10 * var(--hud-unit)) calc(22 * var(--hud-unit));
+  font-size: var(--hud-font-body);
+  font-weight: 600;
+  border-color: var(--hud-card-border);
+}
+[data-surface="cockpit"] .dlg-toggle.is-on {
+  border-color: var(--hud-amber);
+  background: rgba(245, 166, 35, 0.12);
+  color: var(--hud-warn);
+}
+
+/* 输入条：高白框 + 主行动橙的发送键。 */
+[data-surface="cockpit"] .dlg-input {
+  gap: calc(20 * var(--hud-unit));
+  padding: calc(16 * var(--hud-unit)) calc(24 * var(--hud-unit)) calc(20 * var(--hud-unit));
+  border-top-color: var(--hud-divider);
+}
+[data-surface="cockpit"] .dlg-input input {
+  height: calc(72 * var(--hud-unit));
+  padding: 0 calc(22 * var(--hud-unit));
+  border-radius: calc(18 * var(--hud-unit));
+  border-color: var(--hud-card-border);
+  background: #f7fafd;
+  color: var(--hud-text);
+  font-size: var(--hud-font-poi);
+}
+[data-surface="cockpit"] .dlg-input input:focus {
+  outline: none;
+  border-color: var(--hud-pin);
+  background: #fff;
+}
+[data-surface="cockpit"] .dlg-input button:not(.dlg-attach) {
+  min-width: calc(150 * var(--hud-unit));
+  height: calc(72 * var(--hud-unit));
+  border-radius: calc(18 * var(--hud-unit));
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.5);
+}
+[data-surface="cockpit"] .dlg-input button:not(.dlg-attach):disabled { box-shadow: none; }
+/*
+ * ⚠️ 上面那条**排除了 `.dlg-attach`**（📎 添加照片/视频）。它和「发送」都是这个 form 里的
+ * `button`，而 `[data-surface=…] .dlg-input button` 的特指度压得过 `.dlg-attach` 自己那条，
+ * 于是 📎 会整个长成一枚橙色渐变的发送键：一行里两枚一样的主行动，且把行宽撑破。
+ * 加新的输入条样式时按「发送键」写选择器，别按「这行里的 button」写。
+ */
+[data-surface="cockpit"] .dlg-attach {
+  width: calc(72 * var(--hud-unit));
+  height: calc(72 * var(--hud-unit));
+  border-radius: calc(18 * var(--hud-unit));
+  background: #f7fafd;
+  font-size: calc(28 * var(--hud-unit));
+}
+[data-surface="cockpit"] .dlg-empty { font-size: var(--hud-font-body); }
+
+/* ── 附件（M80-03）：气泡里的缩略图 / 视频；输入框上方的待发条 ── */
+.dlg-att { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.dlg-att__thumb {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  width: 120px; height: 120px; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.dlg-att__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dlg-att__chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  font-size: 14px; background: rgba(0, 0, 0, 0.08); color: inherit;
+}
+.dlg-att__chip--error { background: rgba(200, 40, 40, 0.14); }
+.dlg-att__video-placeholder {
+  display: inline-flex; align-items: center; gap: 10px; min-width: 200px; padding: 12px 16px; border-radius: 12px;
+  border: 0; cursor: pointer; font-size: 15px; background: rgba(0, 0, 0, 0.55); color: #fff;
+}
+.dlg-att__video-placeholder:disabled { opacity: 0.7; cursor: default; }
+.dlg-att__play {
+  width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.9); color: #111; font-size: 16px;
+}
+.dlg-att__video { width: min(100%, 360px); max-height: 60vh; border-radius: 12px; background: #000; display: block; }
+.dlg-att__lightbox {
+  position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(0, 0, 0, 0.92); cursor: zoom-out;
+}
+.dlg-att__lightbox img { max-width: 96vw; max-height: 86vh; object-fit: contain; border-radius: 6px; }
+.dlg-att__lightbox-hint { color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+
+.dlg-pending { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 0; }
+.dlg-pending__item {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px;
+  background: var(--hud-card-bg); border: 1px solid var(--hud-card-border); font-size: 14px; color: var(--hud-text);
+}
+.dlg-pending__item--failed { border-color: rgba(200, 40, 40, 0.5); }
+.dlg-pending__item img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.dlg-pending__icon { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; }
+.dlg-pending__meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dlg-pending__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dlg-pending__state { color: var(--hud-text-muted); font-size: 12px; }
+.dlg-pending__item--failed .dlg-pending__state { color: var(--hud-danger); }
+.dlg-pending__hint { color: var(--hud-warn); font-size: 12px; }
+.dlg-pending__item button { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--hud-card-border); background: #fff; font-size: 13px; }
+.dlg-pending__remove { min-width: 32px; font-size: 18px; line-height: 1; }
+.dlg-attach {
+  flex: 0 0 auto; width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--hud-card-border);
+  background: var(--hud-card-bg); font-size: 20px;
+}
+/*
+ * 📎 的内边距与居中要单独用一条更高特指度的规则压住。
+ *
+ * `.dlg-input button`（0,1,1）压得过 `.dlg-attach`（0,1,0）——上一条写着 `padding: 0`
+ * 其实从来没生效过，这枚定宽方钮一直继承着发送键的 `padding: 12px 22px`：
+ * border-box 下 50px 宽里 44px 是内边距，内容盒只剩 6px，📎 从左内边处画起、
+ * 整个字形溢到按钮右侧，看起来就是"图标没水平居中"（2026-09-11 手机实拍，
+ * 实测按钮中线 37px、字形中线 45px，偏 8px；车机端同一个病）。
+ *
+ * 居中用 flex 而不是靠"内边距恰好对称"：下次谁再给这一行的 button 加内边距，
+ * 图标也还在正中间。border / background 仍留给两端各自那一段——这里只修对齐。
+ */
+.dlg-input .dlg-attach {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+[data-surface="cockpit"] .dlg-att__thumb { width: 160px; height: 160px; }
+[data-surface="cockpit"] .dlg-att__video { width: min(100%, 520px); }
+
+/* ============================================================
+ * 新版手机 UI（2026-09-09，定稿 `内部文档`）。
+ *
+ * ⚠️ 挂在 `[data-surface="mobile"]` 下：本组件两端共用，车机端是上面那一段
+ * （左栏 + 对话区两张白卡）。手机端竖屏放不下左栏，历史仍是顶部抽屉——
+ * 这一段只改抽屉行与气泡的观感，不动 `--drawer` 那套结构。
+ * ============================================================ */
+[data-surface="mobile"] .dlg-screen { background: #eaf2fa; }
+
+/* 顶部那一行：白卡 + 「＋ 新建对话」琥珀描边胶囊（原来是一条裸的 summary 行）。 */
+[data-surface="mobile"] .dlg-rail--drawer {
+  margin: 8px 10px 0;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(70, 120, 170, 0.10);
+  overflow: hidden;
+}
+[data-surface="mobile"] .dlg-rail__summary {
+  padding: 14px 16px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--hud-text);
+}
+[data-surface="mobile"] .dlg-sessions__new {
+  border: 1px solid var(--hud-amber);
+  border-radius: 999px;
+  color: var(--hud-amber);
+  font-size: 15px;
+  font-weight: 700;
+  padding: 7px 14px;
+}
+[data-surface="mobile"] .dlg-sessions__item.is-active {
+  background: rgba(245, 166, 35, 0.10);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--hud-amber);
+}
+
+[data-surface="mobile"] .dlg-list { padding-left: 12px; padding-right: 12px; }
+[data-surface="mobile"] .dlg-bubble {
+  max-width: 82%;
+  padding: 13px 16px;
+  border-radius: 20px;
+  font-size: 16px;
+}
+/*
+ * 用户气泡：浅橙底 + 深蓝字（同车机端的理由）——实心橙上压白字，一段三行的
+ * 行程描述读起来是刺的，而用户说的话往往正是最长的那几句。
+ */
+[data-surface="mobile"] .dlg-bubble--user {
+  background: rgba(245, 166, 35, 0.14);
+  border-color: rgba(245, 166, 35, 0.55);
+  color: var(--hud-text);
+}
+/* 「语音」标签在气泡外的上沿：它是这条消息的来源，不是正文的一部分（版式见 `.dlg-row`）。 */
+[data-surface="mobile"] .dlg-bubble__tag { font-size: 13px; }
+[data-surface="mobile"] .dlg-progress__dot { background: var(--hud-amber); }
+
+/* 输入条：白卡 + 主行动橙的发送键（原来是蓝色 `--hud-pin`，那支蓝在新版里只属于图标）。 */
+[data-surface="mobile"] .dlg-input {
+  gap: 10px;
+  /*
+   * 下内距与上内距对称就够了：底部安全区已经算在 `--hud-bottom-nav-clear` 里
+   * （见 `clients/mobile/src/styles/app.css` 的 `.dlg-input`），在这儿再加一次
+   * 会在输入框与导航药丸之间叠出 34pt 空白。
+   */
+  padding: 10px 12px;
+  border-top: none;
+}
+[data-surface="mobile"] .dlg-input input {
+  height: 50px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border-color: var(--hud-card-border);
+  background: #fff;
+  color: var(--hud-text);
+  font-size: 16px;
+}
+[data-surface="mobile"] .dlg-input button:not(.dlg-attach) {
+  min-width: 88px;
+  height: 50px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: 0 6px 16px rgba(255, 190, 90, 0.45);
+}
+[data-surface="mobile"] .dlg-input button:not(.dlg-attach):disabled { box-shadow: none; }
+/*
+ * ⚠️ 上面那条**排除了 `.dlg-attach`**（📎 添加照片/视频）。它和「发送」都是这个 form 里的
+ * `button`，而 `[data-surface=…] .dlg-input button` 的特指度压得过 `.dlg-attach` 自己那条，
+ * 于是 📎 会整个长成一枚橙色渐变的发送键：一行里两枚一样的主行动，且把行宽撑破。
+ * 加新的输入条样式时按「发送键」写选择器，别按「这行里的 button」写。
+ */
+[data-surface="mobile"] .dlg-attach {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 22px;
+}

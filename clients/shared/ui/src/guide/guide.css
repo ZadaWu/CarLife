@@ -2,6 +2,16 @@
    驾驶态可读性（大字号、高对比、44px 热区）由这里保证，组件不写内联尺寸。 */
 
 .guide-screen {
+  /*
+   * 页面上四张卡是**一张 2×2 的网格**，两行必须用同一套列宽（定稿 guide-spot-v1.png
+   * 实测：左 803 / 间距 30 / 右 1027，两行逐像素对齐）。
+   * 这两行曾经各写各的（上 `1.25fr 1fr`、下 `1fr 1fr`）——于是「休息·吃饭·厕所」
+   * 比它上面的时间轴卡窄一截、「避雷」又比路线卡宽一截，四条竖边没有一条对得上
+   * （用户 2026-09-11 反馈"四个卡片的宽度是不一样的"）。列宽只能有一份，写在这里。
+   * 顺带纠了一处反的：定稿里**右边的路线卡更宽**，实现却给左边的时间轴更宽。
+   */
+  --guide-cols: minmax(0, 803fr) minmax(0, 1027fr);
+  --guide-gap: 18px;
   position: fixed;
   inset: 0;
   /* 全屏覆盖层：必须盖过 HUD 的全部悬浮件（bottom-nav 60 / lodging 88 /
@@ -54,8 +64,8 @@
 /* ── 两栏主体：左时间轴、右小地图 ── */
 .guide-screen__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: var(--guide-cols);
+  gap: var(--guide-gap);
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -336,7 +346,7 @@
 .guide-screen--portrait .guide-screen__body.is-portrait {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--guide-gap);
   /* 竖屏是整页一条流：解除车机两栏的高度约束（flex:1 + min-height:0），
      否则内容溢出 body 盒子、压到后面的休憩卡下面（走查实测的叠字病例）。 */
   flex: 0 0 auto;
@@ -353,7 +363,8 @@
   height: clamp(300px, 46vh, 440px);
   min-height: 0;
 }
-.guide-screen--portrait .guide-screen__comfort { grid-template-columns: 1fr; }
+/* 竖屏是单列流：改列宽 / 间距变量，不去覆盖那两条 grid 规则——覆盖一条漏一条就是两行又不齐。 */
+.guide-screen--portrait { --guide-cols: minmax(0, 1fr); --guide-gap: 14px; }
 .guide-screen--portrait .guide-screen__title { font-size: 18px; }
 .guide-screen__arrival-fold {
   flex: 0 0 auto;
@@ -375,8 +386,8 @@
 /* ── 休憩与避雷 ── */
 .guide-screen__comfort {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  grid-template-columns: var(--guide-cols);
+  gap: var(--guide-gap);
   flex: 0 0 auto;
 }
 .guide-screen__comfort-block {
@@ -579,3 +590,314 @@ button.guide-jobs__name--open {
   color: var(--hud-text-muted);
   flex: 0 0 auto;
 }
+
+/* ============================================================
+ * 新版车机 UI（2026-09-09 定稿 `内部文档`；2026-09-11 按截图逐块对齐）。
+ * 只在车机端生效（`[data-surface="cockpit"]`，见 dialog.css 那段的理由）。
+ *
+ * 尺寸一律 `calc(N * var(--hud-unit))`——与对话页同一条纪律（cockpit-dialog-scale.test）：
+ * 上一版这里全是绝对 px，2048 的屏上字比定稿小一圈、卡也没有外面那张 sheet。
+ * 定稿的骨架：顶栏之下**一整张白 sheet**，头部（圆形返回键 + 大标题 + 灰副题 + 「重新采集」）
+ * 在 sheet 顶部，下面两栏（时间轴 / 路线）与一行两卡（休憩 / 避雷）都是 sheet 里的白卡。
+ * 「避雷」是琥珀不是红——红色纪律里红只给「拥堵」和「读不到」。
+ * ============================================================ */
+[data-surface="cockpit"] .guide-screen {
+  /* 定稿两卡之间 30px（2048 基准）= 24u；上下两行同一个数，四条竖边才对得上。 */
+  --guide-gap: calc(24 * var(--hud-unit));
+  /* 让开顶栏（导览是从地图点进来的一层，不该把"换到对话/档案"的出口一起吃掉）。 */
+  top: var(--hud-topbar-h, 0px);
+  background: #eaf2fa;
+  gap: 0;
+  /* 定稿实测（2048 基准）：sheet 上边 102 / 左右各 47 / 下边 1117，四周不等宽。 */
+  padding: calc(16 * var(--hud-unit)) calc(38 * var(--hud-unit)) calc(28 * var(--hud-unit));
+  overflow: hidden;
+}
+[data-surface="cockpit"] .guide-screen__sheet {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(10 * var(--hud-unit));
+  /* 左右 38u：加上外面那层 38u，卡片的竖边正好落在定稿的 93 / 1954（2048 基准）。 */
+  padding: calc(14 * var(--hud-unit)) calc(38 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(28 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  box-shadow: var(--hud-card-shadow);
+  overflow-y: auto;
+}
+/* 头部：圆形返回键（只有 chevron）、大标题、灰副题；「重新采集」在最右。 */
+[data-surface="cockpit"] .guide-screen__header { gap: calc(20 * var(--hud-unit)); align-items: flex-start; }
+[data-surface="cockpit"] .guide-screen__back {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: calc(56 * var(--hud-unit));
+  height: calc(56 * var(--hud-unit));
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  color: var(--hud-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: calc(4 * var(--hud-unit));
+}
+[data-surface="cockpit"] .guide-screen__back-icon { width: calc(26 * var(--hud-unit)); height: calc(26 * var(--hud-unit)); }
+[data-surface="cockpit"] .guide-screen__back-label { display: none; }
+[data-surface="cockpit"] .guide-screen__title {
+  font-size: calc(40 * var(--hud-unit));
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-surface="cockpit"] .guide-screen__arrival {
+  margin-top: calc(6 * var(--hud-unit));
+  font-size: calc(21 * var(--hud-unit));
+  line-height: 1.5;
+}
+[data-surface="cockpit"] .guide-screen__regen {
+  flex: 0 0 auto;
+  margin-top: calc(4 * var(--hud-unit));
+  min-height: calc(52 * var(--hud-unit));
+  padding: 0 calc(24 * var(--hud-unit));
+  border-radius: 999px;
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  color: var(--hud-text);
+  font-size: var(--hud-font-caption);
+  font-weight: 600;
+}
+[data-surface="cockpit"] .guide-screen__col-title {
+  margin: 0 0 calc(6 * var(--hud-unit));
+  font-size: var(--hud-font-poi);
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--hud-text);
+}
+/*
+ * 两栏不再各自限高滚动：定稿里六格时间轴全部摊开、路线卡与它齐高，整张 sheet 一起滚。
+ * 基础规则给两栏 `flex:1 + min-height:0 + overflow-y:auto` 是给旧版"两栏各滚"用的，
+ * 这里解除——否则 2048 的屏上第 4 格起就藏在栏底下，看起来像只有三个点。
+ */
+[data-surface="cockpit"] .guide-screen__body { flex: 0 0 auto; min-height: auto; align-items: stretch; }
+[data-surface="cockpit"] .guide-screen__timeline-col,
+[data-surface="cockpit"] .guide-screen__map-col { overflow: visible; min-height: 0; }
+[data-surface="cockpit"] .guide-screen__timeline-col,
+[data-surface="cockpit"] .guide-screen__map-col,
+[data-surface="cockpit"] .guide-screen__comfort-block {
+  border-radius: calc(20 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  box-shadow: none;
+  padding: calc(14 * var(--hud-unit)) calc(22 * var(--hud-unit));
+}
+/* 时间轴：细轨 + 实心橙序号 + 小胶囊 + 粗名字 + 灰说明。 */
+[data-surface="cockpit"] .guide-timeline { padding-left: calc(4 * var(--hud-unit)); }
+[data-surface="cockpit"] .guide-timeline::before {
+  left: calc(18 * var(--hud-unit));
+  width: calc(3 * var(--hud-unit));
+  top: calc(18 * var(--hud-unit));
+  bottom: calc(18 * var(--hud-unit));
+  opacity: 0.45;
+}
+/* 六格要在 2048×1152 的一屏里连同下面两卡一起放下（定稿如此）：行高压到 ~77px。 */
+[data-surface="cockpit"] .guide-timeline__row {
+  grid-template-columns: calc(32 * var(--hud-unit)) auto 1fr;
+  column-gap: calc(14 * var(--hud-unit));
+  row-gap: 0;
+  padding: calc(2 * var(--hud-unit)) 0;
+}
+[data-surface="cockpit"] .guide-timeline__seq {
+  width: calc(32 * var(--hud-unit));
+  height: calc(32 * var(--hud-unit));
+  border: none;
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+  font-size: calc(17 * var(--hud-unit));
+  font-weight: 800;
+  box-shadow: 0 0 0 calc(3 * var(--hud-unit)) #fff;
+}
+[data-surface="cockpit"] .guide-timeline__name { font-size: var(--hud-font-body); font-weight: 700; line-height: 1.15; }
+[data-surface="cockpit"] .guide-timeline__note { font-size: var(--hud-font-caption); line-height: 1.25; margin-top: 0; }
+/* 胶囊配色（定稿点名）：游玩点 = 浅橙底深橙字；打卡点 = 浅灰蓝底石板字；休憩类 = 浅蓝底蓝字；避雷 = 浅琥珀。 */
+[data-surface="cockpit"] .guide-timeline__kind,
+[data-surface="cockpit"] .guide-comfort__kind {
+  font-size: calc(16 * var(--hud-unit));
+  font-weight: 700;
+  padding: calc(4 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: 999px;
+  background: rgba(245, 166, 35, 0.14);
+  color: var(--hud-warn);
+}
+[data-surface="cockpit"] .guide-timeline__kind.is-photo,
+[data-surface="cockpit"] .guide-timeline__kind.is-parking,
+[data-surface="cockpit"] .guide-timeline__kind.is-charging,
+[data-surface="cockpit"] .guide-timeline__kind.is-refuel {
+  background: rgba(61, 143, 214, 0.10);
+  color: var(--hud-text-muted);
+}
+[data-surface="cockpit"] .guide-comfort__kind {
+  background: rgba(61, 143, 214, 0.12);
+  color: var(--hud-pin);
+  margin-right: 0;
+  /* 行是 flex：说明一长，胶囊会被压成「休\n息」两行（iPad 真数据实拍）。胶囊定宽不折。 */
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+[data-surface="cockpit"] .guide-comfort__kind.is-pitfall { background: rgba(184, 115, 15, 0.12); color: var(--hud-warn); }
+[data-surface="cockpit"] .guide-screen__comfort-block.is-pitfall .guide-screen__col-title { color: var(--hud-warn); }
+/* 休憩 / 避雷的行：胶囊 · 粗名字 · 灰说明 同一行，行间细线。 */
+
+[data-surface="cockpit"] .guide-screen__comfort-block ul { gap: 0; font-size: var(--hud-font-caption); }
+[data-surface="cockpit"] .guide-screen__comfort-block li {
+  display: flex;
+  align-items: baseline;
+  gap: calc(16 * var(--hud-unit));
+  padding: calc(5 * var(--hud-unit)) 0;
+  border-bottom: 1px solid var(--hud-divider);
+  color: var(--hud-text-muted);
+}
+[data-surface="cockpit"] .guide-screen__comfort-block li:last-child { border-bottom: none; }
+[data-surface="cockpit"] .guide-screen__comfort-block li b {
+  flex: 0 0 auto;
+  min-width: calc(180 * var(--hud-unit));
+  color: var(--hud-text);
+  font-size: var(--hud-font-body);
+}
+/* 路线卡：示意图的浅蓝底圆角与卡一致；示意图上不放缩放键（它不是地图）。 */
+/*
+ * 路线卡里的图定高 300u（定稿的地图约 2:1），不再 flex:1 吃掉整栏——两栏等高时它会跟着
+ * 六格时间轴长到 600u 以上，示意图被拉成一张竖长的空图（2026-09-11 截图）。
+ */
+[data-surface="cockpit"] .guide-minimap-wrap { flex: 0 0 auto; height: calc(250 * var(--hud-unit)); min-height: 0; border-radius: calc(16 * var(--hud-unit)); overflow: hidden; }
+/*
+ * 点少（≤3）时示意图只有一行，250u 高的画布下面空一大块（iPad 真数据：水下兵马俑只有 2 个点）。
+ * 一行的图给一行的高。手机同理（见下）。
+ */
+[data-surface="cockpit"] .guide-minimap-wrap.is-schematic.is-short { height: calc(150 * var(--hud-unit)); }
+/* 示意图的序号点画在画布边上，圆盘放大后会被 svg 盒子裁掉——让 svg 溢出可见，圆角由 wrap 的 overflow 兜着不行，所以示意态 wrap 也放开。 */
+.guide-minimap-wrap.is-schematic { overflow: visible; background: var(--hud-map-block); }
+/* 浅蓝底由 wrap 自己画满整卡：svg 的 viewBox 按容器比例算，容器矮下去时 meet 会让画布只占中间一截，
+   底色若只跟着 svg 走，卡里就露出一块比卡窄的浅蓝方块（iPad 2 个点时实拍）。 */
+.guide-minimap-wrap.is-schematic .guide-minimap { overflow: visible; }
+[data-surface="cockpit"] .guide-minimap__fallback-note,
+[data-surface="cockpit"] .guide-minimap__unplaced,
+[data-surface="cockpit"] .guide-screen__order-note,
+[data-surface="cockpit"] .guide-screen__transport {
+  font-size: var(--hud-font-caption);
+  line-height: 1.5;
+  margin-top: calc(8 * var(--hud-unit));
+}
+[data-surface="cockpit"] .guide-minimap__fallback-note { margin: 0 0 calc(10 * var(--hud-unit)); }
+.guide-minimap-wrap.is-schematic .guide-minimap__controls { display: none; }
+/* 示意图上只留序号点：名字在旁边的时间轴里已经逐条列了，画到图上只剩一行读不清的小字（定稿的图上就只有数字）。 */
+.guide-minimap-wrap.is-schematic .guide-minimap__name { display: none; }
+/* 示意图的点画成定稿那样：实心橙圆 + 白数字、橙色虚线路线。半径在 GuideMiniMap.tsx 的属性上（WKWebView 不吃 CSS 的 r）。 */
+.guide-minimap-wrap.is-schematic .guide-minimap__dot { fill: var(--hud-amber); stroke: #fff; stroke-width: 3.5; }
+.guide-minimap-wrap.is-schematic .guide-minimap__dot.is-photo { stroke: #fff; }
+.guide-minimap-wrap.is-schematic .guide-minimap__seq { font-size: 18px; fill: var(--hud-badge-text); }
+.guide-minimap-wrap.is-schematic .guide-minimap__route { stroke-dasharray: 1 8; stroke-width: 4; }
+.guide-minimap-wrap.is-schematic .guide-minimap__route-halo,
+.guide-minimap-wrap.is-schematic .guide-minimap__chevron { display: none; }
+[data-surface="cockpit"] .guide-screen__caveats { font-size: var(--hud-font-caption); }
+
+/* ============================================================
+ * 新版手机 UI（2026-09-09 定稿 `内部文档`；2026-09-11 按截图逐块对齐）。
+ * 只在手机端生效（`[data-surface="mobile"]`）。竖屏单列顺序（路线在上、时间轴在下）由既有的
+ * `--portrait` 规则决定。定稿的头部是两行：「‹ 返回」与「⟳ 重新采集」一行、大标题一行；
+ * 到达段是一条带 › 的折叠行；路线卡里的图只占约四分之一屏；时间轴每行：序号 · 胶囊 · 名字 · 右侧灰说明。
+ * ============================================================ */
+[data-surface="mobile"] .guide-screen { --guide-gap: 12px; background: #eaf2fa; gap: 12px; padding: calc(10px + env(safe-area-inset-top)) 14px 24px; }
+[data-surface="mobile"] .guide-screen__sheet { display: contents; }
+[data-surface="mobile"] .guide-screen__header { flex-wrap: wrap; gap: 10px 12px; }
+[data-surface="mobile"] .guide-screen__back,
+[data-surface="mobile"] .guide-screen__regen {
+  border-radius: 999px;
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  color: var(--hud-text);
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+[data-surface="mobile"] .guide-screen__back-icon { width: 18px; height: 18px; }
+[data-surface="mobile"] .guide-screen__regen { color: var(--hud-amber); border-color: var(--hud-amber); margin-left: auto; }
+[data-surface="mobile"] .guide-screen__title-wrap { flex: 1 0 100%; order: 3; }
+[data-surface="mobile"] .guide-screen__title { font-size: 28px; font-weight: 800; line-height: 1.2; }
+[data-surface="mobile"] .guide-screen__col-title { font-size: 18px; font-weight: 800; letter-spacing: 0; color: var(--hud-text); margin-bottom: 10px; }
+[data-surface="mobile"] .guide-screen__timeline-col,
+[data-surface="mobile"] .guide-screen__map-col,
+[data-surface="mobile"] .guide-screen__comfort-block,
+[data-surface="mobile"] .guide-screen__arrival-fold {
+  border-radius: 20px;
+  border: 1px solid var(--hud-card-border);
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+  padding: 14px 16px;
+}
+/* 到达段：一条带 › 的折叠行（定稿）。 */
+[data-surface="mobile"] .guide-screen__arrival-fold { padding: 4px 16px; font-size: 15px; }
+[data-surface="mobile"] .guide-screen__arrival-fold summary {
+  list-style: none;
+  min-height: 44px;
+  color: var(--hud-text);
+  font-weight: 600;
+  justify-content: space-between;
+}
+[data-surface="mobile"] .guide-screen__arrival-fold summary::-webkit-details-marker { display: none; }
+[data-surface="mobile"] .guide-screen__arrival-fold summary::after { content: "›"; font-size: 22px; color: var(--hud-text-muted); }
+[data-surface="mobile"] .guide-screen__arrival-fold[open] summary::after { content: "⌄"; }
+[data-surface="mobile"] .guide-screen__arrival-fold p { color: var(--hud-text-muted); padding-bottom: 10px; }
+/* 路线卡：图约四分之一屏，圆角浅蓝底；示意图上没有缩放键。 */
+[data-surface="mobile"] .guide-screen--portrait .guide-minimap-wrap { height: clamp(170px, 24vh, 230px); border-radius: 14px; overflow: hidden; }
+[data-surface="mobile"] .guide-screen--portrait .guide-minimap-wrap.is-schematic.is-short { height: 130px; }
+/* 手机上画布只有 230px 高，viewBox 430 → 缩到一半；序号点按倍数放大才有 11px 左右可读。 */
+[data-surface="mobile"] .guide-minimap-wrap.is-schematic .guide-minimap__dot { stroke-width: 4; }
+[data-surface="mobile"] .guide-minimap-wrap.is-schematic .guide-minimap__seq { font-size: 20px; }
+[data-surface="mobile"] .guide-minimap-wrap.is-schematic .guide-minimap__route { stroke-width: 5; stroke-dasharray: 1 10; }
+[data-surface="mobile"] .guide-minimap__fallback-note,
+[data-surface="mobile"] .guide-minimap__unplaced,
+[data-surface="mobile"] .guide-screen__order-note,
+[data-surface="mobile"] .guide-screen__transport { font-size: 13px; line-height: 1.5; }
+/* 时间轴：紧凑行——序号 · 胶囊 · 名字 · 右侧灰说明，行间细线。 */
+[data-surface="mobile"] .guide-timeline { padding-left: 2px; }
+[data-surface="mobile"] .guide-timeline::before { left: 14px; width: 2px; top: 16px; bottom: 16px; opacity: 0.45; }
+[data-surface="mobile"] .guide-timeline__row {
+  grid-template-columns: 26px auto minmax(0, 1fr) minmax(0, 32%);
+  grid-template-areas: "seq kind name note";
+  column-gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hud-divider);
+}
+[data-surface="mobile"] .guide-timeline__row:last-child { border-bottom: none; }
+[data-surface="mobile"] .guide-timeline__seq {
+  width: 26px; height: 26px; border: none; background: var(--hud-amber); color: var(--hud-badge-text);
+  font-size: 13px; font-weight: 800; box-shadow: 0 0 0 3px #fff;
+}
+[data-surface="mobile"] .guide-timeline__name { font-size: 15px; font-weight: 700; }
+[data-surface="mobile"] .guide-timeline__note { margin: 0; font-size: 12px; line-height: 1.35; text-align: right; }
+[data-surface="mobile"] .guide-timeline__kind,
+[data-surface="mobile"] .guide-comfort__kind {
+  font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: rgba(245, 166, 35, 0.14); color: var(--hud-warn);
+}
+[data-surface="mobile"] .guide-timeline__kind.is-photo,
+[data-surface="mobile"] .guide-timeline__kind.is-parking,
+[data-surface="mobile"] .guide-timeline__kind.is-charging,
+[data-surface="mobile"] .guide-timeline__kind.is-refuel { background: rgba(61, 143, 214, 0.10); color: var(--hud-text-muted); }
+[data-surface="mobile"] .guide-comfort__kind { background: rgba(61, 143, 214, 0.12); color: var(--hud-pin); margin-right: 0; flex: 0 0 auto; white-space: nowrap; }
+[data-surface="mobile"] .guide-comfort__kind.is-pitfall { background: rgba(184, 115, 15, 0.12); color: var(--hud-warn); }
+[data-surface="mobile"] .guide-screen__comfort-block.is-pitfall .guide-screen__col-title { color: var(--hud-warn); }
+[data-surface="mobile"] .guide-screen__comfort-block ul { gap: 0; font-size: 13px; }
+[data-surface="mobile"] .guide-screen__comfort-block li {
+  display: flex; align-items: baseline; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid var(--hud-divider); color: var(--hud-text-muted);
+}
+[data-surface="mobile"] .guide-screen__comfort-block li:last-child { border-bottom: none; }
+[data-surface="mobile"] .guide-screen__comfort-block li b { flex: 0 0 auto; color: var(--hud-text); font-size: 15px; }

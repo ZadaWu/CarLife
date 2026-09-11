@@ -5,6 +5,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { configureAmap, configureLocationPort } from "@carlife/ui";
 import "@carlife/ui/styles";
 import "./styles.css";
+
+/*
+ * 端标记（新版 UI）：`clients/shared/ui` 的对话页 / 导览页 / 变化弹层是**两端共用**的，
+ * 车机端换了新版式而手机端没有。所以新版样式一律写成 `[data-surface="cockpit"] …`，
+ * 由这一行开闸——不加这个标记就等于把手机端也一起改了（那是另一套版式，见
+ * `内部文档` 末节）。
+ */
+if (typeof document !== "undefined") document.documentElement.dataset.surface = "cockpit";
 import { App } from "./App";
 import { BoardingGate, LoginGate } from "./features/auth";
 import { createTauriLocationPort } from "./bridge/locationPort";

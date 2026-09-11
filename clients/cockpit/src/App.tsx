@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  BottomNav,
+  SPRITES,
+  TopBar,
   GuideScreen,
   GuideJobsPanel,
   GUIDE_JOBS_POLL_MS,
@@ -27,9 +28,14 @@ import {
   type NavView,
   type ThemeName,
   type LiveEnergy,
+  vehicleCharacter,
+  type EnRouteEvent,
+  type ReminderDensity,
 } from "@carlife/ui";
 
-import { guideBriefIsEmpty } from "@carlife/shared";
+import { guideBriefIsEmpty,
+  type AttachmentRef,
+} from "@carlife/shared";
 import type {
   AssistantState,
   ChatMessage,
@@ -67,6 +73,18 @@ import {
 import type { TripPlanSnapshot } from "@carlife/shared";
 import { DEMO_TRIP_PLAN, withDemoNav } from "./data/demoTripPlan";
 import { DEMO_PERMISSION, isHitlDemo } from "./data/demoPermission";
+// 演示数据住在共享包（两端共用一份，见各自文件头）。
+import {
+  DEMO_DIALOG_MESSAGES,
+  DEMO_DIALOG_SESSIONS,
+  DEMO_DIALOG_STREAMING,
+  DEMO_GUIDE_BRIEF,
+  isDialogDemo,
+  isGuideDemo,
+} from "@carlife/ui";
+import { createTauriReminderSpeaker } from "./features/trip/en-route-speak";
+import { densityFromRust, EN_ROUTE_EVENTS } from "./features/trip/en-route-prefs";
+import { listen } from "@tauri-apps/api/event";
 import { devFetch } from "./devAuth";
 import { createVoicePort, isTauriEnv } from "./voice/tauriVoicePort";
 import { subscribeBridge } from "./bridge";
@@ -83,8 +101,20 @@ import { OwnershipScreen } from "./features/ownership/OwnershipScreen";
 import { DriveTransition } from "./features/nav/DriveTransition";
 import { loadVehicles } from "./features/ownership/api";
 // 实时能量与到站播报判据自 M65-01 起在 @carlife/ui（两端共用）。
-import { createArrivalAnnouncer, demoEnergy, startEnergyPolling } from "@carlife/ui";
+import {
+  DEMO_TRIP_ENTRIES,
+  TripReviewSheet,
+  createArrivalAnnouncer,
+  createReviewAnnouncer,
+  demoEnergy,
+  hudAlertFrom,
+  startEnergyPolling,
+} from "@carlife/ui";
+import { createAnnounceStore } from "./features/trip/announce-prefs";
 import { ConfirmSheet } from "./features/hitl/ConfirmSheet";
+// 样式在入口引：组件文件不 import css——node 的测试跑器加载不了它（M72-04）。
+import { invokeAckTripReview } from "./data/mockSource";
+import type { TripPlanListEntry } from "@carlife/shared";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { SettingsScreen } from "./features/settings/SettingsScreen";
 import { demoTheme, isProfileDemo } from "./data/demoVehicleProfile";
@@ -146,6 +176,14 @@ const NAV_SPEEDUPS: number[] = [60, 120, 1];
  * `onNeedBoarding`：车机上建会话被服务端判为"没声明谁在用"时回调，
  * 由外层重新挂出上车声明。**不静默失败**——静默的后果是车主说了话没有任何反应。
  */
+
+/** 本地日期串（年-月-日），点火播报「同一天最多一次」的口径——车主看的是车机的钟。 */
+function localDayKey(now = new Date()): string {
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${mm}-${dd}`;
+}
+
 export function App({
   declaredSessionId,
   onNeedBoarding,
@@ -205,7 +243,7 @@ export function App({
   const profileDemo = isProfileDemo();
   /* `?hitl=demo`：直接弹确认层并隐藏 devbar，同款版式截图入口（见 demoPermission.ts）。 */
   const hitlDemo = isHitlDemo();
-  const [nav, setNav] = useState<NavView>(profileDemo ? "profile" : "hud");
+  const [nav, setNav] = useState<NavView>(profileDemo ? "profile" : isDialogDemo() ? "dialog" : "hud");
   /*
    * devbar 默认收起（只留一个「功能演示」圆钮）。
    * 展开后按钮会越加越多，所以这里不是"藏起来好看"——**默认铺开时它会盖住
@@ -216,6 +254,19 @@ export function App({
   // ── 真实地图行程模式（M13-06）────────────────────────────────
   // fetchedPlan 来自数据源；demoPlan 是 devbar 的演示开关（浏览器走查唯一路径）。
   const [fetchedPlan, setFetchedPlan] = useState<TripPlanSnapshot | null>(null);
+  /*
+   * 右上角行程列表（M72-04）：活动行程 + 每程最新核查，与行程同一次轮询回来。
+   * `selectedPlanId` 只在端上记（不落库、不改服务端「当前行程」）；`reviewPlanId` 是打开着摘要的那程。
+   */
+  const [fetchedEntries, setFetchedEntries] = useState<TripPlanListEntry[]>([]);
+  const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(undefined);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [reviewPlanId, setReviewPlanId] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  /** 演示条目里点过「知道了」的（演示数据是静态的，得自己记）。 */
+  const [demoAcked, setDemoAcked] = useState<ReadonlySet<string>>(() => new Set());
+  /** 行驶中点了带点的那程：不弹，留一句话。 */
+  const [tripHint, setTripHint] = useState<string | undefined>(undefined);
   /*
    * 这次长按为什么没录成（2026-09-02 iPad 走查）。
    *
@@ -231,7 +282,13 @@ export function App({
   const [home, setHome] = useState<HomePlace | undefined>(
     isTauriEnv() ? undefined : MOCK_HOME,
   );
-  const [demoPlan, setDemoPlan] = useState(false);
+  /*
+   * `?trip=demo`：一进来就开着行程演示——给截图脚本 / 无头浏览器用的入口，
+   * 与 `?profile=demo` 同一类（那两个开关点不到 devbar）。真实运行不带 query，行为一字不变。
+   */
+  const [demoPlan, setDemoPlan] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("trip") === "demo",
+  );
   const [dayMode, setDayMode] = useState<"all" | number>("all");
   const [amapFailed, setAmapFailed] = useState(false);
   /*
@@ -274,6 +331,15 @@ export function App({
             fetchPlanJson: invokeFetchTripPlan,
             onPlan: setFetchedPlan,
             onHome: setHome,
+            onPlans: (entries, current) => {
+              setFetchedEntries(entries);
+              setCurrentPlanId(current);
+              // 点火播报：每轮列表都喂进去，闸门（一份一次 / 一天一次 / 开关 / 行驶中）在 announcer 里。
+              reviewAnnouncerRef.current?.consider(entries, {
+                today: localDayKey(),
+                driving: drivingRef.current,
+              });
+            },
           })
         : createMockHudSource(weather),
     [weather],
@@ -355,9 +421,13 @@ export function App({
     () => (demoPlan ? highlightsPage(DEMO_TRIP_PLAN.destinationHighlights) : undefined),
     [demoPlan],
   );
-  const view: HudSnapshot = demoHighlightsPage
-    ? { ...fresh, tips: { ...fresh.tips, pages: [...fresh.tips.pages, demoHighlightsPage] } }
-    : fresh;
+  const view: HudSnapshot = {
+    ...(demoHighlightsPage
+      ? { ...fresh, tips: { ...fresh.tips, pages: [...fresh.tips.pages, demoHighlightsPage] } }
+      : fresh),
+    // 同一条缝：出发段（状态栏三格）真实链路由网关带回、经 tripPlanToHud 投影；浏览器演示态在这里补上。
+    ...(demoPlan && DEMO_TRIP_PLAN.leg ? { leg: DEMO_TRIP_PLAN.leg } : {}),
+  };
 
   // 真实地图报废（无 key/离线）→ 回落装饰概览。memo 化：内联箭头函数会被
   // 地图层当成"配置变了"，那正是白屏事故的引信（AmapTripLayer 的注释）。
@@ -387,6 +457,58 @@ export function App({
    * 演示倍速经 devbar 开关；**大于 1 时顶栏恒显角标**（HudScreen 的 NavBar 保证）。
    */
   const navDay = plan ? tripPlanNavDay(plan, new Date().toISOString()) : undefined;
+  /** 点火播报要在 source 的回调里读到最新的 announcer 与"是否在跟车"——两者都经 ref（source 挂在 weather 上，不能进它的依赖）。 */
+  const reviewAnnouncerRef = useRef<ReturnType<typeof createReviewAnnouncer> | null>(null);
+  const drivingRef = useRef(false);
+
+  /*
+   * 列表条目（M72-04）：真实数据来自轮询；浏览器「行程演示」用固定三程（这是列表卡与摘要弹层
+   * 能在浏览器里被走查的唯一路径）。演示条目点过「知道了」的在本地打上 ackedAt。
+   */
+  const tripEntries: TripPlanListEntry[] = useMemo(() => {
+    if (!demoPlan) return fetchedEntries;
+    return DEMO_TRIP_ENTRIES.map((e) =>
+      e.review && demoAcked.has(e.review.reviewId)
+        ? { ...e, review: { ...e.review, ackedAt: new Date().toISOString() } }
+        : e,
+    );
+  }, [demoPlan, fetchedEntries, demoAcked]);
+  /**
+   * 选中的那程（M73-02：**不再回落到当前行程**——有选中才是选中态；演示态也从未选中开始，
+   * 否则走查永远看不到周日历卡）。`currentPlanId` 现在只用于排障，不参与高亮。
+   */
+  const highlightedPlanId =
+    selectedPlanId && tripEntries.some((e) => e.planId === selectedPlanId) ? selectedPlanId : undefined;
+  void currentPlanId;
+  const reviewEntry = reviewPlanId ? tripEntries.find((e) => e.planId === reviewPlanId) : undefined;
+  /** 暖暖 alert：critical 且未确认、未作废（AC-01-4，「知道了」即清除）。 */
+  const hudAlert = hudAlertFrom(tripEntries);
+  drivingRef.current = navDay !== undefined;
+
+  const onSelectTrip = useCallback(
+    (planId: string) => {
+      setSelectedPlanId(planId);
+      if ("select" in source) (source as GatewayHudSource).select(planId);
+    },
+    [source],
+  );
+  /** 顶部日期条的 ×（M73-02）：回未选中态——周日历卡回来、提示卡收起、地图回到列表首条。 */
+  const onClearTripSelection = useCallback(() => {
+    setSelectedPlanId(null);
+    if ("select" in source) (source as GatewayHudSource).select(null);
+  }, [source]);
+  const onOpenTripReview = useCallback(
+    (planId: string) => {
+      if (navDay !== undefined) {
+        // 行驶中不弹模态（Brief §2 / F-19-07）：留一句话，停车再看。
+        setTripHint("停车后再看行程变化");
+        window.setTimeout(() => setTripHint(undefined), 4000);
+        return;
+      }
+      setReviewPlanId(planId);
+    },
+    [navDay],
+  );
 
   /*
    * 跟车时**只看当天那一段**。
@@ -420,10 +542,66 @@ export function App({
    * 链路自然就念了**（TTS 全在 Rust 侧、挂在"助手回了一句话"上）。
    * 去重与在飞防叠的判据在 `@carlife/ui` 的 `createArrivalAnnouncer`（M65-01 上提，两端共用、有单测）。
    */
+  /*
+   * 点火播报（M72-05，F-19-07）：主页拿到行程列表后，critical 且没看过的核查让暖暖主动说一句。
+   * 判据与三道闸在 `@carlife/ui` 的 `createReviewAnnouncer`（有单测）；存储在端上（`announce-prefs.ts`）。
+   * 只在 Tauri 里发——浏览器走查没有会话。
+   */
+  const reviewAnnouncer = useMemo(
+    () =>
+      createReviewAnnouncer(
+        (note) => (isTauriEnv() ? (sendTextRef.current?.(note) ?? Promise.resolve()) : Promise.resolve()),
+        createAnnounceStore(),
+      ),
+    [],
+  );
+  reviewAnnouncerRef.current = reviewAnnouncer;
   const announcer = useMemo(
     () => createArrivalAnnouncer((note) => sendTextRef.current?.(note) ?? Promise.resolve()),
     [],
   );
+  /*
+   * 途中提醒（M77-06）：出声走端上 speak_reminder，不进会话；连续驾驶卡在场时暖暖进 alert 态。
+   */
+  const speakReminder = useMemo(() => createTauriReminderSpeaker(invoke, isTauriEnv), []);
+  const [restAlert, setRestAlert] = useState(false);
+  const reminderIsInFlight = useCallback(() => announcer.isInFlight(), [announcer]);
+  /*
+   * 途中提醒的偏好与口令（M77-07）：真相源在 Rust。启动问一次，之后只听三个事件——
+   * 设置页拨的、语音拨的都经 Rust 的唯一落点广播回来，这里不自己维护第二份。
+   */
+  const [enRoutePrefs, setEnRoutePrefs] = useState<{ enabled: boolean; density: ReminderDensity }>({ enabled: true, density: "normal" });
+  const [hushSignal, setHushSignal] = useState(0);
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    void invoke<boolean>("get_en_route_reminders")
+      .then((enabled) => setEnRoutePrefs((p) => ({ ...p, enabled })))
+      .catch(() => {});
+    void invoke<string>("get_en_route_density")
+      .then((d) => setEnRoutePrefs((p) => ({ ...p, density: densityFromRust(d) })))
+      .catch(() => {});
+    let stops: Array<() => void> = [];
+    let disposed = false;
+    void Promise.all([
+      listen<boolean>(EN_ROUTE_EVENTS.enabled, (e) => setEnRoutePrefs((p) => ({ ...p, enabled: e.payload }))),
+      listen<string>(EN_ROUTE_EVENTS.density, (e) => setEnRoutePrefs((p) => ({ ...p, density: densityFromRust(e.payload) }))),
+      listen(EN_ROUTE_EVENTS.hushed, () => setHushSignal((n) => n + 1)),
+    ])
+      .then((us) => {
+        if (disposed) us.forEach((u) => u());
+        else stops = us;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      stops.forEach((u) => u());
+    };
+  }, []);
+  /** 端侧判定日志（F-62-14）：进 Rust 的有界缓冲，不上报；浏览器走查不记。 */
+  const logEnRoute = useCallback((e: EnRouteEvent) => {
+    if (!isTauriEnv()) return;
+    void invoke("log_en_route_event", { name: e.type, detail: JSON.stringify(e) }).catch(() => {});
+  }, []);
   const onNavProgress = useCallback(
     (p: NavTripProgress) => {
       if (!isTauriEnv()) return;
@@ -439,7 +617,10 @@ export function App({
    * 冷启是三分支采集（最坏 90s 量级），所以先出"采集中"态；
    * 返回后迟到的结果按序号丢弃——旧请求的数据盖上新页面是最迷惑的一种错。
    */
-  const [guide, setGuide] = useState<{ spot: string; state: GuideScreenState } | null>(null);
+  const [guide, setGuide] = useState<{ spot: string; state: GuideScreenState } | null>(() =>
+    // `?guide=demo`：直接落在 ready 态——版式截图入口，见 @carlife/ui 的 demo-guide-brief.ts。
+    isGuideDemo() ? { spot: DEMO_GUIDE_BRIEF.spot, state: { status: "ready", brief: DEMO_GUIDE_BRIEF } } : null,
+  );
   const guideSeqRef = useRef(0);
   const openGuide = useCallback(
     (spotName: string, opts?: { force?: boolean }) => {
@@ -1057,6 +1238,16 @@ export function App({
     [endCurrentSession],
   );
 
+  /** 附件取件（M80-03）：句柄 → 字节（Rust 侧带令牌）→ Blob。模块级常量即可，不依赖任何状态。 */
+  const cockpitAttachments = useMemo(
+    () => ({
+      load: async (ref: AttachmentRef): Promise<Blob> => {
+        const buf = await invoke<ArrayBuffer>("fetch_attachment", { handle: ref.handle });
+        return new Blob([buf], { type: ref.contentType ?? "application/octet-stream" });
+      },
+    }),
+    [],
+  );
   const sendText = useCallback(async (content: string) => {
     const sid = await ensureUsableSession();
     setLastInteractionAt(Date.now());
@@ -1389,7 +1580,8 @@ export function App({
   const carousel = useCarousel(view.tips.pages.length);
   const assistant = useAssistantInteraction({
     // 服务端事件流优先（M2-04），HUD mock 快照兜底；本地交互态在 hook 内仍最优先。
-    externalState: serverAvatarState ?? view.assistantState,
+    // alert 抢占（AC-01-4）：有 critical 且未确认的核查时，形象先说"有一条提醒"。
+    externalState: hudAlert ? "alert" : restAlert ? "alert" : (serverAvatarState ?? view.assistantState),
     voice,
     /*
      * **不传 onOpenDialog**——车机端进对话只有底部导航的「对话」按钮一条路。
@@ -1456,11 +1648,34 @@ export function App({
                    */
                   captureFault
                   ? { primary: "这次没录上", secondary: captureFault }
-                  : undefined
+                  : tripHint
+                    ? { primary: tripHint, secondary: "行程列表上的点会一直留着" }
+                    : undefined
           }
           tripMap={tripMap}
           departurePlan={plan}
           mapView={mapView}
+          reminders={{
+            legs: plan?.legs,
+            enabled: enRoutePrefs.enabled,
+            density: enRoutePrefs.density,
+            muted: !broadcast || !enRoutePrefs.enabled,
+            speak: speakReminder,
+            isInFlight: reminderIsInFlight,
+            onRestActive: setRestAlert,
+            onEvent: logEnRoute,
+            hushSignal,
+          }}
+          // 我的座驾（屏底状态栏）：档案页的活动车辆；匹配不到形象就画中性车图标。
+          vehicle={{ model: activeModel, art: vehicleCharacter(activeModel, theme === "dark" ? "dark" : "light") }}
+          trips={{
+            entries: tripEntries,
+            selectedPlanId: highlightedPlanId,
+            today: localDayKey(),
+            onSelect: onSelectTrip,
+            onOpenReview: onOpenTripReview,
+            onClearSelection: onClearTripSelection,
+          }}
           assistantMode={assistantMode({
             messageCount: messages.length,
             lastInteractionAt,
@@ -1514,21 +1729,38 @@ export function App({
            * 那两样讲的都是"此刻正在发生什么"，而此刻正在发生的事属于当前会话，
            * 不属于屏幕上这段已经结束的对话。
            */
-          messages={viewing ? viewing.messages : messages}
-          streaming={viewing ? null : streaming}
-          progress={viewing ? null : toolProgress.progress}
+          /* `?dialog=demo`：喂演示消息/会话/进展——版式截图入口，见 @carlife/ui 的 demo-dialog.ts。 */
+          messages={isDialogDemo() ? DEMO_DIALOG_MESSAGES : viewing ? viewing.messages : messages}
+          streaming={isDialogDemo() ? DEMO_DIALOG_STREAMING : viewing ? null : streaming}
+          progress={isDialogDemo() ? "正在查天气（演示）" : viewing ? null : toolProgress.progress}
           /*
            * 部分结果横幅与流式/进展同一回看纪律（M28-01）：它讲的是"此刻这轮
            * 缺了什么"，回看历史时不显示——历史里的缺失已经写在当时的正文里。
            */
           branchFaults={viewing ? undefined : branchFaults.faults}
           connection={connection}
-          onSendText={isTauriEnv() ? sendText : undefined}
-          broadcast={isTauriEnv() ? { enabled: broadcast, onToggle: toggleBroadcast } : undefined}
+          onSendText={isTauriEnv() || isDialogDemo() ? sendText : undefined}
+          /*
+           * 附件回看（M80-03，F-03-08）：车机只取件不上传——行车态不选文件（FL-06），
+           * 但手机端发过来的照片与视频要能在这块屏上看、能放。字节经 Rust 命令带令牌取回。
+           */
+          attachments={isTauriEnv() ? cockpitAttachments : undefined}
+          broadcast={
+            isTauriEnv() || isDialogDemo() ? { enabled: broadcast, onToggle: toggleBroadcast } : undefined
+          }
           currentSessionId={currentSessionId}
           viewing={viewing ? { sessionId: viewing.sessionId, onExit: exitViewing } : null}
           sessions={
-            isTauriEnv()
+            isDialogDemo()
+              ? {
+                  items: DEMO_DIALOG_SESSIONS,
+                  hasMore: false,
+                  loading: false,
+                  onSelect: () => {},
+                  onLoadMore: () => {},
+                  onNew: () => {},
+                }
+              : isTauriEnv()
               ? {
                   items: sessions,
                   hasMore: sessionsHasMore,
@@ -1586,6 +1818,46 @@ export function App({
         />
       )}
 
+      {/* 行程变化摘要（M72-04）：只在主页；「知道了」→ ack；「让暖暖调整」→ 一句话进会话并切到对话页。 */}
+      {nav === "hud" && reviewEntry?.review && (
+        <TripReviewSheet
+          entry={reviewEntry}
+          busy={reviewBusy}
+          canAdjust={isTauriEnv() && navDay === undefined}
+          onClose={() => setReviewPlanId(null)}
+          onAck={() => {
+            const review = reviewEntry.review!;
+            if (demoPlan) {
+              setDemoAcked((prev) => new Set([...prev, review.reviewId]));
+              setReviewPlanId(null);
+              return;
+            }
+            setReviewBusy(true);
+            const req = isTauriEnv()
+              ? invokeAckTripReview(reviewEntry.planId, review.reviewId)
+              : devFetch(`/v1/trip-plan/${reviewEntry.planId}/review/ack`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ reviewId: review.reviewId }),
+                }).then((r) => r.text());
+            void req
+              .catch((err) => console.warn("[trip-review] 确认失败（下一轮刷新如实纠正）", err))
+              .finally(() => {
+                setReviewBusy(false);
+                setReviewPlanId(null);
+                // 立即重拉：点熄灭不该等下一个 60 秒。
+                if ("refresh" in source) (source as GatewayHudSource).refresh();
+              });
+          }}
+          onAdjust={(prompt) => {
+            setReviewPlanId(null);
+            void sendText(prompt);
+            // 后面是既有链路（细化 → 确认弹窗），车主要看到暖暖在说什么。
+            setNav("dialog");
+          }}
+        />
+      )}
+
       {/* HITL 确认弹层：HUD 与对话层都可见（M13-05）。 */}
       {(permission || demoPermission) && (
         <ConfirmSheet
@@ -1621,12 +1893,20 @@ export function App({
           // 哨兵总开关的真相源是 Rust 的指示快照——设置页与 HUD 麦克风图标
           // 拨的是同一个开关，两边显示必须由同一个事实驱动（M60-01）。
           sentinelOn={sentinelInd?.switchOn}
+          enRouteOn={enRoutePrefs.enabled}
+          enRouteDensity={enRoutePrefs.density}
           onLocated={(fix) => mapView.focusOn({ lat: fix.lat, lon: fix.lon, zoom: 15 })}
         />
       )}
 
-      <BottomNav
+      {/*
+        顶栏（新版 UI）：页签从屏底上提到屏顶，右端带城市 / 天气 / 时间。
+        车机端不再渲染 BottomNav（手机端仍用它）；屏底那一带给了出行状态栏。
+      */}
+      <TopBar
         active={nav}
+        city={home?.city}
+        weather={{ icon: SPRITES[theme].weather[view.weather.kind] ?? SPRITES[theme].weather.sunny, label: view.weather.label }}
         onSelect={(next) => {
           /*
            * 从**任何页面**切进档案都放过场（理由见 `driving` 的声明处）；
@@ -1648,8 +1928,6 @@ export function App({
           setNav(next);
         }}
         profileDisabled={false}
-        // 第四项只给车机（M33-05）：手机端不传即维持三项，一行不用改。
-        showSettings
       />
 
       {/*

@@ -1,8 +1,8 @@
 /**
  * worker 调度入口（施工单 M7-05，FL-32）。
  *
- * 五个任务（memory-decay / usage-aggregation / kb-sync / vehicle-reminder /
- * session-sweeper）挂在 node-cron 上，
+ * 六个任务（memory-decay / usage-aggregation / kb-sync / vehicle-reminder /
+ * session-sweeper / trip-plan-review）挂在 node-cron 上，
  * 每次触发都经 `runJob` —— 三条运行契约（幂等 / 可补偿 / 失败要出声）由它统一保证，
  * 任务本体只管自己那点业务。
  *
@@ -44,6 +44,7 @@ import { usageAggregationJob } from "./usage-aggregation";
 import { kbSyncJob } from "./kb-sync";
 import { vehicleReminderJob } from "./vehicle-reminder";
 import { sessionSweeperJob } from "./session-sweeper";
+import { tripPlanReviewJob } from "./trip-plan-review";
 
 /** 本实例标识，进租约表用于诊断"是谁占着"。 */
 const HOLDER = `${hostname()}:${process.pid}`;
@@ -75,6 +76,11 @@ const SCHEDULE: Record<string, string> = {
    * 小时级足够——它清的是"已经没人再碰"的会话，晚一小时没有任何影响。
    */
   "session-sweeper": "15 * * * *",
+  /*
+   * 行程每日核查（M72-02）：早 6:10——高德预报每日 6 点前后更新，且在多数车主出门前；
+   * 与 8 点的保养提醒岔开。窗口 24 h、漏跑只补一个窗口（补三天前的核查没有意义）。
+   */
+  "trip-plan-review": "10 6 * * *",
 };
 
 const JOBS: JobDefinition[] = [
@@ -83,6 +89,7 @@ const JOBS: JobDefinition[] = [
   memoryDecayJob,
   vehicleReminderJob,
   sessionSweeperJob,
+  tripPlanReviewJob,
 ];
 
 export function buildRunOptions(): RunOptions {

@@ -63,7 +63,24 @@ type Phase =
   | { kind: "skip" };
 
 export function BoardingGate({ onDeclared }: BoardingGateProps) {
-  const [phase, setPhase] = useState<Phase>({ kind: "probing" });
+  /*
+   * `?boarding=demo`：直接落在「现在是谁在用车」那一相——版式截图入口，与 `?login=demo`
+   * 同一类。成员名单是**演示数据且自带「（演示）」字样**：这道门在浏览器走查里探不到车辆
+   * 凭证，会走 skip 分支整块不渲染，新版式因此无处可看。真实运行不带 query，行为一字不变。
+   */
+  const [phase, setPhase] = useState<Phase>(() =>
+    isBoardingDemo()
+      ? {
+          kind: "declaring",
+          vin: "DEMO",
+          members: [
+            { userId: "demo-owner", displayName: "阿东（演示）", role: "owner" },
+            { userId: "demo-driver", displayName: "妈妈（演示）", role: "driver" },
+            { userId: "demo-passenger", displayName: "小满（演示）", role: "passenger" },
+          ],
+        }
+      : { kind: "probing" },
+  );
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -169,6 +186,8 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
   }, [loadMembers, onDeclared]);
 
   useEffect(() => {
+    // 版式截图入口下不探活：探活拿不到车辆凭证会把相位顶回 skip，整块就不渲染了。
+    if (isBoardingDemo()) return;
     void probe();
   }, [probe]);
 
@@ -358,4 +377,10 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
       </div>
     </div>
   );
+}
+
+/** `?boarding=demo`：版式截图入口，见 `phase` 初值处。 */
+function isBoardingDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("boarding") === "demo";
 }

@@ -77,6 +77,11 @@ function SessionList(): JSX.Element {
   /** 日期范围按**创建时间**筛（接口口径），本地时区整天，见 ./filters。 */
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
+  /**
+   * 「只看说过话的」。**缺省关**——空白对话（建了没说话）在运营这里是要看的现象，
+   * 只有车主端把它们藏起来（见 `userSessionPage` 的注释）。
+   */
+  const [nonEmpty, setNonEmpty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
    * 分页游标栈。
@@ -92,10 +97,10 @@ function SessionList(): JSX.Element {
 
   const cursor = stack[stack.length - 1];
 
-  const filters = { userId, sessionId: keyword, title, since, until };
+  const filters = { userId, sessionId: keyword, title, since, until, nonEmpty };
   const load = useCallback(() => {
     const q = sessionQuery(
-      { userId, sessionId: keyword, title, since, until },
+      { userId, sessionId: keyword, title, since, until, nonEmpty },
       { limit: String(PAGE_SIZE) },
     );
     if (cursor) q.set("cursor", cursor);
@@ -111,7 +116,7 @@ function SessionList(): JSX.Element {
       })
       .catch((e: unknown) => setError(e instanceof ApiError ? e.code : String(e)))
       .finally(() => setLoading(false));
-  }, [userId, keyword, title, since, until, cursor]);
+  }, [userId, keyword, title, since, until, nonEmpty, cursor]);
 
   useEffect(() => {
     load();
@@ -200,6 +205,22 @@ function SessionList(): JSX.Element {
             }}
           />
         </label>
+        {/*
+          空白对话（建了但一句没说）的开关。**过滤在服务端**（`nonEmpty=1` → SQL 的 EXISTS），
+          不是把这一页筛一遍：应用层筛的话"每页 20 条"会变成"这一页只剩 6 条"，
+          页码与翻页跟着不准。
+        */}
+        <label className="ss-field ss-field--check">
+          <input
+            type="checkbox"
+            checked={nonEmpty}
+            onChange={(e) => {
+              setNonEmpty(e.target.checked);
+              resetPaging();
+            }}
+          />
+          <span>只看说过话的（隐藏空白对话）</span>
+        </label>
         <button type="button" className="ss-btn" onClick={load}>
           查询
         </button>
@@ -213,6 +234,7 @@ function SessionList(): JSX.Element {
               setTitle("");
               setSince("");
               setUntil("");
+              setNonEmpty(false);
               resetPaging();
             }}
           >
@@ -228,6 +250,8 @@ function SessionList(): JSX.Element {
         <p className="ss-empty">
           没有匹配的会话。
           {title.trim() ? "（标题是首轮之后才生成的，还没起名的会话搜不到。）" : ""}
+          {/* 空结果时说清是哪条筛掉的——否则"这个用户一条会话都没有"与"他的会话都是空白的"长得一模一样。 */}
+          {nonEmpty ? "（已隐藏空白对话：建了但一句没说的那些。）" : ""}
         </p>
       ) : (
         <div className="ss-list">

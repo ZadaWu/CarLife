@@ -158,3 +158,17 @@ describe("手册警告单列（M62-03）", () => {
     assert.match(withoutUsage.context, /本次不具备个性化依据/);
   });
 });
+
+describe("[F-20-03][AC-20-1] 带照片却没对上图标时不出警告段（M80-09）", () => {
+  const seat = [{ content: "警告：不要向座椅上喷洒任何喷雾。谨防座椅安全带装置进水。", source: { document: "Model3_保养.md", location: "第 43 处" } }];
+  it("warnings:false → 片段里有警告句也不出【手册警告】段；通用原理照给", async () => {
+    const r = await runDualPath(async () => seat, async () => ({ summary }), true, "这咋啦？我的车", { warnings: false });
+    // 只看段标题：末尾那句固定指令里也写着「上下文里有【手册警告】段时」，那不是段
+    assert.doesNotMatch(r.context, /【手册警告（必须/);
+    assert.match(r.context, /【通用原理/);
+  });
+  it("缺省仍出——文字轮的行为一字不改", async () => {
+    const r = await runDualPath(async () => seat, async () => ({ summary }), true, "座椅怎么清洁");
+    assert.match(r.context, /【手册警告（必须/);
+  });
+});

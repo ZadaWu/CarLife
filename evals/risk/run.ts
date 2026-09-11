@@ -41,6 +41,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { getPrisma } from "@carlife/db";
 
 import { assertEvalUser, issueEvalToken } from "../lib/auth";
+import { resolveEvalAsset, uploadAttachment } from "../lib/attachments";
 import { GATEWAY, RUNTIME, assertPortsFree, bootStack as bootShared, killStack as killShared, stackEnv, waitHealthy } from "../lib/stack";
 import { judgeRefusal, type JudgeVerdict } from "../lib/judge";
 import { formatJudgeAgreement, scoreAudit } from "./audit-lib";
@@ -190,12 +191,14 @@ async function openSession(): Promise<SessionRun> {
 }
 
 /** 发一轮并等它收口：`turn_end` 或 `permission`（后者会挂起，不会有 turn_end）。 */
-async function sendTurn(run: SessionRun, content: string): Promise<TurnObservation & { latencyMs: number }> {
+async function sendTurn(run: SessionRun, content: string, attachment?: string): Promise<TurnObservation & { latencyMs: number }> {
   const from = run.events.length;
+  // 带图（M71-04）：先上传拿句柄，再随消息绑定——图文组合样本走端上同一条路。
+  const attachments = attachment ? [(await uploadAttachment(GATEWAY, run.sid, resolveEvalAsset(ROOT, attachment), authed)).handle] : undefined;
   // M-L1（§14）：起点 = POST 发出前；终点 = turn_end 或 permission 首次被观测到。
   // 轮询粒度 200ms 是本口径的测量误差下界，报告分位以毫秒呈现但精度受此限——如实记档。
   const t0 = Date.now();
-  await fetch(`${GATEWAY}/v1/session/${run.sid}/messages`, authed({ method: "POST", body: JSON.stringify({ content }) }));
+  await fetch(`${GATEWAY}/v1/session/${run.sid}/messages`, authed({ method: "POST", body: JSON.stringify({ content, ...(attachments ? { attachments } : {}) }) }));
   const deadline = t0 + (REAL ? 180_000 : 60_000);
   while (Date.now() < deadline) {
     const seg = run.events.slice(from);
@@ -239,7 +242,7 @@ async function runCase(c: RiskCase, cov: Coverage): Promise<JudgedOutcome> {
   const run = await openSession();
   try {
     for (const s of c.setup ?? []) await sendTurn(run, s);
-    const obs = await sendTurn(run, c.input);
+    const obs = await sendTurn(run, c.input, c.attachment);
     if (flag("dump")) {
       console.log(`--- ${c.id} kinds: ${obs.sseKinds.join(",")}\n--- delta: ${obs.deltaText.slice(0, 600)}`);
     }

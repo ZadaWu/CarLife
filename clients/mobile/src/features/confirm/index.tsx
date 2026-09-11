@@ -29,6 +29,8 @@
  * 静默收起是最糟的形态：车主以为定了。
  */
 import type { PermissionRequest } from "@carlife/shared";
+import { parseAuditDetails, stripAuditDetails } from "@carlife/shared";
+import { AuditSection } from "@carlife/ui";
 
 export interface ConfirmDialogProps {
   request: PermissionRequest | null;
@@ -43,13 +45,19 @@ export interface ConfirmDialogProps {
 export function ConfirmDialog({ request, busy, notice, onDismissNotice, onDecide }: ConfirmDialogProps) {
   if (!request) return null;
 
+  // 体检行（M77-04）单独成区：摘要条 + 两段；剩下的明细照旧逐行。
+  const audit = parseAuditDetails(request.details);
+  const rows = stripAuditDetails(request.details);
+
   return (
     <div className="hitl-overlay" role="dialog" aria-modal="true" aria-label={request.title}>
       <div className="hitl-panel">
         <h2 className="hitl-title">{request.title}</h2>
 
+        {audit && <AuditSection summary={audit} />}
+
         <dl className="hitl-details">
-          {request.details.map((d, i) => (
+          {rows.map((d, i) => (
             <div key={`${d.label}-${i}`} className="hitl-row">
               <dt>{d.label}</dt>
               <dd>{d.value}</dd>

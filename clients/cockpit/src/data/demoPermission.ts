@@ -59,6 +59,17 @@ export const DEMO_PERMISSION: PermissionRequest = {
       label: "大交通",
       value: "飞机：约2-2.5小时，约600-1200元/人（估算），具体航班以购票平台为准",
     },
+    /*
+     * 体检行（M77-04）：形状与服务端 `formatAuditLines` 经 `splitLabelled` 拆出的一致——
+     * 已验 5 / 请你看 1 / 验不了 1 / 自动修 1，对应 Brief §5 状态 1。
+     */
+    { label: "体检·已验", value: "5 项通过 / 共 7 项" },
+    { label: "体检·已自动补", value: "[第2天] 已自动补：第 2 天没有住宿" },
+    {
+      label: "体检·请你看",
+      value: "[第3天] 第 3 段约 2 小时 40 分，超过单段上限 2 小时；沿线没找到满足门槛的停靠点，修了 3 轮没解决",
+    },
+    { label: "体检·验不了", value: "返程闭环：缺出发地" },
   ],
   disclosure: [],
 };

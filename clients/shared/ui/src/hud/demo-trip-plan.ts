@@ -78,6 +78,8 @@ export const DEMO_TRIP_PLAN: TripPlanSnapshot = {
     ],
     computedAt: "2026-08-28T02:00:00.000Z",
   },
+  /* 出发段（演示）：定稿画的 36 km / 4 h 30 min / 城市道路 畅通（路型收成两个字才放得进那一格）。真机上这一段由网关每轮带来。 */
+  leg: { distanceKm: 36, durationMin: 270, road: { label: "城区", status: "畅通" }, computedAt: "2026-09-09T11:26:00+08:00" },
   updatedTurnId: "demo",
 };
 

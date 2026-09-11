@@ -602,6 +602,10 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .hint--right .hint-pop { left: auto; right: 0; transform: translate(0, -4px); }
 .hint--right:hover .hint-pop,
 .hint--right:focus-within .hint-pop { transform: translate(0, 0); }
+/* 靠左的标题（表格第一列）：居中时浮层左半边会压到侧边导航上——不是被裁，是盖住，更难看 */
+.hint--left .hint-pop { left: 0; transform: translate(0, -4px); }
+.hint--left:hover .hint-pop,
+.hint--left:focus-within .hint-pop { transform: translate(0, 0); }
 
 /* ── 页面 */
 .page h1 { font-size: 20px; margin: 0 0 6px; }
@@ -1787,3 +1791,24 @@ a.sys-card-endpoint:focus-visible { outline: 2px solid currentColor; outline-off
   flex: 1; max-width: 420px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel); color: var(--fg); font-size: 13px;
 }
+
+/* ── 模型训练页（M76-03）：复用 evals-* 的表、状态、进度条，只补自己的几样 */
+.vt-num { font-family: var(--mono, ui-monospace, monospace); text-align: right; white-space: nowrap; }
+.vt-detail td { background: var(--panel); }
+.vt-detail-grid { display: grid; grid-template-columns: 1fr 1fr 260px; gap: 16px; padding: 8px 0; }
+.vt-detail-grid h3 { font-size: 13px; margin: 0 0 6px; color: var(--fg-dim); font-weight: 500; }
+.vt-img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.vt-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.vt-list li { display: flex; justify-content: space-between; gap: 8px; }
+.vt-form { max-width: 960px; }
+.vt-form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
+.vt-form .field input, .vt-form .field select {
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); font-size: 13px;
+}
+.vt-progress { display: grid; grid-template-columns: 120px auto; align-items: center; gap: 8px; }
+.vt-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-dim); }
+.vt-canvas-wrap { display: flex; flex-direction: column; gap: 4px; }
+.vt-canvas { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; }
+.vt-legend { font-size: 12px; }
+.vt-legend-pred { color: #3aa76d; }
+.vt-legend-truth { color: #e8a33d; }

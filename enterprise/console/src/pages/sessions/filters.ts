@@ -55,6 +55,15 @@ export interface SessionFilters {
   since?: string;
   /** 截止日（`YYYY-MM-DD`，本地时区当天 23:59:59.999 止）。 */
   until?: string;
+  /**
+   * 只看说过话的会话（去掉「建了但没说话」的空白对话）。
+   *
+   * **缺省是关的**，与车主端相反：点开对话层就会建一条会话，那些空白对话
+   * 在车机 / 手机的列表里是噪声（那一侧 `userSessionPage` 直接不返回），
+   * 但在运营这里"建了多少、其中多少条一句没说"本身就是要看的现象——
+   * 默认藏起来的话，这个现象就没有任何地方看得见了。所以这里给开关，不给默认。
+   */
+  nonEmpty?: boolean;
 }
 
 /**
@@ -75,10 +84,13 @@ export function sessionQuery(
   put("title", f.title);
   put("since", f.since ? dayStartIso(f.since) : undefined);
   put("until", f.until ? dayEndIso(f.until) : undefined);
+  // 布尔只在"开"的时候进 URL：`nonEmpty=0` 与不传是同一件事，接口只认 "1"/"true"。
+  if (f.nonEmpty) q.set("nonEmpty", "1");
   return q;
 }
 
 /** 有没有任何筛选条件（决定「清空」按钮出不出现、空态说哪一句）。 */
 export function hasFilters(f: SessionFilters): boolean {
+  if (f.nonEmpty) return true;
   return [f.userId, f.sessionId, f.title, f.since, f.until].some((v) => Boolean(v?.trim()));
 }

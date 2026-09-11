@@ -25,13 +25,19 @@ import type { ReactNode } from "react";
 export function Hint({
   children,
   label = "查看说明",
+  align = "center",
 }: {
   children: ReactNode;
   /** 无障碍名称。默认够用；同一页有多个同名问号时传具体的。 */
   label?: string;
+  /**
+   * 浮层相对问号的对齐。缺省居中；浮层最宽 420px，居中挂在两头的列上会探出去：
+   * **靠右边缘的列传 `right`**（否则右半边被内容区裁掉），**表格第一列传 `left`**（否则左半边盖住侧边导航）。
+   */
+  align?: "center" | "left" | "right";
 }): JSX.Element {
   return (
-    <span className="hint">
+    <span className={align === "center" ? "hint" : `hint hint--${align}`}>
       {/*
         `type="button"` 不能省：本组件常落在表单/可点区域里，
         默认的 submit 会让点一下问号变成提交一次。

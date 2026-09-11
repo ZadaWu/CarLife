@@ -58,6 +58,7 @@ import { createFinanceRouter } from "./finance";
 import { createGuardPolicyRouter } from "./guard-policy";
 import { createConsoleCabinRouter, type ConsoleCabinDeps } from "./cabin";
 import { createEvalsRouter } from "./evals";
+import { createVisionTrainerRouter } from "./vision-trainer";
 import { EvalsStore } from "./evals-store";
 import { createTripRouteRouter } from "./trip-route";
 import { createIdentityConsoleRouter } from "./identity";
@@ -123,6 +124,11 @@ export interface ConsoleDeps {
    * 可缺省——不注入时评测路由整体不挂（页面按 503 显示"本部署没有评测面"）。
    */
   evals?: { root: string };
+  /**
+   * 检测器训练服务代理（ACR-026 / M76-02）：URL 从 ConfigStore 读（`VISION_TRAINER_URL`，空 = 未启用）。
+   * 可缺省——不注入时路由整体不挂（只读部署形态）；注入了但 URL 为空，路由挂着回 503 `vision_trainer_not_configured`。
+   */
+  visionTrainer?: { config: Pick<ConfigStore, "get"> };
 }
 
 export function createConsoleRouter(deps: ConsoleDeps): Router {
@@ -228,6 +234,9 @@ export function createConsoleRouter(deps: ConsoleDeps): Router {
     router.use("/console/evals", (_req, res) => {
       res.status(503).json({ error: "evals_unavailable" });
     });
+  }
+  if (deps.visionTrainer) {
+    router.use(createVisionTrainerRouter({ config: deps.visionTrainer.config }));
   }
   router.use(createMemoryRouter(deps.runtimeUrl, deps.chat, deps.audit));
   router.use(createProbeRouter(deps.config, deps.runtimeUrl));

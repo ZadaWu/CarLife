@@ -29,7 +29,11 @@ export interface BottomNavProps {
   showSettings?: boolean;
 }
 
-const ITEMS: Array<{ key: NavView; label: string }> = [
+/**
+ * 页签的取值集合与顺序——车机顶栏（`TopBar`）与手机底栏（本组件）共用这一份。
+ * 加一项只改这里；两边各写一份的表现是"车机有、手机没有"。
+ */
+export const NAV_ITEMS: ReadonlyArray<{ key: NavView; label: string }> = [
   { key: "hud", label: "主页" },
   { key: "dialog", label: "对话" },
   { key: "profile", label: "档案" },
@@ -42,7 +46,7 @@ export function BottomNav({
   profileDisabled = true,
   showSettings = false,
 }: BottomNavProps) {
-  const items = showSettings ? ITEMS : ITEMS.filter((i) => i.key !== "settings");
+  const items = showSettings ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key !== "settings");
   return (
     <nav className="hud-bottom-nav" aria-label="主导航">
       {items.map((item) => {

@@ -30,6 +30,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { getPrisma } from "@carlife/db";
 
 import { assertEvalUser, issueEvalToken } from "../lib/auth";
+import { resolveEvalAsset, uploadAttachment } from "../lib/attachments";
 import { GATEWAY, RUNTIME, assertPortsFree, bootStack, killStack, stackEnv, sweepPorts, waitHealthy, waitPortsFree } from "../lib/stack";
 import { SENSITIVE_TOOLS } from "../risk/lib";
 
@@ -96,6 +97,8 @@ interface EvalCase {
   judge?: "auto" | "manual";
   pending_on?: string;
   notes?: string;
+  /** 随本轮上传并绑定的图片，相对 evals/ 的路径（M71-04）。 */
+  attachment?: string;
 }
 
 function loadCases(): EvalCase[] {
@@ -137,6 +140,10 @@ function bootScenarioStack(): void {
             // mock 工具：确定性结果，离线可跑。real 档用真工具（评的就是真链路）。
             // 注意与 risk runner 相反——那边 fake 档必须走真工具，理由见 evals/risk/run.ts。
             CARLIFE_TOOLS: "mock",
+            // 观察层 fake（M71-04）：按图片 sha8 回放 fixtures/by-sha，零网络；图标索引关掉才确定性。
+            CARLIFE_VISION: "fake",
+            CARLIFE_VISION_FIXTURES: `${ROOT}evals/vision-observe/fixtures/by-sha`,
+            CARLIFE_ICON_INDEX: "off",
           },
     ),
     flag("verbose"),
@@ -158,7 +165,7 @@ interface TurnResult {
   latencyMs: number;
 }
 
-async function runTurn(input: string): Promise<TurnResult> {
+async function runTurn(input: string, attachment?: string): Promise<TurnResult> {
   const created = await fetch(`${GATEWAY}/v1/session`, authed({ method: "POST" })).then((r) => r.json());
   const sid: string = created.sessionId;
   const controller = new AbortController();
@@ -204,7 +211,9 @@ async function runTurn(input: string): Promise<TurnResult> {
 
   await sleep(300);
   const t0 = Date.now();
-  await fetch(`${GATEWAY}/v1/session/${sid}/messages`, authed({ method: "POST", body: JSON.stringify({ content: input }) }));
+  // 带图（M71-04）：先上传拿句柄，再随消息绑定——走端上同一条路。
+  const attachments = attachment ? [(await uploadAttachment(GATEWAY, sid, resolveEvalAsset(ROOT, attachment), authed)).handle] : undefined;
+  await fetch(`${GATEWAY}/v1/session/${sid}/messages`, authed({ method: "POST", body: JSON.stringify({ content: input, ...(attachments ? { attachments } : {}) }) }));
   await stream;
   if (!sseKinds.includes("turn_end")) {
     // 场景题的正常轮次必有 turn_end；整轮等不到它 = 栈疑似半死（runtime 无响应），
@@ -260,7 +269,7 @@ async function judge(c: EvalCase, prisma: PrismaLike): Promise<CaseOutcome> {
   if (c.pending_on) return { id: c.id, scene: c.scene, status: "pending", failures: [] };
   if (c.judge === "manual") return { id: c.id, scene: c.scene, status: "manual", failures: [] };
 
-  const t = await runTurn(c.input);
+  const t = await runTurn(c.input, c.attachment);
   const failures: string[] = [];
 
   if (c.expect.route) {

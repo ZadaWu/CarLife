@@ -50,6 +50,23 @@ export function sessionResumable(s: SessionBrief, now: number, idleMs = IDLE_MS)
   return now - new Date(s.updatedAt).getTime() <= idleMs;
 }
 
+/**
+ * 一条会话在列表里占的两行文本：标题位、以及它下面那行还剩什么。
+ *
+ * ⚠️ **无标题时下面那行没有时间**。标题位这时已经回落成时间了，再写一遍就是
+ * 上下两行一模一样——2026-09-11 在 iPad 模拟器上实拍到整列都是
+ * 「今天 00:02 / 今天 00:02」。定稿 `dialog-v1.png` 里六条会话条条有标题，
+ * 比对设计图抓不到这个坏法，只有真数据才暴露。
+ *
+ * 导出是为了让 `test/session-row-no-echo.test.ts` 打在真产物上：
+ * 本包没有 jsdom，测试渲染不了组件，只能测它取值的这一步——
+ * 所以组件里那两行必须直接用它，不许另抄一份。
+ */
+export function sessionRowText(s: SessionBrief, now: number): { title: string; when?: string } {
+  const when = whenLabel(s.updatedAt, now);
+  return s.title ? { title: s.title, when } : { title: when };
+}
+
 /** 没有标题时的替代显示：**说时间，不编内容**。 */
 function whenLabel(iso: string, now: number): string {
   const t = new Date(iso).getTime();
@@ -139,7 +156,8 @@ export function SessionList({
   return (
     <aside className="dlg-sessions" aria-label="会话历史">
       <div className="dlg-sessions__head">
-        <span>会话历史</span>
+        {/* 计数与手机端抽屉的摘要行同一算法（`DialogScreen.tsx`）：报的是**已加载**的条数。 */}
+        <span>会话历史{sessions.length > 0 ? ` · ${sessions.length}` : ""}</span>
         {onNew && (
           <button
             type="button"
@@ -158,6 +176,7 @@ export function SessionList({
         {sessions.map((s) => {
           const active = s.sessionId === activeSessionId;
           const resumable = sessionResumable(s, now);
+          const row = sessionRowText(s, now);
           return (
             <button
               key={s.sessionId}
@@ -166,18 +185,18 @@ export function SessionList({
               aria-current={active ? "true" : undefined}
               onClick={() => onSelect(s)}
             >
-              <span className="dlg-sessions__title">
-                {s.title ?? whenLabel(s.updatedAt, now)}
-              </span>
-              <span className="dlg-sessions__meta">
-                {whenLabel(s.updatedAt, now)}
-                {/*
-                  只标"已结束"，不标"进行中"。列表里绝大多数都是结束了的，
-                  给每一条挂一个徽标等于没有徽标；而车主真正要分辨的是
-                  "这条点进去还能不能接着说"。
-                */}
-                {!resumable && <span className="dlg-sessions__badge">已结束</span>}
-              </span>
+              <span className="dlg-sessions__title">{row.title}</span>
+              {(row.when || !resumable) && (
+                <span className="dlg-sessions__meta">
+                  {row.when}
+                  {/*
+                    只标"已结束"，不标"进行中"。列表里绝大多数都是结束了的，
+                    给每一条挂一个徽标等于没有徽标；而车主真正要分辨的是
+                    "这条点进去还能不能接着说"。
+                  */}
+                  {!resumable && <span className="dlg-sessions__badge">已结束</span>}
+                </span>
+              )}
             </button>
           );
         })}

@@ -69,6 +69,16 @@ interface CabinArrivalDemoProps {
    * 一个用户已经关掉的功能不该常驻一个音频上下文。
    */
   soundOn?: boolean;
+  /**
+   * 外部触发（新版 UI：屏底状态栏的「开始行程」）。每变一次就播一遍，与点钥匙那条路
+   * 走同一个 `play()`——两个入口、一段动画，别在状态栏里再抄一份出发逻辑。
+   * ⚠️ 它由**用户手势**在同一同步栈里递增：`play()` 里 `AudioContext.resume()`
+   * 只有在手势栈里才被允许，effect 里跑的是 React 提交后的那一拍，
+   * 距离点击仍在同一个任务里，实测 iPad 上可响；改成 setTimeout 就不行了。
+   */
+  playSignal?: number;
+  /** 不渲染左上角那枚车尾钥匙（状态栏已有入口时避免两个「开始行程」）。默认渲染。 */
+  hideTrigger?: boolean;
 }
 
 function ClimateGlyph() {
@@ -485,7 +495,7 @@ function CarKeyBoard() {
 }
 
 /** HUD 上的出发入口；动效是本地展示，不发出车辆控制请求。 */
-export function CabinArrivalDemo({ theme, plan, assistantState, soundOn }: CabinArrivalDemoProps) {
+export function CabinArrivalDemo({ theme, plan, assistantState, soundOn, playSignal, hideTrigger }: CabinArrivalDemoProps) {
   const [open, setOpen] = useState(false);
   const [runId, setRunId] = useState(0);
   /**
@@ -628,8 +638,19 @@ export function CabinArrivalDemo({ theme, plan, assistantState, soundOn }: Cabin
     setOpen(true);
   };
 
+  /* 外部触发：首帧的 0 不算（那不是一次点击）。 */
+  const lastSignal = useRef(playSignal ?? 0);
+  useEffect(() => {
+    if (playSignal === undefined || playSignal === lastSignal.current) return;
+    lastSignal.current = playSignal;
+    play();
+    // play 每次渲染都是新函数；这里只认信号变化。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playSignal]);
+
   return (
     <>
+      {!hideTrigger && (
       <button
         type="button"
         className="cabin-arrival-trigger"
@@ -638,6 +659,7 @@ export function CabinArrivalDemo({ theme, plan, assistantState, soundOn }: Cabin
       >
         <CarKeyBoard />
       </button>
+      )}
       {open ? (
         <CabinArrivalOverlay
           key={runId}

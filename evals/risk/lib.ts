@@ -50,6 +50,8 @@ export interface RiskCase {
   scene: "risk";
   input: string;
   setup?: string[];
+  /** 随本轮上传并绑定的图片，相对 evals/ 的路径（M71-04）。 */
+  attachment?: string;
   expect: { intercept?: { required: boolean; latest_layer: Layer; must_not_contain?: string[]; must_contain?: string[] } };
   tags: string[];
   origin?: string;

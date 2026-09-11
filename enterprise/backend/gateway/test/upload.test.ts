@@ -8,6 +8,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { TURN_ATTACHMENT_LIMITS } from "@carlife/shared";
+
+import { resolveContentType } from "../src/upload/policy";
+
 import { checkUpload, newHandle, objectKeyFor, LIMITS } from "../src/upload/policy";
 
 describe("白名单：超限拒绝且提示清晰（F-09-10）", () => {
@@ -49,19 +53,24 @@ describe("白名单：超限拒绝且提示清晰（F-09-10）", () => {
   });
 });
 
-describe("视频：不支持，但必须给替代方案（Sprint 风险 7）", () => {
-  it("识别为视频而不是笼统的「格式不支持」", () => {
-    for (const t of ["video/mp4", "video/quicktime", "video/webm"]) {
-      assert.equal(checkUpload(t, 1000).code, "video_unsupported", t);
+describe("视频：M80-01 起进白名单（F-09-10）", () => {
+  it("常见容器放行，kind 判成 video", () => {
+    for (const t of ["video/mp4", "video/quicktime", "video/webm", "video/x-m4v", "video/3gpp"]) {
+      assert.equal(checkUpload(t, 20 * 1024 * 1024).kind, "video", t);
     }
   });
 
-  it("**引导「拍照片 + 语音描述声音」**，不是一句格式不支持", () => {
-    // 异响场景视频比照片有效，用户会本能地拍视频。
-    // 只说"不支持"他会觉得 App 坏了。
-    const v = checkUpload("video/mp4", 1000);
-    assert.match(v.reason ?? "", /照片/);
-    assert.match(v.reason ?? "", /语音|声音/);
+  it("上限与共享常量同一个数；超限告诉用户剪短，不是一句「太大」", () => {
+    assert.equal(LIMITS.video.maxBytes, TURN_ATTACHMENT_LIMITS.videoMaxBytes);
+    const v = checkUpload("video/mp4", LIMITS.video.maxBytes + 1);
+    assert.equal(v.code, "too_large");
+    assert.match(v.reason ?? "", /剪短|十几秒/);
+  });
+
+  it("白名单外的容器仍按 type_unsupported 拒绝，且支持范围里提到视频", () => {
+    const v = checkUpload("video/x-msvideo", 1000);
+    assert.equal(v.code, "type_unsupported");
+    assert.match(v.reason ?? "", /视频/);
   });
 });
 
@@ -90,5 +99,43 @@ describe("句柄：不可枚举是隐私底线（F-09-02）", () => {
     const h = newHandle();
     assert.equal(objectKeyFor("image", h), `image/${h}`);
     assert.ok(!objectKeyFor("image", h).includes(".."));
+  });
+});
+
+describe("[F-09-10][AC-09-9] 格式面放宽与魔数优先（M80-04）", () => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]);
+  const heic = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypheic"), Buffer.alloc(16)]);
+
+  it("相册里能选出来的图片格式都收——HEIC / HEIF / AVIF / GIF / BMP / TIFF 不再被拒", () => {
+    for (const t of ["image/heic", "image/heif", "image/avif", "image/gif", "image/bmp", "image/tiff"]) {
+      assert.equal(checkUpload(t, 200_000).kind, "image", t);
+    }
+  });
+
+  it("`image/jpg` 这种非标准别名归并成 image/jpeg，不再被白名单挡掉", () => {
+    const v = checkUpload("image/jpg", 1000);
+    assert.equal(v.kind, "image");
+    assert.equal(v.contentType, "image/jpeg");
+  });
+
+  it("**魔数赢**：声明成 octet-stream 的 HEIC 照收，声明骗人的按真实格式落库", () => {
+    // 相册给不出 MIME 的常见形态
+    const asOctet = checkUpload("application/octet-stream", heic.length, heic);
+    assert.equal(asOctet.ok, true);
+    assert.equal(asOctet.contentType, "image/heic");
+    // 改了扩展名 / 声明错了：按字节纠正，不按声明
+    assert.equal(checkUpload("image/jpeg", png.length, png).contentType, "image/png");
+    assert.equal(resolveContentType("application/octet-stream", png), "image/png");
+    // 认不出魔数时才回落到声明值（归一化后）
+    assert.equal(resolveContentType("image/jpg", Buffer.from("不是任何容器的头")), "image/jpeg");
+  });
+
+  it("没有字节可看时仍按声明判——老调用点（两参）行为不变", () => {
+    assert.equal(checkUpload("image/png", 1000).kind, "image");
+    assert.equal(checkUpload("application/octet-stream", 1000).code, "type_unsupported");
+  });
+
+  it("支持范围的提示里列出了新收的格式", () => {
+    assert.match(checkUpload("application/zip", 1000).reason ?? "", /HEIC/);
   });
 });

@@ -18,6 +18,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 附件命令的 Android 回落形态（M80-03）：raw IPC 不可用时 JSON 体里带 base64
+base64 = "0.22"
 # 网络诊断要枚举本机接口地址（getifaddrs）——手机自己在哪个网段，是所有 errno 的前置判据。
 libc = "0.2"
 carlife-core = { path = "../../../clients/shared/rust/carlife-core" }

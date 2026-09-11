@@ -107,6 +107,20 @@ pub struct TranscribeResult {
     pub text: String,
 }
 
+/// 上传附件的回执（施工单 M80-03）：网关 `POST /v1/session/:id/attachments` 的 201/200 体。
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadedAttachment {
+    /// 引用句柄，随 `send_text_with_attachments` 绑到本轮。
+    pub handle: String,
+    /// `image` / `video`（网关按白名单判）。
+    pub kind: String,
+    pub bytes: u64,
+    /// 幂等键命中、拿回的是原句柄。
+    #[serde(default)]
+    pub deduped: bool,
+}
+
 pub struct GatewayClient {
     // `pub(crate)`：媒体那条通路（`media.rs`）在同一个 crate 的兄弟模块里写
     // `impl GatewayClient`，而 Rust 的字段私有是**按模块**算的，兄弟模块看不见。
@@ -449,23 +463,43 @@ impl GatewayClient {
         content: &str,
         source: MessageSource,
     ) -> Result<AcceptedTurn, NetError> {
+        self.send_text_with_attachments(session_id, content, source, &[])
+            .await
+    }
+
+    /// 发文字消息并把已上传的附件句柄绑到本轮（施工单 M80-03，F-09-06）。
+    ///
+    /// `attachments` 为空时请求体**不带**该字段——与老网关的形状逐字相同，
+    /// 这样 `send_text` 的行为一字不变。句柄来自 `upload_attachment`，
+    /// 必须属于同一个会话与同一个人，否则网关整轮 400（不部分成功）。
+    pub async fn send_text_with_attachments(
+        &self,
+        session_id: &str,
+        content: &str,
+        source: MessageSource,
+        attachments: &[String],
+    ) -> Result<AcceptedTurn, NetError> {
         let source = match source {
             MessageSource::Voice => "voice",
             MessageSource::Text => "text",
         };
+        let mut body = serde_json::json!({
+            "content": content,
+            "source": source,
+            // 闲聊旁路开关（M33-04，补 M18-05 那笔债）。**端上关掉不算真关**：
+            // 不带这个字段的话，服务端照建 A-pair、照跑判断、照写指标，
+            // 接了 L1 之后照烧钱。做成必填参数，理由与上面的 `source` 一样——
+            // 让每个调用点当场表态，不靠默认值蒙混。
+            "fillerEnabled": self.filler_enabled,
+        });
+        if !attachments.is_empty() {
+            body["attachments"] = serde_json::json!(attachments);
+        }
         let res = self
             .http
             .post(format!("{}/v1/session/{}/messages", self.base_url, session_id))
             .header("authorization", format!("Bearer {}", self.token))
-            .json(&serde_json::json!({
-                "content": content,
-                "source": source,
-                // 闲聊旁路开关（M33-04，补 M18-05 那笔债）。**端上关掉不算真关**：
-                // 不带这个字段的话，服务端照建 A-pair、照跑判断、照写指标，
-                // 接了 L1 之后照烧钱。做成必填参数，理由与上面的 `source` 一样——
-                // 让每个调用点当场表态，不靠默认值蒙混。
-                "fillerEnabled": self.filler_enabled,
-            }))
+            .json(&body)
             .send()
             .await
             .map_err(net_err)?;
@@ -617,6 +651,29 @@ impl GatewayClient {
         let res = self
             .http
             .post(format!("{}/v1/guide/jobs/trigger", self.base_url))
+            .header("authorization", format!("Bearer {}", self.token))
+            .header("content-type", "application/json")
+            .timeout(std::time::Duration::from_secs(15))
+            .body(body_json.to_string())
+            .send()
+            .await
+            .map_err(net_err)?;
+        if res.status().as_u16() != 200 {
+            return Err(failure_from(res).await);
+        }
+        res.text()
+            .await
+            .map_err(|e| NetError::BadResponse(e.to_string()))
+    }
+
+    /// 行程核查「知道了」（M72-03，`POST /v1/trip-plan/{plan_id}/review/ack`）。
+    ///
+    /// 与 `trigger_guide_job` 同一条纪律：入参出参都是原样 JSON 文本（契约在 TS/shared 的
+    /// `TripPlanReview`），Rust 只搬运不解析。归属由网关按鉴权身份判，错人回 404。
+    pub async fn ack_trip_review(&self, plan_id: &str, body_json: &str) -> Result<String, NetError> {
+        let res = self
+            .http
+            .post(format!("{}/v1/trip-plan/{}/review/ack", self.base_url, plan_id))
             .header("authorization", format!("Bearer {}", self.token))
             .header("content-type", "application/json")
             .timeout(std::time::Duration::from_secs(15))
@@ -1239,6 +1296,75 @@ impl GatewayClient {
         res.json::<carlife_core::contract::HistoryPage>()
             .await
             .map_err(|e| NetError::BadResponse(e.to_string()))
+    }
+
+    /// 上传一个附件（照片 / 视频）到本会话（施工单 M80-03，F-09-07）：`POST /v1/session/:id/attachments`。
+    ///
+    /// 走原始 body + 头部元数据（网关刻意不用 multipart，见 gateway `upload/index.ts`）。
+    /// `filename` 按 percent-encoding 放进 `x-filename`——HTTP 头是 ByteString，「故障灯.jpg」不编码连请求都发不出去。
+    /// `idempotency_key` 让弱网重传直接拿回原句柄，不产生第二条记录（F-09-05）。
+    /// 4xx 原样分类抛出（网关的 reason 是给用户看的话，在 body 里）；不自动重试——由 UI 给「重试」按钮。
+    pub async fn upload_attachment(
+        &self,
+        session_id: &str,
+        content_type: &str,
+        filename: Option<&str>,
+        idempotency_key: Option<&str>,
+        bytes: Vec<u8>,
+    ) -> Result<UploadedAttachment, NetError> {
+        let mut req = self
+            .http
+            .post(format!(
+                "{}/v1/session/{}/attachments",
+                self.base_url, session_id
+            ))
+            .header("authorization", format!("Bearer {}", self.token))
+            .header("content-type", content_type)
+            .timeout(std::time::Duration::from_secs(180));
+        if let Some(name) = filename {
+            req = req.header("x-filename", percent_encode_component(name));
+        }
+        if let Some(key) = idempotency_key {
+            req = req.header("x-idempotency-key", key);
+        }
+        let res = req.body(bytes).send().await.map_err(net_err)?;
+        let status = res.status().as_u16();
+        if status != 201 && status != 200 {
+            return Err(failure_from(res).await);
+        }
+        res.json::<UploadedAttachment>()
+            .await
+            .map_err(|e| NetError::BadResponse(e.to_string()))
+    }
+
+    /// 取回一个附件的原件（施工单 M80-03，F-09-09 / F-03-08）：`GET /v1/attachments/:handle`。
+    ///
+    /// 令牌在 Rust 侧，WebView 里的 `<img src>` / `<video src>` 加不了 Authorization 头，
+    /// 所以字节经 Tauri 命令回 WebView 再变 blob URL。返回 (content-type, bytes)。
+    /// 网关对「不存在」与「不是你的」都回 404——这里不区分，也不该区分。
+    pub async fn fetch_attachment(&self, handle: &str) -> Result<(String, Vec<u8>), NetError> {
+        let res = self
+            .http
+            .get(format!("{}/v1/attachments/{}", self.base_url, handle))
+            .header("authorization", format!("Bearer {}", self.token))
+            .timeout(std::time::Duration::from_secs(180))
+            .send()
+            .await
+            .map_err(net_err)?;
+        if res.status().as_u16() != 200 {
+            return Err(failure_from(res).await);
+        }
+        let content_type = res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("application/octet-stream")
+            .to_string();
+        let bytes = res
+            .bytes()
+            .await
+            .map_err(|e| NetError::BadResponse(e.to_string()))?;
+        Ok((content_type, bytes.to_vec()))
     }
 
     /// 上传一段编码后的音频，返回受理的 turnId。

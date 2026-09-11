@@ -59,7 +59,13 @@ pub fn on_transcript(app: &AppHandle, text: &str) {
          * 「别废话了」没反应，与"没听清"在现象上完全一样，而两者的下一步
          * 完全不同。这行日志是排查时唯一分得开它们的东西。
          */
-        WakeOutcome::Interrupt | WakeOutcome::SidecarOff | WakeOutcome::SidecarOn => {
+        WakeOutcome::Interrupt
+        | WakeOutcome::SidecarOff
+        | WakeOutcome::SidecarOn
+        | WakeOutcome::Repeat
+        | WakeOutcome::Hush
+        | WakeOutcome::DensityDown
+        | WakeOutcome::DensityUp => {
             eprintln!("[sentinel] 与播报有关的口令在手机端无承接方（无本地 TTS），已丢弃");
             state.missed.fetch_add(1, Ordering::Relaxed);
         }

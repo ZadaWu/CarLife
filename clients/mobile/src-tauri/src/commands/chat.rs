@@ -45,11 +45,24 @@ pub async fn create_session() -> Result<String, String> {
 /// **不做本地乐观插入**：用户消息与助手回复都由 SSE 回流。
 /// 乐观插入会造出"本地已显示、服务端却失败"的两份真相，
 /// 而用户看到的是那条永远不会有回复的消息。
+///
+/// `attachments`（M80-03）：本轮要绑的附件句柄（`upload_attachment` 的回执）。缺省 / 空 = 纯文字，
+/// 请求体与老形状逐字相同。
 #[tauri::command]
-pub async fn send_text_message(session_id: String, content: String) -> Result<String, String> {
+pub async fn send_text_message(
+    session_id: String,
+    content: String,
+    attachments: Option<Vec<String>>,
+) -> Result<String, String> {
     let (base_url, token) = gateway_env();
+    let handles = attachments.unwrap_or_default();
     GatewayClient::new(base_url, token)
-        .send_text(&session_id, &content, carlife_core::contract::MessageSource::Text)
+        .send_text_with_attachments(
+            &session_id,
+            &content,
+            carlife_core::contract::MessageSource::Text,
+            &handles,
+        )
         .await
         .map(|t| t.turn_id)
         .map_err(|e| e.to_string())

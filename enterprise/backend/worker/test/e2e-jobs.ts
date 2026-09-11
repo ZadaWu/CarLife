@@ -13,10 +13,17 @@
 
 import assert from "node:assert/strict";
 
-import { getPrisma, createJobRepository, createTripRepository } from "@carlife/db";
+import {
+  getPrisma,
+  createJobRepository,
+  createTripRepository,
+  createTripPlanRepository,
+  createTripPlanReviewRepository,
+} from "@carlife/db";
 
 import { runJob, type JobDefinition } from "../src/job-runner";
 import { runVehicleReminder, createReminderDeps } from "../src/vehicle-reminder";
+import { runTripPlanReview, createReviewDeps } from "../src/trip-plan-review";
 import { createConsoleAlerts } from "../src/alerts";
 
 const prisma = getPrisma();
@@ -34,6 +41,9 @@ function ok(label: string) {
 }
 
 async function cleanup() {
+  await prisma.tripPlanReview.deleteMany({ where: { userId: USER } });
+  await prisma.tripPlan.deleteMany({ where: { userId: USER } });
+  await prisma.ownerProfile.deleteMany({ where: { userId: USER } });
   await prisma.vehicleReminder.deleteMany({ where: { userId: USER } });
   await prisma.reminderSetting.deleteMany({ where: { userId: USER } });
   await prisma.maintenanceRecord.deleteMany({ where: { vin: VIN } });
@@ -289,15 +299,88 @@ async function testAggregationRoundTrip() {
   for (const item of again.results ?? []) await memory.delete(item.id);
 }
 
+/** 6. 行程每日核查全链路（M72-02）：常住地 + 明天出发的行程 → 任务 → 核查表读回；同日重跑不加行。 */
+async function testTripPlanReviewRoundTrip() {
+  console.log("\n▶ trip-plan-review 全链路：行程与常住地写入 → 任务 → 核查读回");
+
+  await prisma.ownerProfile.upsert({
+    where: { userId: USER },
+    update: { homeCity: "浙江杭州", homeLat: 30.2741, homeLon: 120.1551 },
+    create: { userId: USER, homeCity: "浙江杭州", homeLat: 30.2741, homeLon: 120.1551 },
+  });
+  const plans = createTripPlanRepository(prisma);
+  const tomorrow = new Date(Date.now() + DAY);
+  const startDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  const plan = await plans.commit(USER, `${TAG}-sess`, {
+    status: "confirmed",
+    destination: "上海",
+    startDate,
+    days: 2,
+    skeleton: [
+      { day: 1, theme: "外滩", spots: [{ name: "外滩", lat: 31.2397, lon: 121.4906 }] },
+      { day: 2, theme: "返程", spots: [{ name: "豫园", lat: 31.2271, lon: 121.4923 }] },
+    ],
+    caveats: [],
+    updatedTurnId: `${TAG}-turn`,
+  });
+  ok("常住地与明天出发的行程已写入真库");
+
+  /*
+   * 工具走 mock：这条演练验的是**数据路径**（活动行程 → 逐日核查 → 落表 → 读回），
+   * 不是供应商。真实供应商那一跳由验收时单独跑一次 `--real` 记录。
+   */
+  const prevMode = process.env.CARLIFE_TOOLS;
+  if (!process.argv.includes("--real")) process.env.CARLIFE_TOOLS = "mock";
+  try {
+    const deps = createReviewDeps();
+    const r1 = await runTripPlanReview({ from: Date.now() - DAY, to: Date.now(), isCatchUp: false }, deps);
+    assert.ok(r1.processed >= 1, "至少处理了播下去的那一份");
+    assert.equal(r1.failures.filter((f) => f.includes(plan.planId)).length, 0, `这一份不该失败：${r1.failures.join("；")}`);
+
+    const reviews = createTripPlanReviewRepository(prisma);
+    const latest = await reviews.latestForPlan(plan.planId);
+    assert.ok(latest, "核查表里该有这一份行程的核查");
+    assert.equal(latest!.days.length, 2);
+    assert.equal(latest!.days[0]!.date, startDate);
+    assert.ok(latest!.days[0]!.kind !== undefined, "明天在预报窗口内，第 1 天该有天气");
+    assert.deepEqual(latest!.changes, [], "首份核查没有基线");
+    assert.equal(latest!.severity, "none");
+    if (process.env.CARLIFE_TOOLS === "mock") {
+      assert.equal(latest!.route?.day, 1, "mock 算路也该落进路线");
+    }
+    ok(`核查读回：逐日 ${latest!.days.length} 天、route=${latest!.route ? `${latest!.route.durationMin} 分钟` : "缺省"}、severity=${latest!.severity}`);
+
+    const r2 = await runTripPlanReview({ from: Date.now() - DAY, to: Date.now(), isCatchUp: false }, deps);
+    const again = await prisma.tripPlanReview.count({ where: { planId: plan.planId } });
+    assert.equal(again, 1, "同日重跑不该插第二行");
+    assert.equal(r2.changed, 0);
+    ok("**同日重跑幂等**：核查表里仍只有一行");
+  } finally {
+    if (prevMode === undefined) delete process.env.CARLIFE_TOOLS;
+    else process.env.CARLIFE_TOOLS = prevMode;
+  }
+}
+
 async function main() {
   console.log("=== worker 真实数据路径演练 ===");
   await cleanup();
+  /*
+   * 测试账号（M48-01 之后 `vehicles.owner_id` / `owner_profiles.user_id` 都有外键）：
+   * 没有它，下面的 vehicle.create 直接死在 `vehicles_owner_id_fkey`——这条演练自 M48-01 起
+   * 其实一直跑不通，M72-02 接入时才发现。与 db/test/helpers/seed-users.ts 同一形态，id 带 e2e 前缀不删。
+   */
+  await prisma.user.upsert({
+    where: { id: USER },
+    update: {},
+    create: { id: USER, username: `u_${USER}`, passwordHash: "!", displayName: USER },
+  });
   try {
     await testLease();
     await testJournal();
     await testCatchUp();
     await testReminderRoundTrip();
     await testAggregationRoundTrip();
+    await testTripPlanReviewRoundTrip();
     console.log(`\n✅ 全部通过（${passed} 项断言，全部走真 PostgreSQL）`);
   } finally {
     await cleanup();

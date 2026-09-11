@@ -404,3 +404,89 @@
   background: var(--hud-amber, #f5a623);
   box-shadow: 0 1px 4px rgba(15, 27, 45, 0.35);
 }
+
+/* 途中提醒的密度三档（M77-07）：与 .cset-toggle 同一块芯片底，三个单选按钮并排。 */
+.cset-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--cset-chip);
+}
+.cset-choice__label {
+  font-size: 19px;
+  font-weight: 600;
+}
+.cset-choice__opts {
+  display: flex;
+  gap: 8px;
+}
+.cset-choice__opt {
+  flex: 1 1 0;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cset-choice__opt.is-on {
+  background: var(--hud-amber, #f5a623);
+  color: #fff;
+}
+.cset-choice__hint {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--cset-dim);
+}
+.cset-toggle--action { justify-content: flex-start; }
+
+/* ============================================================
+ * 新版 UI（2026-09-09，定稿 `内部文档`）。
+ *
+ * 这一段**只改视觉层**：把浅色主题的几个 token 换成设计系统的值，再放大卡片圆角、
+ * 开关与字号。分组、开关行、DOM 结构一字未动——设置页的信息架构本来就对，
+ * 差的只是它还停在旧的一套灰蓝里。深色主题不动（`.cset--dark` 那一组照旧）。
+ * ============================================================ */
+.cset--light {
+  /* 与 `design-system.md` 的 text/primary、text/secondary、surface/card、border/card 对齐。 */
+  --cset-bg: #eaf2fa;
+  --cset-card: #ffffff;
+  --cset-edge: rgba(163, 200, 232, 0.55);
+  --cset-text: #1f3d63;
+  --cset-dim: #6c8bb0;
+  --cset-chip: #f4f8fc;
+  --cset-knob: rgba(150, 190, 225, 0.5);
+}
+
+.cset--light .cset-group {
+  border-radius: 28px;
+  padding: 24px 26px;
+  gap: 14px;
+  box-shadow: 0 18px 48px rgba(70, 120, 170, 0.10);
+}
+.cset--light .cset-group h2 { font-size: 24px; font-weight: 800; }
+.cset--light .cset-head h1 { font-size: 34px; font-weight: 800; }
+.cset--light .cset-head { padding: 26px 32px 14px; }
+/* 底部原来留 104px 是给底部导航条的；新版车机的页签在**顶栏**，那条已经不在这一页了。 */
+.cset--light .cset-body { padding: 4px 32px 40px; gap: 20px; }
+
+/* 开关行：更高的触达 + 更大的滑块（车机上这是最常按的一类控件）。 */
+.cset--light .cset-toggle {
+  min-height: 76px;
+  padding: 16px 20px;
+  border-radius: 20px;
+}
+.cset--light .cset-toggle__label { font-size: 21px; font-weight: 700; }
+.cset--light .cset-toggle__hint { font-size: 16px; }
+.cset--light .cset-toggle__knob { width: 68px; height: 38px; }
+.cset--light .cset-toggle__knob::after { top: 4px; left: 4px; width: 30px; height: 30px; }
+.cset--light .cset-toggle.is-on .cset-toggle__knob::after { transform: translateX(30px); }
+/* 开着时给一点暖投影：一屏里开关是唯一的琥珀，别让它看起来是块死色。 */
+.cset--light .cset-toggle.is-on .cset-toggle__knob {
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.45);
+}

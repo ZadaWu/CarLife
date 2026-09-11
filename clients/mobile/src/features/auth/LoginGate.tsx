@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+import { MapBackdrop, SPRITES } from "@carlife/ui";
 import { GatewayField } from "./GatewayField";
 import "./login.css";
 
@@ -88,10 +89,25 @@ export function LoginGate({ children }: LoginGateProps): React.ReactElement {
 
   // 还没问出结果时不闪登录页——闪一下再进主界面比慢一点更像出错了。
   if (status === null) return <div className="login-gate login-gate--loading" />;
-  if (status.authenticated) return <>{children}</>;
+  /*
+   * `?login=demo`：即使已登录也把这道门画出来——**版式截图入口**，与车机端同名 query 同一类。
+   * 浏览器走查里这道门进不去（拿不到网关时按 fail-open 放行，见上面的 catch），
+   * 新版式因此没有地方可验。真实运行不带 query，行为一字不变。
+   */
+  if (status.authenticated && !isLoginDemo()) return <>{children}</>;
 
   return (
     <div className="login-gate">
+      {/*
+       * 舞台：程序化灰白地图 + 暖暖（定稿 `内部文档`）。
+       * 用 `MapBackdrop` 而不是真实底图——这道门在**拿到网关之前**就要画出来，那时既没有
+       * 地图 key 也没有网络；程序化底图零依赖、离线也在。配色由 `.login-gate` 局部改写
+       * `--hud-map-*` 压成灰白（见 login.css），与车机端那道门同一条做法。
+       */}
+      <div className="login-gate__stage" aria-hidden="true">
+        <MapBackdrop />
+      </div>
+      <img className="login-gate__mascot" src={SPRITES.light.assistant} alt="" aria-hidden="true" draggable={false} />
       <form className="login-card" onSubmit={submit}>
         <h1 className="login-title">CarLife</h1>
         <p className="login-hint">请登录后使用</p>
@@ -138,4 +154,10 @@ export function LoginGate({ children }: LoginGateProps): React.ReactElement {
       </form>
     </div>
   );
+}
+
+/** `?login=demo`：版式截图入口，见上面的使用处。 */
+function isLoginDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("login") === "demo";
 }

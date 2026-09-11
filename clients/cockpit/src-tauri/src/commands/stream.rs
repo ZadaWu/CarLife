@@ -13,7 +13,7 @@ use tauri::{AppHandle, State};
 
 use crate::events::{run_mock_stream, spawn_session_stream, StreamState};
 
-fn gateway_env() -> (String, String) {
+pub(crate) fn gateway_env() -> (String, String) {
     // 统一走设置层（ACR-004 第 3 步）：env → 端上持久化 → 默认。
     // iOS 没有环境变量，这里各自读 env 的话 iPad 上永远连 localhost。
     crate::settings::gateway()
@@ -120,6 +120,17 @@ pub async fn trigger_guide_job(body_json: String) -> Result<String, String> {
     let (base_url, token) = gateway_env();
     GatewayClient::new(base_url, token)
         .trigger_guide_job(&body_json)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 行程核查「知道了」（M72-03）。列表卡上点带点的那程 → 弹层 → 这一跳。
+/// 与 `trigger_guide_job` 同一条纪律：原样 JSON，Rust 只搬运不解析。
+#[tauri::command]
+pub async fn ack_trip_review(plan_id: String, body_json: String) -> Result<String, String> {
+    let (base_url, token) = gateway_env();
+    GatewayClient::new(base_url, token)
+        .ack_trip_review(&plan_id, &body_json)
         .await
         .map_err(|e| e.to_string())
 }

@@ -79,6 +79,8 @@ function toneOf(e: TraceEvent): Bar["tone"] {
   // **mock 数据要标出来**——罗启明会问"这个数是真的还是编的"。
   if (e.kind === "tool_call" && (d.source as { kind?: string })?.kind === "mock") return "warn";
   if (e.kind === "merge" && d.personalized === false) return "warn";
+  // 体检（M77-03）：还有没修掉的 blocker 或预算耗尽 → 警示；全过是常态。
+  if (e.kind === "audit" && ((typeof d.blockers === "number" && d.blockers > 0) || d.budgetExhausted === true)) return "warn";
   return "normal";
 }
 
@@ -99,6 +101,11 @@ function detailOf(e: TraceEvent): string | undefined {
           : `降级为通用回答${Array.isArray(d.caveats) ? `：${(d.caveats as string[]).join("；")}` : ""}`;
     case "intent":
       return typeof d.goal === "string" ? d.goal : undefined;
+    case "audit":
+      // "验了几项、修了几处、还剩几条要看"——回放页判断"这份方案是被验过的"就靠这一行。
+      return typeof d.passed === "number"
+        ? `已验 ${d.passed} 项 · 修 ${Number(d.repaired ?? 0)} 处 · 剩 blocker ${Number(d.blockers ?? 0)} · 验不了 ${Number(d.unverifiable ?? 0)}${d.rounds ? ` · ${String(d.rounds)} 轮` : ""}${d.budgetExhausted ? " · 预算耗尽" : ""}`
+        : undefined;
     case "risk":
       // 判定与处置一起显示：只写"拒"看不出凭哪一类拒的，而那正是
       // 事后判断这道门是不是判宽了要看的东西（同 route 的 reason）。

@@ -117,6 +117,20 @@ export interface TripPlanDaySnapshot {
   notes?: string[];
 }
 
+/** 一段行车（M77-01）。见 `TripPlanSnapshot.legs` 的说明。 */
+export interface TripPlanLeg {
+  /** 属于第几天（1 起）；按段尾站名对到 skeleton 的 spot，对不上缺省。 */
+  day?: number;
+  fromStop?: string;
+  toStop?: string;
+  /** 分钟。代码从 `solve()` 的 legMinutes 取，模型不写。 */
+  driveMinutes: number;
+  /** rest = 休息停靠（含待定占位）；charge = 补能停靠（段尾站在 energyStops 里）。 */
+  reason?: "rest" | "charge";
+  /** 段尾是 `PENDING_STOP` 占位——"这里需要停一次，但没人给得出名字"。 */
+  pending?: boolean;
+}
+
 export interface TripPlanSnapshot {
   status: TripPlanStatus;
   origin?: string;
@@ -133,6 +147,16 @@ export interface TripPlanSnapshot {
    * HUD 的 charge 锚位数据源；缺省 = 本次方案没有自驾补能点。
    */
   energyStops?: string[];
+  /**
+   * 行车分段（M77-01，F-62-01）：每一段开多久、从哪到哪、为什么停。
+   *
+   * **只存代码算出的值**：分钟数来自 drive 分支的结构化提交经 `solve()` 拆段后的 `legMinutes`，
+   * 起止站与原因由代码按 `stops / energyStops` 对齐得出，模型不写这个字段。
+   * 对不齐（`stops.length !== legMinutes.length - 1`）就**不写**——缺省而不是猜。
+   * 老快照没有这个字段：`tripPlanStops()` 与 HUD 都不依赖它，缺省照常渲染。
+   * 消费方：确认前的可执行性体检（FL-58 的时长项）与途中提醒（FL-62 的连续驾驶上限）。
+   */
+  legs?: TripPlanLeg[];
   /** 播报与展示时必须带的声明（估算、天气窗口外等）。 */
   caveats: string[];
   /**
@@ -172,7 +196,26 @@ export interface TripPlanSnapshot {
    * 只由「出发」处置写入、「结束导航」清除；跨天自动作废（`tripPlanNavDay`）。
    */
   nav?: TripPlanNav;
+  /**
+   * 出发地 → 今天第一站这一段的高德驾车规划（2026-09-11，屏底状态栏的三格）。
+   *
+   * **读时算、不落库**：网关回 `/current` 时向 runtime 要一次（`/internal/trip/leg`），
+   * runtime 走⑤环境缓存（地名→坐标 1h、规划 3 分钟）。它是"现在出发这一段怎么样"，
+   * 与 `legs`（规划时按天拆的行车段）不是一回事。
+   * 缺省 = 这次没算出来（没坐标 / 高德不可用 / 起点解析不出）——状态栏那三格显示「暂无」，
+   * **不回落到任何常数**。
+   */
+  leg?: TripLeg;
   updatedTurnId: string;
+}
+
+/** 见 `TripPlanSnapshot.leg`。`road` 缺席 = 路况读不到（未知路段过半），不等于畅通。 */
+export interface TripLeg {
+  distanceKm: number;
+  durationMin: number;
+  road?: { label: string; status: "畅通" | "缓行" | "拥堵" };
+  /** ISO 时刻，端上据此标"数据更新中"。 */
+  computedAt: string;
 }
 
 // ── 真实地图停靠点（施工单 M13-06）───────────────────────────────────
@@ -488,6 +531,8 @@ export function tripPlanToHud(
     weather: plan.weather ?? base.weather,
     assistantState: base.assistantState,
     freshness: base.freshness,
+    // 出发这一段（状态栏三格）：只有这一程带着才有，**不从 base 取**——base 里没有它，也不该有。
+    ...(plan.leg ? { leg: plan.leg } : {}),
   };
 }
 

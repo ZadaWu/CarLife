@@ -131,18 +131,28 @@ html, body, #root {
   }
 }
 
-/* 对话层同理：列表底部与输入框都要让开导航（类名随 DialogScreen 上提改为 dlg-*） */
-.dlg-list { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
+/*
+ * 对话层同理：要让开底部导航药丸（类名随 DialogScreen 上提改为 dlg-*）。
+ *
+ * ⚠️ 一律用 `--hud-bottom-nav-clear`（药丸偏移 + 安全区 + 栏体高，定义在 hud.css），
+ * 别再自己凑常数。这三条曾经是 82 / 84 / 150 三个手写数，药丸一往下挪，
+ * 它们不会跟着动——2026-09-10 就这么在输入条与药丸之间凭空多出一条空白。
+ *
+ * 底部安全区**已经在 clear 里了**，这里不能再加一次：叠出来的那一次
+ * 正是「输入框离导航栏那么远」的主要来源（44pt 的下内距里有 34 是重复的安全区）。
+ */
+.dlg-list { padding-bottom: calc(var(--hud-bottom-nav-clear) + 12px); }
+/* 输入条在场时它就在列表下方接着，列表自己不必再替药丸留位——那段留白只会让最后一条消息浮起来。 */
+.dlg-main:has(.dlg-input) .dlg-list { padding-bottom: 8px; }
 .dlg-input {
-  margin-bottom: calc(84px + env(safe-area-inset-bottom));
-  /* 刘海屏底部安全区：不加的话输入框被 home indicator 压住 */
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  margin-bottom: calc(var(--hud-bottom-nav-clear) + 4px);
+  padding-bottom: 10px;
   background: var(--hud-map-base);
 }
 /* 16px 是 iOS 不自动缩放页面的下限，小于它输入时整页会放大 */
 .dlg-input input { font-size: max(16px, var(--hud-font-body)); }
 /* 「有新消息」浮标要浮在输入框与导航之上 */
-.dlg-newmsg { bottom: calc(150px + env(safe-area-inset-bottom)); }
+.dlg-newmsg { bottom: calc(var(--hud-bottom-nav-clear) + 84px); }
 
 /* ── 导览采集进度折叠节（M40-03）：贴底部导航上方，展开在节内滚动 ── */
 .mobile-guide-jobs {
@@ -296,4 +306,213 @@ html, body, #root {
 }
 @media (prefers-reduced-motion: reduce) {
   .mobile-depart .cabin-depart-card { animation: none; }
+}
+
+/* ── 行程抽屉（M75-02）：竖屏主页只放得下紧凑周日历卡，清单与翻页在这里 ────────────
+   与出发卡同形态（fixed、贴底升起、z 90：高于导览条(40)与底部导航(60)，低于 HITL 确认(100)
+   与变化摘要弹层(200)）。抽屉不在 `.hud-viewport` 内，hud.css 竖屏段给紧凑卡的落位不作用于它；
+   `--hud-unit` 在竖屏媒体查询里已是 `--hud-portrait-unit`（≈ 1px @390），卡片字号与车机相当。 */
+.mobile-trips {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+.mobile-trips__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: #000a;
+  backdrop-filter: blur(3px);
+}
+.mobile-trips__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 48px - env(safe-area-inset-top));
+  padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
+  border: 1px solid var(--hud-card-border);
+  border-bottom: none;
+  border-radius: 26px 26px 0 0;
+  background: var(--hud-card-bg);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+  animation: mobile-depart-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.04) both;
+}
+.mobile-trips__grip {
+  width: 44px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: var(--hud-divider);
+}
+/* 抽屉里的那份是完整卡：脱离绝对定位，宽随抽屉、高随内容，长清单在卡内滚。 */
+.mobile-trips__panel .hud-trips.hud-trips--calendar {
+  position: static;
+  width: auto;
+  height: auto;
+  max-height: calc(100vh - 140px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+/*
+ * 抽屉里的完整卡按车机那一轮对齐（2026-09-11）。车机的清单行样式写在横屏块里，手机这份吃不到：
+ * - 头部折成两行：标题 + 角标一行，换周控件（‹ 范围 本周 ›）整行居中——440pt 放不下一行
+ *   （实拍「我的行程」被挤成一列一字）；
+ * - 清单行：同色淡底 + 左缘一道色条，与周条上那一根胶囊对上（"这根线是谁"靠它回答）。
+ */
+.mobile-trips__panel .hud-trips__head { flex-wrap: wrap; row-gap: 8px; }
+.mobile-trips__panel .hud-week__toolbar {
+  flex: 1 0 100%;
+  margin-left: 0;
+  justify-content: center;
+}
+.mobile-trips__panel .hud-trips__row {
+  position: relative;
+  padding: 8px 10px 8px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--trip-color, var(--hud-pin)) 7%, transparent);
+  overflow: hidden;
+}
+.mobile-trips__panel .hud-trips__row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: var(--trip-color, var(--hud-amber));
+}
+.mobile-trips__panel .hud-trips__row.is-selected {
+  background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 16%, transparent);
+}
+.mobile-trips__close {
+  min-height: 44px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--hud-text);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-trips__panel { animation: none; }
+}
+
+/* ============================================================
+ * 新版 UI（2026-09-09，定稿 `内部文档`）。
+ * 三块手机独有的浮层对齐设计系统：确认弹窗、出发卡、行程抽屉。
+ * 只改视觉层，DOM 与层级（z-index）一字未动。
+ * ============================================================ */
+
+/* ── 确认弹窗（HITL）：定稿 confirm-dialog-v1.png ──────────────
+ * 两处实质改动：
+ *  1. 外发信息块从「琥珀描边」改成**浅底嵌条 + 小标题**——描边看起来像警告，
+ *     而这一段不是警告，是"这些会被发出去"，它要读起来像一份清单。
+ *  2. 两个出口平权：拒绝是描边深蓝、确认是实心琥珀，同宽同高。
+ *     原来「不了」是透明按钮，视觉上比「确认」轻，而这是一个有后果的动作。 */
+.hitl-panel {
+  padding: 24px 20px 20px;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(20, 40, 80, 0.28);
+}
+.hitl-title { font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 18px; }
+.hitl-details { gap: 12px; }
+.hitl-row { font-size: 15px; }
+.hitl-row dt { flex: 0 0 88px; }
+.hitl-row dd { text-align: right; font-weight: 700; }
+.hitl-disclosure {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 18px;
+  background: #f2f7fc;
+}
+.hitl-disclosure h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--hud-text); }
+.hitl-actions button {
+  flex: 1;
+  min-height: 50px;
+  border-radius: 16px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.hitl-actions button:not(.is-primary) {
+  border: 1px solid var(--hud-text);
+  background: transparent;
+  color: var(--hud-text);
+}
+.hitl-actions .is-primary {
+  border: none;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
+}
+
+/* ── 出发卡：定稿 departure-sheet-v1.png ───────────────────────
+ * 从深色卡改成白色 sheet（车机端那张卡是深色的，手机端这一层贴着底、单手够得着，
+ * 与其它 sheet 同一套白卡语言才不突兀）。`cabin-depart-card` 的**排版**不动，
+ * 但它整套取色是按深蓝底调的（浅蓝字 #cfe4ff / #dcecff / #93b1d4、深蓝底片），
+ * 直接摆到白底上会淡到读不出来——所以下面把用到的每一支色都改一遍。
+ * 车机端那张卡一个像素不动：这一段在 `.mobile-depart` 之内。 */
+.mobile-depart .cabin-depart-card {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 32px 32px 0 0;
+  background: #fff;
+  border: 1px solid var(--hud-card-border);
+  border-bottom: none;
+  color: var(--hud-text);
+  box-shadow: 0 -10px 40px rgba(20, 40, 80, 0.22);
+  max-height: calc(100vh - 36px - env(safe-area-inset-top));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* ── 行程抽屉：定稿 trips-drawer-v1.png ── */
+.mobile-trips__panel {
+  border-radius: 32px 32px 0 0;
+  background: #fff;
+  box-shadow: 0 -10px 40px rgba(20, 40, 80, 0.22);
+}
+.mobile-trips__close {
+  border-radius: 16px;
+  border-color: var(--hud-card-border);
+  color: var(--hud-text-muted);
+  font-size: 16px;
+}
+
+/* 出发卡在白底上的取色（逐支改，理由见上面那段注释）。 */
+.mobile-depart .cabin-depart-card__kicker { color: var(--hud-text-muted); letter-spacing: 0.24em; }
+.mobile-depart .cabin-depart-card h2 { color: var(--hud-text); }
+.mobile-depart .cabin-depart-card__stops li {
+  background: #f2f7fc;
+  color: var(--hud-text);
+}
+.mobile-depart .cabin-depart-card__energy { color: #b8730f; }
+/* 次级出口：描边深蓝的胶囊。原来是浅蓝字 + 浅蓝描边，白底上几乎看不见。 */
+.mobile-depart .cabin-depart-card__ghost {
+  border-color: var(--hud-card-border);
+  color: var(--hud-text);
+  font-weight: 600;
+}
+.mobile-depart .cabin-depart-card__hint,
+.mobile-depart .cabin-depart-card__plan-stops-none { color: var(--hud-text-muted); }
+.mobile-depart .cabin-depart-card__plan { background: #f7fafd; }
+.mobile-depart .cabin-depart-card__plan-strategy { color: var(--hud-pin); }
+.mobile-depart .cabin-depart-card__plan-stops li { color: var(--hud-text); }
+.mobile-depart .cabin-depart-card__plan-stops::-webkit-scrollbar-thumb {
+  background: var(--hud-divider);
 }

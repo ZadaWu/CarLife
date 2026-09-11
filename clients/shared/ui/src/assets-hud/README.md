@@ -105,3 +105,18 @@ python3 scripts/assets/gen-item-sprites/sync.py icon-rain icon-snow icon-haze ic
 2. **琥珀轨迹不在精灵里**：生活环由 `LifeRing` 组件用 SVG 绘制；提取时已刻意避开轨迹与序号标签胶囊，避免烘焙进图片后无法随数据变化。
 3. **序号徽章与地点名不在精灵里**：由 `PoiNode` 组件渲染，因为节点会随真实计划重新编号（Brief §3.1）。
 4. 主题目录中的旧定稿提取资产仍以定稿图为视觉基准，不得重绘或像素级拉伸；根目录的品类 POI 按本文件记录的同批透明贴纸规范维护。
+
+## 屏底状态栏素材（`statusbar/`，新版 UI 2026-09）
+
+车图、电池形状、四个指标图标、整枚「开始行程」按钮，全部从设计定稿切出：
+源图 `内部文档`
+（`内部文档` 两张定稿的底栏就是从它按像素拼的）。近白像素按线性透明，2 倍放大后切。
+
+- `car.png` 只是**没有档案形象时的版式占位**，不代表认出了这辆车（`StatusBar.tsx` 里旁边的车型名只在真有档案时才写）。
+- `battery.png` 当遮罩用，填色按电量走 CSS 变量 `--gauge-pct`。
+- `start-button.png` 文字烧在图里，按钮的可读名字在 `aria-label`。
+
+```bash
+python3 scripts/assets/extract-statusbar-assets.py          # 重切
+python3 scripts/assets/extract-statusbar-assets.py --check  # 校验与源图一致
+```

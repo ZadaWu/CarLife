@@ -83,13 +83,20 @@ describe("导览页三态", () => {
     assert.ok(withRetry.includes("再试一次"));
   });
 
-  it("ready：左时间轴右小地图两栏齐，时间轴含停车/游玩/打卡/餐饮/充电", () => {
+  it("ready：左时间轴右小地图两栏齐，时间轴含停车/游玩/打卡/充电；餐饮只在休憩卡里出现一次", () => {
     const html = render({ status: "ready", brief: BRIEF });
     assert.ok(html.includes("游玩时间轴"));
     assert.ok(html.includes("单向游玩路线"));
-    for (const label of ["停车场", "游玩点", "打卡点", "餐饮", "充电"]) {
+    for (const label of ["停车场", "游玩点", "打卡点", "充电"]) {
       assert.ok(html.includes(label), `时间轴缺 ${label} 标记`);
     }
+    /*
+     * 页面上的轴只列游玩顺序（2026-09-11 对齐定稿 guide-spot-v1.png）：餐饮 / 休息 / 厕所
+     * 已经在下面「休息 · 吃饭 · 厕所」卡里，轴上再来一遍就是同一个去处写两次。
+     * 轴上的胶囊叫「餐饮」、卡里的叫「吃饭」——前者不该再出现。
+     */
+    assert.ok(!html.includes(">餐饮<"), "餐饮不该再进页面时间轴（休憩卡里已有）");
+    assert.ok(html.includes(">吃饭<"), "餐饮条目应在休憩卡里");
     assert.ok(html.includes("码头停车场"));
     assert.ok(html.includes("全山最大古刹"));
     assert.ok(html.includes("佛顶山有索道"));

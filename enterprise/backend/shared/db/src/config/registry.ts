@@ -16,7 +16,7 @@
  * `registryHasNoPolicyOrRedline()` 把后两条做成了可断言的不变量。
  */
 
-import { DEFAULT_DEEPSEEK_MODEL } from "@carlife/shared";
+import { DEFAULT_DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_VISION_MODEL } from "@carlife/shared";
 
 /**
  * 开发环境的 JWT 签名密钥缺省值（施工单 M49-01）。**这是仓库里唯一一份字面量**——
@@ -129,6 +129,19 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     envFallback: "DEEPSEEK_MODEL",
     default: DEFAULT_DEEPSEEK_MODEL,
     description: "对话模型名。按 Agent 的档位映射（FL-33 F-33-05）在多 Agent 落地后扩展为映射表",
+    validate: nonEmpty("模型名"),
+  },
+  {
+    key: "DEEPSEEK_VISION_MODEL",
+    class: "endpoint",
+    scope: "llm",
+    storage: "db",
+    envFallback: "DEEPSEEK_VISION_MODEL",
+    default: DEFAULT_DEEPSEEK_VISION_MODEL,
+    description:
+      "这一次请求带了图片（照片 / 视频帧序图）时用的视觉档（M80-02，ACR-027）。纯文字请求仍走 DEEPSEEK_MODEL / CARLIFE_ANSWER_MODEL——" +
+      "按请求判、不按会话钉：车主中途发一张照片，那一轮切视觉档，下一轮纯文字就切回来。" +
+      "2026-09-10 起默认 deepseek-flash（V4.1 Flash 正式名）；旧名 deepseek-v4-flash-vision-exp 只是它的别名",
     validate: nonEmpty("模型名"),
   },
   {
@@ -437,6 +450,20 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     default: "Cherry",
     description: "百炼 TTS 音色（仅 TTS_ENGINE=aliyun 时使用）。音色闭集见百炼「系统音色」文档",
   },
+  // 检测器训练服务（ACR-026 / M76-02）：内部工具，网关的 /console/vision-trainer/* 代理到它。
+  // 空 = 未启用（代理回 503 vision_trainer_not_configured）。它自己没有鉴权，所以只应指向 localhost / 内网。
+  {
+    key: "VISION_TRAINER_URL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "VISION_TRAINER_URL",
+    default: "",
+    description:
+      "检测器训练服务地址（enterprise/backend/vision-trainer，dev:restart vision-trainer 起，缺省 http://localhost:8799）。" +
+      "空 = 未启用，控制台「模型训练」页显示服务未启用；服务无鉴权，只填 localhost 或内网地址",
+    validate: (v: string) => (v.trim() === "" ? null : httpUrl(v)),
+  },
   {
     key: "MOCK_TTS_URL",
     class: "endpoint",
@@ -459,6 +486,170 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     envFallback: "CARLIFE_LLM",
     readOnly: true,
     description: '=fake 时强制离线 Fake 模型。**处于 Fake 模式时视图会高亮提示**——演示前最怕没注意到',
+  },
+  // 视觉观察层（ACR-024 / M71-02）：拍照问诊的「看图」适配器。不是工具、不进 Agent ACL，
+  // 是与 ASR 同位的输入转换；档位只在部署层定，后台只读展示。
+  {
+    key: "CARLIFE_VISION",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION",
+    default: "dashscope",
+    options: ["dashscope", "deepseek", "fake", "off"],
+    readOnly: true,
+    description: "视觉观察层档位：dashscope=通义千问视觉档（DASHSCOPE_API_KEY）；deepseek=DeepSeek 视觉档（DEEPSEEK_API_KEY）；fake=按图片哈希回放 evals/vision-observe/fixtures/by-sha（零网络、确定性）；off=观察节点直通并在 caveats 写「本次未分析图片」",
+  },
+  {
+    key: "CARLIFE_VISION_DETECT_PROVIDER",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_DETECT_PROVIDER",
+    options: ["dashscope", "deepseek", "yolo"],
+    readOnly: true,
+    description: "第一遍（整图定位）走哪一家；空=跟 CARLIFE_VISION。2026-09-09 实测同一张图 bbox 平均 IoU：qwen3-vl-plus 0.936、DeepSeek v4.1-flash 0.643——定位这一遍别换家。yolo=端侧检测器经 VISION_TRAINER_URL 推理（M80-07），只做定位",
+  },
+  {
+    key: "CARLIFE_VISION_YOLO_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_YOLO_MODEL",
+    readOnly: true,
+    description: "检测那一遍选 yolo 时用哪个训练任务的权重（vision-trainer GET /models 里的 id，如 train-20260909-141540-e8c0）。空 = 选了 yolo 就启动失败",
+  },
+  {
+    key: "CARLIFE_VISION_YOLO_CONF",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_YOLO_CONF",
+    default: "0.25",
+    readOnly: true,
+    description: "yolo 置信阈值。0.25 与 M79 负样本筛选、detector-localize 评测同一个数；调高少报少漏不了",
+  },
+  {
+    key: "CARLIFE_VISION_YOLO_IMGSZ",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_YOLO_IMGSZ",
+    default: "960",
+    readOnly: true,
+    description: "yolo 推理边长，默认 = 训练尺寸 960。2026-09-10 实测 1280 时驻车灯置信 0.28、负样本误报 13 框，960 时 0.78 / 5 框；离训练尺寸越远越差（1600 以上零框）",
+  },
+  {
+    key: "CARLIFE_VISION_DESCRIBE_PROVIDER",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_DESCRIBE_PROVIDER",
+    options: ["dashscope", "deepseek"],
+    readOnly: true,
+    description: "第二遍（逐 crop 描述）与成对核验走哪一家；空=跟 CARLIFE_VISION。两遍可以来自两家",
+  },
+  {
+    key: "CARLIFE_VISION_DETECT_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_DETECT_MODEL",
+    default: "qwen3-vl-flash",
+    readOnly: true,
+    description: "第一遍整图检测用的视觉模型（便宜档，定位准；2026-09-08 实测 bbox 全贴目标）。按角色生效：混搭时它只作用在检测那一家上",
+  },
+  {
+    key: "CARLIFE_VISION_DESCRIBE_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_DESCRIBE_MODEL",
+    default: "qwen3-vl-plus",
+    readOnly: true,
+    description: "第二遍逐 crop 描述用的视觉模型（实测 plus 零实质错，flash 会把安全带写成「车形 十字」）。按角色生效：混搭时它只作用在描述那一家上",
+  },
+  {
+    key: "CARLIFE_VISION_FIXTURES",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_VISION_FIXTURES",
+    readOnly: true,
+    description: "fake 档 fixture 目录；缺省 <cwd>/evals/vision-observe/fixtures/by-sha",
+  },
+  // 图标图文索引（ACR-025 / M71-03）：向量只召回不裁决；off 时观察层只带描述子进双路问诊并写 caveat。
+  {
+    key: "CARLIFE_ICON_INDEX",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_ICON_INDEX",
+    default: "on",
+    options: ["on", "off"],
+    readOnly: true,
+    description: "手册图标图文索引开关：on=观察项经 pgvector 双路召回 + 闸门 + 成对核验对到手册图标；off=不匹配，caveats 写「图标未能与手册对上」",
+  },
+  // 手册图文索引（ACR-029）：手册里的图 + 它锚定到的段落。缺省 off——评测过线（eval:figure-anchor ≥ 90%）才切 on。
+  // off 时上下文逐字节回到现状，这是它的止血位。
+  {
+    key: "CARLIFE_KB_FIGURES",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_KB_FIGURES",
+    default: "off",
+    options: ["on", "off"],
+    readOnly: true,
+    description: "手册图文索引开关（ACR-029）：on=用车 / 售后问诊多一路「手册图示」（文字轮按检索词、照片轮按 crop 向量召回手册里的图，命中的带锚定段与出处，top-1 图附给表述模型）；off=逐字节回到现状。需 DASHSCOPE_API_KEY 与 kb:figures 建过索引",
+  },
+  {
+    key: "CARLIFE_KB_FIGURES_ROOT",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_KB_FIGURES_ROOT",
+    default: "",
+    readOnly: true,
+    description: "kb:convert 落盘的手册图片目录（`<md 名>/part-N/images/`）。空 = 从 runtime 代码位置反推仓库内 data/kb-figures；取不到图片文件时只给文字段、不挂图",
+  },
+  // 官方警报代码表（M80-10）：车机「警报」页上的代码 → 厂商写的含义与措施。**本地查表不走检索**——
+  // 代码是精确键，混进向量检索词会被稀释（真跑 turn-3cf7fe2a：5 条代码把查询稀释到查出洗车模式）。
+  {
+    key: "CARLIFE_ALERT_CATALOG_ROOT",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_ALERT_CATALOG_ROOT",
+    default: "",
+    readOnly: true,
+    description:
+      "官方警报代码表目录（内含 tesla-alerts.json，由 corepack pnpm kb:alerts 生成）。" +
+      "空 = 从 runtime 代码位置反推仓库内 data/kb-src/alerts；**取不到时读到的警报只有屏幕原话，每条都标「手册里没有收录」**",
+  },
+  // 手册图标图片（M78-01）：成对核验要把用户裁片和这张图并排给视觉模型比。
+  // 取不到就不核验，匹配只能说「疑似」——这是安全方向的降级，不报错。
+  {
+    key: "CARLIFE_ICON_IMAGES_ROOT",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_ICON_IMAGES_ROOT",
+    default: "",
+    readOnly: true,
+    description:
+      "手册图标图片根目录（内含 <车型目录>/ 与同名 <车型目录>-indicators.md，车型串取 md 的 vehicle: 行）。" +
+      "空 = 从 runtime 代码位置反推仓库内 data/kb-src/icons；**容器形态下若没把这个目录挂进来，成对核验不会发生，匹配只能说「疑似」**",
+  },
+  {
+    key: "CARLIFE_ICON_EMBED_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_ICON_EMBED_MODEL",
+    default: "qwen3-vl-embedding",
+    readOnly: true,
+    description: "图标索引用的 DashScope 多模态向量模型（图文同空间，2026-09-08 探针维度 2560；换模型必须整表重建 kb:icons --rebuild）",
   },
   // CARLIFE_ASR / CARLIFE_TTS 已随 ACR-017 退休（2026-09-01）：选档只剩
   // ASR_ENGINE / TTS_ENGINE 一套（env-override，.env 写死即钉档且 source 可见）；

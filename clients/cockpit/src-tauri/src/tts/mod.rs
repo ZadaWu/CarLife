@@ -164,6 +164,13 @@ pub struct TtsState {
      */
     speaking_text: Mutex<Option<String>>,
     /**
+     * 最近一次**途中提醒**的原文（施工单 M77-06，F-62-08；「再说一遍」重播的就是它，M77-07）。
+     *
+     * 与 `speaking_text` / `last_spoken` 分开：那两个是回采判定用的、垫场与正文都写；
+     * 这个只记提醒——「再说一遍」不该重播暖暖的对话回复。
+     */
+    last_reminder_text: Mutex<Option<String>>,
+    /**
      * 刚播完的那句原文 + 播完时刻（走查 2026-08-29 ④）。
      *
      * 回采段**必然在播报结束后才判定**：VAD 要 750ms 静音才收段，再加一趟
@@ -372,6 +379,11 @@ impl TtsState {
      */
     /// 记下 / 清掉"此刻正在播的那句"（M33-03）。
     /// 清掉时把原文挪进 `last_spoken`（走查 2026-08-29 ④）——迟到的回采比对要用。
+    /// 最近一次途中提醒的原文（「再说一遍」用）。
+    pub fn last_reminder_text(&self) -> Option<String> {
+        self.last_reminder_text.lock().expect("tts state poisoned").clone()
+    }
+
     pub fn set_speaking_text(&self, text: Option<&str>) {
         let mut cur = self.speaking_text.lock().expect("tts state poisoned");
         if text.is_none() {
@@ -687,6 +699,51 @@ pub fn speak_filler(app: &AppHandle, state: &Arc<TtsState>, text: &str, interrup
     play(app, state, text, true, wait);
 }
 
+/// 途中提醒能不能播、要不要等（施工单 M77-06，F-62-15）。**纯函数**，三种处置：
+///
+/// | 此刻 | 处置 |
+/// |---|---|
+/// | 播报总开关关着 | 拒绝（前端当只卡片） |
+/// | 正文在播（暖暖在回话） | 拒绝——提醒不掐正文；前端的闸会在下一帧再问 |
+/// | 垫场在播 | 按 `preempt_mode`：衔接 → 等它说完再播；抢占 → 立即 |
+/// | 空闲 | 立即 |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReminderAdmit {
+    Refuse,
+    Play { wait_for_filler: bool },
+}
+
+pub fn reminder_admit(muted: bool, body_active: bool, speaking_filler: bool, mode: FillerPreemptMode) -> ReminderAdmit {
+    if muted || body_active {
+        return ReminderAdmit::Refuse;
+    }
+    if speaking_filler {
+        return ReminderAdmit::Play { wait_for_filler: matches!(mode, FillerPreemptMode::AfterSentence) };
+    }
+    ReminderAdmit::Play { wait_for_filler: false }
+}
+
+/// 播一句途中提醒（施工单 M77-06，F-62-08）。返回是否真的播了。
+///
+/// 走 `play` 的正门（受播报开关、进 speaking 态、让路哨兵、回采判定有原文），与 `speak` 只差两点：
+/// **不置 `body_active`**（提醒不是正文，垫场排队判据不该把它当正文），并记 `last_reminder_text`
+/// 供「再说一遍」重播。**不经会话**——它是端上闸门算出来的固定文案。
+pub fn speak_reminder(app: &AppHandle, state: &Arc<TtsState>, text: &str) -> bool {
+    match reminder_admit(
+        state.is_muted(),
+        state.body_active.load(Ordering::SeqCst),
+        state.is_speaking_filler(),
+        state.preempt_mode(),
+    ) {
+        ReminderAdmit::Refuse => false,
+        ReminderAdmit::Play { wait_for_filler } => {
+            *state.last_reminder_text.lock().expect("tts state poisoned") = Some(text.to_string());
+            play(app, state, text, false, wait_for_filler);
+            true
+        }
+    }
+}
+
 /// 等当前垫场话自然结束。返回 `true` = 它自己结束的；`false` = 撞上限了。
 ///
 /// 轮询间隔与既有播放轮询一致（120ms），不另立一个节奏。
@@ -1000,6 +1057,33 @@ mod tests {
     use std::sync::Arc;
 
     // ── M18-06：两种收尾方式 ────────────────────────────────────────────
+
+    // ── M77-06：途中提醒的仲裁 ────────────────────────────────────────
+    #[test]
+    fn reminder_slot_途中提醒仲裁三态() {
+        use super::{reminder_admit, ReminderAdmit};
+        assert_eq!(reminder_admit(true, false, false, FillerPreemptMode::AfterSentence), ReminderAdmit::Refuse, "总开关关着不播");
+        assert_eq!(reminder_admit(false, true, false, FillerPreemptMode::AfterSentence), ReminderAdmit::Refuse, "正文在播不掐");
+        assert_eq!(
+            reminder_admit(false, false, true, FillerPreemptMode::AfterSentence),
+            ReminderAdmit::Play { wait_for_filler: true },
+            "垫场在播、衔接模式 → 等它说完"
+        );
+        assert_eq!(
+            reminder_admit(false, false, true, FillerPreemptMode::Immediate),
+            ReminderAdmit::Play { wait_for_filler: false },
+            "垫场在播、抢占模式 → 立即"
+        );
+        assert_eq!(reminder_admit(false, false, false, FillerPreemptMode::AfterSentence), ReminderAdmit::Play { wait_for_filler: false });
+    }
+
+    #[test]
+    fn reminder_slot_原文默认为空_与回采原文分开() {
+        let state = TtsState::default();
+        assert_eq!(state.last_reminder_text(), None);
+        state.set_speaking_text(Some("暖暖的对话回复"));
+        assert_eq!(state.last_reminder_text(), None, "对话回复不进提醒原文");
+    }
 
     /// 默认必须是**衔接**。改默认是本单的产品决策，它值一条断言：
     /// 默认值被谁不小心翻过去，现象是"垫场话又开始被截断了"，很难归因。

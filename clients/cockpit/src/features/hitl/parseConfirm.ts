@@ -13,7 +13,7 @@
  *     凭空打上等于把估算说成事实，反过来漏打则是把估算冒充确定值。
  */
 
-import type { PermissionDetail } from "@carlife/shared";
+import { parseAuditDetails, stripAuditDetails, type AuditSummary, type PermissionDetail } from "@carlife/shared";
 
 /** 动作摘要行的 label，由 agent-runtime 固定写入。 */
 const ACTION_LABEL = "动作";
@@ -45,6 +45,8 @@ export interface PlanDay {
   theme: string;
   spots: string[];
   stay?: PlanStay;
+  /** 体检标记（M77-04）：这一天有未消解项 / 住宿是自动补的。缺省 = 没有体检行或这一天没事。 */
+  flags?: { attention?: boolean; repaired?: boolean };
 }
 
 export interface TransitOption {
@@ -72,6 +74,8 @@ export interface ConfirmView {
   transit?: TransitBlock;
   /** 未能结构化的明细，原样逐行显示。 */
   rows: PermissionDetail[];
+  /** 体检摘要（M77-04）：由 `体检·` 前缀的行解出；没有体检行就没有，弹窗不画体检区。 */
+  audit?: AuditSummary;
 }
 
 /** 剥掉（估算）标记并回报它出现过——角标由此而来，不由猜测而来。 */
@@ -163,7 +167,10 @@ export function parseConfirm(details: PermissionDetail[], fallbackTitle: string)
   let transit: TransitBlock | undefined;
   let action: { title: string; subject?: string } | undefined;
 
-  for (const d of details) {
+  // 体检行先抽走（M77-04）：它们的 label 以「体检·」开头，不会被 DAY_LABEL_RE 认成天序行，
+  // 但也不该掉进 rows 当"未能结构化的明细"原样显示。
+  const audit = parseAuditDetails(details);
+  for (const d of stripAuditDetails(details)) {
     const label = d.label.trim();
     if (label === ACTION_LABEL) {
       action = parseAction(d.value.trim());
@@ -181,12 +188,22 @@ export function parseConfirm(details: PermissionDetail[], fallbackTitle: string)
     rows.push(d);
   }
 
+  const marked = markRepeatedStays(days);
+  if (audit) {
+    const attention = new Set(audit.attention.map((a) => a.day).filter((d): d is number => d !== undefined));
+    const repaired = new Set(audit.repaired.map((a) => a.day).filter((d): d is number => d !== undefined));
+    for (const d of marked) {
+      const flags = { ...(attention.has(d.day) ? { attention: true } : {}), ...(repaired.has(d.day) ? { repaired: true } : {}) };
+      if (Object.keys(flags).length) d.flags = flags;
+    }
+  }
   return {
     title: action?.title ?? fallbackTitle,
     subject: action?.subject,
-    days: markRepeatedStays(days),
+    days: marked,
     transit,
     rows,
+    ...(audit ? { audit } : {}),
   };
 }
 

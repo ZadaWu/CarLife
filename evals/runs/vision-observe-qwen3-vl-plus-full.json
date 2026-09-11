@@ -1,0 +1,1724 @@
+{
+  "suite": "vision-observe",
+  "model": "qwen3-vl-plus",
+  "provider": "dashscope",
+  "at": "2026-09-09T13:09:56.510Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "100.0%",
+      "denom": "8/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "0",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.936",
+      "denom": "8 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "62.5%",
+      "denom": "5/8"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "8/8",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "本档位不适用",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "本档位不适用"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "87.5%",
+      "denom": "7/8"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "0.500",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "21/21"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "97"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "21 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "22",
+      "denom": "20 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 8,
+      "matched": 8,
+      "wlTruth": 4,
+      "wlMatched": 4,
+      "extra": 0,
+      "ious": [
+        1,
+        1,
+        0.9848484848484849,
+        0.9411764705882353,
+        0.9342906875543951,
+        0.9070294784580499,
+        0.8859357696566998,
+        0.8325688073394495
+      ],
+      "shape": {
+        "n": 8,
+        "agree": 5
+      },
+      "color": {
+        "n": 8,
+        "agree": 8
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 8,
+        "agree": 7
+      },
+      "stateWarn": {
+        "n": 4,
+        "agree": 4
+      },
+      "text": {
+        "n": 4,
+        "hit": 4
+      },
+      "elementsJaccard": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "形状不一致（readout）：期望 battery，实际 rectangle",
+        "状态不一致（black car_outline）：期望 lit，实际 unlit",
+        "形状不一致（warning_light）：期望 lamp，实际 rectangle",
+        "元素不一致（gray lamp）：期望 [straight_lines]，实际 [none]，Jaccard 0.00",
+        "形状不一致（warning_light）：期望 lamp，实际 rectangle",
+        "元素不一致（green lamp）：期望 [straight_lines]，实际 [wavy_lines]，Jaccard 0.00"
+      ]
+    },
+    {
+      "id": "neg-01",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 9,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：time",
+        "词表越界：items[7].shape 越界：temperature",
+        "词表越界：items[8].shape 越界：arrow_left",
+        "词表越界：items[9].shape 越界：number",
+        "词表越界：items[12].shape 越界：number",
+        "词表越界：items[13].shape 越界：number",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-02",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[7].shape 越界：time",
+        "词表越界：items[12].shape 越界：number",
+        "词表越界：items[13].shape 越界：number",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-03",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 11,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 2,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：time",
+        "词表越界：items[7].shape 越界：temperature",
+        "词表越界：items[8].shape 越界：arrow_left",
+        "词表越界：items[9].shape 越界：number",
+        "词表越界：items[10].shape 越界：number",
+        "词表越界：items[11].shape 越界：time",
+        "词表越界：items[12].shape 越界：number",
+        "词表越界：items[13].shape 越界：number",
+        "负样本报出 2 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 2,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：number",
+        "词表越界：items[8].shape 越界：number",
+        "词表越界：items[9].shape 越界：number",
+        "负样本报出 2 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[7].shape 越界：time",
+        "词表越界：items[8].shape 越界：number",
+        "词表越界：items[10].shape 越界：number",
+        "cut_off_sides 期望 []，实际 [bottom]",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 8,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 2,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：time",
+        "词表越界：items[7].shape 越界：number",
+        "词表越界：items[9].shape 越界：number",
+        "词表越界：items[10].shape 越界：time",
+        "词表越界：items[11].shape 越界：number",
+        "负样本报出 2 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 9,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：unit",
+        "词表越界：items[7].shape 越界：time",
+        "词表越界：items[8].shape 越界：temperature",
+        "词表越界：items[9].shape 越界：text_block",
+        "词表越界：items[10].shape 越界：text_block",
+        "词表越界：items[11].shape 越界：text_block",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-08",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 8,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[4].shape 越界：arrow_left",
+        "词表越界：items[6].shape 越界：number",
+        "词表越界：items[7].shape 越界：time",
+        "词表越界：items[8].shape 越界：number",
+        "词表越界：items[9].shape 越界：number",
+        "词表越界：items[10].shape 越界：number",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-09",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[4].shape 越界：number",
+        "词表越界：items[5].shape 越界：time",
+        "词表越界：items[6].shape 越界：number",
+        "词表越界：items[7].shape 越界：number",
+        "词表越界：items[8].shape 越界：number"
+      ]
+    },
+    {
+      "id": "neg-10",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 9,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 3,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[2].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[6].shape 越界：time",
+        "词表越界：items[7].shape 越界：number",
+        "词表越界：items[8].shape 越界：arrow_right",
+        "词表越界：items[9].shape 越界：arrow_left",
+        "词表越界：items[10].shape 越界：time",
+        "词表越界：items[11].shape 越界：number",
+        "负样本报出 3 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-11",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 3,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[4].shape 越界：number",
+        "词表越界：items[6].shape 越界：number",
+        "词表越界：items[7].shape 越界：number",
+        "词表越界：items[10].shape 越界：arrow_left",
+        "词表越界：items[11].shape 越界：number",
+        "负样本报出 3 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-12",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 7,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 4,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[3].shape 越界：number",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[7].shape 越界：number",
+        "词表越界：items[9].shape 越界：lock",
+        "词表越界：items[12].shape 越界：number",
+        "词表越界：items[13].shape 越界：number",
+        "负样本报出 4 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-13",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 6,
+      "truthCount": 0,
+      "predCount": 12,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "词表越界：items[0].shape 越界：number",
+        "词表越界：items[3].shape 越界：number",
+        "词表越界：items[4].shape 越界：time",
+        "词表越界：items[5].shape 越界：number",
+        "词表越界：items[10].shape 越界：number",
+        "词表越界：items[11].shape 越界：number",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "neg-14",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-15",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-16",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-17",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-18",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-19",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "neg-20",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": 34643,
+      "usage": {
+        "prompt_tokens": 3511,
+        "completion_tokens": 1107,
+        "total_tokens": 4618,
+        "completion_tokens_details": {
+          "text_tokens": 1107
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2503,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": true,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [\"right\", \"bottom\"],\n    \"item_count\": 8\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [456, 120, 532, 150],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"P\", \"R\", \"N\", \"D\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 P R N D\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [578, 120, 618, 150],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"舒\", \"适\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 汉字 舒适\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [642, 122, 774, 152],\n      \"shape\": \"rectangle\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"60\", \"%\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 矩形 电量 60%\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [554, 195, 594, 235],\n      \"shape\": \"lamp\",\n      \"color\": \"green\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"straight_lines\"],\n      \"literal\": \"绿色 灯形 直线\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [554, 280, 594, 320],\n      \"shape\": \"rectangle\",\n      \"color\": \"gray\",\n      \"state\": \"unlit\",\n      \"text\": [\"A\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 矩形 A\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [554, 360, 598, 395],\n      \"shape\": \"rectangle\",\n      \"color\": \"green\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"wavy_lines\"],\n      \"literal\": \"绿色 矩形 波浪线\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [470, 450, 508, 565],\n      \"shape\": \"car_outline\",\n      \"color\": \"black\",\n      \"state\": \"unlit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 车轮廓\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [564, 435, 596, 485],\n      \"shape\": \"person\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"diagonal_band\"],\n      \"literal\": \"红色 人形 斜杠\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-01": {
+      "ms": 51460,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1885,
+        "total_tokens": 4935,
+        "completion_tokens_details": {
+          "text_tokens": 1885
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 14\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [160, 105, 208, 160],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"95\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 95\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [160, 163, 192, 175],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 115, 400, 135],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"103\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 103\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 140, 400, 155],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [405, 115, 430, 155],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆圈 内含数字 100\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [378, 75, 410, 90],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"311\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 311 km\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [470, 75, 500, 90],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:40\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 5:40 pm\",\n      \"confidence\": 0.93,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [510, 75, 540, 90],\n      \"shape\": \"temperature\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"18\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 温度 18°C\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [455, 115, 475, 150],\n      \"shape\": \"arrow_left\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 左转箭头\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [485, 115, 525, 130],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3,8\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 3,8 km\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [485, 135, 535, 150],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"Amsterdam\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 Amsterdam\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [485, 155, 540, 170],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"Hilversum\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 Hilversum\",\n      \"confidence\": 0.93,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [278, 815, 310, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [718, 815, 750, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-02": {
+      "ms": 37582,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1846,
+        "total_tokens": 4896,
+        "completion_tokens_details": {
+          "text_tokens": 1846
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 14\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [168, 105, 212, 158],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"89\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 89\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [168, 160, 202, 173],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [378, 115, 402, 138],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"103\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 103\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [378, 142, 402, 155],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 MAX\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [408, 112, 438, 145],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字 100\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [380, 75, 412, 90],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"312\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 312\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [416, 75, 432, 90],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [482, 75, 506, 92],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:40\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 5:40\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [482, 95, 506, 108],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [522, 75, 542, 92],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"E30\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 E30\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [548, 75, 590, 92],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"Amsterdam\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 Amsterdam\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [548, 95, 590, 108],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"DE WIEKEN\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 DE WIEKEN\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [282, 815, 316, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [720, 815, 754, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-03": {
+      "ms": 37226,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1873,
+        "total_tokens": 4923,
+        "completion_tokens_details": {
+          "text_tokens": 1873
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 14\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [170, 105, 228, 160],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"102\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 102\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [168, 163, 198, 175],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 115, 400, 135],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"103\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 103\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 140, 400, 155],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [408, 115, 435, 155],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字 100\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [378, 75, 415, 90],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"299\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 299 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [475, 75, 515, 90],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:49\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 5:49 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [520, 75, 555, 90],\n      \"shape\": \"temperature\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"20\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 温度 20°C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [465, 115, 480, 145],\n      \"shape\": \"arrow_left\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 左箭头\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [490, 115, 515, 130],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"11\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 11 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [520, 115, 528, 130],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"9\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 9\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [455, 190, 485, 205],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"6:00\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 6:00 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [490, 190, 515, 205],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"11\", \"min\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 11 min\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [525, 190, 550, 205],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"12\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 12 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-04": {
+      "ms": 36439,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1621,
+        "total_tokens": 4671,
+        "completion_tokens_details": {
+          "text_tokens": 1621
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [170, 105, 214, 158],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"86\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 86\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [170, 160, 200, 172],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 115, 402, 138],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"103\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 103\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [375, 142, 402, 158],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [408, 115, 435, 158],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 形 100\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [475, 80, 515, 98],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:49\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 5:49 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [525, 80, 555, 98],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"20\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 温度 20°C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [214, 740, 390, 790],\n      \"shape\": \"triangle\",\n      \"color\": \"amber\",\n      \"state\": \"lit\",\n      \"text\": [\"Corrective steering applied for your safety\", \"Road departure detected\"],\n      \"elements\": [\"exclamation\"],\n      \"literal\": \"琥珀色 三角形 感叹号 文字\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [280, 815, 318, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [722, 815, 758, 845],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"19.0\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 19.0\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [178, 820, 200, 848],\n      \"shape\": \"car_outline\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 车辆轮廓\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [648, 505, 662, 525],\n      \"shape\": \"triangle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 三角形 导航箭头\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-05": {
+      "ms": 36512,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1603,
+        "total_tokens": 4653,
+        "completion_tokens_details": {
+          "text_tokens": 1603
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": true\n    },\n    \"cut_off_sides\": [\"bottom\"],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 115, 220, 165],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"39\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 39\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 165, 210, 178],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [385, 125, 410, 148],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"53\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 53\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [385, 150, 415, 165],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [420, 125, 445, 160],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"50\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字50\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [390, 85, 425, 100],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"128\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 128\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [425, 85, 445, 100],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 km\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [485, 85, 525, 100],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:50\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 4:50 pm\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [540, 85, 565, 100],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"17\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 17\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [565, 85, 575, 100],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 符号 °C\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [285, 820, 320, 850],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": true,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [460, 620, 530, 660],\n      \"shape\": \"rectangle\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 实心矩形\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": true,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-06": {
+      "ms": 30281,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1637,
+        "total_tokens": 4687,
+        "completion_tokens_details": {
+          "text_tokens": 1637
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 120, 220, 168],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"89\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 89\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 172, 214, 185],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [385, 130, 410, 152],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"101\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 101\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [385, 158, 415, 172],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [420, 128, 450, 170],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字100\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [395, 92, 425, 106],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"155\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字155 km\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [488, 92, 525, 106],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3:30\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 3:30 pm\",\n      \"confidence\": 0.93,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [535, 92, 555, 106],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"15\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字15 °C\",\n      \"confidence\": 0.92,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [470, 138, 495, 172],\n      \"shape\": \"car_outline\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"arrow_right\"],\n      \"literal\": \"黑色 车形 带右箭头\",\n      \"confidence\": 0.90,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [500, 138, 530, 152],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"2.8\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字2.8 km\",\n      \"confidence\": 0.91,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [500, 208, 545, 222],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3:35\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 3:35 pm\",\n      \"confidence\": 0.88,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": true,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [285, 822, 320, 852],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-07": {
+      "ms": 38842,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1693,
+        "total_tokens": 4743,
+        "completion_tokens_details": {
+          "text_tokens": 1693
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 120, 220, 170],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"45\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 45\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 173, 210, 185],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [388, 130, 408, 150],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"80\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 80\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [388, 155, 416, 170],\n      \"shape\": \"letter_only\",\n      \"color\": \"blue\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"蓝色 字母 MAX\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [420, 128, 448, 168],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"100\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内有数字 100\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [392, 90, 422, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"140\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 140\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [424, 90, 444, 105],\n      \"shape\": \"unit\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 单位 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [486, 95, 522, 115],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3:52\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 3:52 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [530, 95, 552, 115],\n      \"shape\": \"temperature\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"16°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 温度 16°C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [470, 130, 580, 185],\n      \"shape\": \"text_block\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"2,0 km\", \"Haarlem-Noord\", \"Velserbroek\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文本 2,0 km Haarlem-Noord Velserbroek\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [466, 205, 580, 245],\n      \"shape\": \"text_block\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:03 pm\", \"11 min\", \"8,1 km\", \"Indischestraat 190\", \"39%\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文本 4:03 pm 11 min 8,1 km Indischestraat 190 39%\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [492, 740, 580, 775],\n      \"shape\": \"text_block\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"The Feel Good Static\", \"Sky Radio DAB\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文本 The Feel Good Static Sky Radio DAB\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-08": {
+      "ms": 33947,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1601,
+        "total_tokens": 4651,
+        "completion_tokens_details": {
+          "text_tokens": 1601
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 110, 220, 165],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"58\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black digits 58\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 165, 210, 178],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"gray text KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [283, 130, 314, 148],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3,0\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black text 3,0 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [283, 148, 352, 168],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"Leimuidenweg\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black text Leimuidenweg\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [252, 135, 278, 165],\n      \"shape\": \"arrow_left\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"black left arrow\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [420, 125, 448, 160],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"80\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"red circle with 80\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [394, 85, 428, 100],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"118\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black text 118 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [488, 88, 528, 105],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:03\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black time 5:03 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [538, 88, 558, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"16\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"black text 16°C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [285, 820, 324, 855],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"white digits 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [734, 825, 773, 858],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"white digits 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [178, 820, 202, 850],\n      \"shape\": \"car_outline\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"white car icon\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-09": {
+      "ms": 35492,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1614,
+        "total_tokens": 4664,
+        "completion_tokens_details": {
+          "text_tokens": 1614
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": true\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 115, 205, 160],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"1\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 1\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [180, 165, 205, 178],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [245, 130, 375, 185],\n      \"shape\": \"rectangle\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"2,9 km\", \"Leimuiderweg\"],\n      \"elements\": [\"arrow_left\"],\n      \"literal\": \"黑色 文字 箭头左\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [420, 125, 445, 160],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"80\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字 80\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [395, 85, 445, 100],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"118\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 118 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [485, 85, 530, 105],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"5:04\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 5:04 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [540, 85, 565, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"16\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 16°C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [285, 820, 325, 855],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [735, 820, 775, 855],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [175, 815, 205, 850],\n      \"shape\": \"car_outline\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 车辆轮廓图标\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [840, 825, 865, 855],\n      \"shape\": \"letter_only\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"X\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 字母 X\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"other\",\n      \"bbox\": [490, 205, 505, 230],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"X\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 X\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-10": {
+      "ms": 34877,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1603,
+        "total_tokens": 4653,
+        "completion_tokens_details": {
+          "text_tokens": 1603
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 120, 218, 170],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"28\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 28\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 173, 210, 185],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [386, 128, 406, 150],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"33\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 33\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [386, 155, 412, 168],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"MAX\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 MAX\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [418, 128, 446, 165],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"30\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字30\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [392, 88, 428, 102],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"129\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字129 km\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [480, 90, 518, 105],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:48\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 4:48 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [530, 90, 558, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"17\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字17 °C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [468, 145, 488, 175],\n      \"shape\": \"arrow_right\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 右箭头\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [468, 208, 488, 245],\n      \"shape\": \"arrow_left\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 左箭头\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [462, 275, 502, 290],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:56\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 4:56 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [508, 275, 532, 290],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"8\", \"min\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字8 min\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-11": {
+      "ms": 39113,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1835,
+        "total_tokens": 4885,
+        "completion_tokens_details": {
+          "text_tokens": 1835
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 14\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 120, 216, 175],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"21\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 21\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 175, 203, 187],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [210, 85, 220, 98],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"D\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 D\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [298, 85, 328, 98],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"CHILL\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 CHILL\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [394, 90, 424, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"131\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 131\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [426, 90, 442, 105],\n      \"shape\": \"rectangle\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 矩形 电量条\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [480, 90, 516, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:08\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 4:08\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [528, 90, 552, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"15\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 15\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [554, 90, 568, 105],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 符号 °C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [416, 130, 444, 165],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"30\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字30\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [464, 140, 484, 165],\n      \"shape\": \"arrow_left\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 左箭头\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [498, 140, 526, 155],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"150\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 150\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [498, 158, 552, 175],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"Schoterweg\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 文字 Schoterweg\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [656, 508, 676, 540],\n      \"shape\": \"triangle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 三角形 箭头\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-12": {
+      "ms": 37685,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1850,
+        "total_tokens": 4900,
+        "completion_tokens_details": {
+          "text_tokens": 1850
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": true\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 14\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [185, 120, 223, 170],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"18\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 18\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [184, 172, 216, 185],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [419, 128, 452, 170],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"30\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字30\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [395, 90, 428, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"132\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 132\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [430, 90, 447, 105],\n      \"shape\": \"rectangle\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 矩形 电池图标\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [488, 92, 525, 108],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"4:07\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 4:07\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [532, 92, 552, 108],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 pm\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [560, 92, 585, 108],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"15\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 15\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [587, 92, 602, 108],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 字母 °C\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [460, 90, 473, 105],\n      \"shape\": \"lock\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 锁形图标\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [828, 105, 842, 122],\n      \"shape\": \"person\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 人形图标\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [844, 105, 872, 122],\n      \"shape\": \"letter_only\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"PASSENGER\", \"AIRBAG\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文字 PASSENGER AIRBAG\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [287, 825, 325, 858],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [735, 825, 773, 858],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 1.0,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-13": {
+      "ms": 30280,
+      "usage": {
+        "prompt_tokens": 3050,
+        "completion_tokens": 1700,
+        "total_tokens": 4750,
+        "completion_tokens_details": {
+          "text_tokens": 1700
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 2042,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": true,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 12\n  },\n  \"items\": [\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 115, 220, 170],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"23\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字 23\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [178, 170, 214, 185],\n      \"shape\": \"letter_only\",\n      \"color\": \"gray\",\n      \"state\": \"lit\",\n      \"text\": [\"KM/H\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"灰色 字母 KM/H\",\n      \"confidence\": 0.95,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"warning_light\",\n      \"bbox\": [418, 128, 450, 168],\n      \"shape\": \"circle\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [\"30\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 圆形 内含数字30\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [392, 88, 428, 105],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"201\", \"km\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字201 km\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [482, 90, 525, 108],\n      \"shape\": \"time\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"2:50\", \"pm\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 时间 2:50 pm\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [535, 90, 568, 108],\n      \"shape\": \"number\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"15\", \"°C\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 数字15 °C\",\n      \"confidence\": 0.96,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [460, 130, 588, 180],\n      \"shape\": \"rectangle\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"30\", \"m\", \"Olympiastaat\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文字 30 m Olympiastaat\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [460, 200, 588, 250],\n      \"shape\": \"rectangle\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"200\", \"m\", \"Flevostraat\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文字 200 m Flevostraat\",\n      \"confidence\": 0.94,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [460, 275, 588, 320],\n      \"shape\": \"rectangle\",\n      \"color\": \"black\",\n      \"state\": \"lit\",\n      \"text\": [\"3:13\", \"pm\", \"23\", \"min\", \"20\", \"km\", \"Westdijk\", \"53%\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"黑色 文字 3:13 pm 23 min 20 km Westdijk 53%\",\n      \"confidence\": 0.92,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"component\",\n      \"bbox\": [265, 515, 344, 665],\n      \"shape\": \"car_outline\",\n      \"color\": \"red\",\n      \"state\": \"lit\",\n      \"text\": [],\n      \"elements\": [\"none\"],\n      \"literal\": \"红色 车辆轮廓 图标\",\n      \"confidence\": 0.98,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [282, 825, 325, 858],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    },\n    {\n      \"category\": \"readout\",\n      \"bbox\": [732, 825, 775, 858],\n      \"shape\": \"number\",\n      \"color\": \"white\",\n      \"state\": \"lit\",\n      \"text\": [\"17.5\"],\n      \"elements\": [\"none\"],\n      \"literal\": \"白色 数字 17.5\",\n      \"confidence\": 0.97,\n      \"quality\": {\n        \"blur\": false,\n        \"glare\": false,\n        \"partial\": false\n      },\n      \"undeterminable\": []\n    }\n  ]\n}"
+    },
+    "neg-14": {
+      "ms": 2759,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-15": {
+      "ms": 3365,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-16": {
+      "ms": 12597,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-17": {
+      "ms": 20413,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-18": {
+      "ms": 2238,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-19": {
+      "ms": 1981,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 0
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    },
+    "neg-20": {
+      "ms": 1855,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 70,
+        "total_tokens": 2588,
+        "completion_tokens_details": {
+          "text_tokens": 70
+        },
+        "prompt_tokens_details": {
+          "image_tokens": 1510,
+          "text_tokens": 1008,
+          "cached_tokens": 768
+        }
+      },
+      "text": "{\n  \"frame\": {\n    \"quality\": {\n      \"blur\": false,\n      \"dark\": false,\n      \"glare\": false,\n      \"partial\": false,\n      \"occluded\": false\n    },\n    \"cut_off_sides\": [],\n    \"item_count\": 0\n  },\n  \"items\": []\n}"
+    }
+  },
+  "latencyMs": [
+    34643,
+    51460,
+    37582,
+    37226,
+    36439,
+    36512,
+    30281,
+    38842,
+    33947,
+    35492,
+    34877,
+    39113,
+    37685,
+    30280,
+    2759,
+    3365,
+    12597,
+    20413,
+    2238,
+    1981,
+    1855
+  ],
+  "root": "<repo>/"
+}

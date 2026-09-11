@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+import { MapBackdrop, SPRITES } from "@carlife/ui";
 import { GatewayForm } from "../settings/GatewayForm";
 
 interface AuthStatus {
@@ -104,10 +105,26 @@ export function LoginGate({ children }: LoginGateProps): React.ReactElement {
   }, [busy]);
 
   if (status === null) return <div className="clogin clogin--loading" />;
-  if (status.authenticated) return <>{children}</>;
+  /*
+   * `?login=demo`：即使已登录也把这道门画出来——**版式截图入口**，与 `?profile=demo`
+   * 同一类（见 `demoVehicleProfile.ts`）。浏览器走查里这道门是进不去的：拿不到网关时
+   * 它按 fail-open 放行（上面 catch 分支），于是新版式没有任何地方可以走查。
+   * 真实运行不带 query，行为一字不变。
+   */
+  if (status.authenticated && !isLoginDemo()) return <>{children}</>;
 
   return (
     <div className="clogin">
+      {/*
+       * 舞台：程序化灰白地图 + 暖暖（定稿 `login-gate-v1.png`）。
+       * 用 `MapBackdrop` 而不是真实底图——这道门在**拿到网关之前**就要画出来，
+       * 那时候既没有地图 key 也没有网络；程序化底图零依赖、离线也在。
+       * 配色由 `.clogin` 局部改写 `--hud-map-*` 那几个 token 压成灰白（见 boarding.css）。
+       */}
+      <div className="clogin-stage" aria-hidden="true">
+        <MapBackdrop />
+      </div>
+      <img className="clogin-mascot" src={SPRITES.light.assistant} alt="" aria-hidden="true" draggable={false} />
       <form className="clogin-card" onSubmit={submit}>
         <h1>CarLife</h1>
         <p className="clogin-hint">这台设备是私人终端，请登录后使用</p>
@@ -148,4 +165,10 @@ export function LoginGate({ children }: LoginGateProps): React.ReactElement {
       </form>
     </div>
   );
+}
+
+/** `?login=demo`：版式截图入口，见上面的使用处。 */
+function isLoginDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("login") === "demo";
 }

@@ -113,6 +113,8 @@ pub fn project(env: &EventEnvelope, acc: &mut TurnAccumulator) -> Vec<BridgeActi
                 ts: env.ts,
                 // 用户消息不会被"打断"（M33-01）：打断针对的是助手那半句。
                 cancelled: None,
+                // 附件引用随受理回执而来（M80-01）：空数组与缺省同义，落缓存时不区分。
+                attachments: p.attachments.clone().filter(|a| !a.is_empty()),
             })],
             // 不带原文的 prompt 只可能来自 2026-09-03 之前的旧服务端（它只给 voice 带）。
             // 这里曾写着"文本由对话层 UI 乐观追加"——而 UI 那边写的是"由 SSE 回流"，
@@ -156,6 +158,7 @@ pub fn project(env: &EventEnvelope, acc: &mut TurnAccumulator) -> Vec<BridgeActi
                          * （M33-02），回源读历史时以网关落库的那份为准。
                          */
                         cancelled: None,
+                        attachments: None,
                     }),
                     BridgeAction::AssistantState(AssistantState::Idle),
                 ]
@@ -191,6 +194,7 @@ pub fn project(env: &EventEnvelope, acc: &mut TurnAccumulator) -> Vec<BridgeActi
                         ts: env.ts,
                         // 撤回与打断是两回事：撤回是审核拦下的，不标 cancelled。
                         cancelled: None,
+                        attachments: None,
                     }),
                     BridgeAction::AssistantState(AssistantState::Idle),
                 ]
@@ -439,6 +443,7 @@ mod tests {
                 turn_id: "t-text".into(),
                 source: MessageSource::Text,
                 transcript: Some("我这车最近有点费电".into()),
+                attachments: None,
             }),
         };
         let (actions, errs) = apply(&env, &cache, &mut acc);
@@ -465,6 +470,7 @@ mod tests {
                 turn_id: "t-legacy".into(),
                 source: MessageSource::Text,
                 transcript: None,
+                attachments: None,
             }),
             ..env
         };

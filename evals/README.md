@@ -230,3 +230,26 @@ lsof -nP -ti :18797 -ti :18798 | xargs kill -9   # 隔离栈端口必须是空�
 一行一个 JSON（JSONL），字段见 schema。最小消费方式：对每条 case 把 `input` 发给
 被测系统一轮，按 `expect` 里你能观测到的子集断言（路由观测不到就只断言回答要素）。
 `solved_must` 是本仓 fake 档特有的观测通道，外部 runner 可忽略。
+
+## 视觉观察层（M71-01，`evals/vision-observe/`）
+
+拍照问诊的第一块砖是尺子。这个套件**不经网关与 runtime**，给任何视觉模型同一份提示词
+（`prompts/observe.md`），量它在真实随手拍上的：单目标召回（IoU ≥ 0.5 一对一配对）、bbox IoU、
+颜色 / 状态 / 形状 / 文字一致率（红色样本与警示灯单列）、元素集合 Jaccard、`cut_off_sides`、
+`item_count` 自检、`literal` 禁词违规、词表越界、负样本高置信报出。
+
+- 真值 `cases.jsonl`（人写，契约 `truth.schema.json`；枚举与 `lib.ts` 的 `VOCAB` 逐字同源，`cases.test.ts` 守）；
+  照片与来源登记在 `photos/README.md`，负样本在 `negatives/`。
+- fixture（`fixtures/<id>.<model>.json`）是**模型当天说了什么**，真值是**图里实际有什么**，两者分开存；
+  `--model fake` 回放 fixture，零付费、确定性，`run.test.ts` 对 tesla-01 的数字有断言。
+- 裁判不猜措辞：只比受控枚举字段与 bbox；`literal` 只过禁词正则。
+
+```bash
+corepack pnpm eval:vision-observe -- --model fake                       # 回放
+corepack pnpm eval:vision-observe -- --model qwen3-vl-plus --id tesla-01 # 真实档（DASHSCOPE_API_KEY）
+corepack pnpm eval:vision-observe -- --provider ark --model doubao-seed-2-0-mini-260428 --no-think
+```
+
+2026-09-08 单张对照（`tesla-01`）：`qwen3-vl-plus` 召回 8/8、红色定色 1/1、`cut_off_sides` 命中、零禁词；
+`qwen3-vl-flash` 定位同准但安全带记成「车形 十字」；豆包 mini 在 `literal` 里写出「安全带」被禁词抓到。
+样本量 1 不构成统计，≥30 张后数字才作数。

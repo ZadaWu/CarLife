@@ -210,3 +210,109 @@ test("换了目的地就作废——不把上一程的推荐挂到这一程", as
     "换了目的地之后不许沿用上一程的推荐",
   );
 });
+
+/*
+ * 行程列表与选中（M72-04）。
+ *
+ * 老网关的回包没有 `plans`——那时列表回空数组，其余一字不变；
+ * 选中的那程在下一轮列表里不见了（改掉 / 取消 / 结束）要回到当前行程，不挂着一份不存在的。
+ */
+function listJson(current: string | null, plans: string[]): string {
+  const mk = (destination: string) => ({
+    status: "confirmed",
+    destination,
+    startDate: "2099-01-01",
+    days: 2,
+    skeleton: [
+      { day: 1, theme: "a", spots: [{ name: `${destination}-1` }] },
+      { day: 2, theme: "b", spots: [{ name: `${destination}-2` }] },
+    ],
+    caveats: [],
+    updatedTurnId: "t",
+  });
+  return JSON.stringify({
+    plan: current ? mk(current) : null,
+    plans: plans.map((d) => ({ planId: `p-${d}`, plan: mk(d), committedAt: "2026-09-01T00:00:00.000Z", updatedAt: "2026-09-01T00:00:00.000Z" })),
+  });
+}
+
+test("老回包（无 plans）→ onPlans 收到空数组，投影照旧", async () => {
+  const got: unknown[] = [];
+  const shown: string[] = [];
+  const src = createGatewayHudSource({
+    intervalMs: 10_000,
+    base: () => makeSnapshot("sunny"),
+    fetchPlanJson: async () => PLAN_JSON,
+    onPlans: (p) => got.push(p),
+    onPlan: (p) => shown.push(p ? p.destination : "-"),
+  });
+  const stop = src.subscribe(() => {}, () => {});
+  await new Promise((r) => setTimeout(r, 5));
+  stop();
+  assert.deepEqual(got, [[]]);
+  assert.deepEqual(shown, ["-"]);
+});
+
+test("select 换投影不发请求；选中的在下一轮不见了 → 回到当前行程", async () => {
+  let pulls = 0;
+  let round = 0;
+  const shown: string[] = [];
+  const src = createGatewayHudSource({
+    intervalMs: 10_000,
+    base: () => makeSnapshot("sunny"),
+    fetchPlanJson: async () => {
+      pulls += 1;
+      round += 1;
+      // 第 1 轮：当前广州，列表广州 + 青岛；第 2 轮：青岛没了。
+      return round === 1 ? listJson("广州", ["广州", "青岛"]) : listJson("广州", ["广州"]);
+    },
+    onPlan: (p) => shown.push(p ? p.destination : "-"),
+  });
+  const stop = src.subscribe(() => {}, () => {});
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(shown, ["广州"]);
+
+  src.select("p-青岛");
+  assert.equal(pulls, 1, "select 不该发请求");
+  assert.equal(shown.at(-1), "青岛");
+
+  src.select(null);
+  assert.equal(shown.at(-1), "广州");
+
+  src.select("p-青岛");
+  assert.equal(shown.at(-1), "青岛");
+  src.refresh(); // 第 2 轮：青岛不在列表里了
+  await new Promise((r) => setTimeout(r, 5));
+  stop();
+  assert.equal(shown.at(-1), "广州", "选中的行程消失后要回到当前行程");
+});
+
+/*
+ * 投影口径（M73-02）：无选中 → **列表首条**（进行中 / 最近的未来），不是服务端「当前行程」（最新确认）；
+ * 没有列表才回落当前。造一个「当前 = 上个月排的下月行程，首条 = 本周正在走的」的回包来钉住。
+ */
+test("无选中投影列表首条；无列表回落当前；清除选中回首条", async () => {
+  const shown: string[] = [];
+  let round = 0;
+  const src = createGatewayHudSource({
+    intervalMs: 10_000,
+    base: () => makeSnapshot("sunny"),
+    fetchPlanJson: async () => {
+      round += 1;
+      // 第 1 轮：当前=广州（最新确认），列表首条=青岛（本周）；第 2 轮：老网关无 plans
+      return round === 1 ? listJson("广州", ["青岛", "广州"]) : JSON.stringify({ plan: JSON.parse(listJson("广州", [])).plan });
+    },
+    onPlan: (p) => shown.push(p ? p.destination : "-"),
+  });
+  const stop = src.subscribe(() => {}, () => {});
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(shown.at(-1), "青岛", "无选中要画列表首条，不是最新确认的那份");
+  src.select("p-广州");
+  assert.equal(shown.at(-1), "广州");
+  src.select(null);
+  assert.equal(shown.at(-1), "青岛", "清除选中回首条");
+  src.refresh();
+  await new Promise((r) => setTimeout(r, 5));
+  stop();
+  assert.equal(shown.at(-1), "广州", "没有列表（老网关）才回落当前行程");
+});

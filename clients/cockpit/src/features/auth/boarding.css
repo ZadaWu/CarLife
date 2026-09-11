@@ -230,3 +230,212 @@
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
   padding-top: 12px;
 }
+
+/* ============================================================
+ * 新版 UI（2026-09-09，定稿 `内部文档` 与
+ * `boarding-gate-v1.png`）：两道门从深色改成与主屏同一套浅色语言。
+ *
+ * 这一段**只改视觉层**（底色、卡面、字色、控件形状），DOM 与相位机一字未动——
+ * 上面那些规则的布局（grid、min-height、二维码白底静区）继续生效，
+ * 这里只覆盖颜色与圆角。放在文件末尾靠顺序取胜，特异度与上面同级。
+ *
+ * ⚠️ 二维码那块的白底 **不许动**：它不是装饰，是扫码器的静区（见上面的注释）。
+ * ============================================================ */
+
+.boarding,
+.clogin {
+  /* 舞台：灰白地图的同款底色 + 右上角一抹暖光，与登录定稿一致。 */
+  background:
+    radial-gradient(60% 55% at 88% 8%, rgba(255, 176, 60, 0.16), transparent 70%),
+    linear-gradient(180deg, #eef4fb 0%, #e6eef8 100%);
+  color: #1f3d63;
+  padding: 40px;
+}
+
+.boarding-card,
+.clogin-card {
+  padding: 44px 48px;
+  border-radius: 32px;
+  background: #fff;
+  border: 1px solid rgba(163, 200, 232, 0.55);
+  box-shadow: 0 18px 48px rgba(70, 120, 170, 0.18);
+}
+.clogin-card { width: min(720px, 100%); gap: 18px; text-align: center; }
+.boarding-card { width: min(900px, 100%); gap: 20px; }
+
+.clogin-card h1 {
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #1f3d63;
+}
+.boarding-card h1 {
+  font-size: 40px;
+  font-weight: 800;
+  text-align: center;
+  color: #1f3d63;
+}
+
+.clogin-hint,
+.boarding-hint {
+  color: #6c8bb0;
+  font-size: 18px;
+  opacity: 1;
+}
+.clogin-hint { font-size: 20px; margin-bottom: 6px; }
+.boarding-hint { text-align: center; font-size: 16px; }
+
+/* 输入行：左对齐的标签 + 高白框（卡片整体居中，唯独表单左对齐才好填）。 */
+.clogin-field {
+  text-align: left;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f3d63;
+}
+.clogin-field input,
+.boarding-code-row input {
+  height: 68px;
+  padding: 0 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(163, 200, 232, 0.75);
+  background: #fff;
+  color: #1f3d63;
+  font-size: 22px;
+  font-weight: 600;
+}
+.clogin-field input:focus,
+.boarding-code-row input:focus {
+  outline: none;
+  border-color: #3d8fd6;
+  box-shadow: 0 0 0 3px rgba(61, 143, 214, 0.22);
+}
+
+/* 主行动：一屏只有一个，走 amber/cta 的渐变与暖投影。 */
+.clogin-submit,
+.boarding-code-row button {
+  height: 72px;
+  padding: 0 28px;
+  border-radius: 20px;
+  border: none;
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 10px 26px rgba(255, 190, 90, 0.55);
+  cursor: pointer;
+}
+.clogin-submit:disabled,
+.boarding-code-row button:disabled,
+.boarding-members button:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* 次级出口：文字按钮不用下划线，改成蓝色可点文字（定稿）。 */
+.clogin-alt {
+  justify-content: center;
+  gap: 48px;
+  padding-top: 4px;
+}
+.clogin-alt button {
+  color: #3d8fd6;
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.clogin-gateway { border-top-color: rgba(150, 190, 225, 0.45); padding-top: 18px; }
+.clogin-error,
+.boarding-error { color: #c0392b; }
+
+/* 上车门的成员：定稿是**竖排整行**，不是并排小卡——一行一个人，触达更大。 */
+.boarding-members {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.boarding-members button {
+  min-height: 96px;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(163, 200, 232, 0.55);
+  background: #fff;
+  color: #1f3d63;
+  cursor: pointer;
+}
+.boarding-members button:active {
+  border-color: #f5a623;
+  background: rgba(245, 166, 35, 0.08);
+}
+.boarding-name { font-size: 26px; font-weight: 700; }
+/* 角色是标签不是说明：蓝底片小胶囊，与站点卡上的「✓ 导览」同一族。 */
+.boarding-role {
+  margin-left: auto;
+  padding: 4px 16px;
+  border-radius: 999px;
+  background: #e3f0fb;
+  color: #3d8fd6;
+  font-size: 16px;
+  font-weight: 700;
+  opacity: 1;
+}
+/* 访客那一行是次级出口：虚线描边保留（上面的 !important），底色收成灰。 */
+.boarding-guest { background: #f6f9fd !important; }
+.boarding-guest .boarding-role { background: rgba(150, 190, 225, 0.2); color: #6c8bb0; }
+
+.boarding-steps { color: #6c8bb0; opacity: 1; }
+.boarding-device-id {
+  background: #f2f6fb;
+  color: #1f3d63;
+  border-radius: 14px;
+}
+
+/* ── 两道门必须盖住主屏的顶栏与底栏 ─────────────────────────────
+ * 新版 UI 的顶栏是 `position: fixed; z-index: 95`、出行状态栏 60、演示条 99。
+ * 门原来是 40，于是**门开着的时候主屏的栏还压在上面**——那两条属于"已经进来了"
+ * 的界面，出现在还没进来的门上就是在说谎。抬到 120（仍低于 HITL 的 200：
+ * 有后果的确认任何时候都在最上面）。 */
+.boarding,
+.clogin { z-index: 120; }
+
+/* ── 登录门的舞台：程序化灰白地图 + 暖暖 ───────────────────────── */
+.clogin {
+  /* 把装饰底图的浅蓝压成定稿的灰白（`map/land` 那一族），只在这道门内生效。 */
+  --hud-map-base: #f1f4f8;
+  --hud-map-base-2: #e8eef5;
+  --hud-map-road: #ffffff;
+  --hud-map-road-minor: #f7fafc;
+  --hud-map-water: #d2dfe8;
+  --hud-map-green: #e4ece4;
+  --hud-map-block: #e9eff6;
+}
+.clogin-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* 失焦 + 压低对比：它是舞台不是内容，任何一处都不该被读。 */
+  filter: blur(1.5px);
+  opacity: 0.95;
+}
+.clogin-stage .hud-map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.clogin-mascot {
+  position: absolute;
+  left: 40px;
+  bottom: 0;
+  z-index: 1;
+  height: min(46vh, 420px);
+  width: auto;
+  filter: drop-shadow(0 14px 30px rgba(20, 50, 90, 0.28));
+  pointer-events: none;
+}
+.clogin-card { position: relative; z-index: 2; }

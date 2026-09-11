@@ -86,13 +86,29 @@ async function call<T>(cfg: MineruConfig, path: string, init?: RequestInit): Pro
  */
 const CJK = "\\u3000-\\u303F\\u4E00-\\u9FFF\\uFF00-\\uFFEF";
 
-export function cleanMineruMarkdown(md: string): string {
+/**
+ * 图占位（ACR-029）：`[[fig:<图片文件名前 16 位>]]` 独占一行。
+ * MinerU 的图片按内容 sha256 命名，前 16 位就是稳定的键——`kb:figures` 建的索引里同一张图用同一个键，
+ * 切片时占位被剥掉（有图注的换成一句「（图：…）」），RAGFlow 看不到它。
+ */
+export const FIGURE_PLACEHOLDER_RE = /^\[\[fig:([0-9a-f]{8,64})\]\]$/gm;
+export const figurePlaceholder = (imgPath: string): string => `[[fig:${imgPath.replace(/^.*\//, "").replace(/\.[a-z0-9]+$/i, "").slice(0, 16)}]]`;
+
+export interface CleanMineruOptions {
+  /**
+   * 图片引用怎么处理：`strip`（缺省，与 ACR-029 之前一样删掉）/ `placeholder`（换成 `[[fig:…]]` 占位）。
+   * 占位让 markdown 与图示索引能对上号；已经转好的旧 md 没有占位也照常工作。
+   */
+  figures?: "strip" | "placeholder";
+}
+
+export function cleanMineruMarkdown(md: string, opts: CleanMineruOptions = {}): string {
   return md
     .replace(/<\/?(sub|sup)>/g, "")
     // 图片换成**换行**而不是删空：图片原本把上下文分开，
     // 直接删掉会让"看图"和"说明"粘成"看图说明"——凭空造出一个原文没有的词。
     // 连带吃掉图片两侧的横向空白，否则会留下 "看图\n 说明" 这样的行首空格。
-    .replace(/[ \t]*!\[[^\]]*\]\([^)]*\)[ \t]*/g, "\n")
+    .replace(/[ \t]*!\[[^\]]*\]\(([^)]*)\)[ \t]*/g, (_m, path: string) => (opts.figures === "placeholder" && path.trim() ? `\n${figurePlaceholder(path.trim())}\n` : "\n"))
     // MinerU 会在词内插空格（"用 户手册"）。**只压缩中日韩字符之间的空格**——
     // 英文与数字之间的空格有意义，一律去掉会把 "Model 3" 变成 "Model3"，
     // 而车型名正好是车型限定检索要匹配的东西。
@@ -173,3 +189,17 @@ export async function convertPdfs(
 
 /** 单独暴露：调用方拿到 zipUrl 后自己下载解压（Node 侧用 unzip，浏览器侧不需要）。 */
 export type MineruResultWithZip = MineruResult & { zipUrl?: string };
+
+/**
+ * 校验 zip 里 `*_content_list.json` 的形状（ACR-029）：一个块数组，每块至少有 type / bbox / page_idx。
+ * 形状不对直接抛——块表是图示索引的唯一输入，拿一份缺字段的表继续跑，出来的是零张图而不是报错。
+ */
+export function parseContentList(json: string): Array<{ type: string; bbox: number[]; page_idx: number } & Record<string, unknown>> {
+  const data = JSON.parse(json) as unknown;
+  if (!Array.isArray(data)) throw new Error("content_list.json 不是数组");
+  data.forEach((b, i) => {
+    const ok = b && typeof b === "object" && typeof (b as { type?: unknown }).type === "string" && Array.isArray((b as { bbox?: unknown }).bbox) && typeof (b as { page_idx?: unknown }).page_idx === "number";
+    if (!ok) throw new Error(`content_list.json 第 ${i} 块缺 type / bbox / page_idx`);
+  });
+  return data as ReturnType<typeof parseContentList>;
+}

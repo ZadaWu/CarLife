@@ -25,10 +25,55 @@
 import { Router, json } from "express";
 import type { Response } from "express";
 
-import type { NavPlan, NavPlanOrigin, NavPlanRequest, NavPlanResponse } from "@carlife/shared";
-import type { OwnerProfileRepository, TripPlanRepository } from "@carlife/db";
+import type {
+  NavPlan,
+  NavPlanOrigin,
+  NavPlanRequest,
+  NavPlanResponse,
+  TripPlanListEntry,
+  TripPlanReview,
+} from "@carlife/shared";
+import type {
+  CommittedTripPlan,
+  OwnerProfileRepository,
+  StoredTripPlanReview,
+  TripPlanRepository,
+  TripPlanReviewRepository,
+} from "@carlife/db";
 
 import type { AuthedRequest } from "../auth";
+
+/**
+ * 出发地 → 今天第一站这一段（2026-09-11，屏底状态栏的预计里程 / 用时 / 路况）。
+ *
+ * 每次 `/current` 都问 runtime 一次——**缓存在 runtime 的⑤里**（规划 3 分钟、地名坐标 1 小时），
+ * 车机 60 秒一轮，三轮里只有一轮真打高德。网关这边不缓存：⑤只有一份，两处各放一份就会一处过期一处没过期。
+ * 超时 4 秒，比 pretrip 短：它是每轮都跑的，不能拖慢首帧；拿不到就不带字段，端上显示「暂无」。
+ */
+async function fetchLeg(
+  runtimeUrl: string,
+  plan: unknown,
+  home: { lat?: number; lon?: number } | undefined,
+  timeoutMs = 4_000,
+): Promise<unknown | undefined> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${runtimeUrl}/internal/trip/leg`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ plan, home }),
+      signal: ac.signal,
+    });
+    if (!r.ok) return undefined;
+    const body = (await r.json()) as { leg?: unknown; skipped?: string };
+    return body.leg;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * 打开 App 时的**读时重算**（M20-06）。
@@ -154,6 +199,49 @@ export function originAgeMinutes(at: unknown, now = Date.now()): number | undefi
   return Math.max(0, Math.round((now - t) / 60_000));
 }
 
+/** 落库行 → 契约形状：去掉 userId 与签名（端上不需要，也不该拿到别人的 id 形态）。 */
+function toContractReview(r: StoredTripPlanReview): TripPlanReview {
+  const { userId: _u, signature: _s, ...rest } = r;
+  return rest;
+}
+
+/**
+ * 活动行程（进行中 + 未来 + 未定日期）各带最新一份核查。失败回空数组——列表是配角，
+ * 拿不到不该让主行程那一半变成报错（与常住地同一取舍）。
+ */
+async function listActive(
+  repo: TripPlanRepository,
+  reviews: TripPlanReviewRepository | undefined,
+  userId: string,
+): Promise<TripPlanListEntry[]> {
+  let rows: CommittedTripPlan[];
+  try {
+    rows = await repo.activeForUser(userId);
+  } catch (e) {
+    console.warn("[trip-plan] 活动行程列表读取失败（回空列表）", e);
+    return [];
+  }
+  let latest = new Map<string, StoredTripPlanReview>();
+  if (reviews && rows.length > 0) {
+    try {
+      latest = await reviews.latestForPlans(rows.map((r) => r.planId));
+    } catch (e) {
+      console.warn("[trip-plan] 核查读取失败（列表不带核查）", e);
+    }
+  }
+  return rows.map((r) => {
+    const review = latest.get(r.planId);
+    return {
+      planId: r.planId,
+      plan: r.plan,
+      committedAt: r.committedAt.toISOString(),
+      // 仓储的 updatedAt 可选（内存夹具不必补）：没改过就是确认那一刻。
+      updatedAt: (r.updatedAt ?? r.committedAt).toISOString(),
+      ...(review ? { review: toContractReview(review) } : {}),
+    };
+  });
+}
+
 export function createTripPlanRouter(
   repo: TripPlanRepository,
   ownerProfiles?: OwnerProfileRepository,
@@ -161,8 +249,41 @@ export function createTripPlanRouter(
   runtimeUrl?: string,
   /** 出发导航规划的挂等预算；测试注入小值，生产不传。 */
   navPlanTimeoutMs = NAV_PLAN_TIMEOUT_MS,
+  /**
+   * 每日核查仓储（M72-03）。不传 = 没有核查面：`plans[]` 每项无 `review`，ack 路由回 503——
+   * 单挂测试与旧装配点照常工作，不因为多了一张表而炸。
+   */
+  reviews?: TripPlanReviewRepository,
 ): Router {
   const router = Router();
+
+  /*
+   * 「知道了」（M72-03）：把这一份核查标成已看过。归属只认鉴权身份——仓储的 `ack` 带 userId，
+   * 错人 / 不存在一律 404，不区分（区分了就等于告诉调用方"这个 id 存在但不是你的"）。
+   * 重复点是幂等的：已确认的返回原行、`ackedAt` 不变。
+   */
+  router.post("/v1/trip-plan/:planId/review/ack", json(), async (req: AuthedRequest, res: Response) => {
+    if (!req.userId) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    if (!reviews) {
+      res.status(503).json({ error: "reviews_unavailable" });
+      return;
+    }
+    const body = (req.body ?? {}) as { reviewId?: unknown };
+    const reviewId = typeof body.reviewId === "string" ? body.reviewId.trim() : "";
+    if (!reviewId) {
+      res.status(400).json({ error: "reviewId_required" });
+      return;
+    }
+    const acked = await reviews.ack(req.userId, reviewId);
+    if (!acked || acked.planId !== req.params.planId) {
+      res.status(404).json({ error: "review_not_found" });
+      return;
+    }
+    res.json({ review: toContractReview(acked) });
+  });
 
   /*
    * 出发导航规划（M66-03）：点「开始行程」的唯一入口。网关红线不变：
@@ -239,8 +360,26 @@ export function createTripPlanRouter(
       }),
     ]);
     const home = owner?.home;
+    /*
+     * 活动行程列表 + 每程最新核查（M72-03）。与 `current` 同一跳回去：60 s 轮询已经在打这条，
+     * 为列表再开一条路由要多一个 Tauri 命令与第二个轮询（本文件头的理由）。
+     * 网关不判核查作废、不算变化——那是 contracts 的纯函数，端上算（`reviewIsStale` / `reviewNeedsAttention`）。
+     * 列表取不到不阻塞主行程：与常住地同一取舍。
+     */
+    const plans = await listActive(repo, reviews, req.userId);
+    /*
+     * 每一程都带上出发段（端上可以选中任意一程，状态栏跟着切）。并发问 runtime，
+     * 高德那一跳由⑤缓存吸收；任一程拿不到只是那一程不带 `leg`。
+     */
+    if (runtimeUrl !== undefined && plans.length > 0) {
+      const legs = await Promise.all(plans.map((p) => fetchLeg(runtimeUrl, p.plan, home)));
+      plans.forEach((p, i) => {
+        if (legs[i]) (p.plan as { leg?: unknown }).leg = legs[i];
+      });
+    }
+    const currentReview = current ? plans.find((p) => p.planId === current.planId)?.review : undefined;
     if (!current) {
-      res.json({ plan: null, ...(home ? { home } : {}) });
+      res.json({ plan: null, plans, ...(home ? { home } : {}) });
       return;
     }
     /*
@@ -274,15 +413,24 @@ export function createTripPlanRouter(
           storedHighlights ? undefined : refreshHighlights(runtimeUrl, current.plan),
         ])
       : [undefined, undefined];
+    // 当前这一程的出发段：列表里已经算过就直接拿，不在列表里（罕见）才单独问一次。
+    const currentLeg =
+      (plans.find((p) => p.planId === current.planId)?.plan as { leg?: unknown } | undefined)?.leg ??
+      (runtimeUrl !== undefined ? await fetchLeg(runtimeUrl, current.plan, home) : undefined);
     const plan = {
       ...current.plan,
       ...(fresh ?? {}),
       ...(highlights ? { destinationHighlights: highlights } : {}),
+      ...(currentLeg ? { leg: currentLeg } : {}),
     };
 
     res.json({
       plan,
       committedAt: current.committedAt.toISOString(),
+      plans,
+      // 端上列表默认高亮哪一行：快照里没有 planId，只能网关说。
+      currentPlanId: current.planId,
+      ...(currentReview ? { review: currentReview } : {}),
       // 让端上与排障能分辨"这次是新算的还是库里的"——两者看起来一模一样。
       ...(wantRefresh
         ? {

@@ -439,6 +439,7 @@ mod tests {
             turn_id: "t1".into(),
             source: carlife_core::contract::MessageSource::Text,
             transcript: None,
+            attachments: None,
         });
         assert_eq!(turn_id_of(&prompt), Some("t1"));
         assert_eq!(turn_id_of(&delta("t1")), Some("t1"));

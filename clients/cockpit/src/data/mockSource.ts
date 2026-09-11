@@ -20,6 +20,17 @@ export async function invokeFetchTripPlan(refreshPretrip = false): Promise<strin
   // 参数名按 Tauri 的 camelCase 约定传（Rust 侧是 `refresh_pretrip: Option<bool>`）。
   return invoke<string>("fetch_trip_plan", { refreshPretrip });
 }
+/**
+ * 行程核查「知道了」（M72-03）。Tauri 里经 Rust 命令；浏览器走查走 `devFetch`
+ * （与 `/v1/guide/jobs/trigger` 同一形态，App 里按 `isTauriEnv()` 分流）。
+ */
+export async function invokeAckTripReview(planId: string, reviewId: string): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string>("ack_trip_review", {
+    planId,
+    bodyJson: JSON.stringify({ reviewId }),
+  });
+}
 export async function invokeFetchEnergy(vin: string): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<string>("fetch_vehicle_energy", { vin });

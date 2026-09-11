@@ -2,10 +2,29 @@
 import type { AttachmentKind } from "./AttachmentKind";
 
 /**
- * 附件引用占位（FL-03 F-03-12 / FL-09 引用句柄语义）。M2 Sprint 不消费。
+ * 附件引用（FL-03 F-03-12 / FL-09 引用句柄语义）。M80-01 起随 `ChatMessage` 与 `PromptAccepted` 下发。
+ *
+ * `attachment_id` 与 `handle` 目前是同一个值（网关的附件主键就是句柄）；两个字段都保留，
+ * 是给"句柄可轮换而 id 不变"留位。
  */
 export type AttachmentRef = { attachmentId: string, kind: AttachmentKind, 
 /**
  * 对象存储引用句柄（不可枚举，§3）。
  */
-handle: string, };
+handle: string, 
+/**
+ * MIME（如 `image/jpeg`、`video/mp4`）；端上据此决定用 `<img>` 还是 `<video>`。
+ */
+contentType?: string | null, 
+/**
+ * 原件字节数；端上用来决定要不要先问一句再拉 40 MB 的视频。
+ */
+bytes?: number | null, 
+/**
+ * 端上给的原始文件名，只用于展示。
+ */
+filename?: string | null, 
+/**
+ * 视频时长（毫秒），网关在解析视频后回填；照片没有。
+ */
+durationMs?: number | null, };

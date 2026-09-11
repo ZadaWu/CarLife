@@ -17,6 +17,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 附件命令的 Android 回落形态（M80-03）：raw IPC 不可用时 JSON 体里带 base64
+base64 = "0.22"
 tokio = { version = "1", features = ["time"] }
 carlife-core = { path = "../../../clients/shared/rust/carlife-core" }
 carlife-net = { path = "../../../clients/shared/rust/carlife-net" }

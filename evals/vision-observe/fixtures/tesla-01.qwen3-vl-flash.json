@@ -1,0 +1,193 @@
+{
+  "frame": {
+    "quality": {
+      "blur": false,
+      "dark": false,
+      "glare": false,
+      "partial": false,
+      "occluded": false
+    },
+    "cut_off_sides": [],
+    "item_count": 7
+  },
+  "items": [
+    {
+      "category": "readout",
+      "bbox": [
+        456,
+        123,
+        534,
+        152
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "unlit",
+      "text": [
+        "P",
+        "R",
+        "N",
+        "D"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色 字母 P R N D",
+      "confidence": 0.95,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        578,
+        120,
+        620,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "unlit",
+      "text": [
+        "舒适"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色 汉字 舒适",
+      "confidence": 0.95,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        644,
+        123,
+        772,
+        152
+      ],
+      "shape": "battery",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "60",
+        "%"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色 电池形状 60 %",
+      "confidence": 0.9,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        554,
+        192,
+        594,
+        238
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "straight_lines"
+      ],
+      "literal": "绿色 灯形 直线",
+      "confidence": 0.95,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        554,
+        280,
+        594,
+        322
+      ],
+      "shape": "lamp",
+      "color": "gray",
+      "state": "unlit",
+      "text": [],
+      "elements": [
+        "straight_lines"
+      ],
+      "literal": "灰色 灯形 直线",
+      "confidence": 0.9,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        554,
+        362,
+        598,
+        398
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "straight_lines"
+      ],
+      "literal": "绿色 灯形 直线",
+      "confidence": 0.95,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        564,
+        435,
+        596,
+        485
+      ],
+      "shape": "car_outline",
+      "color": "red",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "cross"
+      ],
+      "literal": "红色 车形 十字",
+      "confidence": 0.95,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    }
+  ]
+}

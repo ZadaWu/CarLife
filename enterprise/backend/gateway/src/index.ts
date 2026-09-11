@@ -19,6 +19,7 @@ import {
   createTraceRepository,
   createTripRepository,
   createTripPlanRepository,
+  createTripPlanReviewRepository,
   createTripRouteAuditRepository,
   createVehicleMemberRepository,
   createUserRepository,
@@ -75,6 +76,7 @@ import { createTelemetryRouter } from "./telemetry";
 import { createConsoleRouter } from "./console";
 import { audioObjectKey } from "./console/message-audio";
 import { createObjectStore, createUploadRouter } from "./upload";
+import { ffmpegPathsFromEnv, ffmpegVersion } from "@carlife/tools";
 import { createRagClient, type RagClient } from "@carlife/rag";
 
 /*
@@ -190,6 +192,22 @@ export function createGatewayApp(): Express {
   /** 消息音频索引（M60-02）：试听端点与建轮时的录音转存共用一份。 */
   const messageAudioRepo = createMessageAudioRepository(prisma);
 
+  /*
+   * 视频派生的前置（M80-01，ACR-027）：ffmpeg 是宿主二进制，不是 npm 包。
+   * 启动时跑一次 `-version`：不可用**不阻塞启动**——对话不该因为看不了视频而起不来——
+   * 但要把话说在日志里。本机 PATH 上的 `ffmpeg` 曾指向缺 dylib 的 ffmpeg-full（2026-09-09），
+   * 表现就是这一行；用 `FFMPEG_PATH=/opt/homebrew/bin/ffmpeg` 钉住。
+   */
+  const ffmpegPaths = ffmpegPathsFromEnv();
+  // 自检只写日志不挡路（createGatewayApp 是同步的）：不可用时派生会把"没能解析"写进 notes，模型如实说没看成。
+  void ffmpegVersion(ffmpegPaths).then((v) =>
+    console.log(
+      v
+        ? `[gateway] ffmpeg 可用（${ffmpegPaths.ffmpeg}，${v}）：视频附件将抽帧 + 分段转写`
+        : `[gateway] ffmpeg 不可用（FFMPEG_PATH=${ffmpegPaths.ffmpeg}）：视频附件只存不看，模型会如实说没看成`,
+    ),
+  );
+
   const app = express();
   app.use(requestLog);
   app.get("/healthz", (_req, res) => {
@@ -249,6 +267,8 @@ export function createGatewayApp(): Express {
       },
       // 评测台（M67-02）：仓库根缺省从本文件反推（gateway/src → 根）；Docker 形态下目录不在，路由自己回 503。
       evals: { root: process.env.CARLIFE_EVALS_ROOT ?? new URL("../../../..", import.meta.url).pathname.replace(/\/$/, "") },
+      // 检测器训练服务（ACR-026）：URL 在配置注册表 VISION_TRAINER_URL，空 = 未启用
+      visionTrainer: { config },
       users: userRepo,
       // 用户体系（M68-01 只读 / M68-02 治理动作）：只读仓储只在后台注入，端上路由拿不到它；
       // 撤销走与端上同一份 deviceRepo / grantRepo 的软删。
@@ -342,8 +362,9 @@ export function createGatewayApp(): Express {
   // 多模态上传（M8-04）。**未配置 S3 时不挂载**——
   // 挂一个连不上存储的上传接口，用户会拍完照片等半天再看到失败。
   // 不挂载则直接 404，端上据此隐藏入口。存储客户端在上面已经建好（见 objectStore）。
+  const attachmentRepo = createAttachmentRepository(prisma);
   if (objectStore) {
-    app.use(createUploadRouter(objectStore, createAttachmentRepository(prisma)));
+    app.use(createUploadRouter(objectStore, attachmentRepo));
     console.log(`[upload] 对象存储已接入（${s3Endpoint}）`);
   } else {
     console.log("[upload] 对象存储未接入（S3_ENDPOINT / KEY / SECRET 未配置），附件上传与会话试听不可用");
@@ -367,6 +388,9 @@ export function createGatewayApp(): Express {
       createOwnerProfileRepository(prisma),
       // 打开 App 时的读时重算（M20-06）走 runtime；地址与其它内部调用同源。
       process.env.AGENT_RUNTIME_URL ?? "http://localhost:8791",
+      undefined,
+      // 每日核查（M72-03）：列表每项带最新核查 + 「知道了」。
+      createTripPlanReviewRepository(prisma),
     ),
   );
   // 景区导览触发通道（M36-02）：点击景点 → runtime 三分支采集。同步挂等，预算见 guide.ts。
@@ -629,7 +653,12 @@ export function createGatewayApp(): Express {
             objectKey: key,
           });
         }
-      : undefined),
+      : undefined,
+      // 附件绑定（M71-04）：对象存储没接就不传，带句柄的消息得到 404 而不是静默丢弃。
+      objectStore ? { repo: attachmentRepo, store: objectStore } : undefined,
+      // 视频派生（M80-01）：路径一律注入；二进制不可用时派生自己折成空产物 + note（见 tools/media）。
+      { ffmpeg: ffmpegPaths },
+    ),
   );
   return app;
 }

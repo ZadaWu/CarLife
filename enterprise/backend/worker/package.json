@@ -14,6 +14,7 @@
     "@carlife/memory": "workspace:*",
     "@carlife/rag": "workspace:*",
     "@carlife/db": "workspace:*",
+    "@carlife/tools": "workspace:*",
     "node-cron": "^3.0.3"
   },
   "devDependencies": {

@@ -36,6 +36,22 @@ pub enum WakeOutcome {
     SidecarOff,
     /// 控制口令：把闲聊旁路开回来。
     SidecarOn,
+    /// 控制口令：**再说一遍**（施工单 M77-07，F-62-10）——重播最近一句**途中提醒**。
+    ///
+    /// 只重播提醒，不重播暖暖的对话回复：车主没听清的是"前面 15 公里是哪儿"，
+    /// 不是刚才那段闲聊。端上直接重播，不进 LLM。
+    Repeat,
+    /// 控制口令：**闭嘴**（M77-07）——停掉正在播的提醒，且本段不再主动提醒。
+    ///
+    /// 与 `Interrupt` 的边界：打断是"这一句现在就停 + 取消这一轮"，闭嘴是
+    /// "停 + 这一段路别再提醒我"，**不取消会话轮**。两张表不能重叠，
+    /// 重叠词归打断（更保守）。
+    Hush,
+    /// 控制口令：少提醒点 / 多提醒点（M77-07，F-62-12）——拨提醒密度档。
+    ///
+    /// 「少说点」已经是关闲聊旁路的口令，这里只收带「提醒」二字的说法。
+    DensityDown,
+    DensityUp,
     /// 唤醒。`command` 是唤醒词之后的指令（None = 只喊了名字）。
     Wake { command: Option<String> },
 }
@@ -116,6 +132,43 @@ const SIDECAR_OFF_PHRASES: &[&str] = &[
 const SIDECAR_ON_PHRASES: &[&str] =
     &["打开闲聊", "开启闲聊", "可以聊天了", "陪我聊聊", "说说话吧", "跟我聊聊"];
 
+/**
+ * 途中提醒的四张口令表（施工单 M77-07）。**精确集合匹配**，取向同样是「宁可漏，不可误」。
+ *
+ * 边界（见 `WakeOutcome::Hush` 的说明）：这几张表与 `INTERRUPT_PHRASES` /
+ * `SIDECAR_*_PHRASES` **一个词都不能重叠**——重叠时 `control_of` 的顺序会让它归到
+ * 更早的那张表，词表读起来却像两边都认，下一个改表的人必然踩坑。
+ * `tests::途中提醒口令_与既有三张表零重叠` 守着这一条。
+ */
+const REPEAT_PHRASES: &[&str] = &[
+    "再说一遍",
+    "再说一次",
+    "重复一遍",
+    "重说一遍",
+    "刚才说什么",
+    "刚说什么",
+    "刚才说的什么",
+    "没听清",
+    "没听清再说一遍",
+];
+
+/// 「闭嘴」一类。**「别说了」「安静点」不在这里**——前者是打断、后者是关旁路，已各有归属。
+const HUSH_PHRASES: &[&str] = &[
+    "闭嘴",
+    "闭嘴吧",
+    "别提醒了",
+    "别提醒我了",
+    "不要提醒了",
+    "别再提醒了",
+    "不用提醒了",
+    "别催了",
+    "别吵",
+    "安静",
+];
+
+const DENSITY_DOWN_PHRASES: &[&str] = &["少提醒点", "少提醒", "提醒少点", "少提醒我", "别老提醒", "提醒太多了"];
+const DENSITY_UP_PHRASES: &[&str] = &["多提醒点", "多提醒", "提醒多点", "多提醒我", "多提醒我几次"];
+
 /// 「暖」的归一音节：nuan 及其 n/l/r 声母混淆。
 fn is_nuan(syllable: &str) -> bool {
     matches!(syllable, "nuan" | "luan" | "ruan")
@@ -156,6 +209,20 @@ fn control_of(text: &str) -> Option<WakeOutcome> {
     if matches_phrase(text, INTERRUPT_PHRASES) {
         return Some(WakeOutcome::Interrupt);
     }
+    // 途中提醒的口令（M77-07）：排在打断之后、旁路之前——同为"对说话这件事本身"下指令，
+    // 且"闭嘴"往往在提醒正在播的时候说，晚一步就没意义了。
+    if matches_phrase(text, HUSH_PHRASES) {
+        return Some(WakeOutcome::Hush);
+    }
+    if matches_phrase(text, REPEAT_PHRASES) {
+        return Some(WakeOutcome::Repeat);
+    }
+    if matches_phrase(text, DENSITY_DOWN_PHRASES) {
+        return Some(WakeOutcome::DensityDown);
+    }
+    if matches_phrase(text, DENSITY_UP_PHRASES) {
+        return Some(WakeOutcome::DensityUp);
+    }
     if matches_phrase(text, SIDECAR_OFF_PHRASES) {
         return Some(WakeOutcome::SidecarOff);
     }
@@ -177,6 +244,14 @@ fn control_of(text: &str) -> Option<WakeOutcome> {
 /// （`barge_in_require_wake`）正是"播报期只放行唤醒词开头的段"。
 pub fn is_interrupt(text: &str) -> bool {
     matches!(classify(text), WakeOutcome::Interrupt)
+}
+
+/// 播报期窄通道的第二个放行项（施工单 M77-07）：这是不是「闭嘴」。
+///
+/// 提醒正在播的时候车主说「别提醒了」，此刻只有停下这一个正确动作——
+/// 与打断同属"晚一步就没意义"的一类，所以也进窄通道。带唤醒词的说法同样认。
+pub fn is_hush(text: &str) -> bool {
+    matches!(classify(text), WakeOutcome::Hush)
 }
 
 /// 这段文本里第一处「暖暖」在第几个字（拼音归一，同音近音计命中）。
@@ -371,6 +446,49 @@ mod tests {
         assert_eq!(classify("没事了"), WakeOutcome::Dismiss);
         assert_eq!(classify("少说两句"), WakeOutcome::SidecarOff);
         assert_eq!(classify("暖暖退下"), WakeOutcome::Dismiss);
+    }
+
+    // ── M77-07：途中提醒的四类口令 ─────────────────────────────────
+    #[test]
+    fn 途中提醒口令_裸口令与带唤醒词都认() {
+        assert_eq!(classify("再说一遍"), WakeOutcome::Repeat);
+        assert_eq!(classify("暖暖，再说一遍"), WakeOutcome::Repeat);
+        assert_eq!(classify("没听清"), WakeOutcome::Repeat);
+        assert_eq!(classify("闭嘴"), WakeOutcome::Hush);
+        assert_eq!(classify("暖暖别提醒了"), WakeOutcome::Hush);
+        assert_eq!(classify("少提醒点"), WakeOutcome::DensityDown);
+        assert_eq!(classify("暖暖，多提醒点"), WakeOutcome::DensityUp);
+        assert!(is_hush("闭嘴吧"));
+        assert!(!is_hush("别说了"), "「别说了」是打断，不是闭嘴");
+    }
+
+    #[test]
+    fn 途中提醒口令_不误伤含它的长句() {
+        // 长句里出现口令词：没有唤醒词 → Miss；有唤醒词 → 整句当业务指令
+        assert_eq!(classify("你能不能再说一遍刚才那个服务区的名字"), WakeOutcome::Miss);
+        assert_eq!(classify("暖暖，前面那个提醒少点也没关系"), wake_with("前面那个提醒少点也没关系"));
+        assert_eq!(classify("让他闭嘴"), WakeOutcome::Miss);
+    }
+
+    #[test]
+    fn 途中提醒口令_与既有三张表零重叠() {
+        let mine: Vec<&str> = [REPEAT_PHRASES, HUSH_PHRASES, DENSITY_DOWN_PHRASES, DENSITY_UP_PHRASES].concat();
+        let theirs: Vec<&str> = [INTERRUPT_PHRASES, SIDECAR_OFF_PHRASES, SIDECAR_ON_PHRASES, DISMISS_PHRASES].concat();
+        let overlap: Vec<&&str> = mine.iter().filter(|p| theirs.contains(p)).collect();
+        assert!(overlap.is_empty(), "重叠词会静默归到更早的表：{overlap:?}");
+        // 四张新表之间也不重叠
+        let mut seen = std::collections::HashSet::new();
+        for p in &mine {
+            assert!(seen.insert(*p), "新表之间重复：{p}");
+        }
+    }
+
+    #[test]
+    fn 途中提醒口令_不动既有判定() {
+        assert_eq!(classify("别说了"), WakeOutcome::Interrupt);
+        assert_eq!(classify("安静点"), WakeOutcome::SidecarOff);
+        assert_eq!(classify("少说点"), WakeOutcome::SidecarOff);
+        assert_eq!(classify("退下"), WakeOutcome::Dismiss);
     }
 
     #[test]

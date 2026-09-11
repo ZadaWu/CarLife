@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::messages::MessageSource;
+use super::messages::{AttachmentRef, MessageSource};
 
 /// 助手形象五态（§2.2 H1）。由 `update` 事件驱动，端上组件不得自行推断。
 ///
@@ -81,6 +81,10 @@ pub struct PromptAccepted {
     /// 用户这句话的原文：语音是 ASR 识别结果，文字就是打的那句（2026-09-03 起两种来源都带）。
     /// 端上只靠它追加用户气泡；null 只可能来自旧服务端，端上忽略并靠回源。
     pub transcript: Option<String>,
+    /// 本轮随消息绑定的附件引用（M80-01）：网关在转发受理回执时补上，
+    /// 端上据此让刚发出去的那条用户气泡当场带缩略图，不必等回源。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<AttachmentRef>>,
 }
 
 /// `update` 事件的六种载荷。序列化形如

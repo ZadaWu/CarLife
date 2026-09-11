@@ -20,6 +20,12 @@ export interface CommittedTripPlan {
   /** 结束日 = 出发日 + 天数 - 1；没有出发日时也没有它。 */
   endDate?: string;
   committedAt: Date;
+  /**
+   * 最后一次被 `update`（trip_plan_update）改写的时刻（M72-01）。
+   * 核查早于它就作废——旧核查说的不是这一版行程。没改过时等于 committedAt。
+   * **可选**：内存实现与既有测试夹具不必都补它，消费方按 `updatedAt ?? committedAt` 取。
+   */
+  updatedAt?: Date;
 }
 
 export type TripPlanStatus = "confirmed" | "cancelled";
@@ -100,6 +106,17 @@ export interface TripPlanRepository {
    * 没有行程的会话不在返回的 Map 里，调用方按"没有"处理。
    */
   latestBySessionPrefixes(sessionIds: readonly string[]): Promise<Map<string, CommittedTripPlan>>;
+  /**
+   * 「活动」行程（M72-01）：confirmed 且（结束日 >= 今天，或没定日期）。
+   * 与 `query` 的区别只在**不带已结束的**——主页列表与每日核查都不该看它们。
+   * 排序沿用「进行中 → 未来 → 未定日期」。
+   */
+  activeForUser(userId: string, today?: string, limit?: number): Promise<CommittedTripPlan[]>;
+  /**
+   * 跨用户的活动行程（worker 扫全量用）。上限 `limit`（缺省 500）——超过说明该分页了，
+   * 调用方按返回条数等于上限来判断并告警，不静默截断。
+   */
+  activeAll(today: string, limit?: number): Promise<CommittedTripPlan[]>;
 }
 
 type Row = {
@@ -111,6 +128,7 @@ type Row = {
   startDate: string | null;
   endDate: string | null;
   committedAt: Date;
+  updatedAt: Date;
 };
 
 function toDomain(r: Row): CommittedTripPlan {
@@ -123,7 +141,27 @@ function toDomain(r: Row): CommittedTripPlan {
     startDate: r.startDate ?? undefined,
     endDate: r.endDate ?? undefined,
     committedAt: r.committedAt,
+    updatedAt: r.updatedAt,
   };
+}
+
+/** `activeAll` 的缺省上限：单机 worker 一次扫得动的量；到顶就该分页，见接口注释。 */
+export const ACTIVE_ALL_DEFAULT_LIMIT = 500;
+
+/**
+ * 活动行程的排序（M72-01）：进行中（出发日 <= 今天）按出发日升序 → 未来按出发日升序 → 没定日期按确认时间降序。
+ * 与 `query` 的三档同一口径，只是少了"已结束"那档；在内存里排是因为这一档的总量本来就小
+ * （一个人同时挂着的未来行程数得过来），不值得三条 SQL。
+ */
+export function orderActive(rows: readonly Row[], today: string): CommittedTripPlan[] {
+  const ongoing = rows.filter((r) => r.startDate !== null && r.startDate <= today);
+  const upcoming = rows.filter((r) => r.startDate !== null && r.startDate > today);
+  const undated = rows.filter((r) => r.startDate === null);
+  const byStart = (a: Row, b: Row) => (a.startDate ?? "").localeCompare(b.startDate ?? "");
+  ongoing.sort(byStart);
+  upcoming.sort(byStart);
+  undated.sort((a, b) => b.committedAt.getTime() - a.committedAt.getTime());
+  return [...ongoing, ...upcoming, ...undated].map(toDomain);
 }
 
 /**
@@ -275,6 +313,34 @@ export function createTripPlanRepository(prisma: PrismaClient): TripPlanReposito
 
     async list(userId, limit, today) {
       return this.query(userId, { limit }, today);
+    },
+
+    async activeForUser(userId, today, limit) {
+      const now = today ?? new Date().toISOString().slice(0, 10);
+      const take = Math.min(Math.max(limit ?? TRIP_PLAN_LIST_DEFAULT, 1), TRIP_PLAN_LIST_MAX);
+      const rows = await prisma.tripPlan.findMany({
+        where: {
+          userId,
+          status: "confirmed",
+          // 结束日还没过，或者根本没定日期——两者都是"还在前面"的行程。
+          OR: [{ endDate: { gte: now } }, { endDate: null }],
+        },
+        take: TRIP_PLAN_LIST_MAX,
+      });
+      return orderActive(rows as Row[], now).slice(0, take);
+    },
+
+    async activeAll(today, limit) {
+      const take = limit ?? ACTIVE_ALL_DEFAULT_LIMIT;
+      const rows = await prisma.tripPlan.findMany({
+        where: {
+          status: "confirmed",
+          OR: [{ endDate: { gte: today } }, { endDate: null }],
+        },
+        orderBy: [{ userId: "asc" }, { startDate: "asc" }],
+        take,
+      });
+      return rows.map((r) => toDomain(r as Row));
     },
 
     async listBySessionPrefix(sessionId) {

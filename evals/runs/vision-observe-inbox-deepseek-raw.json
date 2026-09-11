@@ -1,0 +1,675 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "at": "2026-09-10T15:44:02.815Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "6.7%",
+      "denom": "1/15",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "7.7%",
+      "denom": "1/13"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "49",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.601",
+      "denom": "1 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "本档位不适用",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "本档位不适用"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "1.000",
+      "denom": "1 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "33.3%",
+      "denom": "1/3"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "7/7"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "2"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "7 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "4",
+      "denom": "4 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "inbox-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 5,
+      "predCount": 14,
+      "matched": 1,
+      "wlTruth": 3,
+      "wlMatched": 1,
+      "extra": 13,
+      "ious": [
+        0.6005854177754124
+      ],
+      "shape": {
+        "n": 1,
+        "agree": 1
+      },
+      "color": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 1,
+        "agree": 1
+      },
+      "stateWarn": {
+        "n": 1,
+        "agree": 1
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [
+        1
+      ],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [top,right]，实际 [left,right,top,bottom]",
+        "漏检：green letter_only -（readout，bbox 66,24,173,52）",
+        "漏检：green battery -（readout，bbox 764,4,806,36）",
+        "漏检：green lamp straight_lines（warning_light，bbox 136,324,197,356）",
+        "漏检：amber triangle exclamation（warning_light，bbox 255,933,304,968）",
+        "误检：「绿色 字母 READY」（readout，bbox 60,10,190,60）",
+        "误检：「灰色 文字 舒适」（readout，bbox 240,10,320,60）",
+        "误检：「黑色 数字 426 km」（readout，bbox 650,5,760,45）",
+        "误检：「绿色 电池形」（other，bbox 770,5,830,45）",
+        "误检：「灰色 矩形 条」（other，bbox 830,5,900,45）",
+        "误检：「黑色 数字 7」（readout，bbox 100,80,180,190）",
+        "误检：「灰色 字母 km/h」（readout，bbox 100,195,200,235）",
+        "误检：「绿色 灯形 直线」（warning_light，bbox 125,330,195,385）",
+        "误检：「灰色 字母 P」（readout，bbox 10,355,45,400）",
+        "误检：「灰色 文字 长按」（readout，bbox 10,405,60,440）",
+        "误检：「灰色 字母 R」（readout，bbox 35,590,80,640）",
+        "误检：「白色 车形 轮廓」（component，bbox 400,680,600,870）",
+        "误检：「琥珀色 三角 感叹号 文字」（warning_light，bbox 230,880,790,990）"
+      ]
+    },
+    {
+      "id": "inbox-02",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 3,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 3,
+      "wlMatched": 0,
+      "extra": 14,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 []",
+        "漏检：green lamp straight_lines（warning_light，bbox 66,25,112,46）",
+        "漏检：green lamp straight_lines（warning_light，bbox 70,70,103,88）",
+        "漏检：red car_outline exclamation（warning_light，bbox 291,763,323,787）",
+        "误检：「绿色 灯形 直线」（warning_light，bbox 55,25,105,70）",
+        "误检：「绿色 灯形 斜线」（warning_light，bbox 55,80,110,120）",
+        "误检：「白色 数字 km」（readout，bbox 600,20,660,55）",
+        "误检：「绿色 电池形」（readout，bbox 665,20,720,55）",
+        "误检：「白色 文字 王浩」（readout，bbox 790,20,850,55）",
+        "误检：「白色 数字 12」（readout，bbox 960,20,1000,55）",
+        "误检：「白色 文字 导航」（readout，bbox 810,80,1000,120）",
+        "误检：「黑色 锁形」（component，bbox 440,220,480,260）",
+        "误检：「黑色 车尾形」（component，bbox 720,340,760,380）",
+        "误检：「灰色 车形」（component，bbox 150,300,700,600）",
+        "误检：「红色 车形 感叹号」（warning_light，bbox 280,730,330,790）",
+        "误检：「白色 文字 两行」（readout，bbox 330,730,640,790）",
+        "误检：「白色 文字 数字」（readout，bbox 430,840,560,900）",
+        "误检：「白色 车形」（component，bbox 100,880,160,940）"
+      ]
+    },
+    {
+      "id": "inbox-03",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 7,
+      "predCount": 22,
+      "matched": 0,
+      "wlTruth": 7,
+      "wlMatched": 0,
+      "extra": 22,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 2,
+      "negativeAlarms": 0,
+      "reasons": [
+        "literal 含结论词：「白色 文字 安全靠边停车」",
+        "literal 含结论词：「灰色 文字 系紧安全带」",
+        "漏检：green lamp straight_lines（warning_light，bbox 62,317,89,329）",
+        "漏检：green lamp straight_lines（warning_light，bbox 62,346,90,354）",
+        "漏检：red person diagonal_band（warning_light，bbox 65,365,84,383）",
+        "漏检：green other arrow_left（warning_light，bbox 225,358,248,372）",
+        "漏检：green other arrow_right（warning_light，bbox 298,358,320,372）",
+        "漏检：white triangle exclamation（warning_light，bbox 555,523,575,536）",
+        "漏检：red triangle exclamation（warning_light，bbox 312,720,331,732）",
+        "误检：「灰色 字母 P R N D」（readout，bbox 60,285,110,305）",
+        "误检：「灰色 文字 舒适」（readout，bbox 140,285,175,305）",
+        "误检：「灰色 电池条 96%」（readout，bbox 230,285,290,305）",
+        "误检：「绿色 灯形 直线」（warning_light，bbox 60,315,90,340）",
+        "误检：「绿色 小符号」（warning_light，bbox 60,345,90,370）",
+        "误检：「红色 人形」（warning_light，bbox 60,375,90,400）",
+        "误检：「绿色 左箭头」（warning_light，bbox 225,360,255,390）",
+        "误检：「绿色 右箭头」（warning_light，bbox 290,360,320,390）",
+        "误检：「黑色 锁形」（component，bbox 610,380,640,410）",
+        "误检：「灰色 文字 打开前备箱」（readout，bbox 410,430,470,470）",
+        "误检：「灰色 文字 打开后备箱」（readout，bbox 780,420,840,460）",
+        "误检：「黑色 车辆轮廓」（component，bbox 320,460,860,660）",
+        "误检：「红色 三角 感叹号」（warning_light，bbox 545,515,600,555）",
+        "误检：「白色 文字 安全靠边停车」（readout，bbox 600,515,700,555）",
+        "误检：「黄色 小符号」（warning_light，bbox 380,630,410,660）",
+        "误检：「白色 文字 动力已降低」（readout，bbox 410,630,520,680）",
+        "误检：「红色 三角 感叹号」（warning_light，bbox 310,715,340,745）",
+        "误检：「灰色 文字 系紧安全带」（readout，bbox 340,715,430,745）",
+        "误检：「白色 数字 19.5」（readout，bbox 180,790,260,830）",
+        "误检：「灰色 数字 13:24」（readout，bbox 900,300,960,330）",
+        "误检：「灰色 数字 27°」（readout，bbox 960,300,1000,330）",
+        "误检：「红色 三角 感叹号」（warning_light，bbox 960,380,1000,410）"
+      ]
+    },
+    {
+      "id": "inbox-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 9,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "cut_off_sides 期望 []，实际 [left,right,top,bottom]",
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "inbox-05",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 14,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "inbox-06",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 1,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": []
+    },
+    {
+      "id": "inbox-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 4,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 2,
+      "reasons": [
+        "cut_off_sides 期望 []，实际 [left,right,top,bottom]",
+        "负样本报出 2 个高置信警示灯"
+      ]
+    }
+  ],
+  "raw": {
+    "inbox-01": {
+      "ms": 169,
+      "usage": {
+        "prompt_tokens": 1993,
+        "completion_tokens": 1169,
+        "total_tokens": 3162,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1993
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":true,\"occluded\":false},\"cut_off_sides\":[\"left\",\"right\",\"top\",\"bottom\"],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[60,10,190,60],\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"READY\"],\"elements\":[\"none\"],\"literal\":\"绿色 字母 READY\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[240,10,320,60],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"舒适\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 舒适\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[650,5,760,45],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"426\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 426 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"other\",\"bbox\":[770,5,830,45],\"shape\":\"battery\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 电池形\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"other\",\"bbox\":[830,5,900,45],\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 矩形 条\",\"confidence\":0.5,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"readout\",\"bbox\":[100,80,180,190],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[\"7\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字 7\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[100,195,200,235],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"km/h\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 km/h\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[125,255,190,310],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 直线\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"warning_light\",\"bbox\":[125,330,195,385],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 直线\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"readout\",\"bbox\":[10,355,45,400],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"P\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 P\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[10,405,60,440],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"长按\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 长按\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[35,590,80,640],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"R\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 R\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[400,680,600,870],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[230,880,790,990],\"shape\":\"triangle\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[\"驻车辅助不可用，请清洁车身传感器及摄像头\"],\"elements\":[\"exclamation\"],\"literal\":\"琥珀色 三角 感叹号 文字\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "inbox-02": {
+      "ms": 162,
+      "usage": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 1166,
+        "total_tokens": 3147,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1213
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"warning_light\",\"bbox\":[55,25,105,70],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 直线\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"warning_light\",\"bbox\":[55,80,110,120],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\",\"slash\"],\"literal\":\"绿色 灯形 斜线\",\"confidence\":0.5,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"readout\",\"bbox\":[600,20,660,55],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"261\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 km\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[665,20,720,55],\"shape\":\"battery\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 电池形\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"readout\",\"bbox\":[790,20,850,55],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"王浩\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 王浩\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[960,20,1000,55],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"12\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 12\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[810,80,1000,120],\"shape\":\"rectangle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"导航\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 导航\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[440,220,480,260],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 锁形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[720,340,760,380],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 车尾形\",\"confidence\":0.5,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[150,300,700,600],\"shape\":\"car_outline\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 车形\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[280,730,330,790],\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 车形 感叹号\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[330,730,640,790],\"shape\":\"rectangle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"检测到车辆控制器出现问题\",\"立即预约服务以检查车辆控制器\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 两行\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[430,840,560,900],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"手动\",\"21.0\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 数字\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[100,880,160,940],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "inbox-03": {
+      "ms": 114,
+      "usage": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 1819,
+        "total_tokens": 3800,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1213
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":true,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":22},\"items\":[{\"category\":\"readout\",\"bbox\":[60,285,110,305],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"P\",\"R\",\"N\",\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 P R N D\",\"confidence\":0.8,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[140,285,175,305],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"舒适\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 舒适\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[230,285,290,305],\"shape\":\"rectangle\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"96%\"],\"elements\":[\"none\"],\"literal\":\"灰色 电池条 96%\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[60,315,90,340],\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\"],\"literal\":\"绿色 灯形 直线\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"warning_light\",\"bbox\":[60,345,90,370],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 小符号\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"]},{\"category\":\"warning_light\",\"bbox\":[60,375,90,400],\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 人形\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[225,360,255,390],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_left\"],\"literal\":\"绿色 左箭头\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[290,360,320,390],\"shape\":\"other\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_right\"],\"literal\":\"绿色 右箭头\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[610,380,640,410],\"shape\":\"other\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 锁形\",\"confidence\":0.5,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"readout\",\"bbox\":[410,430,470,470],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"打开\",\"前备箱\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 打开前备箱\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[780,420,840,460],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"打开\",\"后备箱\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 打开后备箱\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[320,460,860,660],\"shape\":\"car_outline\",\"color\":\"black\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 车辆轮廓\",\"confidence\":0.8,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[545,515,600,555],\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角 感叹号\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[600,515,700,555],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"安全靠边停车\",\"车辆正在关闭\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 安全靠边停车\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[380,630,410,660],\"shape\":\"other\",\"color\":\"amber\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黄色 小符号\",\"confidence\":0.4,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\",\"elements_detail\"]},{\"category\":\"readout\",\"bbox\":[410,630,520,680],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"动力已降低\",\"下车后再上车可能恢复工作\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 动力已降低\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[310,715,340,745],\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角 感叹号\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[340,715,430,745],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"系紧安全带\"],\"elements\":[\"none\"],\"literal\":\"灰色 文字 系紧安全带\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[180,790,260,830],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19.5\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19.5\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[900,300,960,330],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"13:24\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 13:24\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[960,300,1000,330],\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"27°\"],\"elements\":[\"none\"],\"literal\":\"灰色 数字 27°\",\"confidence\":0.6,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[960,380,1000,410],\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角 感叹号\",\"confidence\":0.5,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\"]}]}"
+    },
+    "inbox-04": {
+      "ms": 176,
+      "usage": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 803,
+        "total_tokens": 2784,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1213
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":true,\"occluded\":false},\"cut_off_sides\":[\"left\",\"right\",\"top\",\"bottom\"],\"item_count\":9},\"items\":[{\"category\":\"component\",\"bbox\":[330,370,660,600],\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 车形 深色车窗\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[215,660,290,720],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.6,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"warning_light\",\"bbox\":[240,690,290,730],\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角 感叹号\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"readout\",\"bbox\":[330,680,700,730],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"自适应大灯功能不可用\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 一行\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[330,710,700,750],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"使用远光灯按钮手动控制\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 一行\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[370,790,510,840],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2.8\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2.8 bar\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[790,770,930,820],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2.7\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2.7 bar\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[370,880,510,930],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2.9\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2.9 bar\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[790,860,930,910],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"2.7\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 2.7 bar\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "inbox-05": {
+      "ms": 113,
+      "usage": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 1188,
+        "total_tokens": 3169,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1213
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":14},\"items\":[{\"category\":\"readout\",\"bbox\":[330,385,500,435],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"377\",\"km\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 377 km\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[440,545,530,570],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"100\",\"%\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 100%\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[440,570,530,595],\"shape\":\"letter_only\",\"color\":\"blue\",\"state\":\"lit\",\"text\":[\"20\",\"40\",\"60\",\"80\"],\"elements\":[\"none\"],\"literal\":\"蓝色 数字刻度\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[360,595,830,625],\"shape\":\"rectangle\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"绿色 长条 横条\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"component\",\"bbox\":[820,590,845,625],\"shape\":\"circle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"circle_ring\"],\"literal\":\"白色 圆形 圆点\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[360,700,560,725],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"47\",\"kWh\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 47 kWh\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[360,730,560,755],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"¥1.10\",\"/kWh\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 ¥1.10/kWh\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[360,760,560,785],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"¥0.99\",\"/kWh\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 ¥0.99/kWh\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[360,790,560,815],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"¥98.23\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 ¥98.23\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[360,820,700,845],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"¥6.40\",\"/分钟\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 ¥6.40/分钟\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"warning_light\",\"bbox\":[700,320,730,355],\"shape\":\"other\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 小圆点\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[740,320,770,355],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 蓝牙形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"component\",\"bbox\":[780,320,810,355],\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 信号形\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"shape\"]},{\"category\":\"readout\",\"bbox\":[300,270,420,300],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"19:04\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 19:04\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "inbox-06": {
+      "ms": 134,
+      "usage": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 128,
+        "total_tokens": 2109,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1213
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":true,\"dark\":true,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"item_count\":1},\"items\":[{\"category\":\"readout\",\"bbox\":[398,238,604,278],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"摄像头暂时不可用\"],\"elements\":[\"none\"],\"literal\":\"白色 文字 一行\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    },
+    "inbox-07": {
+      "ms": 96,
+      "usage": {
+        "prompt_tokens": 1963,
+        "completion_tokens": 392,
+        "total_tokens": 2355,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1195
+      },
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":true,\"occluded\":false},\"cut_off_sides\":[\"left\",\"right\",\"top\",\"bottom\"],\"item_count\":4},\"items\":[{\"category\":\"warning_light\",\"bbox\":[150,570,255,650],\"shape\":\"car_outline\",\"color\":\"white\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.7,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"]},{\"category\":\"warning_light\",\"bbox\":[228,600,278,650],\"shape\":\"triangle\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"!\"],\"elements\":[\"exclamation\"],\"literal\":\"红色 三角 感叹号\",\"confidence\":0.75,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[280,480,880,620],\"shape\":\"rectangle\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"驾驶室温度控制系统需要检修\",\"驾驶室加热/冷却功能受限或不可用\"],\"elements\":[\"none\"],\"literal\":\"白色 两行 文字\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]},{\"category\":\"readout\",\"bbox\":[600,620,760,720],\"shape\":\"letter_only\",\"color\":\"white\",\"state\":\"lit\",\"text\":[\"20.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 20.0\",\"confidence\":0.8,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[]}]}"
+    }
+  },
+  "latencyMs": [
+    169,
+    162,
+    114,
+    176,
+    113,
+    134,
+    96
+  ],
+  "root": "<repo>/"
+}

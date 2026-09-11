@@ -28,7 +28,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -36,6 +36,8 @@ import { tmpdir } from "node:os";
 import { convertPdfs, cleanMineruMarkdown, type MineruResultWithZip } from "../../../enterprise/backend/shared/rag/src/mineru";
 
 const OUT_DIR = "data/kb-md";
+/** 同一次转换的图片与块表（ACR-029）：`kb:figures` 的输入，gitignore，与 kb-md 同一条纪律。 */
+const FIG_DIR = "data/kb-figures";
 
 function env(k: string): string {
   if (process.env[k]) return process.env[k] as string;
@@ -77,12 +79,12 @@ function pageCount(path: string): number {
  * 页数**均分**而不是"前 180 页 + 剩下的"——后者会让最后一段只有几页，
  * 而 MinerU 的排队时间与页数关系不大，一段几页纯属白等一轮。
  */
-function splitPdf(path: string, total: number): Buffer[] {
+function splitPdf(path: string, total: number): Array<{ bytes: Buffer; from: number; to: number }> {
   const parts = Math.ceil(total / PART_PAGES);
   const per = Math.ceil(total / parts);
   const dir = mkdtempSync(join(tmpdir(), "mineru-split-"));
   try {
-    const out: Buffer[] = [];
+    const out: Array<{ bytes: Buffer; from: number; to: number }> = [];
     for (let i = 0; i < parts; i += 1) {
       const from = i * per + 1;
       const to = Math.min(total, (i + 1) * per);
@@ -94,7 +96,7 @@ function splitPdf(path: string, total: number): Buffer[] {
       if (got !== to - from + 1) {
         throw new Error(`第 ${i + 1} 段应有 ${to - from + 1} 页，实得 ${got} 页`);
       }
-      out.push(readFileSync(f));
+      out.push({ bytes: readFileSync(f), from, to });
       console.log(`    切出第 ${i + 1}/${parts} 段：第 ${from}~${to} 页（${got} 页）`);
     }
     return out;
@@ -147,23 +149,24 @@ async function main(): Promise<void> {
 
   // 超页的先拆。**提交名带段号**：MinerU 的回执按文件名匹配，同名会串。
   const jobs: Array<{ name: string; bytes: Buffer }> = [];
-  const partsOf = new Map<string, string[]>(); // out 路径 → 该文档的各段提交名（有序）
+  // out 路径 → 该文档的各段（有序）：提交名 + 在原 PDF 里的页范围（图示索引按它换算页码）
+  const partsOf = new Map<string, Array<{ name: string; from: number; to: number }>>();
   for (const t of todo) {
     const stem = basename(t.out, ".md");
     const total = pageCount(t.path);
     if (total <= MAX_PAGES) {
       jobs.push({ name: `${stem}.pdf`, bytes: t.bytes });
-      partsOf.set(t.out, [`${stem}.pdf`]);
+      partsOf.set(t.out, [{ name: `${stem}.pdf`, from: 1, to: total }]);
       continue;
     }
     console.log(`  ${basename(t.path)} 共 ${total} 页，超过 MinerU 上限 ${MAX_PAGES}，拆分：`);
-    const names: string[] = [];
-    splitPdf(t.path, total).forEach((bytes, i) => {
+    const parts: Array<{ name: string; from: number; to: number }> = [];
+    splitPdf(t.path, total).forEach((p, i) => {
       const name = `${stem}__p${i + 1}.pdf`;
-      jobs.push({ name, bytes });
-      names.push(name);
+      jobs.push({ name, bytes: p.bytes });
+      parts.push({ name, from: p.from, to: p.to });
     });
-    partsOf.set(t.out, names);
+    partsOf.set(t.out, parts);
   }
 
   console.log(`\n提交 ${jobs.length} 份给 MinerU（${todo.length} 个文档）…`);
@@ -180,35 +183,63 @@ async function main(): Promise<void> {
   let ok = 0;
   let failed = 0;
   for (const t of todo) {
-    const names = partsOf.get(t.out) ?? [];
+    const parts = partsOf.get(t.out) ?? [];
     const mds: string[] = [];
     let broke = false;
-    for (const name of names) {
-      const r = byName.get(name);
+    // 图片与块表落盘位置（ACR-029）：与 md 同名的目录，分段各一个子目录。先写到临时目录，整份成功才搬过去。
+    const figRoot = join(FIG_DIR, basename(t.out, ".md"));
+    const figTmp = mkdtempSync(join(tmpdir(), "mineru-figs-"));
+    const partMeta: Array<{ dir: string; pageOffset: number; pages: number; images: number }> = [];
+    for (const [k, part] of parts.entries()) {
+      const r = byName.get(part.name);
       if (!r || r.state !== "done" || !r.zipUrl) {
         // **一段失败就整份不落盘**。写下缺了一段的 markdown 比不写更糟：
         // 文件在、看着正常、检索也命中，只是中间少了几十页——没有任何外部信号。
-        console.error(`✗ ${basename(t.path)}${names.length > 1 ? `（${name}）` : ""}：${r?.error ?? r?.state ?? "无回执"}`);
+        console.error(`✗ ${basename(t.path)}${parts.length > 1 ? `（${part.name}）` : ""}：${r?.error ?? r?.state ?? "无回执"}`);
         broke = true;
         break;
       }
-      // zip 里除 full.md 外还有原始 PDF 与图片，只取 markdown。
-      const zip = join(tmpdir(), `mineru-${Date.now()}-${Math.abs(hashOf(name))}.zip`);
+      const zip = join(tmpdir(), `mineru-${Date.now()}-${Math.abs(hashOf(part.name))}.zip`);
       writeFileSync(zip, Buffer.from(await (await fetch(r.zipUrl)).arrayBuffer()));
+      // 图片引用换成占位而不是删掉：占位的键与 kb:figures 建的索引同源；切片前会被剥掉，RAGFlow 看不到。
       mds.push(cleanMineruMarkdown(
         execFileSync("unzip", ["-p", zip, "full.md"], { maxBuffer: 256 * 1024 * 1024 }).toString("utf8"),
+        { figures: "placeholder" },
       ));
+      /*
+       * zip 里除 full.md 外还有 images/ 与 *_content_list.json（逐块的类型 / 页码 / bbox / 图注）。
+       * ACR-029 之前这两样随 zip 一起删掉——于是知识库里一张图都没有。现在落盘给 kb:figures 用；
+       * 原始 PDF 与 layout.json / model.json 仍然不留。
+       */
+      const dir = `part-${k + 1}`;
+      const dest = join(figTmp, dir);
+      mkdirSync(dest, { recursive: true });
+      execFileSync("unzip", ["-o", "-q", zip, "images/*", "*_content_list.json", "-d", dest]);
+      const listFile = readdirSync(dest).find((f) => /_content_list\.json$/.test(f));
+      if (!listFile) throw new Error(`${part.name} 的 zip 里没有 content_list.json——MinerU 产物结构变了？`);
+      renameSync(join(dest, listFile), join(dest, "content_list.json"));
+      const images = existsSync(join(dest, "images")) ? readdirSync(join(dest, "images")).length : 0;
+      partMeta.push({ dir, pageOffset: part.from - 1, pages: part.to - part.from + 1, images });
       rmSync(zip, { force: true });
     }
     if (broke) {
       failed += 1;
+      rmSync(figTmp, { recursive: true, force: true });
       continue;
     }
     const joined = joinParts(mds);
     writeFileSync(t.out, joined, "utf8");
+    rmSync(figRoot, { recursive: true, force: true });
+    mkdirSync(FIG_DIR, { recursive: true });
+    renameSync(figTmp, figRoot);
+    writeFileSync(
+      join(figRoot, "meta.json"),
+      `${JSON.stringify({ doc: basename(t.out, ".md").replace(/\.[0-9a-f]{8}$/, ""), md: t.out, source: basename(t.path), parts: partMeta }, null, 2)}\n`,
+    );
     ok += 1;
-    const seams = names.length > 1 ? `，${names.length} 段拼接` : "";
-    console.log(`✓ ${basename(t.path)} → ${t.out}（${(joined.length / 1024).toFixed(0)} KB 文本${seams}）`);
+    const seams = parts.length > 1 ? `，${parts.length} 段拼接` : "";
+    const images = partMeta.reduce((n, p) => n + p.images, 0);
+    console.log(`✓ ${basename(t.path)} → ${t.out}（${(joined.length / 1024).toFixed(0)} KB 文本${seams}）；图片 ${images} 张与块表 → ${figRoot}/`);
   }
 
   console.log(`\nMinerU 转换：${ok} 成功，${failed} 失败`);

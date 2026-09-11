@@ -153,3 +153,35 @@ test("mock 模式：形状齐全且被标注为模拟", async () => {
   assert.equal(r.data.status, "confirmed");
   assert.equal(r.source.kind, "mock");
 });
+
+/**
+ * [F-62-01][AC-62-1] 行车分段（M77-01）：**zod 是 strip 模式**，不声明就会在落库前被静默剥掉——
+ * 坐标 / 贴纸 / 时段 / 行前物品四次踩过同一个坑。这里断言经 registry 校验后 `legs` 逐字段原样到店。
+ */
+test("legs：带分段的快照过 schema 落库，读回逐字段相等；不带照常", async () => {
+  const seen: TripPlanSnapshot[] = [];
+  const store = memStore();
+  const spy: TripPlanStore = {
+    ...store,
+    async commit(...args: unknown[]) {
+      const plan = args.find((a) => typeof a === "object" && a !== null && "skeleton" in (a as object)) as
+        | TripPlanSnapshot
+        | undefined;
+      if (plan) seen.push(plan);
+      return (store.commit as (...a: unknown[]) => Promise<{ planId: string; committedAt: Date }>)(...args);
+    },
+  };
+  setTripPlanStore(spy);
+  const legs = [
+    { day: 1, fromStop: "杭州", toStop: "广州塔", driveMinutes: 95, reason: "rest" as const },
+    { toStop: "待定停靠点", driveMinutes: 100, reason: "rest" as const, pending: true },
+    { fromStop: "待定停靠点", driveMinutes: 40 },
+  ];
+  await invokeTool("trip_plan_commit", { userId: "u1", plan: { ...PLAN, legs } }, ctx);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0]!.legs, legs);
+
+  await invokeTool("trip_plan_commit", { userId: "u1", plan: PLAN }, ctx);
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1]!.legs, undefined);
+});

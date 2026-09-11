@@ -529,6 +529,39 @@ model TripPlan {
   @@map("trip_plans")
 }
 
+/// 行程每日核查（施工单 M72-01，设计 内部文档）。
+///
+/// 守夜人每天替车主看一眼每一程（逐日天气、下一出行日的出发路线），一份行程一天一行。
+/// **只追加不改写 `trip_plans.plan`**：那份是用户点过确认弹窗的，环境数据不该悄悄改写它（M20-06 的纪律）。
+/// 形状真相源在 contracts `domain/trip-review.ts`；`changes` 是与**上一份核查**比出来的差异，
+/// `severity` 是它们的最高档；`acked_at` 是用户点过「知道了」——按行记不按人（车机是车辆级 token）。
+///
+/// 不设外键：与 `vehicle_reminders` 同一取舍——核查是任务产物，行程被取消/删除时它自己作废，
+/// 不需要跟着级联。
+model TripPlanReview {
+  id         String    @id @default(cuid())
+  planId     String    @map("plan_id")
+  userId     String    @map("user_id")
+  reviewedAt DateTime  @default(now()) @map("reviewed_at")
+  /// `reviewSignature()` 的产物，排障时一眼看出两份是否同签名。
+  signature  String
+  /// TripReviewDay[]
+  days       Json
+  /// TripReviewRoute；没算路（无常住地 / 无坐标 / 无 key）时为空
+  route      Json?
+  /// TripReviewChange[]
+  changes    Json
+  /// none | notice | critical
+  severity   String
+  ackedAt    DateTime? @map("acked_at")
+
+  /// 「这份行程最新一份核查」主路径
+  @@index([planId, reviewedAt])
+  /// 运维按人查
+  @@index([userId, reviewedAt])
+  @@map("trip_plan_reviews")
+}
+
 /// `route_audit` 工具每次调用落一条（M-路径优化）。
 ///
 /// 它存的是**模型交给算法体检的那份顺序**——第一条即「LLM 产出的第一版」，
@@ -1138,4 +1171,70 @@ model GuideBriefRecord {
 
   @@id([city, spotName])
   @@map("guide_briefs")
+}
+
+/// 手册图标的图文向量索引（ACR-025 / M71-03）。
+///
+/// 一行一个向量：`side=manual` 是手册图标（图像向量或规范化描述子的文本向量），
+/// `side=user` 预留给用户 crop 的回流（本阶段不写）。图与文在 `qwen3-vl-embedding` 的同一空间，
+/// 所以用户 crop 的图像向量可以直接对手册侧的文本向量做近邻（2026-09-08 探针：同符号图-文 0.36–0.48，
+/// 错配 0.09–0.15）。
+///
+/// **向量只召回不裁决**：近邻只是候选，后面还有分数与边际两道闸门和成对核验（@carlife/rag icon-verify）。
+/// 维度 2560 超过 pgvector ANN 索引的 2000 维上限，几十到几千条顺序扫描即可，不建索引；
+/// 真要建用 halfvec(2560)。列是 Prisma 的 Unsupported 类型，读写全走 $queryRawUnsafe（repositories/icon-embedding.ts）。
+model IconEmbedding {
+  id           String   @id @default(cuid())
+  vehicleModel String   @map("vehicle_model")
+  symbolId     String   @map("symbol_id")
+  /// manual | user
+  side         String
+  /// image | text
+  kind         String
+  /// 受控描述子（@carlife/tools vision 的词表），以及名称/类别/级别/锚点（manual 侧）
+  descriptor   Json
+  embedding    Unsupported("vector(2560)")
+  /// 图像向量的来源文件名；文本向量为空串（唯一约束里不能用 NULL）
+  sourceAsset  String   @default("") @map("source_asset")
+  manualAnchor String?  @map("manual_anchor")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([vehicleModel, symbolId, side, kind, sourceAsset])
+  @@index([vehicleModel, side, kind])
+  @@map("icon_embeddings")
+}
+
+/// 手册图文索引（ACR-029）：手册里每张图的向量 + 它锚定到的段落与出处。
+/// 一张图多行：整图图像向量（image）、图注 + 锚段的文本向量（text）、指示灯类插图经观察层切出的逐图标 crop（crop）。
+/// 整表可由 `corepack pnpm kb:figures` 重建，没有用户数据。
+model ManualFigure {
+  id         String   @id @default(cuid())
+  /// 文档名，与 kb:replace 上传时的 title 同一个字符串（`Model3_车主手册`）
+  doc        String
+  /// `figures.ts` 给的稳定 id：`${doc}#p${page}#b${blockIndex}`
+  figureId   String   @map("figure_id")
+  /// 原 PDF 页序号（1 起）
+  page       Int
+  /// 出处：`第 N 页`（印刷页码优先）
+  location   String
+  breadcrumb String
+  /// image | text | crop
+  kind       String
+  imgPath    String   @map("img_path")
+  /// 锚定段原文（reference 规则可能是两段）
+  anchorText String   @map("anchor_text")
+  caption    String   @default("")
+  /// 锚定置信度 0~1 与规则名，检索时按它过滤
+  confidence Float
+  rule       String
+  /// crop 行：`${figureId}#crop${n}`；image 行：图片路径；text 行：空串（唯一约束里不能用 NULL）
+  sourceAsset String  @default("") @map("source_asset")
+  /// icon | figure、标题链；crop 行另带观察层的描述子
+  descriptor Json
+  embedding  Unsupported("vector(2560)")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([doc, figureId, kind, sourceAsset])
+  @@index([doc, kind])
+  @@map("manual_figures")
 }

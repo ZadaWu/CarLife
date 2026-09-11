@@ -1,0 +1,207 @@
+{
+  "suite": "vision-observe",
+  "model": "qwen3-vl-plus",
+  "provider": "dashscope",
+  "at": "2026-09-08T02:12:13.088Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "87.5%",
+      "denom": "7/8",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "0",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "0.942",
+      "denom": "7 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "100.0%",
+      "denom": "7/7"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "85.7%",
+      "denom": "6/7",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "100.0%",
+      "denom": "7/7",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "100.0%",
+      "denom": "7/7"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "100.0%",
+      "denom": "4/4",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "0.500",
+      "denom": "4 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "1 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "本档位不适用",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 8,
+      "predCount": 7,
+      "matched": 7,
+      "wlTruth": 4,
+      "wlMatched": 4,
+      "extra": 0,
+      "ious": [
+        0.9782608695652174,
+        0.9774436090225563,
+        0.9534883720930233,
+        0.9534883720930233,
+        0.9375,
+        0.9253246753246753,
+        0.8661417322834646
+      ],
+      "shape": {
+        "n": 7,
+        "agree": 7
+      },
+      "color": {
+        "n": 7,
+        "agree": 6
+      },
+      "colorRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "colorCode": {
+        "n": 7,
+        "agree": 7
+      },
+      "colorCodeRed": {
+        "n": 1,
+        "agree": 1
+      },
+      "state": {
+        "n": 7,
+        "agree": 7
+      },
+      "stateWarn": {
+        "n": 4,
+        "agree": 4
+      },
+      "text": {
+        "n": 4,
+        "hit": 4
+      },
+      "elementsJaccard": [
+        0,
+        0.5,
+        0.5,
+        1
+      ],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "漏检：black car_outline -（component，bbox 468,452,508,565）",
+        "元素不一致（green lamp）：期望 [wavy_lines]，实际 [arrow_left,arrow_right]，Jaccard 0.00",
+        "颜色不一致（battery/）：期望 gray，实际 green",
+        "元素不一致（green lamp）：期望 [straight_lines]，实际 [straight_lines,circle_ring]，Jaccard 0.50",
+        "元素不一致（gray lamp）：期望 [straight_lines]，实际 [straight_lines,circle_ring]，Jaccard 0.50"
+      ]
+    }
+  ],
+  "raw": {
+    "tesla-01": {
+      "ms": 26267,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":true,\"occluded\":false},\"cut_off_sides\":[\"right\",\"bottom\"],\"cutOffSource\":\"model\",\"item_count\":7,\"unreadable\":false},\"items\":[{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"P\",\"R\",\"N\",\"D\"],\"elements\":[\"none\"],\"literal\":\"灰色 字母 P R N D 排列\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[456,120,533,152],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"舒适\"],\"elements\":[\"none\"],\"literal\":\"灰色 字符 舒适\",\"confidence\":0.95,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[578,120,618,152],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"readout\",\"shape\":\"battery\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"60\",\"%\"],\"elements\":[\"plus\",\"minus\"],\"literal\":\"绿色 电池形 含正负号\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[642,122,775,152],\"colorByModel\":\"green\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"straight_lines\",\"circle_ring\"],\"literal\":\"绿色 灯形 左侧三条直线 右侧环形\",\"confidence\":0.95,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[553,195,595,238],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"gray\",\"state\":\"unlit\",\"text\":[\"A\"],\"elements\":[\"straight_lines\",\"circle_ring\"],\"literal\":\"灰色 灯形 含A字母与三条直线\",\"confidence\":0.7,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"state\"],\"bbox\":[553,280,595,322],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"lamp\",\"color\":\"green\",\"state\":\"lit\",\"text\":[],\"elements\":[\"arrow_left\",\"arrow_right\"],\"literal\":\"绿色 灯形 左右箭头\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[],\"bbox\":[553,362,598,398],\"colorByModel\":\"green\",\"colorByPixels\":\"green\",\"colorAgreement\":\"agree\"},{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"diagonal_band\"],\"literal\":\"\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\"],\"bbox\":[563,435,598,488],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-plus\",\"describe\":\"qwen3-vl-plus\"},\"timings\":{\"detectMs\":21485,\"describeMs\":4782,\"totalMs\":26267},\"notes\":[\"bbox [563,435,598,488] literal 含结论词，已置空：「红色 人形 带斜杠安全带」\"]}"
+    }
+  },
+  "latencyMs": [
+    26267
+  ],
+  "root": "<repo>/"
+}

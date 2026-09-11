@@ -134,9 +134,19 @@ function projectGeo(spots: GuideSpotItem[], origin: GuideMiniMapProps["origin"],
   }));
 }
 
-/** 蛇形示意布点：每行 3 个、左右折返——只表达顺序。 */
-function projectEditorial(count: number, w = W): Pt[] {
-  const cols = 3;
+/**
+ * 蛇形示意布点：每行最多 3 个、左右折返——只表达顺序。
+ *
+ * ⚠️ **只有一行时要竖直居中**，且列数收成"实际有几个点"。
+ * 原来两者都按满格算：两个点的景区（2026-09-11 iPad 实拍的水下兵马俑）画出来是
+ * 两个挤在左上角的点、底下大半张浅蓝空着，看起来像图没画完。
+ * 一行时 `cellH` 为 0，`y` 就恒等于 `PAD`——那是"顶着上边",不是"居中"。
+ *
+ * 导出是为了让 `test/guide-minimap-labels.test.ts` 测得到这两条（本包没有 jsdom，
+ * 渲染不了组件，只能打在这个纯函数上）。
+ */
+export function projectEditorial(count: number, w = W): Pt[] {
+  const cols = Math.max(1, Math.min(3, count));
   const rows = Math.max(1, Math.ceil(count / cols));
   const cellW = (w - PAD * 2) / (cols - 1 || 1);
   const cellH = rows > 1 ? (H - PAD * 2) / (rows - 1) : 0;
@@ -144,7 +154,7 @@ function projectEditorial(count: number, w = W): Pt[] {
     const row = Math.floor(i / cols);
     const col = i % cols;
     const x = row % 2 === 0 ? col : cols - 1 - col; // 折返，让连线不跨图跳回
-    return { x: PAD + x * cellW, y: PAD + row * cellH };
+    return { x: PAD + x * cellW, y: rows > 1 ? PAD + row * cellH : H / 2 };
   });
 }
 
@@ -709,7 +719,7 @@ export function GuideMiniMap({ spots, orderSource, origin, theme }: GuideMiniMap
   return (
     <>
       {fallbackNote && <p className="guide-minimap__fallback-note">{fallbackNote}</p>}
-      <div className="guide-minimap-wrap" ref={wrapRef}>
+      <div className={`guide-minimap-wrap is-schematic${spots.length <= 3 ? " is-short" : ""}`} ref={wrapRef}>
         <svg
           ref={svgRef}
           className="guide-minimap"
@@ -760,10 +770,15 @@ export function GuideMiniMap({ spots, orderSource, origin, theme }: GuideMiniMap
               const s = spots[i]!;
               return (
                 <g key={`${s.name}-${i}`} className="guide-minimap__stop" transform={`translate(${f(p.x)} ${f(p.y)})`}>
-                  <circle r={11} className={`guide-minimap__dot${s.kind === "photo" ? " is-photo" : ""}`} />
+                  {/*
+                    示意图（无坐标回退）上的点比真实底图上的大一倍：那张图上只有序号点与虚线，
+                    名字不画（时间轴已列），点就是全部信息。半径写在属性上而不是 CSS 的 `r`——
+                    WKWebView 不吃 CSS 几何属性，iPad 上按 CSS 写的 r 渲染出来还是 11（2026-09-11 实拍）。
+                  */}
+                  <circle r={useAmap ? 11 : 20} className={`guide-minimap__dot${s.kind === "photo" ? " is-photo" : ""}`} />
                   {/* 全名始终在这里：标签缩写了、甚至没排下，悬停与读屏都还读得到 */}
                   <title>{`${i + 1} ${s.name}`}</title>
-                  <text y={4} textAnchor="middle" className="guide-minimap__seq">
+                  <text y={useAmap ? 4 : 6} textAnchor="middle" className="guide-minimap__seq">
                     {i + 1}
                   </text>
                 </g>

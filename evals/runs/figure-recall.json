@@ -1,0 +1,515 @@
+{
+  "at": "2026-09-11T04:35:31.135Z",
+  "total": 20,
+  "hit3": 18,
+  "hit1": 17,
+  "rows": [
+    {
+      "id": "r01",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 148,
+          "sim": 0.842,
+          "location": "第 146 页"
+        },
+        {
+          "page": 148,
+          "sim": 0.786,
+          "location": "第 146 页"
+        },
+        {
+          "page": 148,
+          "sim": 0.771,
+          "location": "第 146 页"
+        }
+      ],
+      "expected": [
+        148
+      ]
+    },
+    {
+      "id": "r02",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 15,
+          "sim": 0.867,
+          "location": "第 13 页"
+        },
+        {
+          "page": 37,
+          "sim": 0.806,
+          "location": "第 35 页"
+        },
+        {
+          "page": 15,
+          "sim": 0.752,
+          "location": "第 13 页"
+        }
+      ],
+      "expected": [
+        15,
+        37
+      ]
+    },
+    {
+      "id": "r03",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 15,
+          "sim": 0.861,
+          "location": "第 13 页"
+        },
+        {
+          "page": 69,
+          "sim": 0.727,
+          "location": "第 67 页"
+        },
+        {
+          "page": 68,
+          "sim": 0.718,
+          "location": "第 66 页"
+        }
+      ],
+      "expected": [
+        15
+      ]
+    },
+    {
+      "id": "r04",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 15,
+          "sim": 0.861,
+          "location": "第 13 页"
+        },
+        {
+          "page": 162,
+          "sim": 0.841,
+          "location": "第 160 页"
+        },
+        {
+          "page": 159,
+          "sim": 0.791,
+          "location": "第 157 页"
+        }
+      ],
+      "expected": [
+        15
+      ]
+    },
+    {
+      "id": "r05",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 26,
+          "sim": 0.851,
+          "location": "第 24 页"
+        },
+        {
+          "page": 196,
+          "sim": 0.791,
+          "location": "第 194 页"
+        },
+        {
+          "page": 26,
+          "sim": 0.786,
+          "location": "第 24 页"
+        }
+      ],
+      "expected": [
+        26
+      ]
+    },
+    {
+      "id": "r06",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 26,
+          "sim": 0.861,
+          "location": "第 24 页"
+        },
+        {
+          "page": 26,
+          "sim": 0.822,
+          "location": "第 24 页"
+        },
+        {
+          "page": 26,
+          "sim": 0.813,
+          "location": "第 24 页"
+        }
+      ],
+      "expected": [
+        26
+      ]
+    },
+    {
+      "id": "r07",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 33,
+          "sim": 0.828,
+          "location": "第 31 页"
+        },
+        {
+          "page": 33,
+          "sim": 0.779,
+          "location": "第 31 页"
+        },
+        {
+          "page": 33,
+          "sim": 0.777,
+          "location": "第 31 页"
+        }
+      ],
+      "expected": [
+        33
+      ]
+    },
+    {
+      "id": "r08",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 31,
+          "sim": 0.88,
+          "location": "第 29 页"
+        },
+        {
+          "page": 31,
+          "sim": 0.879,
+          "location": "第 29 页"
+        },
+        {
+          "page": 30,
+          "sim": 0.82,
+          "location": "第 28 页"
+        }
+      ],
+      "expected": [
+        31
+      ]
+    },
+    {
+      "id": "r09",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 22,
+          "sim": 0.774,
+          "location": "第 20 页"
+        },
+        {
+          "page": 23,
+          "sim": 0.664,
+          "location": "第 21 页"
+        },
+        {
+          "page": 29,
+          "sim": 0.606,
+          "location": "第 27 页"
+        }
+      ],
+      "expected": [
+        22
+      ]
+    },
+    {
+      "id": "r10",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 9,
+          "sim": 0.738,
+          "location": "第 7 页"
+        },
+        {
+          "page": 9,
+          "sim": 0.736,
+          "location": "第 7 页"
+        },
+        {
+          "page": 10,
+          "sim": 0.69,
+          "location": "第 8 页"
+        }
+      ],
+      "expected": [
+        8,
+        9
+      ]
+    },
+    {
+      "id": "r11",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 61,
+          "sim": 0.807,
+          "location": "第 59 页"
+        },
+        {
+          "page": 61,
+          "sim": 0.736,
+          "location": "第 59 页"
+        },
+        {
+          "page": 65,
+          "sim": 0.698,
+          "location": "第 63 页"
+        }
+      ],
+      "expected": [
+        61
+      ]
+    },
+    {
+      "id": "r12",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 33,
+          "sim": 0.824,
+          "location": "第 31 页"
+        },
+        {
+          "page": 45,
+          "sim": 0.645,
+          "location": "第 43 页"
+        },
+        {
+          "page": 45,
+          "sim": 0.643,
+          "location": "第 43 页"
+        }
+      ],
+      "expected": [
+        33
+      ]
+    },
+    {
+      "id": "r13",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 33,
+          "sim": 0.88,
+          "location": "第 31 页"
+        },
+        {
+          "page": 33,
+          "sim": 0.869,
+          "location": "第 31 页"
+        },
+        {
+          "page": 31,
+          "sim": 0.752,
+          "location": "第 29 页"
+        }
+      ],
+      "expected": [
+        33
+      ]
+    },
+    {
+      "id": "r14",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 20,
+          "sim": 0.812,
+          "location": "第 18 页"
+        },
+        {
+          "page": 5,
+          "sim": 0.775,
+          "location": "第 3 页"
+        },
+        {
+          "page": 5,
+          "sim": 0.775,
+          "location": "第 3 页"
+        }
+      ],
+      "expected": [
+        20,
+        89
+      ]
+    },
+    {
+      "id": "r15",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 16,
+          "sim": 0.786,
+          "location": "第 14 页"
+        },
+        {
+          "page": 131,
+          "sim": 0.652,
+          "location": "第 129 页"
+        },
+        {
+          "page": 163,
+          "sim": 0.58,
+          "location": "第 161 页"
+        }
+      ],
+      "expected": [
+        16,
+        131
+      ]
+    },
+    {
+      "id": "r16",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 150,
+          "sim": 0.798,
+          "location": "第 148 页"
+        },
+        {
+          "page": 137,
+          "sim": 0.696,
+          "location": "第 135 页"
+        },
+        {
+          "page": 137,
+          "sim": 0.68,
+          "location": "第 135 页"
+        }
+      ],
+      "expected": [
+        150
+      ]
+    },
+    {
+      "id": "r17",
+      "hit3": true,
+      "hit1": false,
+      "top": [
+        {
+          "page": 69,
+          "sim": 0.829,
+          "location": "第 67 页"
+        },
+        {
+          "page": 16,
+          "sim": 0.8,
+          "location": "第 14 页"
+        },
+        {
+          "page": 69,
+          "sim": 0.76,
+          "location": "第 67 页"
+        }
+      ],
+      "expected": [
+        16
+      ]
+    },
+    {
+      "id": "r18",
+      "hit3": false,
+      "hit1": false,
+      "top": [
+        {
+          "page": 44,
+          "sim": 0.804,
+          "location": "第 42 页"
+        },
+        {
+          "page": 44,
+          "sim": 0.804,
+          "location": "第 42 页"
+        },
+        {
+          "page": 44,
+          "sim": 0.8,
+          "location": "第 42 页"
+        }
+      ],
+      "expected": [
+        37,
+        39,
+        40,
+        41
+      ]
+    },
+    {
+      "id": "r19",
+      "hit3": false,
+      "hit1": false,
+      "top": [
+        {
+          "page": 78,
+          "sim": 0.79,
+          "location": "第 76 页"
+        },
+        {
+          "page": 15,
+          "sim": 0.696,
+          "location": "第 13 页"
+        },
+        {
+          "page": 72,
+          "sim": 0.684,
+          "location": "第 70 页"
+        }
+      ],
+      "expected": [
+        16
+      ]
+    },
+    {
+      "id": "r20",
+      "hit3": true,
+      "hit1": true,
+      "top": [
+        {
+          "page": 29,
+          "sim": 0.824,
+          "location": "第 27 页"
+        },
+        {
+          "page": 29,
+          "sim": 0.804,
+          "location": "第 27 页"
+        },
+        {
+          "page": 29,
+          "sim": 0.799,
+          "location": "第 27 页"
+        }
+      ],
+      "expected": [
+        29
+      ]
+    }
+  ]
+}

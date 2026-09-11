@@ -1,0 +1,223 @@
+{
+  "frame": {
+    "quality": {
+      "blur": false,
+      "dark": false,
+      "glare": false,
+      "partial": true,
+      "occluded": false
+    },
+    "cut_off_sides": [
+      "right",
+      "bottom"
+    ],
+    "item_count": 8
+  },
+  "items": [
+    {
+      "category": "readout",
+      "bbox": [
+        456,
+        120,
+        532,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "lit",
+      "text": [
+        "P",
+        "R",
+        "N",
+        "D"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色 字母 P R N D",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        578,
+        120,
+        618,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "lit",
+      "text": [
+        "舒",
+        "适"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色 汉字 舒适",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        642,
+        122,
+        772,
+        152
+      ],
+      "shape": "rectangle",
+      "color": "gray",
+      "state": "lit",
+      "text": [
+        "60",
+        "%"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色 矩形 电量 60%",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        552,
+        195,
+        594,
+        238
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "straight_lines"
+      ],
+      "literal": "绿色 灯形 直线",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        552,
+        280,
+        594,
+        322
+      ],
+      "shape": "lamp",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "A"
+      ],
+      "elements": [
+        "straight_lines"
+      ],
+      "literal": "灰色 灯形 A 直线",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        552,
+        362,
+        598,
+        398
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "wavy_lines"
+      ],
+      "literal": "绿色 灯形 波浪线",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        562,
+        435,
+        596,
+        485
+      ],
+      "shape": "person",
+      "color": "red",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "diagonal_band"
+      ],
+      "literal": "红色 人形 斜杠",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "component",
+      "bbox": [
+        468,
+        452,
+        508,
+        565
+      ],
+      "shape": "car_outline",
+      "color": "black",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色 车轮廓",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    }
+  ]
+}

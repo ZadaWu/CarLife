@@ -159,10 +159,35 @@ const FOCUS_MS = 520;
 const AVOID_MAX_RATIO = 0.4;
 
 function fitAvoidFor(width: number, height: number): number[] {
-  const [t, b, l, r] = height > width ? FIT_AVOID_PORTRAIT : FIT_AVOID_LANDSCAPE;
+  const [t0, b0, l, r] = height > width ? FIT_AVOID_PORTRAIT : FIT_AVOID_LANDSCAPE;
+  /*
+   * 新版车机 UI 的顶栏与屏底状态栏是 `position: fixed` 压在地图上的（hud.css 末段）：
+   * 取景要把它们让开，否则路线的最北一段落在顶栏底下。量真实元素而不是抄常数——
+   * 手机端没有这两条，量到 0，行为与从前逐字一致。
+   */
+  const chrome = chromeInsets();
+  // 顶部多让一截：胶囊长在落点上方，还会被 SPREAD_Y 往上推，只让开顶栏本身仍会顶到它。
+  const t = Math.max(t0, chrome.top + 150);
+  const b = Math.max(b0, chrome.bottom + 40);
   const capY = height * AVOID_MAX_RATIO;
   const capX = width * AVOID_MAX_RATIO;
   return [Math.min(t, capY), Math.min(b, capY), Math.min(l, capX), Math.min(r, capX)];
+}
+
+/**
+ * 压在地图上的固定界面条（新版车机 UI：顶栏 `.hud-topbar`、屏底状态栏 `.hud-statusbar`）
+ * 各占掉视口顶 / 底多少 CSS 像素。它们是 `position: fixed`，rect 就是视口坐标。
+ * 没有这两个元素（手机端、旧布局）时都是 0。
+ */
+function chromeInsets(): { top: number; bottom: number } {
+  if (typeof document === "undefined") return { top: 0, bottom: 0 };
+  const topbar = document.querySelector(".hud-topbar")?.getBoundingClientRect();
+  const statusbar = document.querySelector(".hud-statusbar")?.getBoundingClientRect();
+  const vh = window.innerHeight;
+  return {
+    top: topbar ? Math.max(0, topbar.bottom) : 0,
+    bottom: statusbar ? Math.max(0, vh - statusbar.top) : 0,
+  };
 }
 
 /**
@@ -208,9 +233,11 @@ function safeInsets(): { top: number; bottom: number } {
     "padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
   document.body.appendChild(probe);
   const cs = getComputedStyle(probe);
+  // 安全区之外再让开固定的顶栏 / 状态栏（新版车机 UI）：落在它们底下的胶囊一样看不见。
+  const chrome = chromeInsets();
   const insets = {
-    top: Number.parseFloat(cs.paddingTop) || 0,
-    bottom: Number.parseFloat(cs.paddingBottom) || 0,
+    top: Math.max(Number.parseFloat(cs.paddingTop) || 0, chrome.top),
+    bottom: Math.max(Number.parseFloat(cs.paddingBottom) || 0, chrome.bottom),
   };
   probe.remove();
   return insets;

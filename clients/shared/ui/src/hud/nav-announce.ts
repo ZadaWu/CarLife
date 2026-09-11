@@ -25,6 +25,8 @@ export interface ArrivalAnnouncer {
   onProgress(p: ArrivalProgress): void;
   /** 换一次导航（换天 / 重新出发）时重置去重。 */
   reset(): void;
+  /** 上一句到站播报还没回完（M77-06：途中提醒据此顺延，不与到站抢嘴）。 */
+  isInFlight(): boolean;
 }
 
 export function createArrivalAnnouncer(send: (note: string) => Promise<void>): ArrivalAnnouncer {
@@ -43,6 +45,9 @@ export function createArrivalAnnouncer(send: (note: string) => Promise<void>): A
     },
     reset() {
       announced = null;
+    },
+    isInFlight() {
+      return inFlight;
     },
   };
 }

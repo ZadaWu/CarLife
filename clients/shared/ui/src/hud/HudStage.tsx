@@ -28,11 +28,16 @@ export interface HudStageProps {
   theme?: "light" | "dark";
   /** 覆盖自动判定的布局档位，仅用于测试与预览。 */
   mode?: HudLayoutMode;
+  /**
+   * 附加修饰类（M72-04）：`hud-stage--has-trips` 时提示卡窗下移收窄给行程列表卡让位。
+   * 由页面层按"有没有行程"决定，舞台本身不判断。
+   */
+  className?: string;
 }
 
-export function HudStage({ children, theme = "light", mode }: HudStageProps) {
+export function HudStage({ children, theme = "light", mode, className }: HudStageProps) {
   return (
-    <div className="hud-viewport" data-theme={theme} data-mode={mode}>
+    <div className={className ? `hud-viewport ${className}` : "hud-viewport"} data-theme={theme} data-mode={mode}>
       {children}
     </div>
   );

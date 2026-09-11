@@ -7,6 +7,7 @@ import {
   tripPlanToHud,
   type DestinationHighlights,
   type HudSnapshot,
+  type TripPlanListEntry,
   type TripPlanSnapshot,
 } from "@carlife/shared";
 
@@ -39,6 +40,13 @@ export const MOCK_HOME = { city: "浙江杭州", lat: 30.2741, lon: 120.1551 };
 export interface GatewayHudSource extends HudDataSource {
   /** 立即重拉一次（确认/取消动作完成后调，不等下个轮询周期）。 */
   refresh(): void;
+  /**
+   * 选中某一程（M72-04）：主页此后展示它（地图、提示卡、出发卡都跟着切）。
+   * 只在端上记、不落库、不改服务端「当前行程」的语义（出发导航仍按服务端首条）。
+   * `null` = 回到当前行程。选中的那程在下一轮 `plans[]` 里不见了也回到当前。
+   * 立即按上一次拉到的数据重投影，不等下一轮。
+   */
+  select(planId: string | null): void;
 }
 
 export interface GatewayHudSourceOptions {
@@ -65,6 +73,11 @@ export interface GatewayHudSourceOptions {
    * 网关没给就是 undefined，端上退回内置默认中心，不自己编一个城市。
    */
   onHome?: (home: HomePlace | undefined) => void;
+  /**
+   * 活动行程列表（M72-04）：每项整份快照 + 最新核查。每次拉取都回调；
+   * 老网关（回包没有 `plans`）给空数组，其余行为一字不变。
+   */
+  onPlans?: (entries: TripPlanListEntry[], currentPlanId?: string) => void;
 }
 
 /** 常住地。形状与网关返回一致，端上不重新拼。 */
@@ -152,20 +165,47 @@ export function createGatewayHudSource(opts: GatewayHudSourceOptions): GatewayHu
     return { ...plan, destinationHighlights: sticky.value };
   };
 
+  /** 选中的行程（M72-04）与上一次拉到的回包——`select` 要能不发请求就重投影。 */
+  let selectedPlanId: string | null = null;
+  let lastBody: { plan: TripPlanSnapshot | null; plans: TripPlanListEntry[] } | undefined;
+
+  /**
+   * 此刻主页该展示哪一份（M73-02 改口径）：选中且仍在列表里的那份 → 否则**列表首条**
+   * （仓储排序：进行中 → 最近的未来 → 未定日期）→ 没有列表（老网关 / 无行程）才回落服务端「当前行程」。
+   *
+   * 首条而不是「当前行程」：后者是最新确认的那份，车主上周排的下个月行程会把本周正在走的挤下地图；
+   * 而「出发」处置在服务端取的正是 `trip_plan_list` 首条——两边看到的必须是同一程。
+   * 选中的行程不再在列表上（改掉 / 取消 / 结束）时回到首条，不挂着一份不存在的。
+   */
+  const project = (body: { plan: TripPlanSnapshot | null; plans: TripPlanListEntry[] }) => {
+    const chosen = selectedPlanId ? body.plans.find((p) => p.planId === selectedPlanId) : undefined;
+    if (selectedPlanId && !chosen) selectedPlanId = null;
+    const raw = chosen ? chosen.plan : (body.plans[0]?.plan ?? body.plan);
+    // 推荐页在这里补齐，之后 `plan` 只有一份——投影与 onPlan 不能看到两个版本。
+    const plan = raw ? withStickyHighlights(raw) : null;
+    const mapped = plan ? tripPlanToHud(plan, today(), base()) : null;
+    // 整份快照先交出去：地图标注/逐日切换吃它，不吃压缩过的 HudSnapshot。
+    opts.onPlan?.(mapped ? plan : null);
+    // null = 没有可展示的行程——回落基线，不渲染空卡也不报错。
+    onSnapshot?.(mapped ?? base());
+  };
+
   const pull = async () => {
     const wantRefresh = refreshNext;
     refreshNext = false;
     try {
       const raw = await fetchPlanJson(wantRefresh);
-      const body = JSON.parse(raw) as { plan: TripPlanSnapshot | null; home?: HomePlace };
+      const body = JSON.parse(raw) as {
+        plan: TripPlanSnapshot | null;
+        home?: HomePlace;
+        plans?: TripPlanListEntry[];
+        currentPlanId?: string;
+      };
       opts.onHome?.(body.home);
-      // 推荐页在这里补齐，之后 `plan` 只有一份——投影与 onPlan 不能看到两个版本。
-      const plan = body.plan ? withStickyHighlights(body.plan) : null;
-      const mapped = plan ? tripPlanToHud(plan, today(), base()) : null;
-      // 整份快照先交出去：地图标注/逐日切换吃它，不吃压缩过的 HudSnapshot。
-      opts.onPlan?.(mapped ? plan : null);
-      // null = 没有可展示的行程——回落基线，不渲染空卡也不报错。
-      onSnapshot?.(mapped ?? base());
+      const plans = Array.isArray(body.plans) ? body.plans : [];
+      opts.onPlans?.(plans, typeof body.currentPlanId === "string" ? body.currentPlanId : undefined);
+      lastBody = { plan: body.plan, plans };
+      project(lastBody);
     } catch (e) {
       /*
        * 这一跳没成，"打开时重算"就还没发生——把 opt-in 还回去，下一次拉再带。
@@ -181,6 +221,10 @@ export function createGatewayHudSource(opts: GatewayHudSourceOptions): GatewayHu
   return {
     refresh() {
       void pull();
+    },
+    select(planId) {
+      selectedPlanId = planId;
+      if (lastBody) project(lastBody);
     },
     subscribe(next, err) {
       onSnapshot = next;

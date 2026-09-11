@@ -16,6 +16,8 @@ import type { TripPlanDaySnapshot, TripPlanSnapshot } from "@carlife/shared";
 import type { ChatTurnMessage } from "../llm";
 import type { ConsultationState } from "./subgraphs/service";
 import type { RiskCategory, RiskDecision } from "../guard/risk-policy";
+import type { PhotoInput, PhotoObservationState } from "./vision";
+import type { VideoInput } from "./media";
 
 /**
  * 意图理解的四要素（§4.2、FL-11 F-11-01）。
@@ -275,6 +277,33 @@ export const GraphState = Annotation.Root({
    * 其余节点不写它，LangGraph 保留旧值。过期随 thread 24h 轮换。
    */
   consultation: Annotation<ConsultationState | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 本轮绑定的图片（M71-04，F-09-06）。每轮覆盖、不跨轮——照片只属于问它的那一轮。
+   * 只有 `observeAttachments` 节点读它；图片字节不进任何 LLM 文本上下文。
+   */
+  photoInput: Annotation<PhotoInput[] | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 观察层的产物（M71-04）：受控观察 + 手册图标匹配（或「未能对上」）+ 补拍指引。
+   * 每轮覆盖。`intent` 只拿它的一行摘要，`ownershipDual` 把它拼成【图片观察】段。
+   */
+  photoObservation: Annotation<PhotoObservationState | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 本轮的视频（M80-02）：网关派生好的帧序图 + 分段转写，每轮覆盖。
+   * 不进观察层；`ownershipDual` 拼成【视频】段，`answer` 把帧序图作为图片交给表述模型。
+   */
+  videoInput: Annotation<VideoInput | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
   }),

@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import type { ChatMessage, HistoryPage } from "@carlife/shared";
+import type { AttachmentRef, ChatMessage, HistoryPage } from "@carlife/shared";
 
 export type ChatRepository = ReturnType<typeof createChatRepository>;
 
@@ -167,6 +167,18 @@ export function createChatRepository(prisma: PrismaClient) {
      *
      * 游标按 `updatedAt`（与排序同一列）。**不按 id**：id 是随机的，
      * 翻到第二页会乱序，而"乱序"在懒加载列表里表现为"重复和丢失"。
+     *
+     * # 一句话没说过的会话不进这个列表
+     *
+     * 车主视角里"空白对话"是**噪声**：点开对话层就会建一条会话，没说话就退出去
+     * 的那条照样留在库里；车机左栏与手机抽屉于是排着一列只有时间、点进去什么都没有的
+     * 行（用户 2026-09-11 反馈"车机端和移动端没必要展示空白对话"）。
+     * 运营视角相反——「建了但没说话」本身是要看的现象，所以那一侧
+     * （`consoleSessionPage`）缺省不过滤、由 `nonEmpty` 开关控制。
+     *
+     * **过滤写在 SQL 里**（`messages: { some: {} }` = EXISTS），不是取回一页再筛：
+     * 应用层筛的话"每页 20 条"会变成"这一页只剩 6 条"，游标跟着不准，
+     * 而懒加载列表里的翻页不准表现为"有的会话怎么翻都翻不到"。
      */
     async userSessionPage(q: {
       userId: string;
@@ -189,6 +201,8 @@ export function createChatRepository(prisma: PrismaClient) {
       const rows = await prisma.session.findMany({
         where: {
           userId: q.userId,
+          // 一句话都没有的会话不进车主的列表（理由见上）。
+          messages: { some: {} },
           ...(cursorAt && !Number.isNaN(cursorAt.getTime())
             ? { updatedAt: { lt: cursorAt } }
             : {}),
@@ -824,17 +838,49 @@ export function createChatRepository(prisma: PrismaClient) {
       const page = rows.slice(0, opts.limit);
       const oldest = page[page.length - 1];
 
+      /*
+       * 附件引用（M80-01，F-03-08）：按本页用户消息的 turnId 一次取回，挂到**用户**消息上。
+       * 只带元数据不带字节——端上拿句柄经 `GET /v1/attachments/:handle` 取原件（那条路比对归属）。
+       * 只挂已绑轮的（`turnId` 非空）：传了没发的附件不属于任何一条消息。
+       */
+      const turnIds = [...new Set(page.filter((r) => r.role === "user").map((r) => r.turnId))];
+      const attachmentRows = turnIds.length
+        ? await prisma.attachment.findMany({
+            where: { turnId: { in: turnIds }, kind: { in: ["image", "video"] } },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, turnId: true, kind: true, contentType: true, bytes: true, filename: true },
+          })
+        : [];
+      const attachmentsByTurn = new Map<string, AttachmentRef[]>();
+      for (const a of attachmentRows) {
+        if (!a.turnId) continue;
+        const list = attachmentsByTurn.get(a.turnId) ?? [];
+        list.push({
+          attachmentId: a.id,
+          kind: a.kind as AttachmentRef["kind"],
+          handle: a.id,
+          contentType: a.contentType,
+          bytes: a.bytes,
+          ...(a.filename ? { filename: a.filename } : {}),
+        });
+        attachmentsByTurn.set(a.turnId, list);
+      }
+
       return {
-        messages: page.reverse().map((r) => ({
-          messageId: r.id,
-          sessionId: r.sessionId,
-          turnId: r.turnId,
-          role: r.role as ChatMessage["role"],
-          source: r.source as ChatMessage["source"],
-          content: r.content,
-          ts: Number(r.ts),
-          cancelled: r.cancelled,
-        })),
+        messages: page.reverse().map((r) => {
+          const attachments = r.role === "user" ? attachmentsByTurn.get(r.turnId) : undefined;
+          return {
+            messageId: r.id,
+            sessionId: r.sessionId,
+            turnId: r.turnId,
+            role: r.role as ChatMessage["role"],
+            source: r.source as ChatMessage["source"],
+            content: r.content,
+            ts: Number(r.ts),
+            cancelled: r.cancelled,
+            ...(attachments?.length ? { attachments } : {}),
+          };
+        }),
         hasMore,
         nextBefore: hasMore && oldest ? oldest.id : null,
       };

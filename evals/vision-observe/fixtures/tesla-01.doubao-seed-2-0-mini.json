@@ -1,0 +1,299 @@
+{
+  "frame": {
+    "quality": {
+      "blur": false,
+      "dark": false,
+      "glare": false,
+      "partial": false,
+      "occluded": false
+    },
+    "cut_off_sides": [
+      "right"
+    ],
+    "item_count": 11
+  },
+  "items": [
+    {
+      "category": "readout",
+      "bbox": [
+        450,
+        120,
+        530,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "lit",
+      "text": [
+        "P",
+        "R",
+        "N",
+        "D"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色字母PRND",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        560,
+        120,
+        620,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "舒",
+        "适"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色汉字舒适",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "component",
+      "bbox": [
+        630,
+        120,
+        680,
+        150
+      ],
+      "shape": "battery",
+      "color": "gray",
+      "state": "unlit",
+      "text": [],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色电池图标",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        710,
+        120,
+        770,
+        150
+      ],
+      "shape": "letter_only",
+      "color": "black",
+      "state": "lit",
+      "text": [
+        "6",
+        "0",
+        "%"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色数字60%",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        540,
+        200,
+        600,
+        250
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "arrow_left"
+      ],
+      "literal": "绿色左向大灯图标",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        540,
+        300,
+        600,
+        350
+      ],
+      "shape": "lamp",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "A"
+      ],
+      "elements": [
+        "arrow_left"
+      ],
+      "literal": "灰色带A左向大灯图标",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        540,
+        370,
+        600,
+        420
+      ],
+      "shape": "lamp",
+      "color": "green",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "arrow_both"
+      ],
+      "literal": "绿色双向大灯图标",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "warning_light",
+      "bbox": [
+        540,
+        450,
+        600,
+        500
+      ],
+      "shape": "person",
+      "color": "red",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "parentheses"
+      ],
+      "literal": "红色安全带人形图标",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        460,
+        220,
+        500,
+        270
+      ],
+      "shape": "letter_only",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "D"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色字母D",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "component",
+      "bbox": [
+        460,
+        460,
+        510,
+        560
+      ],
+      "shape": "car_outline",
+      "color": "black",
+      "state": "lit",
+      "text": [],
+      "elements": [
+        "none"
+      ],
+      "literal": "黑色汽车轮廓",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    },
+    {
+      "category": "readout",
+      "bbox": [
+        460,
+        750,
+        500,
+        800
+      ],
+      "shape": "letter_only",
+      "color": "gray",
+      "state": "unlit",
+      "text": [
+        "R"
+      ],
+      "elements": [
+        "none"
+      ],
+      "literal": "灰色字母R",
+      "confidence": 1.0,
+      "quality": {
+        "blur": false,
+        "glare": false,
+        "partial": false
+      },
+      "undeterminable": []
+    }
+  ]
+}

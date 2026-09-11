@@ -1,0 +1,173 @@
+{
+  "suite": "vision-observe-detector-localize",
+  "at": "2026-09-10T03:40:27.648751+00:00",
+  "summary": {
+    "警示灯召回": "2/4",
+    "平均 IoU（已配对）": 0.697,
+    "负样本误报框数": 5,
+    "负样本张数": 20,
+    "单张平均 ms": 61,
+    "conf": 0.25,
+    "imgsz": 960,
+    "weights": "<repo>/evals/runs/vision-trainer/train-20260909-141540-e8c0/weights/best.pt"
+  },
+  "rows": [
+    {
+      "id": "tesla-01",
+      "negative": false,
+      "items": [
+        {
+          "symbol": "low_beam",
+          "iou": 0.0,
+          "missed": true
+        },
+        {
+          "symbol": "auto_high_beam_standby",
+          "iou": 0.0,
+          "missed": true
+        },
+        {
+          "symbol": "parking_lights",
+          "iou": 0.602,
+          "detectorCalledIt": "parking_lights",
+          "conf": 0.7845
+        },
+        {
+          "symbol": "seatbelt_unfastened",
+          "iou": 0.793,
+          "detectorCalledIt": "airbag_warning",
+          "conf": 0.6784
+        }
+      ],
+      "unmatchedBoxes": 0
+    },
+    {
+      "id": "neg-01",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-02",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-03",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-04",
+      "negative": true,
+      "falsePositives": 1,
+      "names": [
+        "ready"
+      ]
+    },
+    {
+      "id": "neg-05",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-06",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-07",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-08",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-09",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-10",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-11",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-12",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-13",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-14",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-15",
+      "negative": true,
+      "falsePositives": 2,
+      "names": [
+        "parking_brake_fault",
+        "parking_brake_fault"
+      ]
+    },
+    {
+      "id": "neg-16",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-17",
+      "negative": true,
+      "falsePositives": 2,
+      "names": [
+        "parking_brake_fault",
+        "parking_brake_fault"
+      ]
+    },
+    {
+      "id": "neg-18",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-19",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    },
+    {
+      "id": "neg-20",
+      "negative": true,
+      "falsePositives": 0,
+      "names": []
+    }
+  ]
+}

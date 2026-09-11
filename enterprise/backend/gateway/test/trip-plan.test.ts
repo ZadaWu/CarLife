@@ -9,7 +9,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import express from "express";
 
-import type { TripPlanRepository, CommittedTripPlan } from "@carlife/db";
+import type {
+  TripPlanRepository,
+  TripPlanReviewRepository,
+  CommittedTripPlan,
+  StoredTripPlanReview,
+} from "@carlife/db";
 import type { TripPlanSnapshot } from "@carlife/shared";
 
 import { createTripPlanRouter } from "../src/http/trip-plan";
@@ -39,17 +44,83 @@ function memRepo(rows: CommittedTripPlan[]): TripPlanRepository {
           .sort((a, b) => b.committedAt.getTime() - a.committedAt.getTime())[0] ?? null
       );
     },
+    // 活动行程（M72-03）：内存版只按人过滤、按确认时间升序，上限 10 与仓储默认一致。
+    async activeForUser(userId, _today, limit = 10) {
+      return rows
+        .filter((r) => r.userId === userId && r.status === "confirmed")
+        .sort((a, b) => a.committedAt.getTime() - b.committedAt.getTime())
+        .slice(0, limit);
+    },
+  } as TripPlanRepository;
+}
+
+/** 内存版核查仓储：只实现网关会碰的两个方法。 */
+function memReviews(rows: StoredTripPlanReview[]): TripPlanReviewRepository {
+  return {
+    async insert() {
+      throw new Error("端点只读，不该调它");
+    },
+    async latestForPlan(planId) {
+      return rows.filter((r) => r.planId === planId).sort((a, b) => (a.reviewedAt < b.reviewedAt ? 1 : -1))[0] ?? null;
+    },
+    async latestForPlans(planIds) {
+      const out = new Map<string, StoredTripPlanReview>();
+      for (const id of planIds) {
+        const hit = await this.latestForPlan(id);
+        if (hit) out.set(id, hit);
+      }
+      return out;
+    },
+    async ack(userId, reviewId) {
+      const hit = rows.find((r) => r.reviewId === reviewId && r.userId === userId);
+      if (!hit) return null;
+      if (!hit.ackedAt) hit.ackedAt = "2026-09-08T08:00:00.000Z";
+      return hit;
+    },
   };
 }
 
-function appWith(repo: TripPlanRepository, userId: string | null, runtimeUrl?: string) {
+const review = (over: Partial<StoredTripPlanReview> = {}): StoredTripPlanReview => ({
+  reviewId: "r1",
+  planId: "p1",
+  userId: "demo-user",
+  reviewedAt: "2026-08-11T22:10:00.000Z",
+  signature: "cloudy|#-",
+  days: [{ day: 1, date: "2026-08-12", kind: "cloudy", label: "多云" }],
+  changes: [],
+  severity: "none",
+  ...over,
+});
+
+function appWith(
+  repo: TripPlanRepository,
+  userId: string | null,
+  runtimeUrl?: string,
+  reviews?: TripPlanReviewRepository,
+) {
   const app = express();
   app.use((req, _res, next) => {
     (req as express.Request & { userId?: string }).userId = userId ?? undefined;
     next();
   });
-  app.use(createTripPlanRouter(repo, undefined, runtimeUrl));
+  app.use(createTripPlanRouter(repo, undefined, runtimeUrl, undefined, reviews));
   return app;
+}
+
+async function postAck(app: express.Express, planId: string, body: unknown) {
+  const server = app.listen(0);
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/v1/trip-plan/${planId}/review/ack`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, body: (await r.json()) as Record<string, unknown> };
+  } finally {
+    server.close();
+  }
 }
 
 async function get(app: express.Express, query = "") {
@@ -361,5 +432,86 @@ describe("目的地推荐的读时补齐（M32-02）", () => {
     } finally {
       rt.close();
     }
+  });
+});
+
+describe("活动行程列表与每程核查（M72-03）", () => {
+  it("无行程 → plans 是空数组，plan 仍是 null（老字段一字不变）", async () => {
+    const r = await get(appWith(memRepo([]), "demo-user"));
+    assert.equal(r.status, 200);
+    assert.equal(r.body.plan, null);
+    assert.deepEqual(r.body.plans, []);
+    assert.equal("review" in r.body, false);
+  });
+
+  it("两份活动行程 + 一份核查：只有那份带 review；review 字段等于当前行程那份；updatedAt 回退到 committedAt", async () => {
+    const rows = [row(), row({ planId: "p2", committedAt: new Date("2026-08-11T12:00:00Z") })];
+    const reviews = memReviews([review({ planId: "p2", reviewId: "r2" })]);
+    const r = await get(appWith(memRepo(rows), "demo-user", undefined, reviews));
+    assert.equal(r.status, 200);
+    const plans = r.body.plans as Array<Record<string, unknown>>;
+    assert.equal(plans.length, 2);
+    const p1 = plans.find((p) => p.planId === "p1")!;
+    const p2 = plans.find((p) => p.planId === "p2")!;
+    assert.equal("review" in p1, false);
+    assert.equal((p2.review as Record<string, unknown>).reviewId, "r2");
+    assert.equal("userId" in (p2.review as Record<string, unknown>), false, "落库行的 userId / signature 不该回给端上");
+    assert.equal(p2.updatedAt, "2026-08-11T12:00:00.000Z");
+    // 当前行程 = 最新确认的 p2，它的核查也挂在顶层 review
+    assert.equal((r.body.review as Record<string, unknown>).reviewId, "r2");
+  });
+
+  it("不传核查仓储：plans 每项无 review，ack 回 503", async () => {
+    const r = await get(appWith(memRepo([row()]), "demo-user"));
+    const plans = r.body.plans as Array<Record<string, unknown>>;
+    assert.equal(plans.length, 1);
+    assert.equal("review" in plans[0]!, false);
+    const a = await postAck(appWith(memRepo([row()]), "demo-user"), "p1", { reviewId: "r1" });
+    assert.equal(a.status, 503);
+  });
+
+  it("11 份活动行程只回 10 份（列表上限）", async () => {
+    const rows = Array.from({ length: 11 }, (_, i) =>
+      row({ planId: `p${i}`, committedAt: new Date(Date.UTC(2026, 7, 1 + i)) }),
+    );
+    const r = await get(appWith(memRepo(rows), "demo-user"));
+    assert.equal((r.body.plans as unknown[]).length, 10);
+  });
+
+  it("别人的行程不进列表", async () => {
+    const rows = [row(), row({ planId: "p-other", userId: "someone-else" })];
+    const r = await get(appWith(memRepo(rows), "demo-user"));
+    assert.deepEqual((r.body.plans as Array<{ planId: string }>).map((p) => p.planId), ["p1"]);
+  });
+});
+
+describe("POST /v1/trip-plan/:planId/review/ack（M72-03）", () => {
+  it("未鉴权 401", async () => {
+    const a = await postAck(appWith(memRepo([row()]), null, undefined, memReviews([review()])), "p1", { reviewId: "r1" });
+    assert.equal(a.status, 401);
+  });
+
+  it("缺 reviewId → 400", async () => {
+    const a = await postAck(appWith(memRepo([row()]), "demo-user", undefined, memReviews([review()])), "p1", {});
+    assert.equal(a.status, 400);
+  });
+
+  it("错 userId → 404；planId 对不上这份核查 → 404", async () => {
+    const reviews = memReviews([review()]);
+    const wrongUser = await postAck(appWith(memRepo([row()]), "someone-else", undefined, reviews), "p1", { reviewId: "r1" });
+    assert.equal(wrongUser.status, 404);
+    const wrongPlan = await postAck(appWith(memRepo([row()]), "demo-user", undefined, reviews), "p-other", { reviewId: "r1" });
+    assert.equal(wrongPlan.status, 404);
+  });
+
+  it("正确 → 200 且 ackedAt 非空；重复 ack → 200 同一时间", async () => {
+    const reviews = memReviews([review()]);
+    const first = await postAck(appWith(memRepo([row()]), "demo-user", undefined, reviews), "p1", { reviewId: "r1" });
+    assert.equal(first.status, 200);
+    const acked = (first.body.review as Record<string, unknown>).ackedAt;
+    assert.ok(acked);
+    const again = await postAck(appWith(memRepo([row()]), "demo-user", undefined, reviews), "p1", { reviewId: "r1" });
+    assert.equal(again.status, 200);
+    assert.equal((again.body.review as Record<string, unknown>).ackedAt, acked);
   });
 });

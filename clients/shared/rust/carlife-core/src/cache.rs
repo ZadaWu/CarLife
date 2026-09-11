@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_session_ts ON messages(session_id, ts);
 ";
 
+/// 附件引用列（M80-01）。老库没有这一列，`ALTER TABLE` 一次；已经有了会报
+/// `duplicate column name`，那正是"已迁移"的信号，吞掉即可（SQLite 没有 `ADD COLUMN IF NOT EXISTS`）。
+const MIGRATE_ATTACHMENTS: &str = "ALTER TABLE messages ADD COLUMN attachments TEXT";
+
+fn attachments_from_json(raw: Option<String>) -> Option<Vec<crate::contract::AttachmentRef>> {
+    raw.and_then(|j| serde_json::from_str(&j).ok())
+        .filter(|v: &Vec<crate::contract::AttachmentRef>| !v.is_empty())
+}
+
+fn attachments_to_json(a: &Option<Vec<crate::contract::AttachmentRef>>) -> Option<String> {
+    a.as_ref()
+        .filter(|v| !v.is_empty())
+        .and_then(|v| serde_json::to_string(v).ok())
+}
+
 pub struct MessageCache {
     conn: Mutex<Connection>,
     max_turns: usize,
@@ -62,6 +77,8 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatMessage> {
         },
         content: row.get(5)?,
         ts: row.get(6)?,
+        // 附件引用（M80-01）：存的是 JSON 文本，解析失败当没有——缓存只是投影，权威在服务端。
+        attachments: attachments_from_json(row.get::<_, Option<String>>(7)?),
         /*
          * 端上离线缓存**不存**这一列（M33-01）。
          *
@@ -100,6 +117,8 @@ impl MessageCache {
 
     fn from_conn(conn: Connection) -> Result<Self, CacheError> {
         conn.execute_batch(SCHEMA)?;
+        // 已装在车上的库不会自己长出新列：`ADD COLUMN` 失败只可能是"已经有了"。
+        let _ = conn.execute_batch(MIGRATE_ATTACHMENTS);
         Ok(Self {
             conn: Mutex::new(conn),
             max_turns: DEFAULT_MAX_TURNS,
@@ -115,8 +134,8 @@ impl MessageCache {
     pub fn upsert_message(&self, msg: &ChatMessage) -> Result<(), CacheError> {
         let conn = self.conn.lock().map_err(|_| CacheError::Poisoned)?;
         conn.execute(
-            "INSERT INTO messages (message_id, session_id, turn_id, role, source, content, ts)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO messages (message_id, session_id, turn_id, role, source, content, ts, attachments)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(message_id) DO NOTHING",
             params![
                 msg.message_id,
@@ -125,7 +144,8 @@ impl MessageCache {
                 role_str(msg.role),
                 source_str(msg.source),
                 msg.content,
-                msg.ts
+                msg.ts,
+                attachments_to_json(&msg.attachments)
             ],
         )?;
         // 环形保留：只留最近 max_turns 个 turn 的消息
@@ -162,7 +182,7 @@ impl MessageCache {
         let mut rows: Vec<ChatMessage> = match before_ts {
             Some(ts) => {
                 let mut stmt = conn.prepare(
-                    "SELECT message_id, session_id, turn_id, role, source, content, ts
+                    "SELECT message_id, session_id, turn_id, role, source, content, ts, attachments
                      FROM messages WHERE session_id = ?1 AND ts < ?2
                      ORDER BY ts DESC LIMIT ?3",
                 )?;
@@ -171,7 +191,7 @@ impl MessageCache {
             }
             None => {
                 let mut stmt = conn.prepare(
-                    "SELECT message_id, session_id, turn_id, role, source, content, ts
+                    "SELECT message_id, session_id, turn_id, role, source, content, ts, attachments
                      FROM messages WHERE session_id = ?1
                      ORDER BY ts DESC LIMIT ?2",
                 )?;
@@ -197,8 +217,8 @@ impl MessageCache {
         )?;
         for msg in messages {
             tx.execute(
-                "INSERT INTO messages (message_id, session_id, turn_id, role, source, content, ts)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "INSERT INTO messages (message_id, session_id, turn_id, role, source, content, ts, attachments)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT(message_id) DO NOTHING",
                 params![
                     msg.message_id,
@@ -207,7 +227,8 @@ impl MessageCache {
                     role_str(msg.role),
                     source_str(msg.source),
                     msg.content,
-                    msg.ts
+                    msg.ts,
+                    attachments_to_json(&msg.attachments)
                 ],
             )?;
         }
@@ -249,6 +270,7 @@ mod tests {
             content: format!("content-{id}"),
             ts,
             cancelled: None,
+            attachments: None,
         }
     }
 

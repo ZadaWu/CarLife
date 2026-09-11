@@ -1,0 +1,981 @@
+{
+  "at": "2026-09-11T05:03:38.130Z",
+  "total": 96,
+  "selected": 96,
+  "accuracy": 0.9895833333333334,
+  "min": 0.9,
+  "rows": [
+    {
+      "id": "ov-b179",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 204,
+      "expected": [
+        204
+      ]
+    },
+    {
+      "id": "ov-b192",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 193,
+      "expected": [
+        193
+      ]
+    },
+    {
+      "id": "ov-b194",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 195,
+      "expected": [
+        195
+      ]
+    },
+    {
+      "id": "ov-b196",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 197,
+      "expected": [
+        197
+      ]
+    },
+    {
+      "id": "ov-b198",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 199,
+      "expected": [
+        199
+      ]
+    },
+    {
+      "id": "ov-b200",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 201,
+      "expected": [
+        201
+      ]
+    },
+    {
+      "id": "ov-b202",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 203,
+      "expected": [
+        203
+      ]
+    },
+    {
+      "id": "ov-b205",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 206,
+      "expected": [
+        206
+      ]
+    },
+    {
+      "id": "ov-b207",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 208,
+      "expected": [
+        208
+      ]
+    },
+    {
+      "id": "ov-b187",
+      "ok": true,
+      "rule": "reference",
+      "confidence": 0.8,
+      "got": 186,
+      "expected": [
+        185,
+        186
+      ]
+    },
+    {
+      "id": "ov-b215",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 225,
+      "expected": [
+        225
+      ]
+    },
+    {
+      "id": "ov-b216",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 226,
+      "expected": [
+        226
+      ]
+    },
+    {
+      "id": "ov-b217",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 227,
+      "expected": [
+        227
+      ]
+    },
+    {
+      "id": "ov-b218",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 228,
+      "expected": [
+        228
+      ]
+    },
+    {
+      "id": "ov-b219",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 231,
+      "expected": [
+        231
+      ]
+    },
+    {
+      "id": "ov-b220",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 232,
+      "expected": [
+        232
+      ]
+    },
+    {
+      "id": "ov-b221",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 233,
+      "expected": [
+        233
+      ]
+    },
+    {
+      "id": "ov-b223",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 235,
+      "expected": [
+        235
+      ]
+    },
+    {
+      "id": "ov-b236",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 237,
+      "expected": [
+        237
+      ]
+    },
+    {
+      "id": "ov-b238",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 239,
+      "expected": [
+        239
+      ]
+    },
+    {
+      "id": "ov-b240",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 241,
+      "expected": [
+        241
+      ]
+    },
+    {
+      "id": "ov-b242",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 243,
+      "expected": [
+        243
+      ]
+    },
+    {
+      "id": "ov-b244",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 245,
+      "expected": [
+        245
+      ]
+    },
+    {
+      "id": "ov-b246",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 247,
+      "expected": [
+        247
+      ]
+    },
+    {
+      "id": "ov-b353",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 352,
+      "expected": [
+        352
+      ]
+    },
+    {
+      "id": "ov-b361",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 360,
+      "expected": [
+        360
+      ]
+    },
+    {
+      "id": "ov-b365",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 366,
+      "expected": [
+        366
+      ]
+    },
+    {
+      "id": "ov-b369",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 368,
+      "expected": [
+        368
+      ]
+    },
+    {
+      "id": "ov-b399",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 400,
+      "expected": [
+        400
+      ]
+    },
+    {
+      "id": "ov-b413",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 414,
+      "expected": [
+        414
+      ]
+    },
+    {
+      "id": "ov-b418",
+      "ok": true,
+      "rule": "reference",
+      "confidence": 0.8,
+      "got": 416,
+      "expected": [
+        416
+      ]
+    },
+    {
+      "id": "ov-b518",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 517,
+      "expected": [
+        517
+      ]
+    },
+    {
+      "id": "ov-b519",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 520,
+      "expected": [
+        520
+      ]
+    },
+    {
+      "id": "ov-b522",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 523,
+      "expected": [
+        523
+      ]
+    },
+    {
+      "id": "ov-b524",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 525,
+      "expected": [
+        525
+      ]
+    },
+    {
+      "id": "ov-b528",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.5,
+      "got": 527,
+      "expected": [
+        527
+      ]
+    },
+    {
+      "id": "ov-b533",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.7,
+      "got": 534,
+      "expected": [
+        534
+      ]
+    },
+    {
+      "id": "ov-b616",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 617,
+      "expected": [
+        617
+      ]
+    },
+    {
+      "id": "ov-b619",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 618,
+      "expected": [
+        618
+      ]
+    },
+    {
+      "id": "ov-b620",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 621,
+      "expected": [
+        621
+      ]
+    },
+    {
+      "id": "ov-b622",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 623,
+      "expected": [
+        623
+      ]
+    },
+    {
+      "id": "ov-b624",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 625,
+      "expected": [
+        625
+      ]
+    },
+    {
+      "id": "ov-b633",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 632,
+      "expected": [
+        632
+      ]
+    },
+    {
+      "id": "ov-b634",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 635,
+      "expected": [
+        635
+      ]
+    },
+    {
+      "id": "ov-b636",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 637,
+      "expected": [
+        637
+      ]
+    },
+    {
+      "id": "ov-b734",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 733,
+      "expected": [
+        733
+      ]
+    },
+    {
+      "id": "ov-b738",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 737,
+      "expected": [
+        737
+      ]
+    },
+    {
+      "id": "ov-b741",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 742,
+      "expected": [
+        740,
+        742
+      ]
+    },
+    {
+      "id": "ov-b746",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 747,
+      "expected": [
+        747
+      ]
+    },
+    {
+      "id": "ov-b750",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 749,
+      "expected": [
+        749
+      ]
+    },
+    {
+      "id": "ch-b57",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 56,
+      "expected": [
+        56
+      ]
+    },
+    {
+      "id": "ch-b65",
+      "ok": true,
+      "rule": "reference",
+      "confidence": 0.8,
+      "got": 64,
+      "expected": [
+        64,
+        58
+      ]
+    },
+    {
+      "id": "ch-b68",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 69,
+      "expected": [
+        69
+      ]
+    },
+    {
+      "id": "ch-b81",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 82,
+      "expected": [
+        82
+      ]
+    },
+    {
+      "id": "ch-b142",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 143,
+      "expected": [
+        143
+      ]
+    },
+    {
+      "id": "ch-b144",
+      "ok": true,
+      "rule": "row",
+      "confidence": 0.9,
+      "got": 145,
+      "expected": [
+        145
+      ]
+    },
+    {
+      "id": "ch-b149",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 147,
+      "expected": [
+        147,
+        150
+      ]
+    },
+    {
+      "id": "mb-b315",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 314,
+      "expected": [
+        314
+      ]
+    },
+    {
+      "id": "mb-b317",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.55,
+      "got": 318,
+      "expected": [
+        318
+      ]
+    },
+    {
+      "id": "mb-b323",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 324,
+      "expected": [
+        324,
+        325
+      ]
+    },
+    {
+      "id": "mb-b620",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 621,
+      "expected": [
+        621,
+        622
+      ]
+    },
+    {
+      "id": "mb-b623",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.5,
+      "got": 624,
+      "expected": [
+        624
+      ]
+    },
+    {
+      "id": "mb-b625",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 626,
+      "expected": [
+        626
+      ]
+    },
+    {
+      "id": "mb-b627",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 626,
+      "expected": [
+        628,
+        626
+      ]
+    },
+    {
+      "id": "mb-b645",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.55,
+      "got": 646,
+      "expected": [
+        646,
+        644
+      ]
+    },
+    {
+      "id": "mb-b647",
+      "ok": false,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 646,
+      "expected": [
+        648
+      ]
+    },
+    {
+      "id": "mb-b650",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.55,
+      "got": 651,
+      "expected": [
+        651
+      ]
+    },
+    {
+      "id": "mb-b652",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 651,
+      "expected": [
+        651
+      ]
+    },
+    {
+      "id": "mb-b856",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 857,
+      "expected": [
+        857
+      ]
+    },
+    {
+      "id": "mb-b862",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 863,
+      "expected": [
+        863,
+        861
+      ]
+    },
+    {
+      "id": "mb-b867",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 868,
+      "expected": [
+        868
+      ]
+    },
+    {
+      "id": "mb-b873",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 872,
+      "expected": [
+        872
+      ]
+    },
+    {
+      "id": "mb-b969",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 970,
+      "expected": [
+        970
+      ]
+    },
+    {
+      "id": "mb-b973",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 974,
+      "expected": [
+        974
+      ]
+    },
+    {
+      "id": "mb-b975",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 976,
+      "expected": [
+        976
+      ]
+    },
+    {
+      "id": "mb-b978",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 979,
+      "expected": [
+        979
+      ]
+    },
+    {
+      "id": "mb-b980",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 981,
+      "expected": [
+        981
+      ]
+    },
+    {
+      "id": "mb-b1324",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1323,
+      "expected": [
+        1323
+      ]
+    },
+    {
+      "id": "mb-b1325",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.55,
+      "got": 1326,
+      "expected": [
+        1326,
+        1323
+      ]
+    },
+    {
+      "id": "mb-b1327",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1326,
+      "expected": [
+        1326
+      ]
+    },
+    {
+      "id": "mb-b1330",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1329,
+      "expected": [
+        1329
+      ]
+    },
+    {
+      "id": "mb-b1940",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1941,
+      "expected": [
+        1941
+      ]
+    },
+    {
+      "id": "mb-b1943",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1944,
+      "expected": [
+        1944
+      ]
+    },
+    {
+      "id": "mb-b1947",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1948,
+      "expected": [
+        1948
+      ]
+    },
+    {
+      "id": "mb-b1951",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1950,
+      "expected": [
+        1950
+      ]
+    },
+    {
+      "id": "mb-b611",
+      "ok": true,
+      "rule": "caption",
+      "confidence": 0.85,
+      "got": 612,
+      "expected": [
+        612
+      ]
+    },
+    {
+      "id": "mb-b614",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 615,
+      "expected": [
+        615
+      ]
+    },
+    {
+      "id": "mb-b846",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 847,
+      "expected": [
+        847
+      ]
+    },
+    {
+      "id": "mb-b950",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 951,
+      "expected": [
+        951
+      ]
+    },
+    {
+      "id": "mb-b957",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 958,
+      "expected": [
+        958
+      ]
+    },
+    {
+      "id": "mb-b962",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 963,
+      "expected": [
+        963
+      ]
+    },
+    {
+      "id": "mb-b1312",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.55,
+      "got": 1313,
+      "expected": [
+        1311,
+        1313
+      ]
+    },
+    {
+      "id": "mb-b1314",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1313,
+      "expected": [
+        1315,
+        1313
+      ]
+    },
+    {
+      "id": "mb-b1933",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 1934,
+      "expected": [
+        1934
+      ]
+    },
+    {
+      "id": "mb-b2360",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 2361,
+      "expected": [
+        2361
+      ]
+    },
+    {
+      "id": "mb-b2370",
+      "ok": true,
+      "rule": "adjacent",
+      "confidence": 0.6,
+      "got": 2371,
+      "expected": [
+        2371
+      ]
+    }
+  ]
+}

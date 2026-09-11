@@ -14,9 +14,12 @@
 
 import { randomUUID } from "node:crypto";
 
-import type { ChatMessage, MessageSource, SessionEvent } from "@carlife/shared";
+import type { AttachmentRef, ChatMessage, MessageSource, SessionEvent } from "@carlife/shared";
 import type { ChatRepository } from "@carlife/db";
 import type { SessionBus } from "../stream/session-bus";
+import { normalizeImageForModel } from "@carlife/tools";
+import type { RuntimeVideoAttachment, VideoDeriver } from "../media/derive";
+import type { TurnAttachmentPayload } from "./attachments";
 
 /**
  * **必须惰性读**，不能写成模块级 `const`。
@@ -31,6 +34,12 @@ import type { SessionBus } from "../stream/session-bus";
  *
  * 不变量由 `check:arch` 的 `env-timing` 守着。
  */
+/** 本轮绑定的附件（M71-04 图片；M80-01 起含视频）：网关取件后的原件，由 `prepareAttachments` 决定怎么转发。 */
+export type TurnAttachment = TurnAttachmentPayload;
+
+/** 转发 runtime 的附件形状（与 agent-runtime `server.ts` 的校验一一对应）。 */
+export type RuntimeTurnAttachment = { kind: "image"; handle: string; contentType: string; bytesBase64: string } | RuntimeVideoAttachment;
+
 export function runtimeUrl(): string {
   return process.env.AGENT_RUNTIME_URL ?? "http://localhost:8788";
 }
@@ -75,6 +84,12 @@ export class TurnService {
      * 跟着这个边界。不注入即不记。
      */
     private ttsEngineAtSend?: () => Promise<string | null>,
+    /**
+     * 视频派生（M80-01）：抽帧成帧序图 + 分段转写，产物随轮转发 runtime。
+     * 不注入（ffmpeg 不可用）时视频**照收照绑**，只是转发一份空产物并如实写 note——
+     * 车主的视频不能因为服务端少装了一个二进制就消失。
+     */
+    private media?: VideoDeriver,
   ) {}
 
   /**
@@ -143,6 +158,8 @@ export class TurnService {
      * 闸门超限降级时两者会不一样。
      */
     asrEngine?: string | null,
+    /** 本轮绑定的图片（M71-04）：随消息转发 runtime，不落 messages 表。 */
+    attachments?: TurnAttachment[],
   ): Promise<AcceptedTurn> {
     const turnId = `turn-${randomUUID().slice(0, 8)}`;
 
@@ -158,7 +175,7 @@ export class TurnService {
     await this.repo.appendMessage(userMessage, { asrEngine: asrEngine ?? null });
 
     // 不阻塞受理响应；事件经 SSE 下行。
-    void this.driveTurn(sessionId, turnId, content, source, userId, fillerEnabled).catch((err) => {
+    void this.driveTurn(sessionId, turnId, content, source, userId, fillerEnabled, attachments).catch((err) => {
       console.error(`[gateway] turn drive failed session=${sessionId} turn=${turnId}`, err);
       this.bus.append(sessionId, { type: "update", kind: "state", state: "idle" });
     });
@@ -221,7 +238,21 @@ export class TurnService {
     source: MessageSource,
     userId?: string,
     fillerEnabled?: boolean,
+    attachments?: TurnAttachment[],
   ): Promise<void> {
+    /*
+     * 带附件的轮（M80-01）：受理回执由**网关先发**，不等 runtime。
+     *
+     * 视频派生要几秒（抽帧 + 六段转写），而车主刚点了发送——他的那条气泡要当场出现，
+     * 缩略图也要当场有（`attachments` 引用此刻就齐了，不依赖派生结果）。
+     * runtime 稍后发来的同一轮 `prompt` 事件在 `handleLine` 里丢弃，免得端上收到两条。
+     */
+    const refs = attachmentRefs(attachments ?? []);
+    if (refs.length > 0) {
+      this.bus.append(sessionId, { type: "prompt", turnId, source, transcript: content, attachments: refs });
+    }
+    const runtimeAttachments = await this.prepareAttachments(sessionId, turnId, attachments ?? []);
+
     const res = await fetch(`${runtimeUrl()}/internal/session/${sessionId}/turn`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -233,6 +264,8 @@ export class TurnService {
         source,
         userId,
         ...(fillerEnabled === undefined ? {} : { fillerEnabled }),
+        // 照片原样转发（进观察层与表述模型，ACR-027）；视频转发的是派生产物，不是原件。
+        ...(runtimeAttachments.length ? { attachments: runtimeAttachments } : {}),
       }),
     });
     if (!res.ok || res.body === null) {
@@ -280,6 +313,9 @@ export class TurnService {
         });
         return;
       }
+
+      // 带附件的轮已在派生前发过受理回执（见 driveTurn 开头），runtime 这条不再下发。
+      if (event.type === "prompt" && refs.length > 0) return;
 
       this.bus.append(sessionId, event);
 
@@ -344,4 +380,86 @@ export class TurnService {
       this.cancelledTurns.delete(turnId);
     }
   }
+
+  /**
+   * 把本轮附件变成 runtime 能吃的形状（M80-01）：照片原样；视频派生成帧序图 + 转写。
+   *
+   * 派生期间给端上发一条 `tool_call`（F-08-05 的人话进展）——几秒的空白会被当成"没反应"。
+   * 派生失败**不抛**：转发一份空产物并写 note，让模型如实说"这次没看成视频"。
+   */
+  private async prepareAttachments(sessionId: string, turnId: string, attachments: TurnAttachment[]): Promise<RuntimeTurnAttachment[]> {
+    const out: RuntimeTurnAttachment[] = [];
+    for (const a of attachments) {
+      if (a.kind === "image") {
+        /*
+         * 照片先归一化（M80-04）：HEIC / BMP / TIFF 这些视觉模型读不了的格式转成 JPEG，
+         * 单边超 4096 的缩一下，EXIF 里躺倒的摆正。**只在必须时才动字节**——
+         * 观察层（M71）对小图标的分辨率是调过的，无谓重编码会让它认灯变差。
+         * 转不动不抛：原样转发，由运行时那道过滤把模型读不了的挡在模型之外。
+         */
+        const norm = await normalizeImageForModel(Buffer.from(a.bytesBase64, "base64"), a.contentType);
+        if (norm.note) console.log(`[gateway] 照片归一化 handle=${a.handle} ${norm.note}`);
+        out.push({
+          kind: "image",
+          handle: a.handle,
+          contentType: norm.contentType,
+          bytesBase64: norm.changed ? norm.bytes.toString("base64") : a.bytesBase64,
+        });
+        continue;
+      }
+      const toolCallId = `video-${turnId}-${a.handle.slice(0, 8)}`;
+      this.bus.append(sessionId, { type: "tool_call", toolCallId, toolName: "video_derive", displayName: "正在看视频（抽帧、听声音）", status: "started" });
+      let derived: RuntimeVideoAttachment;
+      if (!this.media) {
+        derived = emptyVideo(a, "服务端没接视频解析（ffmpeg 不可用），本次没有看视频");
+      } else {
+        try {
+          derived = await this.media(a, { sessionId, turnId });
+        } catch (err) {
+          console.error(`[gateway] 视频派生失败 session=${sessionId} turn=${turnId} handle=${a.handle}`, err);
+          derived = emptyVideo(a, `视频解析失败（${err instanceof Error ? err.message : String(err)}），本次没有看视频`);
+        }
+      }
+      const ok = derived.sheets.length > 0 || derived.transcript.length > 0;
+      this.bus.append(sessionId, {
+        type: "tool_call",
+        toolCallId,
+        toolName: "video_derive",
+        displayName: ok
+          ? `看完了视频（${derived.sheets.length} 张帧序图${derived.transcript.length ? `、${derived.transcript.length} 段声音转写` : ""}${derived.truncated ? "，只看了前 1 分钟" : ""}）`
+          : "视频没能解析",
+        status: ok ? "succeeded" : "failed",
+      });
+      out.push(derived);
+    }
+    return out;
+  }
+}
+
+/** 受理回执与历史里的附件引用：只有元数据，没有字节。 */
+export function attachmentRefs(attachments: readonly TurnAttachment[]): AttachmentRef[] {
+  return attachments.map((a) => ({
+    attachmentId: a.handle,
+    kind: a.kind,
+    handle: a.handle,
+    contentType: a.contentType,
+    bytes: a.bytes,
+    ...(a.filename ? { filename: a.filename } : {}),
+  }));
+}
+
+function emptyVideo(a: TurnAttachment, note: string): RuntimeVideoAttachment {
+  return {
+    kind: "video",
+    handle: a.handle,
+    contentType: a.contentType,
+    durationMs: 0,
+    analyzedMs: 0,
+    truncated: false,
+    sheets: [],
+    transcript: [],
+    transcriptStatus: "unavailable",
+    notes: [note],
+    timings: { probeMs: 0, framesMs: 0, sheetsMs: 0, audioMs: 0, asrMs: 0, totalMs: 0 },
+  };
 }

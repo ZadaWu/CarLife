@@ -34,6 +34,7 @@ export const TOOL_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   map_route: "正在算路线",
   poi_search: "正在找地点",
   route_audit: "正在核对路线顺序",
+  plan_audit: "正在核对行程安排",
   transit_route: "正在查大交通",
   pretrip_items: "正在整理出行物品",
   destination_highlights: "正在上网找当地好吃好拍的",

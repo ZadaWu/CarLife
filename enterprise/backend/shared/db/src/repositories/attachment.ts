@@ -28,6 +28,11 @@ export interface AttachmentRepository {
   findByIdempotencyKey(key: string): Promise<AttachmentMeta | null>;
   /** 会话（可选按轮）的附件，时间升序。 */
   list(sessionId: string, userId: string, turnId?: string): Promise<AttachmentMeta[]>;
+  /**
+   * 把附件绑到本轮（F-09-06，M71-04）。**只绑未绑过的**：返回 false 表示它已经属于别的轮
+   * ——同一张照片不能被两轮各算一次，调用方据此拒绝而不是静默覆盖。
+   */
+  bindTurn(handle: string, turnId: string): Promise<boolean>;
 }
 
 type Row = {
@@ -85,6 +90,11 @@ export function createAttachmentRepository(prisma: PrismaClient): AttachmentRepo
     async findByIdempotencyKey(key) {
       const r = await prisma.attachment.findUnique({ where: { idempotencyKey: key } });
       return r ? toDomain(r as Row) : null;
+    },
+
+    async bindTurn(handle, turnId) {
+      const r = await prisma.attachment.updateMany({ where: { id: handle, turnId: null }, data: { turnId } });
+      return r.count === 1;
     },
 
     async list(sessionId, userId, turnId) {

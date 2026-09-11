@@ -99,6 +99,13 @@ export const POS: Record<string, Point> = {
   // ——这一处从 M9-02 一直叠到现在，只是 START 那两个字太短所以没人看出来。
   understand: { x: 200, y: 300 },
   /*
+   * 看图节点（M71-04）在 START 与 understand 之间是**串行的一跳**（START→看图→understand，
+   * 没有 START→understand 的直连边）。它不与 understand 并排挤在主线上——那要把右边整条链
+   * 平移 200px；而是垂到主线下方，两条边一去一回都"往右"，读起来仍是前进而不是环。
+   * 没照片的轮次它直通，图上灰着不亮。
+   */
+  observeAttachments: { x: 100, y: 470 },
+  /*
    * 抽取会话**夹在 understand 与 riskGate 中间**，不是吊在下游节点正上方。
    *
    * 它有进有出（进：发起抽取；出：四要素回图状态供风险门与路由取用）。

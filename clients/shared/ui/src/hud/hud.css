@@ -545,6 +545,13 @@
   height: 46%;
   background: var(--hud-divider);
 }
+/* 数字与单位是一体的：竖屏折行时一起折，不许单位单独掉到下一行（2026-09-11 手机实拍「68 / %」）。 */
+.hud-energy__figure {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(4 * var(--hud-unit));
+  white-space: nowrap;
+}
 
 .hud-energy.is-stale { opacity: 0.94; }
 
@@ -578,14 +585,19 @@
   color: var(--hud-amber);
 }
 
-/* 读不到：不给数字也不给告警色。它是"不知道"，不是"很低"——
-   染成琥珀会让车主以为快没电了，那是把一次故障说成一个车辆状态。 */
-.hud-energy__metric--muted .hud-energy__value--none {
+/* 读不到 / 暂无：不给数字也不给告警色。它是"不知道"，不是"很低"——
+   染成琥珀会让车主以为快没电了，那是把一次故障说成一个车辆状态。
+   「暂无」（里程 / 用时还没算出来）同一副长相：与车机状态栏的 METRIC_EMPTY 同一条纪律。 */
+.hud-energy__value--none {
   font-size: var(--hud-font-caption);
   font-weight: 600;
   color: var(--hud-text-muted);
   align-self: center;
 }
+/* 路况折在「预计用时」的说明里：缓行 warn；「拥堵」是红色纪律点名允许用红的两个判定之一。 */
+.hud-energy__road { color: var(--hud-text-muted); }
+.hud-energy__road.is-slow { color: var(--hud-warn); }
+.hud-energy__road.is-jam { color: var(--hud-danger); }
 
 .hud-energy__stale {
   position: absolute;
@@ -812,6 +824,23 @@
      * 不补这个偏移的话整屏内容全部左对齐、右边空一条。
      */
     --hud-portrait-x: max(0px, calc((100vw - 390 * var(--hud-portrait-unit)) / 2));
+
+    /*
+     * 全宽卡（AI 生活向导头、行前提示、周日历、能量条）的左右留白，**按视口算不按舞台算**。
+     *
+     * 为什么要分开：尺度 `--hud-portrait-unit` 取的是宽高两个比例里小的那个，而竖屏的高度
+     * 预算要扣掉刘海、home indicator 和底部导航（见上面那段），于是**恒定被高度卡住**。
+     * iPhone 16 Pro Max 上实测 unit=0.912，390 个设计单位只铺到 356pt，剩下的 84pt
+     * 被 `--hud-portrait-x` 摊成左右各 42pt 的空白——卡片因此离屏幕边缘 51pt 远
+     * （用户 2026-09-10 真机反馈「宽度没都用上，左右间距很大」）。
+     *
+     * 这些卡片是横向排布的行，把它们钉在视口的 12pt 上不会破坏任何几何关系。
+     * ⚠️ 但**纵向时间轴那一块不能这么办**：轨道 SVG 的中线钉在 195 单位、
+     * 岛屿与标签是 `left: 220 / 228 * unit` 这样的绝对偏移，都以 390 单位宽的舞台为前提。
+     * 舞台一变宽，右侧那一列就会往中间飘，而左右交替的版式正是靠这些数撑着。
+     * 那一块保持等比居中；要改它得先把这些偏移改成右锚定或百分比。
+     */
+    --hud-portrait-gutter: 12px;
   }
 
   /* 横版固定场景在真竖屏完全隐藏，改用同数据源的 V2 纵向时间轴。 */
@@ -839,9 +868,15 @@
   .hud-portrait-timeline__header {
     position: absolute;
     z-index: 3;
-    left: calc(10 * var(--hud-portrait-unit));
+    /*
+     * 头卡也是全宽卡，但它住在**居中的舞台**里，所以要先把舞台那一侧的偏移
+     * (`--hud-portrait-x`) 抵掉，才落在视口的 12pt 上。舞台本身不动，理由见上面
+     * `--hud-portrait-gutter` 那段。
+     */
+    left: calc(var(--hud-portrait-gutter) - var(--hud-portrait-x));
+    right: calc(var(--hud-portrait-gutter) - var(--hud-portrait-x));
     top: calc(8 * var(--hud-portrait-unit));
-    width: calc(370 * var(--hud-portrait-unit));
+    width: auto;
     height: calc(54 * var(--hud-portrait-unit));
     display: grid;
     grid-template-columns: calc(34 * var(--hud-portrait-unit)) 1fr;
@@ -1117,10 +1152,10 @@
 
   /* ---------- V2 下段：集中提示卡 ---------- */
   .hud-tips {
-    left: calc(10 * var(--hud-portrait-unit) + var(--hud-portrait-x));
-    right: auto;
+    left: var(--hud-portrait-gutter);
+    right: var(--hud-portrait-gutter);
     top: calc(638 * var(--hud-portrait-unit) + var(--hud-portrait-top));
-    width: calc(370 * var(--hud-portrait-unit));
+    width: auto;
     height: calc(132 * var(--hud-portrait-unit));
     padding: calc(10 * var(--hud-portrait-unit)) calc(12 * var(--hud-portrait-unit));
     border-radius: calc(20 * var(--hud-portrait-unit));
@@ -1265,11 +1300,11 @@
    * 整段消失在屏幕外，而**没有任何滚动条或省略号提示它被截了**。
    */
   .hud-energy {
-    left: calc(10 * var(--hud-portrait-unit) + var(--hud-portrait-x));
-    right: auto;
+    left: var(--hud-portrait-gutter);
+    right: var(--hud-portrait-gutter);
     top: auto;
     bottom: calc(8 * var(--hud-portrait-unit));
-    width: calc(370 * var(--hud-portrait-unit));
+    width: auto;
     height: auto;
     min-height: calc(54 * var(--hud-portrait-unit));
     padding: calc(7 * var(--hud-portrait-unit)) calc(10 * var(--hud-portrait-unit));
@@ -1279,11 +1314,21 @@
   }
 
   .hud-energy__metric {
-    gap: calc(4 * var(--hud-portrait-unit));
+    gap: calc(2 * var(--hud-portrait-unit)) calc(4 * var(--hud-portrait-unit));
     /* 允许被压缩，也允许内部换行——但换行只发生在续航那一段上（见下）。 */
-    flex: 0 1 auto;
+    flex: 1 1 0;
+    min-width: 0;
     flex-wrap: wrap;
     justify-content: center;
+  }
+  /*
+   * 竖屏三格固定两行：说明在上、数字在下（手机定稿 home-v1.png 就是这个样子）。
+   * 说明文字变长之后（「预计里程」「预计用时」）一行放不下，与其让浏览器随机折，不如定死。
+   */
+  .hud-viewport[data-mode="portrait"] .hud-energy__caption {
+    flex-basis: 100%;
+    text-align: center;
+    line-height: 1.1;
   }
 
   /*
@@ -1328,11 +1373,38 @@
  * 底部导航（施工单 M2-05，F-01-06）——仅新增，不改动 M1-02 既有样式。
  * 热区尺寸对齐车机防误触要求；配色全部来自主题 token。
  * ============================================================ */
+/*
+ * 药丸的两个尺寸提成变量，因为**别的层要让开它**（对话输入条、列表底部、「有新消息」浮标）。
+ * 曾经那些层各写一个凑出来的常数，于是 2026-09-10 把药丸下压 14pt 之后，
+ * 输入条与药丸之间凭空多出 14pt——常数不会跟着动，而且这类偏差没有任何报错。
+ * 要让开它的地方一律用 `--hud-bottom-nav-clear`。
+ *
+ * ⚠️ `--hud-bottom-nav-h` 是**手写的**栏体高：48 热区 + 2×8 内距 + 2×1 描边 = 66。
+ * 改上面那三个数就得回来改它，`clients/shared/ui/test/bottom-nav-clear.test.ts` 守这条。
+ */
+:root {
+  --hud-bottom-nav-gap: 4px;
+  --hud-bottom-nav-h: 66px;
+  --hud-bottom-nav-clear: calc(
+    var(--hud-bottom-nav-gap) + env(safe-area-inset-bottom) + var(--hud-bottom-nav-h)
+  );
+}
 .hud-bottom-nav {
   position: fixed;
   left: 50%;
-  /* home indicator：不加的话导航药丸的下缘被它压住（车机端 env() 恒为 0）。 */
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  /*
+   * home indicator：不加 env() 的话导航药丸的下缘被它压住。
+   *
+   * ⚠️ 这个偏移是**加在安全区之上**的，两个数会叠。曾经写的是 18px，
+   * iPhone 16 Pro Max 上实测下缘离视口底边 52pt（18 + 34 的底部安全区），
+   * 底下空出一大条（用户 2026-09-10 真机反馈「底部导航应该再往下一点」）。
+   * 现在只留 4px：安全区已经把 home indicator 让开了，额外的呼吸位不需要再来一次。
+   *
+   * 判据不在模拟器上——桌面与模拟器的 env() 常为 0，两版长得一样。
+   * 真机数在 `clients/mobile/src/main.tsx` 上报的 `navGap` 里（要 `netdiag.on` 在场），
+   * 用 `devicectl device copy from` 取 `ui-metrics.txt`。
+   */
+  bottom: calc(var(--hud-bottom-nav-gap) + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
   display: flex;
@@ -1462,7 +1534,7 @@
   white-space: nowrap;
   font-size: 19px;
   font-weight: 600;
-  color: #1f3d63;
+  color: var(--hud-text);
   /* --clamp-x / --clamp-y 由贴边夹持在运行时写入（见 AmapTripLayer.clampToEdges）：
      胶囊超出可视区时把它平移回来。走 CSS 变量而不是 Marker.setOffset——
      后者实测对已上图的标记不生效（改了值位置纹丝不动）。
@@ -1508,7 +1580,7 @@
 .hud-tripmark__meta {
   font-size: 14px;
   font-weight: 500;
-  color: #5b7699;
+  color: var(--hud-text-muted);
   letter-spacing: 0.2px;
 }
 .hud-tripmark__badge {
@@ -1519,7 +1591,7 @@
   height: 30px;
   border-radius: 50%;
   background: #f5a623;
-  color: #fff;
+  color: var(--hud-badge-text);
   font-style: normal;
   font-size: 17px;
 }
@@ -1640,11 +1712,11 @@
   padding: 8px 18px;
   font-size: 18px;
   font-weight: 600;
-  color: #1f3d63;
+  color: var(--hud-text);
   background: transparent;
   cursor: pointer;
 }
-.hud-daytabs button.is-active { background: #f5a623; color: #fff; }
+.hud-daytabs button.is-active { background: #f5a623; color: var(--hud-badge-text); }
 
 /* ── 住宿策略横幅（M34-02）：换酒店日/到达日的"行李怎么办"在图上要有答案 ── */
 .hud-lodging {
@@ -1665,7 +1737,7 @@
   backdrop-filter: blur(6px);
   font-size: 13px;
   line-height: 1.5;
-  color: #1f3d63;
+  color: var(--hud-text);
 }
 .hud-lodging__item {
   /*
@@ -1678,7 +1750,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.hud-lodging__item b { color: #b26a00; font-weight: 700; margin-right: 2px; }
+.hud-lodging__item b { color: var(--hud-warn); font-weight: 700; margin-right: 2px; }
 
 /* ── 跟车顶栏（M31-03）────────────────────────────────────────
  *
@@ -1707,7 +1779,7 @@
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 24px rgba(31, 61, 99, 0.24);
   backdrop-filter: blur(6px);
-  color: #1f3d63;
+  color: var(--hud-text);
 }
 
 .hud-navbar__main {
@@ -1746,7 +1818,7 @@
   border-radius: 999px;
   border: 1px solid rgba(214, 106, 0, 0.5);
   background: rgba(255, 176, 32, 0.18);
-  color: #a35400;
+  color: var(--hud-warn);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -1823,5 +1895,1306 @@
     min-height: calc(44 * var(--hud-portrait-unit));
     padding: 0 calc(12 * var(--hud-portrait-unit));
     font-size: calc(20 * var(--hud-portrait-unit));
+  }
+}
+
+/* ============================================================
+ * 行程列表卡（M72-04，设计 内部文档）
+ *
+ * 钉在右上角、与提示卡同外壳；有它时提示卡窗下移收窄（`.hud-stage--has-trips`，
+ * 由页面层按"有没有行程"加）。**没有行程时两条选择器都不命中，提示卡窗原尺寸。**
+ * 只对横屏生效：竖屏版式（下面 @media 块）没有给它留位置，那里不渲染。
+ * ============================================================ */
+.hud-trips {
+  right: calc(32 * var(--hud-unit));
+  top: calc(112 * var(--hud-unit));
+  width: calc(462 * var(--hud-unit));
+  height: calc(200 * var(--hud-unit));
+  display: flex;
+  flex-direction: column;
+  padding: calc(14 * var(--hud-unit)) calc(20 * var(--hud-unit)) calc(10 * var(--hud-unit));
+}
+.hud-trips__head {
+  justify-content: flex-start;
+  gap: calc(10 * var(--hud-unit));
+}
+.hud-trips__icon {
+  width: calc(30 * var(--hud-unit));
+  height: calc(30 * var(--hud-unit));
+  stroke: var(--hud-pin);
+  stroke-width: 1.8;
+}
+[data-theme="dark"] .hud-trips__icon { stroke: var(--hud-amber); }
+.hud-trips__title {
+  font-size: var(--hud-font-body);
+  /* 右侧留出角标的位置：角标是绝对定位的，撑不开标题，不留就压在字上。 */
+  position: relative;
+  padding-right: calc(32 * var(--hud-unit));
+  /* 不折行、不被压：手机抽屉里它曾被换周控件挤成一列一字（2026-09-11 iPhone 实拍）。 */
+  flex: none;
+  white-space: nowrap;
+}
+/*
+ * 行程数角标（形态照 iOS 未读角标；2026-09-11 车机走查）。**两端共用**：手机端抽屉里的
+ * 完整卡也有它，之前只写在横屏块里，手机上渲染成一个裸的「6」贴在标题后面。
+ * 恒为琥珀：design-system.md §4 红色纪律点名「不给未读角标」用红。
+ * 数字用深蓝不用白：§7 只允许 ≥27 基准 px 加粗的白字压橙，这里 22。
+ */
+.hud-trips__title-count {
+  position: absolute;
+  top: calc(-10 * var(--hud-unit));
+  right: 0;
+  min-width: calc(32 * var(--hud-unit));
+  height: calc(32 * var(--hud-unit));
+  padding: 0 calc(7 * var(--hud-unit));
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--hud-radius-pill);
+  background: var(--hud-amber);
+  color: var(--hud-text);
+  font-size: calc(22 * var(--hud-unit));
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 calc(2 * var(--hud-unit)) var(--hud-card-bg);
+}
+.hud-trips__count {
+  margin-left: auto;
+  min-width: calc(30 * var(--hud-unit));
+  padding: 0 calc(8 * var(--hud-unit));
+  border-radius: var(--hud-radius-pill);
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+  font-size: var(--hud-font-caption);
+  font-weight: 700;
+  line-height: calc(26 * var(--hud-unit));
+  text-align: center;
+}
+.hud-trips__list {
+  flex: 1;
+  min-height: 0;
+  margin: calc(6 * var(--hud-unit)) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--hud-unit));
+}
+/* 超过 3 程卡内滚动——挤占地图或叠在别的卡上都比滚动糟（与导览进度卡同一取舍）。 */
+.hud-trips__list.is-scroll { overflow-y: auto; }
+.hud-trips__row {
+  display: grid;
+  grid-template-columns: 1fr auto calc(22 * var(--hud-unit));
+  align-items: center;
+  gap: calc(8 * var(--hud-unit));
+  min-height: calc(52 * var(--hud-unit));
+  padding: 0 calc(6 * var(--hud-unit)) 0 calc(8 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
+}
+.hud-trips__row.is-selected {
+  background: color-mix(in srgb, var(--hud-amber) 14%, transparent);
+}
+.hud-trips__main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(1 * var(--hud-unit));
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--hud-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hud-trips__route {
+  max-width: 100%;
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-trips__meta {
+  font-size: calc(19 * var(--hud-unit));
+  color: var(--hud-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.hud-trips__days {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--hud-unit));
+}
+.hud-trips__weather {
+  width: calc(22 * var(--hud-unit));
+  height: calc(22 * var(--hud-unit));
+  object-fit: contain;
+}
+/* 灰点 = 没查到 / 没定日期，不是晴天（F-01-05）。 */
+.hud-trips__dot--unknown {
+  width: calc(8 * var(--hud-unit));
+  height: calc(8 * var(--hud-unit));
+  margin: 0 calc(7 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-divider);
+}
+.hud-trips__more {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+.hud-trips__flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(22 * var(--hud-unit));
+  height: calc(22 * var(--hud-unit));
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.hud-trips__flag--none { cursor: default; }
+.hud-trips__flag-dot {
+  width: calc(12 * var(--hud-unit));
+  height: calc(12 * var(--hud-unit));
+  border-radius: 50%;
+  background: var(--hud-amber);
+  box-shadow: 0 0 0 calc(3 * var(--hud-unit)) color-mix(in srgb, var(--hud-amber) 25%, transparent);
+}
+/* critical：脉冲一下，让人看得见"这个不一样"；减少动态时静止。 */
+.hud-trips__row.is-critical .hud-trips__flag-dot,
+.hud-week__lane.is-critical .hud-trips__flag-dot {
+  background: var(--hud-danger);
+  box-shadow: 0 0 0 calc(3 * var(--hud-unit)) color-mix(in srgb, var(--hud-danger) 25%, transparent);
+  animation: hud-trips-pulse 1.6s ease-in-out infinite;
+}
+@keyframes hud-trips-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-trips__row.is-critical .hud-trips__flag-dot,
+  .hud-week__lane.is-critical .hud-trips__flag-dot { animation: none; }
+}
+
+/* 有行程时提示卡窗让位：下移 200 + 16 间距，高度相应收窄；只在横屏。
+   物品图标框跟着矮一点（168 → 132）：三件图标仍齐平，只是整体小一号。 */
+@media (min-aspect-ratio: 85/100) {
+  .hud-viewport.hud-stage--has-trips .hud-tips {
+    top: calc(328 * var(--hud-unit));
+    height: calc(362 * var(--hud-unit));
+  }
+  .hud-viewport.hud-stage--has-trips .hud-tips__icon {
+    height: calc(132 * var(--hud-unit));
+  }
+  .hud-viewport.hud-stage--has-trips .hud-tips__divider {
+    margin: calc(12 * var(--hud-unit)) 0 calc(6 * var(--hud-unit));
+  }
+}
+/* ------------------------------------------------------------
+ * 竖屏（M75-01，手机端）：周日历卡的**紧凑形态**落在提示卡的槽位（10 / 626 / 370×144）。
+ * 竖屏没有第二块空地——助手卡占到 618u、能量胶囊在底；清单与翻页进抽屉（App 层），
+ * 这里只放工具条 + 七列 + 至多 3 条色块。抽屉里那份完整卡不在 `.hud-viewport` 内，不受这段影响。
+ * ------------------------------------------------------------ */
+@media (max-aspect-ratio: 85/100) {
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar {
+    left: var(--hud-portrait-gutter);
+    right: var(--hud-portrait-gutter);
+    top: calc(626 * var(--hud-portrait-unit) + var(--hud-portrait-top));
+    width: auto;
+    height: calc(144 * var(--hud-portrait-unit));
+    padding: calc(8 * var(--hud-portrait-unit)) calc(12 * var(--hud-portrait-unit)) calc(6 * var(--hud-portrait-unit));
+    border-radius: calc(20 * var(--hud-portrait-unit));
+    overflow: hidden;
+  }
+  /*
+   * 紧凑卡的头只留换周控件（‹ 9/7 – 9/13 › 本周 · 全部 N 程），「我的行程」标题、图标、角标省掉——
+   * 卡只有 144u 高。⚠️ 不能整个 `display: none`：车机那一轮把换周控件并进了头部这一行，
+   * 藏掉头部就把换周也藏了（2026-09-11 iPhone 模拟器实拍：紧凑卡上只剩七列，换不了周）。
+   */
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar .hud-trips__head {
+    display: flex;
+    align-items: center;
+    min-height: calc(28 * var(--hud-portrait-unit));
+    margin-bottom: calc(2 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar .hud-trips__icon,
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar .hud-trips__title { display: none; }
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar .hud-week__toolbar { margin-left: 0; width: 100%; height: auto; }
+  .hud-viewport[data-mode="portrait"] .hud-trips--calendar .hud-week__all { margin-left: auto; }
+  .hud-viewport[data-mode="portrait"] .hud-week {
+    margin-top: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__toolbar { gap: calc(6 * var(--hud-portrait-unit)); margin-bottom: 0; }
+  .hud-viewport[data-mode="portrait"] .hud-week__nav {
+    width: calc(28 * var(--hud-portrait-unit));
+    height: calc(28 * var(--hud-portrait-unit));
+    font-size: calc(18 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__range {
+    flex: none;
+    /* 最宽的「12/21 – 12/27」在 12u 字号下 ≈ 84u（横屏 18u 字号实测 126u 等比）；定宽之后换周头部不跳。 */
+    min-width: calc(84 * var(--hud-portrait-unit));
+    font-size: calc(12 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__today,
+  .hud-viewport[data-mode="portrait"] .hud-week__all {
+    height: calc(24 * var(--hud-portrait-unit));
+    padding: 0 calc(8 * var(--hud-portrait-unit));
+    font-size: calc(11 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__col { padding: calc(1 * var(--hud-portrait-unit)) 0; gap: 0; }
+  .hud-viewport[data-mode="portrait"] .hud-week__dow { font-size: calc(10 * var(--hud-portrait-unit)); }
+  .hud-viewport[data-mode="portrait"] .hud-week__date {
+    width: calc(22 * var(--hud-portrait-unit));
+    height: calc(22 * var(--hud-portrait-unit));
+    font-size: calc(12 * var(--hud-portrait-unit));
+  }
+  /*
+   * 色块与车机同一形态（2026-09-11 走查）：薄的单色胶囊、不写字，一程一支色
+   * （`--trip-color` 由组件按清单位置写进来），待定的同色打淡。
+   * 旧形态是带文字的虚线胶囊，在 16u 高里字根本读不出来，只剩一圈虚线。
+   */
+  .hud-viewport[data-mode="portrait"] .hud-week__bars {
+    grid-auto-rows: calc(8 * var(--hud-portrait-unit));
+    row-gap: calc(3 * var(--hud-portrait-unit));
+    margin-top: calc(4 * var(--hud-portrait-unit));
+    min-height: calc(30 * var(--hud-portrait-unit));
+    align-content: start;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__empty { font-size: calc(11 * var(--hud-portrait-unit)); }
+  .hud-viewport[data-mode="portrait"] .hud-week__lane { height: calc(8 * var(--hud-portrait-unit)); }
+  .hud-viewport[data-mode="portrait"] .hud-week__bar {
+    height: calc(8 * var(--hud-portrait-unit));
+    padding: 0;
+    border: none;
+    border-radius: calc(4 * var(--hud-portrait-unit));
+    background: var(--trip-color, var(--hud-amber));
+    box-shadow: none;
+    font-size: 0;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__bar-text { display: none; }
+  .hud-viewport[data-mode="portrait"] .hud-week__bar.is-ongoing { background: var(--trip-color, var(--hud-pin)); }
+  .hud-viewport[data-mode="portrait"] .hud-week__bar.is-tentative {
+    box-sizing: border-box;
+    border: none;
+    background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 45%, transparent);
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__bar.is-selected,
+  .hud-viewport[data-mode="portrait"] .hud-week__bar.is-tentative.is-selected {
+    box-shadow: 0 0 0 calc(2 * var(--hud-portrait-unit)) var(--hud-card-bg), 0 0 0 calc(3.5 * var(--hud-portrait-unit)) var(--trip-color, var(--hud-amber));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__flag {
+    right: calc(2 * var(--hud-portrait-unit));
+    width: calc(16 * var(--hud-portrait-unit));
+    height: calc(16 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-week__flag .hud-trips__flag-dot {
+    width: calc(8 * var(--hud-portrait-unit));
+    height: calc(8 * var(--hud-portrait-unit));
+    box-shadow: 0 0 0 calc(2 * var(--hud-portrait-unit)) color-mix(in srgb, var(--hud-amber) 25%, transparent);
+  }
+}
+
+/* ============================================================
+ * 两态（M73-01）：未选中 = 周日历行程卡占提示卡整框；选中 = 顶部日期条 + 紧凑列表 + 提示卡。
+ * 概念图 output/imagegen/trip-list-dates/{B-week-strip,C-date-pill-above-map}.png
+ * ============================================================ */
+.hud-trips.hud-trips--calendar {
+  height: calc(578 * var(--hud-unit));
+  padding-bottom: calc(14 * var(--hud-unit));
+}
+.hud-week {
+  margin-top: calc(10 * var(--hud-unit));
+  padding-bottom: calc(10 * var(--hud-unit));
+  border-bottom: 1px dashed var(--hud-divider);
+}
+.hud-week__head,
+.hud-week__bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  column-gap: calc(4 * var(--hud-unit));
+}
+.hud-week__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(2 * var(--hud-unit));
+  padding: calc(4 * var(--hud-unit)) 0;
+}
+.hud-week__dow {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+.hud-week__date {
+  width: calc(34 * var(--hud-unit));
+  height: calc(34 * var(--hud-unit));
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--hud-font-body);
+  font-weight: 700;
+}
+.hud-week__col.is-today .hud-week__dow { color: var(--hud-amber); }
+.hud-week__col.is-today .hud-week__date {
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hud-week__bars {
+  grid-auto-rows: calc(10 * var(--hud-unit));
+  row-gap: calc(4 * var(--hud-unit));
+  margin-top: calc(6 * var(--hud-unit));
+  min-height: calc(38 * var(--hud-unit));
+  align-content: start;
+}
+.hud-week__empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  text-align: center;
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+.hud-week__lane {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+/*
+ * 周内行程 = 薄的单色胶囊、不写字，一程一支色（`--trip-color` 由组件按清单位置写进来，
+ * 与清单里同一程的色条对上）；没定日期的同色打淡——它是「默认明天出发」的口径不是用户定的日子（M75-03）。
+ * 2026-09-11 起两端所有形态统一是这个样子：原来的"带字虚线胶囊"只剩手机抽屉在用，16u 高里字读不出来，
+ * 只剩一圈虚线（iPhone 实拍）。"这根线是谁"由清单里同色那一行回答。
+ */
+.hud-week__lane { height: calc(10 * var(--hud-unit)); }
+.hud-week__bar {
+  flex: 1;
+  min-width: 0;
+  height: calc(10 * var(--hud-unit));
+  padding: 0;
+  border: none;
+  border-radius: calc(5 * var(--hud-unit));
+  background: var(--trip-color, var(--hud-amber));
+  color: transparent;
+  font: inherit;
+  font-size: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+.hud-week__bar.is-ongoing { background: var(--trip-color, var(--hud-pin)); }
+.hud-week__bar.is-tentative {
+  box-sizing: border-box;
+  border: none;
+  background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 45%, transparent);
+}
+.hud-week__bar.is-selected,
+.hud-week__bar.is-tentative.is-selected {
+  box-shadow: 0 0 0 calc(2 * var(--hud-unit)) var(--hud-card-bg), 0 0 0 calc(4 * var(--hud-unit)) var(--trip-color, var(--hud-amber));
+}
+/* 顶部日期条上的「待定」小标：与清单的日期标签同一枚琥珀描边。 */
+.hud-datebar__tentative {
+  margin-left: calc(8 * var(--hud-unit));
+  vertical-align: middle;
+}
+/* 跨出本周：那一端裁成直角 + 小箭头，说明"还在延续"。 */
+.hud-week__bar.is-clipped-start { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.hud-week__bar.is-clipped-end { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.hud-week__bar.is-clipped-end .hud-week__bar-text::after { content: " ›"; color: var(--hud-text-muted); }
+.hud-week__bar.is-clipped-start .hud-week__bar-text::before { content: "‹ "; color: var(--hud-text-muted); }
+.hud-week__bar-text { display: none; }
+.hud-week__flag {
+  position: absolute;
+  right: calc(4 * var(--hud-unit));
+}
+.hud-trips__list--calendar {
+  margin-top: calc(8 * var(--hud-unit));
+}
+.hud-trips__date {
+  display: inline-block;
+  margin-right: calc(8 * var(--hud-unit));
+  padding: 0 calc(8 * var(--hud-unit));
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-pill);
+  color: var(--hud-amber);
+  /* 比正文小两档（2026-09-11 车机走查「待定再小一点」，两端同步），描边胶囊自己够醒目。 */
+  font-size: calc(15 * var(--hud-unit));
+  font-weight: 700;
+  line-height: calc(20 * var(--hud-unit));
+}
+
+/* 顶部日期条：地图上方居中；跟车顶栏在场时页面层不渲染它。 */
+.hud-datebar {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 89;
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--hud-unit));
+  height: calc(76 * var(--hud-unit));
+  padding: 0 calc(16 * var(--hud-unit)) 0 calc(24 * var(--hud-unit));
+  border-radius: var(--hud-radius-pill);
+  white-space: nowrap;
+}
+.hud-datebar__icon {
+  width: calc(34 * var(--hud-unit));
+  height: calc(34 * var(--hud-unit));
+  stroke: var(--hud-amber);
+  stroke-width: 1.8;
+}
+.hud-datebar__dates {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(10 * var(--hud-unit));
+  font-size: calc(36 * var(--hud-unit));
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.hud-datebar__arrow { color: var(--hud-amber); font-weight: 400; }
+.hud-datebar__meta {
+  font-size: var(--hud-font-body);
+  font-weight: 600;
+  color: var(--hud-amber);
+}
+.hud-datebar__close {
+  width: calc(44 * var(--hud-unit));
+  height: calc(44 * var(--hud-unit));
+  margin-left: calc(4 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hud-text-muted);
+  font-size: calc(30 * var(--hud-unit));
+  line-height: 1;
+  cursor: pointer;
+}
+/* 日期条在场时，行程视图切换的药丸让到它下面。 */
+.hud-viewport.hud-stage--trip-selected .hud-daytabs {
+  top: calc(14px + env(safe-area-inset-top) + 76 * var(--hud-unit) + 10px);
+}
+/* 竖屏（M75-01）：日期条全宽贴状态栏下，日期一行、目的地一行——390 宽放不下一行；
+   它盖住时间轴的头（两者讲的是同一程），选中态把那个头藏起来。 */
+@media (max-aspect-ratio: 85/100) {
+  .hud-viewport[data-mode="portrait"] .hud-datebar {
+    left: 12px;
+    right: 12px;
+    top: calc(12px + env(safe-area-inset-top));
+    transform: none;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "icon dates close"
+      "icon meta close";
+    align-items: center;
+    column-gap: calc(8 * var(--hud-portrait-unit));
+    row-gap: calc(2 * var(--hud-portrait-unit));
+    height: auto;
+    min-height: calc(56 * var(--hud-portrait-unit));
+    padding: calc(6 * var(--hud-portrait-unit)) calc(8 * var(--hud-portrait-unit)) calc(6 * var(--hud-portrait-unit)) calc(12 * var(--hud-portrait-unit));
+    border-radius: calc(18 * var(--hud-portrait-unit));
+    white-space: normal;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-datebar__icon {
+    grid-area: icon;
+    width: calc(24 * var(--hud-portrait-unit));
+    height: calc(24 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"] .hud-datebar__dates {
+    grid-area: dates;
+    gap: calc(6 * var(--hud-portrait-unit));
+    font-size: calc(17 * var(--hud-portrait-unit));
+    white-space: nowrap;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-datebar__meta {
+    grid-area: meta;
+    font-size: calc(12 * var(--hud-portrait-unit));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hud-viewport[data-mode="portrait"] .hud-datebar__close {
+    grid-area: close;
+    width: calc(36 * var(--hud-portrait-unit));
+    height: calc(36 * var(--hud-portrait-unit));
+    margin-left: 0;
+    font-size: calc(22 * var(--hud-portrait-unit));
+  }
+  .hud-viewport[data-mode="portrait"].hud-stage--trip-selected .hud-portrait-timeline__header { visibility: hidden; }
+}
+
+/*
+ * 一程一支色：琥珀 / 蓝 / 绿 / 紫，按清单位置轮转（`tripColorIndex`）。没有红——红只给拥堵和读不到。
+ * **两端共用**：曾经写在车机横屏块里，手机竖屏取不到，周条上每一程都退回琥珀（2026-09-11 iPhone 实拍）。
+ */
+:root {
+  --hud-trip-c0: var(--hud-amber);
+  --hud-trip-c1: var(--hud-pin);
+  --hud-trip-c2: #2fbf9b;
+  --hud-trip-c3: #8e7cc3;
+}
+/* 周日历卡翻页（M74-01）：周条 ‹ › 与「本周」，清单页脚 ‹ N / M ›。按钮热区 44u。 */
+.hud-week__toolbar {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--hud-unit));
+  margin-bottom: calc(2 * var(--hud-unit));
+}
+.hud-week__nav,
+.hud-trips__pager-btn {
+  width: calc(44 * var(--hud-unit));
+  height: calc(44 * var(--hud-unit));
+  padding: 0;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hud-text);
+  font-size: calc(28 * var(--hud-unit));
+  line-height: 1;
+  cursor: pointer;
+}
+.hud-week__nav:disabled,
+.hud-trips__pager-btn:disabled { opacity: 0.35; cursor: default; }
+.hud-week__range {
+  flex: 1;
+  text-align: center;
+  font-size: var(--hud-font-caption);
+  font-weight: 700;
+  color: var(--hud-text-muted);
+  /* 等宽数字：「9/7 – 9/13」与「12/21 – 12/27」换着来时两侧不挪（车机横屏另有定宽槽）。 */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hud-week__today {
+  padding: 0 calc(12 * var(--hud-unit));
+  height: calc(36 * var(--hud-unit));
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-pill);
+  background: transparent;
+  color: var(--hud-amber);
+  font-size: var(--hud-font-caption);
+  font-weight: 700;
+  cursor: pointer;
+  /*
+   * 两端共用（2026-09-11 车机走查改的两条，手机同样吃）：
+   * - 文字靠 flex 居中，不靠 line-height：按钮定高，`line-height: normal` 在 WKWebView 里
+   *   按中文字体行距算出的盒子偏高，字沉在下半截（iPad 实拍）；
+   * - 它常驻渲染、换周时不再忽隐忽现（工具条宽度不变，头部不跳），在本周时靠 is-hidden 隐形。
+   */
+  flex: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.hud-week__today.is-hidden { visibility: hidden; pointer-events: none; }
+/* 「全部 N 程 ›」（M75-01 紧凑形态）：与「本周」同族的琥珀描边药丸，只在给了 onOpenList 时渲染。 */
+.hud-week__all {
+  padding: 0 calc(12 * var(--hud-unit));
+  height: calc(36 * var(--hud-unit));
+  border: 1px solid var(--hud-amber);
+  border-radius: var(--hud-radius-pill);
+  background: transparent;
+  color: var(--hud-amber);
+  font: inherit;
+  font-size: var(--hud-font-caption);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hud-trips__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10 * var(--hud-unit));
+  margin-top: auto;
+  padding-top: calc(8 * var(--hud-unit));
+}
+.hud-trips__pager-num {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-text-muted);
+}
+.hud-trips__pager-num b { color: var(--hud-amber); }
+.hud-trips__pager-dots { display: flex; gap: calc(8 * var(--hud-unit)); }
+
+/* ============================================================
+ * 新版车机 UI（2026-09-08 定稿：内部文档、
+ * trip-plan-active-xuzhou-final.png）。
+ *
+ * 四件事：① 页签上提到屏顶的顶栏；② 能量胶囊摊开成屏底的出行状态栏；
+ * ③ 暖暖的提示卡收成一行胶囊 + 对话气泡；④ 地图站点胶囊改成"圆缩略图 + 两行字"的卡。
+ * 顶栏占掉屏顶 68 个单位，原来钉在 `top:14px` 的那几条（日期条 / 逐日页签 / 住宿横幅 /
+ * 跟车顶栏）全部下移到它底下；屏底 132 个单位给状态栏，右列卡片与暖暖都得在它上面收住。
+ *
+ * ⚠️ 这一段**必须在文件末尾**：它覆盖的选择器与前文同特异度，靠顺序取胜。
+ * 竖屏（手机）另有一整套 `[data-mode="portrait"]` 规则，本段只写横屏，不动手机。
+ * ============================================================ */
+:root {
+  /*
+   * 顶栏总高 = 栏体 68 + 刘海安全区。把 env() 算进这个变量里，下面所有
+   * `top: var(--hud-topbar-h)` 的让位就自动跟着走；车机上 env() 恒为 0，一个像素不变。
+   */
+  --hud-topbar-h: calc(68 * var(--hud-unit) + env(safe-area-inset-top));
+  --hud-statusbar-h: calc(114 * var(--hud-unit));
+  --hud-statusbar-gap: calc(18 * var(--hud-unit));
+}
+
+/* ── ① 顶栏 ─────────────────────────────────────────────── */
+.hud-topbar {
+  position: fixed;
+  /*
+   * 让开刘海/灵动岛：贴 `top: 0` 的话整条落进状态栏那一带，**那里用户看不见下面的 UI**
+   * （F-01-07，`clients/mobile/test/notch-overlays.test.ts` 守着这条）。车机端 env() 恒为 0。
+   */
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  height: calc(68 * var(--hud-unit));
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  padding: 0 calc(28 * var(--hud-unit));
+  background: color-mix(in srgb, var(--hud-card-bg) 92%, transparent);
+  border-bottom: 1px solid var(--hud-card-border);
+  box-shadow: 0 calc(6 * var(--hud-unit)) calc(20 * var(--hud-unit)) rgba(70, 120, 170, 0.12);
+  backdrop-filter: blur(14px);
+  color: var(--hud-text);
+  font-family: var(--font-ui);
+  user-select: none;
+}
+.hud-topbar__home {
+  display: grid;
+  place-items: center;
+  width: calc(48 * var(--hud-unit));
+  height: calc(48 * var(--hud-unit));
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hud-text);
+  cursor: pointer;
+}
+.hud-topbar__home svg {
+  width: calc(30 * var(--hud-unit));
+  height: calc(30 * var(--hud-unit));
+}
+.hud-topbar__home:active { background: color-mix(in srgb, var(--hud-amber) 16%, transparent); }
+.hud-topbar__tabs {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: calc(6 * var(--hud-unit));
+  padding: calc(5 * var(--hud-unit));
+  border-radius: 999px;
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--hud-card-shadow);
+}
+.hud-topbar__tab {
+  min-width: calc(112 * var(--hud-unit));
+  height: calc(46 * var(--hud-unit));
+  padding: 0 calc(22 * var(--hud-unit));
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hud-text-muted);
+  font-size: calc(22 * var(--hud-unit));
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.hud-topbar__tab.is-active {
+  background: var(--hud-amber);
+  color: var(--hud-badge-text);
+}
+.hud-topbar__tab:disabled { opacity: 0.4; cursor: default; }
+.hud-topbar__status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--hud-unit));
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hud-topbar__weather {
+  width: calc(36 * var(--hud-unit));
+  height: calc(36 * var(--hud-unit));
+  object-fit: contain;
+}
+.hud-topbar__divider {
+  width: 1px;
+  height: calc(28 * var(--hud-unit));
+  background: var(--hud-divider);
+  margin: 0 calc(4 * var(--hud-unit));
+}
+.hud-topbar__time {
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 重新锚定屏顶那几条，让到顶栏底下。
+ *
+ * ⚠️ **整组必须关在横屏里**。段首写着「本段只写横屏，不动手机」，但那句话靠的是
+ * "这些类名只有车机在用"——而 `.hud-tips` / `.hud-trips` / `.hud-datebar` / `.hud-daytabs`
+ * / `.hud-lodging` / `.hud-navbar` / `.cloc-locate` 手机竖屏全都在用。竖屏那套写在
+ * `@media (max-aspect-ratio: 85/100)` 里、选择器是裸类名（0,1,0），而这里带了 `.hud-viewport`
+ * （0,2,0）——**媒体查询不参与特异度**，于是这几条照样把竖屏的位置盖掉。
+ *
+ * 表现（2026-09-10 真机）：手机首页的「行前温馨提示」被拽到屏顶，压住时间轴的第一个岛屿，
+ * 而它本该待的下半屏空着一大块。定稿 `内部文档` 里它在暖暖下面。
+ */
+@media (min-aspect-ratio: 85/100) {
+  .hud-viewport .hud-datebar,
+  .hud-daytabs,
+  .hud-lodging,
+  .hud-navbar {
+    top: calc(var(--hud-topbar-h) + 12 * var(--hud-unit) + env(safe-area-inset-top));
+  }
+  .hud-viewport.hud-stage--trip-selected .hud-daytabs {
+    top: calc(var(--hud-topbar-h) + 12 * var(--hud-unit) + env(safe-area-inset-top) + 76 * var(--hud-unit) + 10px);
+  }
+  /*
+   * 「回到全程」（map.css 里贴的是右上角 top 32u）：新版有了顶栏，32u 正好落在顶栏底下，
+   * `elementFromPoint` 取到的是 `.hud-topbar`——看得见一角、点不到（用户 2026-09-11 反馈"被遮挡"）。
+   * 挪到顶栏底下、右列卡片的左边：右列（行程 / 提示卡）宽 462u、离右边 32u，
+   * 按钮右缘再让 24u。这一带在两种舞台里都只有底图：
+   * has-trips 时右列从顶栏下 14u 起，trip-selected 时日期条在左上、提示卡在右列往下 112u。
+   */
+  .hud-viewport .hud-map-recenter {
+    top: calc(var(--hud-topbar-h) + 14 * var(--hud-unit));
+    right: calc((32 + 462 + 24) * var(--hud-unit));
+  }
+  /*
+   * 选中行程后顶部多出日期条（x 445–1603、高 76u），正好压在同一带上——
+   * 实测 elementFromPoint 取到的是 `.hud-datebar__meta`。这时再往下让一条日期条的高度。
+   */
+  .hud-viewport.hud-stage--trip-selected .hud-map-recenter {
+    top: calc(var(--hud-topbar-h) + (14 + 76 + 12) * var(--hud-unit));
+  }
+  /* 右上角「定位到我」：右列现在整块是行程 / 提示卡，它挪到暖暖右侧、状态栏上方。 */
+  .hud-viewport .cloc-locate {
+    top: auto;
+    right: auto;
+    left: calc(748 * var(--hud-unit));
+    bottom: calc(var(--hud-statusbar-h) + var(--hud-statusbar-gap) + 16 * var(--hud-unit));
+  }
+  /* 右列卡片：顶到顶栏底下；选中行程时日期条占一带，再往下让。高度不变，
+     底边 82+578=660 / 180+578=758，都在状态栏（顶边 809）之上。 */
+  .hud-viewport .hud-tips,
+  .hud-viewport .hud-trips {
+    top: calc(var(--hud-topbar-h) + 14 * var(--hud-unit));
+  }
+  .hud-viewport.hud-stage--trip-selected .hud-tips {
+    top: calc(var(--hud-topbar-h) + 112 * var(--hud-unit));
+  }
+
+  /* ── 「我的行程」卡（2026-09-10 向定稿对齐；2026-09-11 按用户走查再收） ─────
+   * 定稿 `内部文档` 右列那张卡。走查定下的七条：
+   * 换周控件要稳（高度不随内容变）；周内行程画成**薄的**单色胶囊、不写字；清单一页 3 行、
+   * 行的颜色与周条胶囊对上；不要「9月10日 星期四」那一行；标题右上角一枚角标——
+   * 当天走查先要「提示点代替 N」、看过之后又要把数字放回点里（照 iOS 未读红点），现行是后者；
+   * 「这一周没有行程」不许把卡撑高；页脚只留 1 / 2、不要圆点。
+   * 关在横屏里：手机竖屏那份是紧凑形态，另有一套尺寸。
+   */
+  .hud-trips.hud-trips--calendar {
+    /*
+     * 卡高按内容的**最大形态**定死：头 52 + 周条（周几/日期 56 + 三道薄胶囊 38）+ 清单 3×74 + 间距 + 页脚 44。
+     * 定死而不是 auto，是走查第 6 条的根：内容忽多忽少时卡的顶边不能跟着跳。
+     */
+    height: calc(536 * var(--hud-unit));
+  }
+  /* 头部一行：标题在左，换周控件靠右；高度钉死，多出「本周」按钮也不许撑高。 */
+  .hud-trips__head {
+    align-items: center;
+    min-height: calc(44 * var(--hud-unit));
+    flex-wrap: nowrap;
+  }
+  /*
+   * 标题**不许折行、不许被压缩**。它是 flex 子项，工具条一变宽（换到别的周多出「本周」）
+   * 它就会被挤成「我的行/程」两行、头部随之跳高（2026-09-11 iPad 模拟器实拍）。
+   * 右侧留出角标的位置：角标是绝对定位的，撑不开标题，不留就压在字上。
+   */
+  .hud-trips__title {
+    position: relative;
+    flex: none;
+    white-space: nowrap;
+    padding-right: calc(32 * var(--hud-unit));
+  }
+  /*
+   * 行程数角标（形态照 iOS 未读角标）。两位数时靠左右内边距长成胶囊，不去挤压数字。
+   *
+   * ⚠️ 数字用深蓝 `--hud-text`，**不用 `--hud-badge-text`**——后者在浅色主题里是纯白，
+   * 而 design-system.md §7 写着「白字压橙只允许出现在 ≥ 27 基准 px 加粗的胶囊 / 徽标上」
+   * （白压橙实测 2.03:1）。这枚角标的数字是 22 基准 px，够不着那条豁免。
+   * 深蓝压琥珀实测 5.43:1，过 4.5。把字号放大到 27 也能用白字，但那样角标会长到和标题一样高。
+   */
+  /*
+   * 没有 `.is-critical` 这一档——角标恒为琥珀。design-system.md §4 的红色纪律点名了这个位置：
+   * 「红只给『拥堵』和『读不到』两个判定，不给强调、不给未读角标、不给删除按钮」。
+   * 要表达"哪一程出了变化"，看清单里那一行的变化点。
+   */
+  .hud-week__toolbar {
+    margin-left: auto;
+    margin-bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: calc(3 * var(--hud-unit));
+    height: calc(36 * var(--hud-unit));
+    /*
+     * 工具条自己也不许被压：它的宽度由下面几个定宽件决定，换周时不变。
+     *
+     * 头部预算 420u = 图标 30 + 间距 10 + 标题 106 + 角标位 32 + 工具条 (30+30+126+46+3×3)
+     * = 419u。周范围槽按**最宽的标签**「12/21 – 12/27」定（实测 125.7u）：
+     * 2026-09-11 用户翻到 12 月时两位数的月份把槽撑到 126u，工具条变宽、把标题连同日历图标
+     * 一起挤出头部左缘（图标只剩一条边）。槽定到最宽之后，一年里哪一周头部都一个像素不动。
+     */
+    flex: none;
+  }
+  .hud-week__nav {
+    width: calc(30 * var(--hud-unit));
+    height: calc(30 * var(--hud-unit));
+    border: none;
+    background: color-mix(in srgb, var(--hud-pin) 8%, transparent);
+    color: var(--hud-text);
+    font-size: calc(22 * var(--hud-unit));
+  }
+  .hud-week__range {
+    flex: none;
+    /* 最宽的「12/21 – 12/27」实测 125.7u（等宽数字）；槽定 126u，任何一周两侧都不挪。 */
+    min-width: calc(126 * var(--hud-unit));
+    text-align: center;
+    font-size: calc(18 * var(--hud-unit));
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--hud-text);
+  }
+  .hud-week__today {
+    height: calc(28 * var(--hud-unit));
+    padding: 0 calc(8 * var(--hud-unit));
+    font-size: calc(15 * var(--hud-unit));
+  }
+  .hud-week { margin-top: calc(4 * var(--hud-unit)); padding-bottom: calc(8 * var(--hud-unit)); }
+  .hud-week__col { padding: calc(2 * var(--hud-unit)) 0; }
+  /*
+   * 周内行程那一带：**高度定死为三道**（38u），有没有行程、几道行程都一样高——
+   * 走查第 6 条「多了『这一周没有行程』卡就变高」的根就是这里之前按内容长。
+   */
+  .hud-week__bars {
+    height: calc(38 * var(--hud-unit));
+    min-height: 0;
+    margin-top: calc(6 * var(--hud-unit));
+    grid-auto-rows: calc(10 * var(--hud-unit));
+    row-gap: calc(4 * var(--hud-unit));
+    align-content: start;
+  }
+  .hud-week__empty { align-self: start; font-size: calc(15 * var(--hud-unit)); line-height: calc(38 * var(--hud-unit)); }
+  /* 薄胶囊：一程一支色（`--trip-color` 由组件按清单位置写进来），不写字。 */
+  .hud-week__lane { height: calc(10 * var(--hud-unit)); }
+  .hud-week__bar {
+    height: calc(10 * var(--hud-unit));
+    padding: 0;
+    border: none;
+    border-radius: calc(5 * var(--hud-unit));
+    background: var(--trip-color, var(--hud-amber));
+    box-shadow: none;
+  }
+  .hud-week__bar.is-ongoing { background: var(--trip-color, var(--hud-pin)); }
+  /* 没定日期的：同一支色打淡——它是「默认明天出发」的口径，不是用户定的日子（M75-03）。 */
+  .hud-week__bar.is-tentative {
+    box-sizing: border-box;
+    border: none;
+    background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 45%, transparent);
+  }
+  .hud-week__bar.is-selected,
+  .hud-week__bar.is-tentative.is-selected {
+    box-shadow: 0 0 0 calc(2 * var(--hud-unit)) var(--hud-card-bg), 0 0 0 calc(4 * var(--hud-unit)) var(--trip-color, var(--hud-amber));
+  }
+  .hud-week__bar.is-clipped-start::before,
+  .hud-week__bar.is-clipped-end::after { content: none; }
+  .hud-week__flag {
+    right: calc(-6 * var(--hud-unit));
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .hud-week__flag .hud-trips__flag-dot { width: calc(8 * var(--hud-unit)); height: calc(8 * var(--hud-unit)); }
+
+  /* 清单行：左侧一道与周条胶囊同色的色条 + 缩略图 + 两行字 + 逐日天气 + 变化点。 */
+  /*
+   * 清单**不再 flex: 1 撑满**：卡高定死（536u），撑满会把页脚顶到卡底、清单与页脚之间
+   * 空出一大块（用户 2026-09-11「翻页组件往上调」）。清单按内容高，页脚紧跟其后，
+   * 多出的空间留在页脚下面。
+   */
+  .hud-trips__list--calendar { flex: none; gap: calc(6 * var(--hud-unit)); margin-top: calc(6 * var(--hud-unit)); }
+  .hud-trips__row {
+    position: relative;
+    grid-template-columns: auto 1fr auto calc(22 * var(--hud-unit));
+    min-height: calc(74 * var(--hud-unit));
+    padding: calc(7 * var(--hud-unit)) calc(10 * var(--hud-unit)) calc(7 * var(--hud-unit)) calc(16 * var(--hud-unit));
+    border-radius: calc(16 * var(--hud-unit));
+    background: color-mix(in srgb, var(--trip-color, var(--hud-pin)) 7%, transparent);
+    overflow: hidden;
+  }
+  .hud-trips__row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: calc(12 * var(--hud-unit));
+    bottom: calc(12 * var(--hud-unit));
+    width: calc(5 * var(--hud-unit));
+    border-radius: 0 calc(3 * var(--hud-unit)) calc(3 * var(--hud-unit)) 0;
+    background: var(--trip-color, var(--hud-amber));
+  }
+  .hud-trips__row.is-selected { background: color-mix(in srgb, var(--trip-color, var(--hud-amber)) 16%, transparent); }
+  .hud-trips__thumb {
+    width: calc(56 * var(--hud-unit));
+    height: calc(56 * var(--hud-unit));
+    border-radius: calc(13 * var(--hud-unit));
+    object-fit: cover;
+    background: color-mix(in srgb, var(--hud-pin) 8%, transparent);
+  }
+  .hud-trips__route { font-size: calc(21 * var(--hud-unit)); }
+  .hud-trips__meta { font-size: calc(16 * var(--hud-unit)); }
+  /* 日期标签「待定 / 9/20 周日」：比正文小两档（用户 2026-09-11 要求再小一点），描边胶囊自己够醒目。 */
+  .hud-trips__date {
+    font-size: calc(15 * var(--hud-unit));
+    line-height: calc(20 * var(--hud-unit));
+    padding: 0 calc(7 * var(--hud-unit));
+    margin-right: calc(6 * var(--hud-unit));
+  }
+  .hud-trips__weather { width: calc(18 * var(--hud-unit)); height: calc(18 * var(--hud-unit)); }
+  .hud-trips__days { gap: calc(2 * var(--hud-unit)); }
+  .hud-trips__dot--unknown { margin: 0 calc(5 * var(--hud-unit)); }
+  /*
+   * 页脚：‹ 1 / 2 ›，圆点去掉（走查第 7 条）；按钮与换周同款。
+   * 紧跟在清单下面，不再 `margin-top: auto` 沉到卡底——卡高是定死的（536u），
+   * 沉底之后清单与页脚之间会空出一大块（用户 2026-09-11 要求往上调）。
+   */
+  .hud-trips__pager {
+    /*
+     * 页脚吃掉清单下面剩下的全部空间，按钮在这段空间里**垂直居中**（用户 2026-09-11 第三次走查：
+     * 沉底太下、贴清单又太上，要在空白区里居中）。卡高定死，清单按内容高，所以这段空间
+     * 的大小随行数变，居中是唯一在 1 行与 3 行时都不显得偏的位置。
+     */
+    flex: 1;
+    align-items: center;
+    margin-top: 0;
+    padding-top: 0;
+    gap: calc(10 * var(--hud-unit));
+  }
+  .hud-trips__pager-btn {
+    width: calc(34 * var(--hud-unit));
+    height: calc(34 * var(--hud-unit));
+    border: none;
+    background: color-mix(in srgb, var(--hud-pin) 8%, transparent);
+    font-size: calc(22 * var(--hud-unit));
+  }
+}
+
+/* ── ② 出行状态栏 ─────────────────────────────────────────── */
+.hud-statusbar {
+  position: fixed;
+  left: calc(16 * var(--hud-unit));
+  right: calc(16 * var(--hud-unit));
+  bottom: var(--hud-statusbar-gap);
+  height: var(--hud-statusbar-h);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: calc(18 * var(--hud-unit));
+  padding: 0 calc(16 * var(--hud-unit)) 0 calc(20 * var(--hud-unit));
+  border-radius: calc(24 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--hud-card-shadow);
+  backdrop-filter: blur(14px);
+  color: var(--hud-text);
+  font-family: var(--font-ui);
+  user-select: none;
+}
+/* 车段坐在一块极浅的托板上（定稿：参考图同款）——把"我的座驾"从一排指标里分出来。 */
+.hud-statusbar__vehicle {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--hud-unit));
+  min-width: calc(330 * var(--hud-unit));
+  height: calc(94 * var(--hud-unit));
+  padding: 0 calc(18 * var(--hud-unit)) 0 calc(6 * var(--hud-unit));
+  border-radius: calc(18 * var(--hud-unit));
+  background: color-mix(in srgb, var(--hud-text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hud-text) 6%, transparent);
+}
+.hud-statusbar__car {
+  display: block;
+  width: calc(172 * var(--hud-unit));
+  height: calc(90 * var(--hud-unit));
+  object-fit: contain;
+  filter: drop-shadow(0 calc(6 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgba(31, 61, 99, 0.22));
+}
+/* 定稿切图自带投影，不再叠一层。 */
+.hud-statusbar__car--placeholder { filter: none; }
+.hud-statusbar__metric {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--hud-unit));
+  flex: 1 1 0;
+  min-width: 0;
+}
+.hud-statusbar__glyph {
+  display: grid;
+  place-items: center;
+  width: calc(44 * var(--hud-unit));
+  height: calc(44 * var(--hud-unit));
+  color: var(--hud-text);
+  flex: none;
+}
+.hud-statusbar__glyph img {
+  display: block;
+  max-width: calc(44 * var(--hud-unit));
+  max-height: calc(44 * var(--hud-unit));
+  object-fit: contain;
+}
+.hud-statusbar__text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--hud-unit));
+  min-width: 0;
+  white-space: nowrap;
+}
+.hud-statusbar__caption {
+  font-size: calc(19 * var(--hud-unit));
+  font-weight: 500;
+  color: var(--hud-text-muted);
+}
+.hud-statusbar__caption--strong {
+  font-size: calc(22 * var(--hud-unit));
+  font-weight: 700;
+  color: var(--hud-text);
+}
+.hud-statusbar__value {
+  font-size: calc(30 * var(--hud-unit));
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.hud-statusbar__unit {
+  font-size: calc(19 * var(--hud-unit));
+  font-weight: 600;
+  color: var(--hud-text-muted);
+}
+/* 空态：值写「暂无」，比数字小一号且是灰的——一眼分得出"没有"与"是个数"。 */
+.hud-statusbar__value--none {
+  color: var(--hud-text-muted);
+  font-weight: 600;
+  font-size: calc(24 * var(--hud-unit));
+}
+/* 图标跟着压暗：只灰文字会让那一格看起来像还没加载完。 */
+.hud-statusbar__metric.is-empty .hud-statusbar__glyph img { opacity: 0.4; }
+.hud-statusbar__metric.is-empty .hud-statusbar__caption { color: var(--hud-text-muted); }
+.hud-statusbar__ok { color: var(--hud-ok); }
+/* 缓行走 warn；「拥堵」是红色纪律里点名允许用红的两个判定之一（design-system.md §4.3）。 */
+.hud-statusbar__slow { color: var(--hud-warn); }
+.hud-statusbar__jam { color: var(--hud-danger); }
+.hud-statusbar__range {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--hud-unit));
+}
+.hud-statusbar__range .hud-statusbar__value { font-size: calc(24 * var(--hud-unit)); }
+/* 续航条：与定稿一致的绿色小电池。低电 / 低油转琥珀（阈值同 EnergyCapsule）。 */
+/* 电池：定稿切出的电池形状做遮罩（含右侧小凸头），底色从左到右按 --gauge-pct 分成
+   "已有 / 空"两段——满电时整枚是定稿那支绿，低电 / 低油换琥珀。 */
+.hud-statusbar__gauge {
+  position: relative;
+  display: inline-block;
+  width: calc(48 * var(--hud-unit));
+  height: calc(24 * var(--hud-unit));
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background: linear-gradient(
+    90deg,
+    var(--hud-ok) 0 var(--gauge-pct, 100%),
+    color-mix(in srgb, var(--hud-ok) 22%, transparent) var(--gauge-pct, 100%) 100%
+  );
+}
+.hud-statusbar__gauge.is-low {
+  background: linear-gradient(
+    90deg,
+    var(--hud-amber) 0 var(--gauge-pct, 100%),
+    color-mix(in srgb, var(--hud-amber) 22%, transparent) var(--gauge-pct, 100%) 100%
+  );
+}
+.hud-statusbar__gauge-charging {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: calc(14 * var(--hud-unit));
+  color: #fff;
+}
+.hud-statusbar__sep {
+  width: 1px;
+  height: calc(62 * var(--hud-unit));
+  background: var(--hud-divider);
+  flex: none;
+}
+.hud-statusbar__stale {
+  font-size: var(--hud-font-caption);
+  color: var(--hud-amber);
+}
+.hud-statusbar.is-stale .hud-statusbar__value { opacity: 0.7; }
+/* 「开始行程」：整枚是定稿切出的图（高光倒角、纸飞机、文字都在图里），
+   CSS 只负责尺寸、外圈那块浅托板和橙色柔光。 */
+.hud-statusbar__start {
+  display: block;
+  flex: none;
+  height: calc(84 * var(--hud-unit));
+  margin-right: calc(8 * var(--hud-unit));
+  padding: 0;
+  border: none;
+  border-radius: calc(22 * var(--hud-unit));
+  background: transparent;
+  box-shadow:
+    0 0 0 calc(10 * var(--hud-unit)) color-mix(in srgb, var(--hud-text) 4%, transparent),
+    0 calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit)) rgba(245, 150, 20, 0.4);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.hud-statusbar__start img {
+  display: block;
+  height: 100%;
+  width: auto;
+}
+.hud-statusbar__start:active { transform: scale(0.97); }
+.hud-statusbar__start:disabled { opacity: 0.55; cursor: default; }
+
+/* ── ③ 暖暖：紧凑胶囊 + 气泡；英雄区随之抬到状态栏上方 ───────── */
+.hud-assistant--compact .hud-assistant__hero {
+  left: calc(216 * var(--hud-unit));
+  bottom: calc(var(--hud-statusbar-h) + var(--hud-statusbar-gap) + 58 * var(--hud-unit));
+  height: calc(300 * var(--hud-unit));
+}
+.hud-assistant--compact .hud-assistant__card {
+  left: calc(26 * var(--hud-unit));
+  bottom: calc(var(--hud-statusbar-h) + var(--hud-statusbar-gap) + 14 * var(--hud-unit));
+  width: calc(380 * var(--hud-unit));
+  height: calc(76 * var(--hud-unit));
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(14 * var(--hud-unit));
+  padding: 0 calc(96 * var(--hud-unit)) 0 calc(30 * var(--hud-unit));
+  border-radius: 999px;
+  text-align: left;
+  z-index: 5; /* 压在英雄区（4）之上：暖暖的脚藏在胶囊后面 */
+}
+.hud-assistant__mic {
+  flex: none;
+  width: calc(30 * var(--hud-unit));
+  height: calc(30 * var(--hud-unit));
+  color: var(--hud-pin);
+}
+.hud-assistant--compact .hud-assistant__primary {
+  font-size: calc(30 * var(--hud-unit));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-assistant--compact .hud-assistant__wave {
+  right: calc(18 * var(--hud-unit));
+  width: calc(52 * var(--hud-unit));
+  height: calc(52 * var(--hud-unit));
+}
+/* 麦克风徽章跟着英雄区重算落点（推导同前文 `.hud-assistant-mic` 注释：
+   圆心 (216, 底起 statusbar+58+138)、半径 ≈132、取 −20°）。 */
+.hud-assistant--compact ~ .hud-assistant-mic,
+.hud-viewport:has(.hud-assistant--compact) .hud-assistant-mic {
+  left: calc(309 * var(--hud-unit));
+  bottom: calc(var(--hud-statusbar-h) + var(--hud-statusbar-gap) + 120 * var(--hud-unit));
+}
+/* 气泡落在「长按说话」胶囊右侧、与它齐底：暖暖身旁那一带是装饰生活环的「湿地公园」岛，
+   放在那里两行字会压住 ④ 的序号（走查实测）；贴着胶囊读起来正好是"对着这里说"。 */
+.hud-assistant__bubble {
+  position: absolute;
+  z-index: 5;
+  left: calc(424 * var(--hud-unit));
+  bottom: calc(var(--hud-statusbar-h) + var(--hud-statusbar-gap) + 14 * var(--hud-unit));
+  max-width: calc(320 * var(--hud-unit));
+  padding: calc(16 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  border-radius: calc(26 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--hud-card-shadow);
+  color: var(--hud-text);
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: pre-line;
+  pointer-events: none;
+}
+/* 气泡尾巴：在左缘中部，指向左边的暖暖与胶囊。 */
+.hud-assistant__bubble::after {
+  content: "";
+  position: absolute;
+  left: calc(-9 * var(--hud-unit));
+  top: 50%;
+  width: calc(18 * var(--hud-unit));
+  height: calc(18 * var(--hud-unit));
+  margin-top: calc(-9 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  border-left: 1px solid var(--hud-card-border);
+  border-bottom: 1px solid var(--hud-card-border);
+  transform: rotate(45deg);
+  border-radius: 0 0 0 calc(4 * var(--hud-unit));
+}
+
+/* ── ④ 地图站点卡：圆缩略图 + 序号 + 两行字（定稿里的浮卡） ────── */
+@media (min-aspect-ratio: 85/100) {
+  .hud-tripmark {
+    gap: 10px;
+    padding: 8px 18px 8px 10px;
+    border-radius: 26px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 22px rgba(31, 61, 99, 0.22);
+    font-size: 20px;
+  }
+  .hud-tripmark__poi {
+    width: 72px;
+    height: 72px;
+    padding: 6px;
+    margin: -14px 0 -14px -18px;
+    border-radius: 50%;
+    background: #e8f1fb;
+    box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(31, 61, 99, 0.22);
+    filter: none;
+  }
+  .hud-tripmark__text { gap: 3px; }
+  .hud-tripmark__meta { font-size: 15px; }
+  .hud-tripmark__badge {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+  .hud-tripmark__guided {
+    top: -12px;
+    right: -6px;
   }
 }

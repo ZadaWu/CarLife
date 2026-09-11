@@ -84,12 +84,27 @@ export interface AmapStep {
   durationS: number;
   /** 该段折线的点序列（`show_fields=polyline` 才有） */
   points: LngLat[];
+  /**
+   * 这一步里的路况分段（`show_fields=tmcs`）：高德按路段给「畅通 / 缓行 / 拥堵 / 严重拥堵 / 未知」，
+   * 各段长度不等，所以判整条路的路况要**按里程加权**，不能数段数（`trip-leg.ts`）。
+   * 老夹具没有这个字段 → 空数组，消费方按"没有路况"处理，不当成畅通。
+   */
+  tmcs: AmapTmc[];
+}
+
+export interface AmapTmc {
+  /** 高德原文：畅通 / 缓行 / 拥堵 / 严重拥堵 / 未知。 */
+  status: string;
+  /** 米 */
+  distanceM: number;
 }
 
 export interface AmapPath {
   distanceM: number;
   durationS: number;
   tollYuan: number;
+  /** 收费路段里程（米，`cost.toll_distance`）。高速几乎都收费，用它的占比判「高速为主」还是「城市道路」。 */
+  tollDistanceM: number;
   trafficLights: number;
   steps: AmapStep[];
 }
@@ -419,7 +434,8 @@ export function createAmapClient({ key, fetchImpl }: AmapClientOptions): AmapCli
       const params: Record<string, string> = {
         origin: fmt(origin),
         destination: fmt(destination),
-        show_fields: "cost,polyline",
+        // tmcs 是分段路况（2026-09-11 起，屏底状态栏的「道路情况」吃它）；多要这一段不影响既有字段。
+        show_fields: "cost,polyline,tmcs",
       };
       if (waypoints?.length) params.waypoints = waypoints.map(fmt).join(";");
       if (strategy !== undefined) params.strategy = String(strategy);
@@ -436,17 +452,23 @@ export function createAmapClient({ key, fetchImpl }: AmapClientOptions): AmapCli
       const cost = (path.cost ?? {}) as Record<string, unknown>;
       const steps = ((path.steps ?? []) as Array<Record<string, unknown>>).map((s) => {
         const sc = (s.cost ?? {}) as Record<string, unknown>;
+        const tmcs = ((s.tmcs ?? []) as Array<Record<string, unknown>>).map((t) => ({
+          status: textOf(t.tmc_status) || "未知",
+          distanceM: numOf(t.tmc_distance) ?? 0,
+        }));
         return {
           instruction: textOf(s.instruction),
           distanceM: numOf(s.step_distance) ?? 0,
           durationS: numOf(sc.duration) ?? 0,
           points: parsePolyline(textOf(s.polyline)),
+          tmcs,
         };
       });
       return {
         distanceM: numOf(path.distance) ?? 0,
         durationS: numOf(cost.duration) ?? 0,
         tollYuan: numOf(cost.tolls) ?? 0,
+        tollDistanceM: numOf(cost.toll_distance) ?? 0,
         trafficLights: numOf(cost.traffic_lights) ?? 0,
         steps,
       };

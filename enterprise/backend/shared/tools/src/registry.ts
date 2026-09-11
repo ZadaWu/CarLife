@@ -69,6 +69,7 @@ import { ragflowTool } from "./ragflow";
 import { transitRouteTool } from "./transit-route";
 import { dataFreshnessTool, type DataFreshnessArgs } from "./data-freshness";
 import { energyGapTool, type EnergyGapArgs } from "./energy-gap";
+import { planAuditTool, type PlanAuditArgs } from "./plan-audit";
 import { refuelLogTool, type RefuelLogArgs } from "./refuel-log";
 import { usageProfileTool } from "./usage-profile";
 import { vehicleMemberTool } from "./vehicle-member";
@@ -316,6 +317,27 @@ const ragflowSchema = z.object({
     .string()
     .optional()
     .describe("车型限定（如 Model 3 / 迈锐宝）。**多车型知识库里不传就会检索到别的车**"),
+});
+
+/**
+ * 行程可执行性体检（M77-02）。skeleton / legs 复用快照 schema 的同一份定义（防两份漂移），
+ * 限值全部入参——工具里没有任何写死的时长。
+ */
+const planAuditSchema = z.object({
+  skeleton: z.array(z.any()).describe("行程逐日骨架（TripPlanDaySnapshot[]）"),
+  legs: z.array(z.any()).optional().describe("行车分段（TripPlanLeg[]），缺省 = 没有可对齐的分段"),
+  origin: z.string().optional(),
+  destination: z.string(),
+  limits: z.object({
+    legMaxMin: z.number().positive().optional(),
+    legSafeMaxMin: z.number().positive(),
+    dailyMaxMin: z.number().positive(),
+  }),
+  constraints: z.array(z.string()),
+  overridden: z.array(z.string()).optional(),
+  hasReturnTransit: z.boolean().optional(),
+  orderWarnings: z.array(z.object({ day: z.number().int().optional(), basis: z.string() })).optional(),
+  orderUnverifiable: z.string().optional(),
 });
 
 const energyGapSchema = z.object({
@@ -970,6 +992,22 @@ const tripPlanSnapshotSchema = z.object({
     .object({ recommended: z.enum(["drive", "train", "flight"]).optional(), summary: z.string() })
     .optional(),
   energyStops: z.array(z.string()).optional(),
+  /*
+   * 行车分段（M77-01，F-62-01）：**不声明就会被 strip 掉**——与坐标 / 贴纸 / 时段是同一个坑。
+   * 症状会是"体检的时长项永远 unverifiable、途中提醒永远按距离兜底"，全程零报错。
+   */
+  legs: z
+    .array(
+      z.object({
+        day: z.number().int().min(1).optional(),
+        fromStop: z.string().optional(),
+        toStop: z.string().optional(),
+        driveMinutes: z.number().min(0),
+        reason: z.enum(["rest", "charge"]).optional(),
+        pending: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   caveats: z.array(z.string()),
   /*
    * 行前物品（M20-04）：**不声明就会被 strip 掉**，症状是"图里带上了、库里没有"
@@ -1381,6 +1419,26 @@ export const TOOL_REGISTRY: readonly ToolRegistration[] = [
     sensitive: false,
     mcpExposable: false, // 用户私有数据（F-34-09，listExposableForMcp 里也硬编码了）
     tool: usageProfileTool as unknown as ExternalTool<never, unknown>,
+  },
+  {
+    name: "plan_audit",
+    promptSnippet: "行程可执行性体检（编排层调用，模型不调）",
+    description:
+      "对合并后的行程草案做确定性体检：逐日住宿、单段与全天行车时长、待定停靠占位、返程闭环。" +
+      "结论三类：blocker / warning / unverifiable，每项带依据。**不给模型调**——它是校验不是求解，由编排层在交付前直接调用。",
+    schema: planAuditSchema,
+    // 空 ACL：任何 Agent 的工具清单里都没有它；编排层 invokeTool 直调（B 型判据：校验不是模型的活）。
+    agents: [],
+    sensitive: false,
+    mcpExposable: false,
+    // 与 weather / refuel 同一原则：不记地名，只记结论计数。
+    traceSummary: (_a: PlanAuditArgs, r: unknown) => {
+      const res = (r as { data?: { findings: Array<{ level: string; repaired?: boolean }>; passed: number } } | undefined)?.data;
+      if (!res) return "体检";
+      const n = (lvl: string) => res.findings.filter((f) => f.level === lvl && !f.repaired).length;
+      return `体检 通过 ${res.passed} · blocker ${n("blocker")} · warning ${n("warning")} · 验不了 ${n("unverifiable")}`;
+    },
+    tool: planAuditTool as unknown as ExternalTool<never, unknown>,
   },
   {
     name: "energy_gap",

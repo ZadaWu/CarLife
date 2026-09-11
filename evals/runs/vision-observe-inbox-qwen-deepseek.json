@@ -1,0 +1,547 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "at": "2026-09-10T15:45:59.321Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "0.0%",
+      "denom": "0/3",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "0.0%",
+      "denom": "0/3"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "7",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "无法计算",
+      "denom": "0 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "本档位不适用",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "本档位不适用"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "无法计算",
+      "denom": "0 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "0.0%",
+      "denom": "0/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "3/3"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "4",
+      "denom": "7 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "2",
+      "denom": "2 张负样本",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "inbox-01",
+      "negative": false,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      4,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 5,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 3,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      4,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "inbox-02",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 3,
+      "predCount": 7,
+      "matched": 0,
+      "wlTruth": 3,
+      "wlMatched": 0,
+      "extra": 7,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": false,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "cut_off_sides 期望 [right,bottom]，实际 []",
+        "漏检：green lamp straight_lines（warning_light，bbox 66,25,112,46）",
+        "漏检：green lamp straight_lines（warning_light，bbox 70,70,103,88）",
+        "漏检：red car_outline exclamation（warning_light，bbox 291,763,323,787）",
+        "误检：「白色 车形 轮廓」（warning_light，bbox 275,746,328,781）",
+        "误检：「白色 数字21.0 文字手动」（readout，bbox 418,862,505,896）",
+        "误检：「黑色 数字字母 261km」（readout，bbox 594,20,664,40）",
+        "误检：「浅绿块 深灰长条 灰块」（other，bbox 692,35,747,48）",
+        "误检：「黑色 开锁形」（warning_light，bbox 775,35,797,50）",
+        "误检：「灰色 人形 实心」（warning_light，bbox 838,38,857,55）",
+        "误检：「模糊 竖直 深色 短横」（other，bbox 947,48,965,65）"
+      ]
+    },
+    {
+      "id": "inbox-03",
+      "negative": false,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"arrow_left\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"person\",\n      \"lamp\",\n      \"circle\",\n      \"triangle\",\n      \"rectangle\",\n      \"car_outline\",\n      \"battery\",\n      \"engine\",\n      \"wheel\",\n      \"thermometer\",\n      \"droplet\",\n      \"wrench\",\n      \"steering_wheel\",\n      \"letter_only\",\n      \"other\"\n    ],\n    \"path\": [\n      \"items\",\n      4,\n      \"shape\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_left'\"\n  },\n  {\n    \"received\": \"arrow_right\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"person\",\n      \"lamp\",\n      \"circle\",\n      \"triangle\",\n      \"rectangle\",\n      \"car_outline\",\n      \"battery\",\n      \"engine\",\n      \"wheel\",\n      \"thermometer\",\n      \"droplet\",\n      \"wrench\",\n      \"steering_wheel\",\n      \"letter_only\",\n      \"other\"\n    ],\n    \"path\": [\n      \"items\",\n      5,\n      \"shape\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_right'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 7,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 7,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"arrow_left\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"person\",\n      \"lamp\",\n      \"circle\",\n      \"triangle\",\n      \"rectangle\",\n      \"car_outline\",\n      \"battery\",\n      \"engine\",\n      \"wheel\",\n      \"thermometer\",\n      \"droplet\",\n      \"wrench\",\n      \"steering_wheel\",\n      \"letter_only\",\n      \"other\"\n    ],\n    \"path\": [\n      \"items\",\n      4,\n      \"shape\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_left'\"\n  },\n  {\n    \"received\": \"arrow_right\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"person\",\n      \"lamp\",\n      \"circle\",\n      \"triangle\",\n      \"rectangle\",\n      \"car_outline\",\n      \"battery\",\n      \"engine\",\n      \"wheel\",\n      \"thermometer\",\n      \"droplet\",\n      \"wrench\",\n      \"steering_wheel\",\n      \"letter_only\",\n      \"other\"\n    ],\n    \"path\": [\n      \"items\",\n      5,\n      \"shape\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_right'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "inbox-04",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 6,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    },
+    {
+      "id": "inbox-05",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      3,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      3,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "inbox-06",
+      "negative": true,
+      "unparseable": "检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      2,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]",
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 0,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": null,
+      "itemCountConsistent": null,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "不可解析：检测失败：两次均不可解析：[\n  {\n    \"received\": \"yellow\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"red\",\n      \"amber\",\n      \"green\",\n      \"blue\",\n      \"white\",\n      \"gray\",\n      \"black\",\n      \"unknown\"\n    ],\n    \"path\": [\n      \"items\",\n      2,\n      \"color\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\"\n  }\n]"
+      ]
+    },
+    {
+      "id": "inbox-07",
+      "negative": true,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 0,
+      "predCount": 3,
+      "matched": 0,
+      "wlTruth": 0,
+      "wlMatched": 0,
+      "extra": 0,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 1,
+      "reasons": [
+        "负样本报出 1 个高置信警示灯"
+      ]
+    }
+  ],
+  "raw": {
+    "inbox-01": {
+      "ms": 23397,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":23397,\"describeMs\":0,\"totalMs\":23397},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      4,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  }\\n]\"]}"
+    },
+    "inbox-02": {
+      "ms": 13129,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":true,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":7,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[275,746,328,781],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"21.0\",\"手动\"],\"elements\":[\"none\"],\"literal\":\"白色 数字21.0 文字手动\",\"confidence\":0.9,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[418,862,505,896],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"green\",\"state\":\"lit\",\"text\":[\"261\",\"km\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 261km\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[594,20,664,40],\"colorByModel\":\"black\",\"colorByPixels\":\"green\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"green\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"浅绿块 深灰长条 灰块\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[692,35,747,48],\"colorByModel\":\"unknown\",\"colorByPixels\":\"green\",\"colorAgreement\":\"unknown\"},{\"category\":\"warning_light\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"黑色 开锁形\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"elements_detail\",\"color\"],\"bbox\":[775,35,797,50],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"warning_light\",\"shape\":\"person\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 人形 实心\",\"confidence\":0.85,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[838,38,857,55],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"amber\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"模糊 竖直 深色 短横\",\"confidence\":0.15,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\",\"similar_symbols\"],\"bbox\":[947,48,965,65],\"colorByModel\":\"unknown\",\"colorByPixels\":\"amber\",\"colorAgreement\":\"unknown\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":10110,\"describeMs\":3019,\"totalMs\":13129},\"notes\":[]}"
+    },
+    "inbox-03": {
+      "ms": 42575,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":42575,\"describeMs\":0,\"totalMs\":42575},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"arrow_left\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"person\\\",\\n      \\\"lamp\\\",\\n      \\\"circle\\\",\\n      \\\"triangle\\\",\\n      \\\"rectangle\\\",\\n      \\\"car_outline\\\",\\n      \\\"battery\\\",\\n      \\\"engine\\\",\\n      \\\"wheel\\\",\\n      \\\"thermometer\\\",\\n      \\\"droplet\\\",\\n      \\\"wrench\\\",\\n      \\\"steering_wheel\\\",\\n      \\\"letter_only\\\",\\n      \\\"other\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      4,\\n      \\\"shape\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_left'\\\"\\n  },\\n  {\\n    \\\"received\\\": \\\"arrow_right\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"person\\\",\\n      \\\"lamp\\\",\\n      \\\"circle\\\",\\n      \\\"triangle\\\",\\n      \\\"rectangle\\\",\\n      \\\"car_outline\\\",\\n      \\\"battery\\\",\\n      \\\"engine\\\",\\n      \\\"wheel\\\",\\n      \\\"thermometer\\\",\\n      \\\"droplet\\\",\\n      \\\"wrench\\\",\\n      \\\"steering_wheel\\\",\\n      \\\"letter_only\\\",\\n      \\\"other\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      5,\\n      \\\"shape\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'person' | 'lamp' | 'circle' | 'triangle' | 'rectangle' | 'car_outline' | 'battery' | 'engine' | 'wheel' | 'thermometer' | 'droplet' | 'wrench' | 'steering_wheel' | 'letter_only' | 'other', received 'arrow_right'\\\"\\n  }\\n]\"]}"
+    },
+    "inbox-04": {
+      "ms": 12298,
+      "text": "{\"frame\":{\"quality\":{\"blur\":true,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":6,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"lit\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"白色 车形 轮廓\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[219,664,300,725],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2.8\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 2.8 bar\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[374,807,512,837],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"2.7\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 2.7 bar\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[796,799,922,826],\"colorByModel\":\"black\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"2.9\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 2.9 bar\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[377,895,510,922],\"colorByModel\":\"black\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"letter_only\",\"color\":\"red\",\"state\":\"lit\",\"text\":[\"2.7\",\"bar\"],\"elements\":[\"none\"],\"literal\":\"黑色 数字字母 2.7 bar\",\"confidence\":0.95,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[792,882,912,907],\"colorByModel\":\"black\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"component\",\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"红色 车形 后视\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"state\"],\"bbox\":[562,805,746,942],\"colorByModel\":\"red\",\"colorByPixels\":\"red\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":10213,\"describeMs\":2085,\"totalMs\":12298},\"notes\":[]}"
+    },
+    "inbox-05": {
+      "ms": 15998,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":15998,\"describeMs\":0,\"totalMs\":15998},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      3,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  }\\n]\"]}"
+    },
+    "inbox-06": {
+      "ms": 22388,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"none\",\"item_count\":0,\"unreadable\":true},\"items\":[],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":22388,\"describeMs\":0,\"totalMs\":22388},\"notes\":[\"检测失败：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"yellow\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"red\\\",\\n      \\\"amber\\\",\\n      \\\"green\\\",\\n      \\\"blue\\\",\\n      \\\"white\\\",\\n      \\\"gray\\\",\\n      \\\"black\\\",\\n      \\\"unknown\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"items\\\",\\n      2,\\n      \\\"color\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'red' | 'amber' | 'green' | 'blue' | 'white' | 'gray' | 'black' | 'unknown', received 'yellow'\\\"\\n  }\\n]\"]}"
+    },
+    "inbox-07": {
+      "ms": 8084,
+      "text": "{\"frame\":{\"quality\":{\"blur\":true,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":3,\"unreadable\":false},\"items\":[{\"category\":\"warning_light\",\"shape\":\"car_outline\",\"color\":\"red\",\"state\":\"unlit\",\"text\":[],\"elements\":[\"exclamation\"],\"literal\":\"白色 车形 带红色感叹号\",\"confidence\":0.9,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[159,578,286,624],\"colorByModel\":\"white\",\"colorByPixels\":\"red\",\"colorAgreement\":\"disagree\"},{\"category\":\"readout\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"lit\",\"text\":[\"20.0\"],\"elements\":[\"none\"],\"literal\":\"白色 数字 20.0\",\"confidence\":0.85,\"quality\":{\"blur\":false,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\"],\"bbox\":[612,622,784,686],\"colorByModel\":\"white\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"disagree\"},{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 音符形 双圆点\",\"confidence\":0.55,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":false},\"undeterminable\":[\"color\",\"state\",\"shape\",\"elements_detail\"],\"bbox\":[342,644,392,674],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"qwen3-vl-flash\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":5401,\"describeMs\":2683,\"totalMs\":8084},\"notes\":[\"bbox [159,578,286,624] 描述失败，沿用第一遍描述子：两次均不可解析：[\\n  {\\n    \\\"received\\\": \\\"triangle\\\",\\n    \\\"code\\\": \\\"invalid_enum_value\\\",\\n    \\\"options\\\": [\\n      \\\"diagonal_band\\\",\\n      \\\"parentheses\\\",\\n      \\\"wavy_lines\\\",\\n      \\\"straight_lines\\\",\\n      \\\"exclamation\\\",\\n      \\\"arrow_left\\\",\\n      \\\"arrow_right\\\",\\n      \\\"arrow_both\\\",\\n      \\\"cross\\\",\\n      \\\"check\\\",\\n      \\\"plus\\\",\\n      \\\"minus\\\",\\n      \\\"slash\\\",\\n      \\\"circle_ring\\\",\\n      \\\"none\\\"\\n    ],\\n    \\\"path\\\": [\\n      \\\"elements\\\",\\n      0\\n    ],\\n    \\\"message\\\": \\\"Invalid enum value. Expected 'diagonal_band' | 'parentheses' | 'wavy_lines' | 'straight_lines' | 'exclamation' | 'arrow_left' | 'arrow_right' | 'arrow_both' | 'cross' | 'check' | 'plus' | 'minus' | 'slash' | 'circle_ring' | 'none', received 'triangle'\\\"\\n  }\\n]\"]}"
+    }
+  },
+  "latencyMs": [
+    23397,
+    13129,
+    42575,
+    12298,
+    15998,
+    22388,
+    8084
+  ],
+  "root": "<repo>/"
+}

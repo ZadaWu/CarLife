@@ -27,6 +27,7 @@ import { KnowledgePage } from "../pages/knowledge";
 import { DemoPage } from "../pages/demo";
 import { EvalsPage } from "../pages/evals";
 import { EvalJobPage } from "../pages/evals/JobPage";
+import { VisionTrainerPage } from "../pages/vision-trainer";
 import { IdentityUsersPage } from "../pages/identity/users";
 import { IdentityUserDetailPage } from "../pages/identity/user-detail";
 import { IdentityVehiclesPage } from "../pages/identity/vehicles";
@@ -109,6 +110,8 @@ export function App(): JSX.Element {
             {/* 评测台（M67）：运营可看；起跑与取消由服务端按 admin 判 */}
             <Route path="/evals" element={<EvalsPage />} />
             <Route path="/evals/:jobId" element={<EvalJobPage />} />
+            {/* 模型训练（M76）：运营可看；发起 / 取消 / 删除由服务端按 admin 判 */}
+            <Route path="/vision-trainer" element={<VisionTrainerPage />} />
             {/* 用户体系（M68）：ops 可看列表与详情；建号 / 重置口令 / 撤销由服务端按 admin 判，页面只按角色隐藏入口 */}
             <Route path="/identity" element={<Navigate to="/identity/users" replace />} />
             <Route path="/identity/users" element={<IdentityUsersPage />} />

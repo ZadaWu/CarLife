@@ -5,6 +5,18 @@
   position: absolute;
   inset: 0;
   overflow-y: auto;
+  /*
+   * 横轴钉死，兜底用。真正的病因是行的 box-sizing（见下面 `.own-navrow, .own-row`），
+   * 那条已经修好，这里加一道是因为**这个坑不会报错也不显眼**：
+   * `overflow-y: auto` 会把 `overflow-x` 一起变成 `auto`（CSS 规定两轴不能一个
+   * `visible` 一个不是），于是往后任何一点横向溢出都会让整页跟着手指左右拖，
+   * 而这一页是一列上下滚的卡片，横着没有任何东西可看。
+   *
+   * 配合 `overflow-wrap`：钉死横轴之后，长串（VIN、错误信息里的地址）会被裁掉
+   * 而不是能划出来看——所以让它折行，别让它有机会溢出。
+   */
+  overflow-x: hidden;
+  overflow-wrap: break-word;
 /* iPhone 的状态栏 / 灵动岛：页壳自己贴着 inset:0，不避让的话标题直接被压在时钟
    与灵动岛底下（2026-09-02 在 iPhone 16 Pro Max 上，设置 / 车辆档案 / 会话历史
    三个标题全中）。车机端这两个 env() 恒为 0，写在这里不影响它。 */
@@ -226,7 +238,7 @@
   border: 1px solid var(--hud-divider);
   background: transparent;
   color: inherit;
-  font-size: 15px;
+  font-size: 15px; box-sizing: border-box;
 }
 
 /* 多选标签：常驾/常乘、年龄段、出行需要共用一套 */
@@ -383,7 +395,7 @@
   border-radius: 16px; box-shadow: 0 16px 40px rgba(10, 42, 90, 0.18);
 }
 .own-pick-menu button {
-  width: 100%; min-height: 48px; padding: 0 12px; text-align: left;
+  width: 100%; min-height: 48px; padding: 0 12px; text-align: left; box-sizing: border-box;
   border: 0; border-radius: 12px; background: transparent; color: var(--o-text); font-size: 16px;
 }
 .own-pick-menu button.is-active { background: var(--o-sub); color: var(--o-blue); }
@@ -464,6 +476,17 @@
 /* 导航行与时间线 */
 .own-navrow, .own-row {
   display: flex; align-items: center; gap: 12px; width: 100%;
+  /*
+   * `width: 100%` 与左右内边距同时在场，就必须写 `border-box`——本仓没有全局的
+   * box-sizing 复位，缺省是 `content-box`，两者相加会把行撑出容器。
+   *
+   * 这条规则原本是给「卡片里的一行按钮」写的（`padding: 10px 0`，左右为 0，
+   * 那时 100% 不会撑破）。后来 `.own-navrow` 自己成了卡片、`.own-row` 又与
+   * `.own-card` 叠用，两处都带上了 18px 的左右内边距，于是每一行都比容器宽 36px。
+   * 表现是**整页可以跟着手指左右拖**（`overflow-y: auto` 会把 `overflow-x` 一并
+   * 变成 `auto`），用户 2026-09-10 真机反馈「车辆档案页左右滑动会跟着手指走」。
+   */
+  box-sizing: border-box;
   min-height: 56px; text-align: left; border: 0; background: transparent;
   color: inherit; font: inherit; padding: 10px 0;
 }
@@ -483,40 +506,54 @@
 .own-navrow-arrow { color: var(--o-dim); font-size: 24px; line-height: 1; }
 
 /*
- * 时间轴：**竖线与圆点共用一条中线**。
- *   线 left=L 宽 2 → 中线 L+1
- *   点 left=X 宽 D → 中线 X+D/2
- * 取 L=16、D=14、X=10，两边都是 17px。
- * 之前线在 43、点在 0（中线 7），差了 37px——截图里线和点各走各的就是这个。
+ * 时间轴：**竖线与圆点共用一条中线 `--o-rail-x`**，两边都从这一个数算出来。
+ *   线：left = 中线 − 半个线宽；点：left = 中线 − 半个直径（再减去定位容器相对中线原点的偏移）。
+ *
+ * ⚠️ 中线的原点是**各自定位容器的 padding box 左内边**，所以"点的 left 该写多少"
+ * 取决于点挂在谁身上，不能两处各按手感填一个数：
+ *   - 记录卡里的点挂在 `.own-timeline` 上（`.own-row` **刻意不带 position**，
+ *     这样点与线同一个定位容器，卡片内边距怎么改两者一起走）；
+ *   - 人员列表里的点挂在 `.own-person` 上（那一条自己是 `position: relative`），
+ *     于是要把列表左内距 34 与卡片 1px 边框一起扣掉。
+ *
+ * 原来记录卡那三个点写的是 `left: -8px`，注释按"相对行"算的——而行根本没有定位，
+ * 点实际挂在卡片上，于是跑到卡片左外沿、与竖线差了 18px
+ *（用户 2026-09-11 手机实拍「保养与维修的左侧圆圈和线的位置偏离」）。
  */
+.own-timeline,
+.own-people {
+  --o-rail-x: 17px;
+  --o-dot-d: 14px;
+}
 .own-timeline { position: relative; }
 .own-timeline .own-row { padding-left: 40px; border-radius: 14px; }
 .own-timeline::before {
-  content: ""; position: absolute; left: 16px; top: 30px; bottom: 30px;
+  content: ""; position: absolute; left: calc(var(--o-rail-x) - 1px); top: 30px; bottom: 30px;
   width: 2px; background: var(--o-amber); opacity: 0.5;
 }
-/* 同车机端那条：卡片 padding 18 → 点中线 = 1+18+X+7，线中线 = 18 → X = −8 */
 .own-dot {
-  position: absolute; left: -8px; width: 14px; height: 14px; border-radius: 50%;
+  position: absolute; width: var(--o-dot-d); height: var(--o-dot-d); border-radius: 50%;
   border: 3px solid var(--o-amber); background: var(--o-card); box-sizing: border-box;
 }
+/* 点挂在卡片上（行不定位）：中线原点就是卡片内边，直接减半个直径。 */
+.own-timeline .own-dot { left: calc(var(--o-rail-x) - var(--o-dot-d) / 2); }
 
 /* 人员 */
-/* 人员列表与记录卡同一条对齐规则：线中线 17px，卡片从 34px 开始 */
+/* 人员列表与记录卡同一条对齐规则：中线 --o-rail-x，卡片从 34px 开始 */
 .own-people { list-style: none; margin: 6px 0 0; padding: 0 0 0 34px; position: relative; }
 .own-people::before {
-  content: ""; position: absolute; left: 16px; top: 26px; bottom: 26px;
+  content: ""; position: absolute; left: calc(var(--o-rail-x) - 1px); top: 26px; bottom: 26px;
   width: 2px; background: var(--o-amber); opacity: 0.5;
 }
 .own-person {
   position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
   margin: 8px 0; padding: 10px 14px; border-radius: 18px;
   border: 1px solid var(--o-edge); background: var(--o-sub);
-  color: inherit; font: inherit; text-align: left;
+  color: inherit; font: inherit; text-align: left; box-sizing: border-box;
 }
 .own-person.is-active { border-color: var(--o-amber); }
-/* 相对卡片 -24px → 相对列表 34-24+7 = 17px，与竖线同一条中线 */
-.own-person .own-dot { left: -24px; }
+/* 点挂在人员卡上：还要扣掉列表左内距 34 与卡片 1px 边框，才落回同一条中线。 */
+.own-person .own-dot { left: calc(var(--o-rail-x) - 34px - 1px - var(--o-dot-d) / 2); }
 .own-avatar {
   width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
   display: grid; place-items: center; background: var(--o-card); border: 2px solid var(--o-edge);
@@ -669,6 +706,8 @@
   width: 100%;
   height: 42px;
   padding: 0 12px;
+  /* 同因：`width: 100%` + 左右内边距，本仓没有全局 box-sizing 复位。 */
+  box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
@@ -755,4 +794,38 @@
 .own-grant-confirm-acts .own-grant-remove {
   border-color: var(--hud-danger);
   color: var(--hud-danger);
+}
+
+/* ============================================================
+ * 新版 UI（2026-09-09，定稿 `内部文档`
+ * 与 `profile-people-v1.png`）。
+ *
+ * 只改浅色主题的几个 token 与卡片的圆角/阴影：这一页的信息架构本来就对，
+ * 差的是它还停在自己那一套蓝（`--o-blue: #4b8ff6`、`--o-text: #0a2a5a`），
+ * 与顶栏、地图钉、状态栏不是一家。深色主题不动。
+ * ============================================================ */
+.own-page--light {
+  --o-bg: #eaf2fa;
+  --o-card: #ffffff;
+  --o-sub: #f7fafd;
+  --o-edge: rgba(163, 200, 232, 0.55);
+  --o-text: #1f3d63;   /* text/primary */
+  --o-dim: #6c8bb0;    /* text/secondary */
+  --o-blue: #3d8fd6;   /* blue/500 */
+  --o-amber: #f5a623;  /* amber/500 */
+  --o-ok: #2fbf9b;
+  --o-danger: #c0392b;
+}
+.own-page--light .own-card {
+  border-radius: 24px;
+  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+}
+.own-page--light .own-title { font-size: 26px; font-weight: 800; }
+/* 主行动与主数值走琥珀；一屏只有一个实心橙。 */
+.own-page--light .own-cta {
+  background: linear-gradient(180deg, #ffa51f, #ff8a00);
+  border: none;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
 }

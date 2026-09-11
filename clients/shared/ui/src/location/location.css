@@ -19,7 +19,7 @@
   border-radius: 14px;
   border: 1px solid var(--hud-card-border, #dde4ee);
   background: var(--hud-card-bg, #fff);
-  color: var(--hud-text, #1f3d63);
+  color: var(--hud-text);
   text-align: left;
   cursor: pointer;
 }
@@ -40,7 +40,7 @@
 .cloc-choice__hint {
   font-size: 14px;
   line-height: 1.55;
-  color: var(--hud-text-muted, #6c8bb0);
+  color: var(--hud-text-muted);
 }
 
 .cloc-toggle__knob {
@@ -90,14 +90,14 @@
   border-radius: 12px;
   border: 1px solid var(--hud-card-border, #dde4ee);
   background: transparent;
-  color: var(--hud-text, #1f3d63);
+  color: var(--hud-text);
   text-align: left;
   cursor: pointer;
 }
 
 /* 选中态不能只靠颜色深浅：车机在阳光下看不出那一档差别，所以加左侧色条。 */
 .cloc-choice.is-on {
-  border-color: var(--hud-amber, #f5a623);
+  border-color: var(--hud-amber);
   box-shadow: inset 4px 0 0 var(--hud-amber, #f5a623);
   background: var(--hud-wave-bg, rgba(245, 166, 35, 0.12));
 }
@@ -128,12 +128,12 @@
 .cloc-status__value {
   font-size: 16px;
   font-variant-numeric: tabular-nums;
-  color: var(--hud-text, #1f3d63);
+  color: var(--hud-text);
 }
 
 .cloc-status__meta {
   font-size: 13px;
-  color: var(--hud-text-muted, #6c8bb0);
+  color: var(--hud-text-muted);
 }
 
 .cloc-action {
@@ -143,7 +143,7 @@
   border-radius: 10px;
   border: 1px solid var(--hud-card-border, #dde4ee);
   background: var(--hud-card-bg, #fff);
-  color: var(--hud-text, #1f3d63);
+  color: var(--hud-text);
   font-size: 15px;
   cursor: pointer;
 }
@@ -160,14 +160,14 @@
   font-size: 14px;
   background: rgba(255, 176, 32, 0.16);
   border: 1px solid rgba(214, 106, 0, 0.4);
-  color: #8a4b00;
+  color: var(--hud-warn);
 }
 
 .cloc-note {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--hud-text-muted, #6c8bb0);
+  color: var(--hud-text-muted);
 }
 
 /* ── 地图上的定位按钮 ───────────────────────────────────
@@ -198,7 +198,7 @@
   border-radius: 50%;
   border: 1px solid var(--hud-card-border, #dde4ee);
   background: var(--hud-card-bg, rgba(255, 255, 255, 0.92));
-  color: var(--hud-pin, #3d8fd6);
+  color: var(--hud-pin);
   box-shadow: var(--hud-card-shadow, 0 10px 24px rgba(70, 120, 170, 0.18));
   cursor: pointer;
 }
@@ -212,7 +212,7 @@
 /* 停用不是"不可点"：点了会给一句去哪儿打开的提示，所以不用 disabled 的观感，
    只把颜色收成中性——它仍然是一个可以按下去的按钮。 */
 .cloc-locate__btn.is-off {
-  color: var(--hud-text-muted, #6c8bb0);
+  color: var(--hud-text-muted);
 }
 
 .cloc-locate__btn.is-busy svg {
@@ -226,7 +226,7 @@
   font-size: var(--hud-font-caption, 14px);
   line-height: 1.5;
   background: var(--hud-card-bg, rgba(255, 255, 255, 0.92));
-  color: var(--hud-text, #1f3d63);
+  color: var(--hud-text);
   border: 1px solid var(--hud-card-border, #dde4ee);
   box-shadow: var(--hud-card-shadow, 0 10px 24px rgba(70, 120, 170, 0.18));
 }

@@ -239,6 +239,7 @@ mod speech_plan_tests {
             content: content.into(),
             ts: 0,
             cancelled: None,
+            attachments: None,
         })
     }
     fn idle() -> BridgeAction {

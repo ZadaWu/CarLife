@@ -1,0 +1,237 @@
+{
+  "suite": "vision-observe-match",
+  "model": "qwen3-vl-embedding",
+  "at": "2026-09-09T04:04:06.294Z",
+  "metrics": [
+    {
+      "id": "M-H1-both",
+      "name": "hit@1（both）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-H3-both",
+      "name": "hit@3（both）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-G1-both",
+      "name": "闸门通过且正确（both）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-H1-image",
+      "name": "hit@1（image）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-H3-image",
+      "name": "hit@3（image）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-G1-image",
+      "name": "闸门通过且正确（image）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-H1-text",
+      "name": "hit@1（text）",
+      "value": "75.0%",
+      "denom": "3/4"
+    },
+    {
+      "id": "M-H3-text",
+      "name": "hit@3（text）",
+      "value": "100.0%",
+      "denom": "4/4"
+    },
+    {
+      "id": "M-G1-text",
+      "name": "闸门通过且正确（text）",
+      "value": "50.0%",
+      "denom": "2/4"
+    },
+    {
+      "id": "M-V1",
+      "name": "核验覆盖（verified）",
+      "value": "8/12",
+      "denom": "verified=true 才能说「是」；成对核验只在 image / both 两路上跑（text 路没有 crop）"
+    }
+  ],
+  "rows": [
+    {
+      "photo": "tesla-01",
+      "symbol": "low_beam",
+      "mode": "image",
+      "top3": [
+        "low_beam",
+        "parking_lights",
+        "high_beam"
+      ],
+      "sims": "low_beam(0.69/-) parking_lights(0.54/-) high_beam(0.47/-)",
+      "gate": "通过 sim 0.685",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "low_beam",
+      "mode": "text",
+      "top3": [
+        "low_beam",
+        "parking_lights",
+        "high_beam"
+      ],
+      "sims": "low_beam(-/0.96) parking_lights(-/0.96) high_beam(-/0.72)",
+      "gate": "below_delta",
+      "matched": false,
+      "verified": false
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "low_beam",
+      "mode": "both",
+      "top3": [
+        "low_beam",
+        "parking_lights",
+        "high_beam"
+      ],
+      "sims": "low_beam(0.69/0.96) parking_lights(0.54/0.96) high_beam(0.47/0.72)",
+      "gate": "通过 sim 0.685",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "auto_high_beam_standby",
+      "mode": "image",
+      "top3": [
+        "auto_high_beam_standby",
+        "auto_high_beam_active",
+        "vehicle_hold"
+      ],
+      "sims": "auto_high_beam_standby(0.67/-) auto_high_beam_active(0.55/-) vehicle_hold(0.49/-)",
+      "gate": "通过 sim 0.671",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "auto_high_beam_standby",
+      "mode": "text",
+      "top3": [
+        "auto_high_beam_standby",
+        "auto_high_beam_active",
+        "high_beam"
+      ],
+      "sims": "auto_high_beam_standby(-/0.92) auto_high_beam_active(-/0.80) high_beam(-/0.64)",
+      "gate": "通过 sim 0.915",
+      "matched": true,
+      "verified": false
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "auto_high_beam_standby",
+      "mode": "both",
+      "top3": [
+        "auto_high_beam_standby",
+        "auto_high_beam_active",
+        "high_beam"
+      ],
+      "sims": "auto_high_beam_standby(0.67/0.92) auto_high_beam_active(0.55/0.80) high_beam(0.43/0.64)",
+      "gate": "通过 sim 0.671",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "parking_lights",
+      "mode": "image",
+      "top3": [
+        "parking_lights",
+        "low_beam",
+        "regen_limited"
+      ],
+      "sims": "parking_lights(0.70/-) low_beam(0.57/-) regen_limited(0.50/-)",
+      "gate": "通过 sim 0.699",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "parking_lights",
+      "mode": "text",
+      "top3": [
+        "low_beam",
+        "parking_lights",
+        "high_beam"
+      ],
+      "sims": "low_beam(-/0.96) parking_lights(-/0.96) high_beam(-/0.72)",
+      "gate": "below_delta",
+      "matched": false,
+      "verified": false
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "parking_lights",
+      "mode": "both",
+      "top3": [
+        "parking_lights",
+        "low_beam",
+        "regen_limited"
+      ],
+      "sims": "parking_lights(0.70/0.96) low_beam(0.57/0.96) regen_limited(0.50/0.68)",
+      "gate": "通过 sim 0.699",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "seatbelt_unfastened",
+      "mode": "image",
+      "top3": [
+        "seatbelt_unfastened",
+        "airbag_warning",
+        "door_open"
+      ],
+      "sims": "seatbelt_unfastened(0.80/-) airbag_warning(0.60/-) door_open(0.35/-)",
+      "gate": "通过 sim 0.804",
+      "matched": true,
+      "verified": true
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "seatbelt_unfastened",
+      "mode": "text",
+      "top3": [
+        "seatbelt_unfastened",
+        "airbag_warning",
+        "door_open"
+      ],
+      "sims": "seatbelt_unfastened(-/0.93) airbag_warning(-/0.81) door_open(-/0.62)",
+      "gate": "通过 sim 0.928",
+      "matched": true,
+      "verified": false
+    },
+    {
+      "photo": "tesla-01",
+      "symbol": "seatbelt_unfastened",
+      "mode": "both",
+      "top3": [
+        "seatbelt_unfastened",
+        "airbag_warning",
+        "door_open"
+      ],
+      "sims": "seatbelt_unfastened(0.80/0.93) airbag_warning(0.60/0.81) door_open(0.35/0.62)",
+      "gate": "通过 sim 0.804",
+      "matched": true,
+      "verified": true
+    }
+  ]
+}

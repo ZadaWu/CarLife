@@ -25,7 +25,9 @@ import {
   type NavPlanOrigin,
   type TripPlanSnapshot,
 } from "@carlife/shared";
+import { TURN_ATTACHMENT_LIMITS } from "@carlife/shared";
 import type { ConfigStore } from "@carlife/db";
+import type { VideoInput } from "./graph/media";
 
 import type { TurnRunner } from "./turn-runner";
 import { cancelTurn } from "./turn-cancel";
@@ -68,6 +70,81 @@ interface TurnRequestBody {
    * 缺省 undefined，由 `TurnInput.fillerEnabled ?? true` 定语义。
    */
   fillerEnabled?: boolean;
+  /**
+   * 本轮绑定的附件（M71-04 照片，F-09-06；M80-01 起含视频）：照片由网关取件后以 base64 带过来
+   * （runtime 无对象存储客户端），视频带的是网关派生好的帧序图 + 转写。
+   * 照片进观察层，且（与帧序图一起）进直连表述模型（ACR-027）；pi 那条路仍只看文字。
+   */
+  attachments?: TurnAttachmentBody[];
+}
+
+/** 照片：原件 base64（M71-04）。`kind` 缺省 = image（老网关不带这个字段）。 */
+interface TurnImageAttachmentBody {
+  kind?: "image";
+  handle: string;
+  contentType: string;
+  bytesBase64: string;
+}
+
+/** 视频（M80-01）：网关派生好的帧序图与转写，**没有原件**。与 gateway `media/derive.ts` 的 `RuntimeVideoAttachment` 同形。 */
+type TurnVideoAttachmentBody = VideoInput;
+
+const TRANSCRIPT_STATUSES: ReadonlySet<string> = new Set(["ok", "empty", "unavailable", "no_audio", "failed"]);
+
+type TurnAttachmentBody = TurnImageAttachmentBody | TurnVideoAttachmentBody;
+
+function isTurnImageAttachmentBody(v: unknown): v is TurnImageAttachmentBody {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    (o.kind === undefined || o.kind === "image") &&
+    typeof o.handle === "string" &&
+    typeof o.contentType === "string" &&
+    o.contentType.startsWith("image/") &&
+    typeof o.bytesBase64 === "string" &&
+    o.bytesBase64.length > 0 &&
+    o.bytesBase64.length <= 12 * 1024 * 1024
+  );
+}
+
+const isFiniteNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+
+function isTurnVideoAttachmentBody(v: unknown): v is TurnVideoAttachmentBody {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  if (o.kind !== "video" || typeof o.handle !== "string" || typeof o.contentType !== "string") return false;
+  if (!isFiniteNum(o.durationMs) || !isFiniteNum(o.analyzedMs) || typeof o.truncated !== "boolean") return false;
+  if (!Array.isArray(o.sheets) || o.sheets.length > 8) return false;
+  if (
+    !o.sheets.every((sh) => {
+      if (typeof sh !== "object" || sh === null) return false;
+      const x = sh as Record<string, unknown>;
+      return (
+        isFiniteNum(x.index) && isFiniteNum(x.fromMs) && isFiniteNum(x.toMs) && isFiniteNum(x.frames) &&
+        typeof x.contentType === "string" && x.contentType.startsWith("image/") &&
+        typeof x.bytesBase64 === "string" && x.bytesBase64.length > 0 && x.bytesBase64.length <= 6 * 1024 * 1024
+      );
+    })
+  )
+    return false;
+  if (!Array.isArray(o.transcript) || !o.transcript.every((t) => typeof t === "object" && t !== null && isFiniteNum((t as Record<string, unknown>).fromMs) && isFiniteNum((t as Record<string, unknown>).toMs) && typeof (t as Record<string, unknown>).text === "string")) return false;
+  return typeof o.transcriptStatus === "string" && TRANSCRIPT_STATUSES.has(o.transcriptStatus) && Array.isArray(o.notes) && o.notes.every((n) => typeof n === "string");
+}
+
+/**
+ * 附件数组：≤ 9 张照片 + ≤ 1 段视频（`TURN_ATTACHMENT_LIMITS`，与网关同一份数字）。
+ * 老网关只发照片且 ≤ 3 张、不带 `kind`——照样过。
+ */
+export function isTurnAttachmentsBody(v: unknown): v is TurnAttachmentBody[] {
+  if (!Array.isArray(v) || v.length > TURN_ATTACHMENT_LIMITS.maxTotal) return false;
+  let images = 0;
+  let videos = 0;
+  for (const a of v) {
+    if (isTurnVideoAttachmentBody(a)) videos += 1;
+    else if (isTurnImageAttachmentBody(a)) images += 1;
+    else return false;
+  }
+  return images <= TURN_ATTACHMENT_LIMITS.maxImages && videos <= TURN_ATTACHMENT_LIMITS.maxVideos;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -84,7 +161,8 @@ function isTurnRequestBody(v: unknown): v is TurnRequestBody {
     typeof o.content === "string" &&
     (o.userId === undefined || typeof o.userId === "string") &&
     (o.fillerEnabled === undefined || typeof o.fillerEnabled === "boolean") &&
-    (o.source === "text" || o.source === "voice")
+    (o.source === "text" || o.source === "voice") &&
+    (o.attachments === undefined || isTurnAttachmentsBody(o.attachments))
   );
 }
 
@@ -107,6 +185,12 @@ const PRETRIP_REFRESH_PATH = "/internal/trip/pretrip-refresh";
  * 而网关那侧是**并发**发出的，各自超时互不牵连。
  */
 const HIGHLIGHTS_REFRESH_PATH = "/internal/trip/highlights-refresh";
+/**
+ * 出发地 → 今天第一站这一段（2026-09-11，屏底状态栏三格）。与 pretrip-refresh 同款：
+ * 网关查仓储、这里算；⑤缓存在 `computeTripLeg` 里（地名→坐标 1h、规划 3 分钟）；
+ * 三种"这次没算成"都回 200 + skipped，网关据此不带 `leg`，端上显示「暂无」。
+ */
+const TRIP_LEG_PATH = "/internal/trip/leg";
 /** 导览任务状态（ACR-008）：POST 带整份 plan（与 pretrip-refresh 同款：网关查仓储、这里算）。 */
 const GUIDE_JOBS_STATUS_PATH = "/internal/guide/jobs-status";
 /** 手动「获取」单景点入队（ACR-008）。 */
@@ -497,6 +581,54 @@ export function createRuntimeServer(
         );
       } catch (err) {
         console.warn("[runtime] pretrip 重算失败（调用方回落库里那份）", err);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ skipped: "failed" }));
+      }
+      return;
+    }
+
+    if (req.method === "POST" && req.url === TRIP_LEG_PATH) {
+      let body: { plan?: TripPlanSnapshot; home?: { lat?: number; lon?: number } };
+      try {
+        body = (await readJson(req)) as typeof body;
+      } catch {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "invalid_json" }));
+        return;
+      }
+      const plan = body.plan;
+      if (!plan || typeof plan !== "object" || !Array.isArray(plan.skeleton)) {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "missing_plan" }));
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (tripDayIndex(plan, today) === null) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ skipped: "expired" }));
+        return;
+      }
+      try {
+        const [{ tripPlanNavTarget }, { computeTripLeg }] = await Promise.all([
+          import("@carlife/shared"),
+          import("@carlife/tools"),
+        ]);
+        const target = tripPlanNavTarget(plan, today);
+        // 起点：行程写的出发地优先；没写就用常住地坐标。两者都没有 → 没有这一段，不猜。
+        const home = body.home;
+        const origin =
+          plan.origin?.trim() ||
+          (typeof home?.lat === "number" && typeof home?.lon === "number" ? { lat: home.lat, lon: home.lon } : undefined);
+        if (!target || !origin) {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ skipped: target ? "no_origin" : "no_target" }));
+          return;
+        }
+        const leg = await computeTripLeg({ origin, destination: { lat: target.lat, lon: target.lon } });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(leg ? { leg } : { skipped: "unavailable" }));
+      } catch (err) {
+        console.warn("[runtime] 出发段规划失败（状态栏显示暂无）", err);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ skipped: "failed" }));
       }

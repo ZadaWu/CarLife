@@ -130,6 +130,115 @@ export function extractWarnings(chunks: RagPath["chunks"], query?: string): Manu
     .map(({ text, source }) => ({ text, source }));
 }
 
+/*
+ * ── 手册图示那一路（ACR-029）──
+ *
+ * 手册里的图经 `kb:figures` 锚到段落进了库内 pgvector。问诊时多一路召回：文字轮按检索词、照片轮按观察层的 crop。
+ * 命中的图带**锚定段 + 出处**进【手册图示】段，top-1 图作为图片挂给表述模型（沿 ACR-027 只挂当前轮、只用车 / 售后的门）。
+ *
+ * 开关 `CARLIFE_KB_FIGURES` 缺省 off：off 时这一路根本不跑，上下文逐字节回到现状——这是它的止血位。
+ * 相似度低于 `FIGURE_MIN_SIM` 的不给：一张不相关的图比没图更糟（模型会把它和问题硬扯到一起）。
+ */
+
+/** 召回结果的可序列化形状（进图状态与轨迹，不带 Buffer）。 */
+export interface FigureHitLite {
+  figureId: string;
+  doc: string;
+  page: number;
+  location: string;
+  breadcrumb: string;
+  anchorText: string;
+  caption: string;
+  imgPath: string;
+  /** 各路最高相似度里大的那个（1 − 余弦距离） */
+  sim: number;
+  via: "text" | "image" | "crop";
+}
+
+export type FigureRecall = (args: { text?: string; crops?: Buffer[]; k?: number }) => Promise<FigureHitLite[]>;
+
+export interface FigureDeps {
+  recall: FigureRecall;
+  /** 按 imgPath 读图片字节（挂图用）；取不到返回 null → 只给文字段 */
+  readImage?: (imgPath: string) => Buffer | null;
+}
+
+/*
+ * 相似度门按路分开（2026-09-11 对 Model 3 索引实测，qwen3-vl-embedding）：
+ * - 文字路（检索词 → 图注 + 锚段的文本向量）：相关段 0.75–0.85，「帮我预约一下保养」这种没有图可给的问题最高 0.585 → 门 0.70。
+ * - 图像路（观察层 crop → 整图 / crop 向量）：同一枚图标 0.88；ACR-025 图标评测里同符号 0.70、异符号 0.57 → 门 0.65。
+ * 文字 → 图像的跨模态命中只有 0.36–0.48，按图像路的门一律不给——那条路只在照片轮有意义。
+ */
+export const FIGURE_MIN_SIM_TEXT = 0.7;
+export const FIGURE_MIN_SIM_IMAGE = 0.65;
+export const FIGURE_MAX_HITS = 3;
+export const figureMinSim = (via: FigureHitLite["via"]): number => (via === "text" ? FIGURE_MIN_SIM_TEXT : FIGURE_MIN_SIM_IMAGE);
+export const FIGURE_SECTION = "【手册图示（手册里与本问题相关的图；引用时说「手册第 N 页的图」，只讲它锚定的那段，不要描述图里没写的细节）】";
+
+let figureDeps: FigureDeps | undefined;
+
+export function setFigureDeps(d: FigureDeps | undefined): void {
+  figureDeps = d;
+}
+export function getFigureDeps(): FigureDeps | undefined {
+  return figureDeps;
+}
+
+/** 开关 on 且已装配才算启用——两者缺一这一路都不跑。 */
+export function figuresEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.CARLIFE_KB_FIGURES ?? "off") === "on" && figureDeps !== undefined;
+}
+
+/** 过相似度门（按路）、去重同图、最多 FIGURE_MAX_HITS 条。纯函数。 */
+export function pickFigures(hits: readonly FigureHitLite[], minSim: number | ((via: FigureHitLite["via"]) => number) = figureMinSim, max = FIGURE_MAX_HITS): FigureHitLite[] {
+  const out: FigureHitLite[] = [];
+  const seen = new Set<string>();
+  const gate = typeof minSim === "number" ? () => minSim : minSim;
+  for (const h of [...hits].sort((a, b) => b.sim - a.sim)) {
+    if (h.sim < gate(h.via) || seen.has(h.figureId)) continue;
+    seen.add(h.figureId);
+    out.push(h);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** 【手册图示】段：一图一行——出处 · 面包屑：锚段（图注）。没有命中返回 undefined，不出空段。 */
+export function figureSection(hits: readonly FigureHitLite[]): string | undefined {
+  if (hits.length === 0) return undefined;
+  const lines = hits.map((h) => {
+    const anchor = h.anchorText.replace(/\s+/g, " ").trim();
+    const body = anchor.length > 220 ? `${anchor.slice(0, 219)}…` : anchor;
+    return `- ${h.doc} ${h.location} · ${h.breadcrumb}：${body}${h.caption ? `（图注：${h.caption}）` : ""}`;
+  });
+  return `${FIGURE_SECTION}\n${lines.join("\n")}`;
+}
+
+/*
+ * 交接给 answer 节点的 top-1 图。
+ *
+ * **不新开图状态通道**：加一条通道要连锁动 state.ts / compound.ts 的 lane 白名单 / 控制台图模型（内部开发指引 接线点 12），
+ * 而这里只是同一进程、同一轮里从问诊节点递给应答节点一张图。按 thread 暂存、取一次即清；
+ * 从检查点恢复的轮次没有它——后果只是那一轮不挂图，文字段仍在。
+ */
+const stagedFigures = new Map<string, FigureHitLite>();
+
+export function stageFigureForAnswer(threadId: string, hit: FigureHitLite | undefined): void {
+  if (hit) stagedFigures.set(threadId, hit);
+  else stagedFigures.delete(threadId);
+}
+
+/** 取走并清掉。读不到图片文件返回 undefined（文字段已经给过，不挂图不算失败）。 */
+export function takeStagedFigure(threadId: string): { mimeType: string; base64: string; label: string } | undefined {
+  const hit = stagedFigures.get(threadId);
+  stagedFigures.delete(threadId);
+  if (!hit || !figureDeps?.readImage) return undefined;
+  const bytes = figureDeps.readImage(hit.imgPath);
+  if (!bytes || bytes.length === 0) return undefined;
+  const mimeType = bytes[0] === 0x89 && bytes[1] === 0x50 ? "image/png" : "image/jpeg";
+  return { mimeType, base64: bytes.toString("base64"), label: `手册图示：${hit.doc} ${hit.location}` };
+}
+
 export interface DualPathResult {
   rag: RagPath;
   usage: UsagePath;
@@ -139,6 +248,8 @@ export interface DualPathResult {
   personalized: boolean;
   /** 必须如实告知用户的缺失说明。 */
   caveats: string[];
+  /** 手册图示那一路的命中（已过相似度门与去重；没跑这一路为空数组）。 */
+  figures: FigureHitLite[];
 }
 
 /**
@@ -156,6 +267,22 @@ export interface DualPathResult {
 export const CAVEAT_RAG_FAILED = "本次检索说明书失败，知识库里可能有相关内容但没取到";
 export const CAVEAT_USAGE_FAILED = "本次未能读取你的用车数据";
 
+export interface DualPathOptions {
+  /**
+   * 要不要出【手册警告】段，缺省出。
+   *
+   * 关掉的情形（M80-09）：带照片但**一个图标都没对上手册**的轮。那时检索词里没有任何手册名词，
+   * 翻出来的片段与问题无关，再从里面抽一条警告逼模型复述，车主看到的就是「不要向座椅上喷洒任何喷雾」
+   * ——2026-09-10 真跑 turn-d2d04bcb 原样发生过。没有相关警告时**不说**，比说一条无关的好。
+   */
+  warnings?: boolean;
+  /**
+   * 手册图示那一路（ACR-029）：与两路**并发**跑；抛错只是没有这一段，不进 caveats——
+   * 图是增强不是必需，"没查到图"对车主不是缺失。不给就不跑，上下文与现状逐字节相同。
+   */
+  figures?: () => Promise<FigureHitLite[]>;
+}
+
 export async function runDualPath(
   fetchRag: () => Promise<RagPath["chunks"]>,
   fetchUsage: () => Promise<{ summary?: UsagePath["summary"]; unusableReason?: string }>,
@@ -163,8 +290,11 @@ export async function runDualPath(
   scopedToModel = true,
   /** 用户原话——只用来给手册警告排相关度（M62-03），不参与检索。 */
   query?: string,
+  opts: DualPathOptions = {},
 ): Promise<DualPathResult> {
-  const [ragSettled, usageSettled] = await Promise.allSettled([fetchRag(), fetchUsage()]);
+  const [ragSettled, usageSettled, figuresSettled] = await Promise.allSettled([fetchRag(), fetchUsage(), opts.figures ? opts.figures() : Promise.resolve([] as FigureHitLite[])]);
+  const figures = figuresSettled.status === "fulfilled" ? pickFigures(figuresSettled.value) : [];
+  if (figuresSettled.status === "rejected") console.warn("[graph] 手册图示召回失败，本轮不给图", figuresSettled.reason);
 
   const rag: RagPath =
     ragSettled.status === "fulfilled"
@@ -213,7 +343,7 @@ export async function runDualPath(
     );
   }
   // 警告段放在通用原理之后、用车数据之前：读到步骤之前先看到警告（M62-03）。
-  const warnings = extractWarnings(rag.chunks, query);
+  const warnings = opts.warnings === false ? [] : extractWarnings(rag.chunks, query);
   if (warnings.length) {
     parts.push(
       `${WARNING_SECTION}\n` +
@@ -222,6 +352,9 @@ export async function runDualPath(
           .join("\n"),
     );
   }
+  // 图示段放在警告之后、用车数据之前：图讲的是"手册怎么说"，与通用原理同一侧（ACR-029）。
+  const figureText = figureSection(figures);
+  if (figureText) parts.push(figureText);
   if (usage.summary) {
     const s = usage.summary;
     const lines = [`- 近期日均里程 ${s.avgDailyKm.toFixed(1)}km（样本 ${s.sampleSize} 条行程）`];
@@ -236,7 +369,7 @@ export async function runDualPath(
     personalized ? PERSONALIZED_INSTRUCTION : GENERIC_INSTRUCTION,
   );
 
-  return { rag, usage, context: parts.join("\n\n"), personalized, caveats };
+  return { rag, usage, context: parts.join("\n\n"), personalized, caveats, figures };
 }
 
 /**
@@ -599,6 +732,10 @@ export async function runOwnershipDualPath(args: {
    */
   vehicleModel?: string;
   ctx: ToolCallContext;
+  /** 见 `DualPathOptions.warnings`。 */
+  warnings?: boolean;
+  /** 见 `DualPathOptions.figures`。 */
+  figures?: () => Promise<FigureHitLite[]>;
 }): Promise<DualPathResult> {
   const { query, userId, vin, vehicleModel, ctx } = args;
   // ctx.agent 决定查哪个知识库——`datasetsForAgent` 在调用层强制隔离：
@@ -637,5 +774,6 @@ export async function runOwnershipDualPath(args: {
     },
     Boolean(vehicleModel),
     query,
+    { warnings: args.warnings, figures: args.figures },
   );
 }

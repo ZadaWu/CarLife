@@ -11,6 +11,12 @@
  *
  * ⚠️ 本文件有**两处** AssistantDock（行程地图模式与默认模式），与车机同一条注释：
  * 只改一处的表现是"进了行程视图暖暖就永远在休息"，而那一屏不报任何错。
+ * 行程卡与日期条（M75-02）同一条纪律：tripsCard 与 dateBanner 两处都挂，三态只判一处。
+ *
+ * # 三态（M75-02，对齐车机 M73-02，竖屏自己的落位）
+ *
+ * 无行程 → 提示卡；有行程未选中 → 提示卡的槽位换成**紧凑**周日历卡（周条 + 色块，清单在抽屉）；
+ * 选中 → 顶部日期条（可 ×）+ 提示卡回到槽位。跟车时不渲染日期条（顶部是下一站与 ETA）。
  */
 import { useCallback, useState } from "react";
 import {
@@ -24,9 +30,13 @@ import {
   LocateButton,
   MicIndicator,
   NavBar,
+  EnRouteReminderCard,
+  useEnRouteReminders,
   PortraitTimeline,
   SPRITES,
   TipsCard,
+  TripCalendarCard,
+  TripDateBanner,
   spriteFor,
   type HudTripMapProps,
   type ListenState,
@@ -34,7 +44,7 @@ import {
   type ThemeName,
   type UseMapViewportResult,
 } from "@carlife/ui";
-import { isHighlightsPage, type HudSnapshot } from "@carlife/shared";
+import { isHighlightsPage, type HudSnapshot, type TripPlanLeg, type TripPlanListEntry } from "@carlife/shared";
 
 export interface MobileHudProps {
   theme: ThemeName;
@@ -67,6 +77,8 @@ export interface MobileHudProps {
   home?: { city: string; lat: number; lon: number };
   /** 真实地图行程模式（M13-06；M65-01 手机端接上）；缺省走装饰时间轴。 */
   tripMap?: HudTripMapProps;
+  /** 途中提醒（M77-06）：手机端只卡不声。 */
+  reminders?: { legs?: TripPlanLeg[]; limitMin?: number };
   /**
    * 「开始行程」入口（2026-09-02，对齐车机的车钥匙挂板）。开的是出发卡（只读：看今天去哪、
    * 规划方案，「开始导航」跳的是高德 App），不下发任何车辆指令——不违反 HUD 红线。
@@ -79,6 +91,20 @@ export interface MobileHudProps {
     micEnabled: boolean;
     degraded?: boolean;
     onToggleMic?: (next: boolean) => void;
+  };
+  /**
+   * 行程列表与两态（M75-02）。`entries` 空 → 与没传一样（提示卡照旧）；
+   * `selectedPlanId` 有值且在列表里 → 选中态。`onOpenList` 开抽屉（清单与翻页在那里）。
+   */
+  trips?: {
+    entries: readonly TripPlanListEntry[];
+    selectedPlanId?: string;
+    /** 本地今天（YYYY-MM-DD）。 */
+    today: string;
+    onSelect: (planId: string) => void;
+    onOpenReview: (planId: string) => void;
+    onClearSelection: () => void;
+    onOpenList: () => void;
   };
 }
 
@@ -98,9 +124,11 @@ export function MobileHud({
   tripMap,
   onDepart,
   mic,
+  trips,
+  reminders,
 }: MobileHudProps) {
   const sprites = SPRITES[theme];
-  const { trip, energy, tips, weather, assistantState, freshness } = snapshot;
+  const { trip, energy, tips, weather, assistantState, freshness, leg } = snapshot;
 
   /*
    * 跟车进度（M31-03）。**hook 必须在任何 return 之前**——下面的 `if (tripMap)` 是一条早退分支，
@@ -108,12 +136,20 @@ export function MobileHud({
    */
   const [navProgress, setNavProgress] = useState<NavTripProgress | undefined>(undefined);
   const navOnProgress = tripMap?.nav?.onProgress;
+  const enRoute = useEnRouteReminders({
+    active: Boolean(tripMap?.nav),
+    navKey: tripMap?.nav?.key,
+    legs: reminders?.legs,
+    limitMin: reminders?.limitMin,
+  });
+  const enRouteOnProgress = enRoute.onProgress;
   const handleNavProgress = useCallback(
     (p: NavTripProgress) => {
       setNavProgress(p);
       navOnProgress?.(p);
+      enRouteOnProgress(p);
     },
-    [navOnProgress],
+    [navOnProgress, enRouteOnProgress],
   );
 
   const page = tips.pages[tipsPage - 1] ?? tips.pages[0];
@@ -128,7 +164,15 @@ export function MobileHud({
         .filter((it) => sprites.items[it.key] !== undefined)
         .map((it) => ({ ...it, icon: sprites.items[it.key] }));
 
-  const windowCard = isHighlightsPage(page) ? (
+  /*
+   * 三态只判一处（M75-02）：提示卡只在「无行程」或「选中」时渲染；
+   * 有行程未选中时它的槽位归紧凑周日历卡。
+   */
+  const hasTrips = Boolean(trips && trips.entries.length > 0);
+  const selectedTrip = trips && trips.selectedPlanId ? trips.entries.find((e) => e.planId === trips.selectedPlanId) : undefined;
+  const showTips = !hasTrips || selectedTrip !== undefined;
+
+  const windowCard = !showTips ? null : isHighlightsPage(page) ? (
     <HighlightsCard
       highlights={page.highlights}
       page={tipsPage}
@@ -147,6 +191,29 @@ export function MobileHud({
       footer={tipsFooter}
     />
   );
+
+  /*
+   * 紧凑周日历卡（未选中态）与顶部日期条（选中态）：两个布局分支共用一份。
+   * 跟车时不渲染日期条——顶部那一行是下一站与 ETA（与车机同一条判据）。
+   */
+  const tripsCard = !trips || !hasTrips || selectedTrip ? null : (
+    <TripCalendarCard
+      compact
+      entries={trips.entries}
+      today={trips.today}
+      selectedPlanId={trips.selectedPlanId}
+      homeCity={home?.city}
+      weatherIcons={sprites.weather}
+      onSelect={trips.onSelect}
+      onOpenReview={trips.onOpenReview}
+      onOpenList={trips.onOpenList}
+    />
+  );
+  const dateBanner =
+    trips && selectedTrip && !tripMap?.nav ? (
+      <TripDateBanner entry={selectedTrip} today={trips.today} onClose={trips.onClearSelection} />
+    ) : null;
+  const stageClass = selectedTrip ? "hud-stage--trip-selected" : hasTrips ? "hud-stage--has-trips" : undefined;
 
   // 哨兵指示：两个布局分支共用一份，贴在暖暖身侧（落点见 hud.css 竖屏段的 `.hud-assistant-mic`）。
   const micNode = mic ? (
@@ -195,7 +262,7 @@ export function MobileHud({
   // ── 真实地图行程模式（M13-06）：真实坐标标注 + 路线动画 + 跟车。装饰时间轴整套不渲染——两套坐标系叠加会打架。
   if (tripMap) {
     return (
-      <HudStage theme={theme} mode="portrait">
+      <HudStage theme={theme} mode="portrait" className={stageClass}>
         <AmapTripLayer
           theme={theme}
           stops={tripMap.stops}
@@ -212,6 +279,9 @@ export function MobileHud({
           guidedSpots={tripMap.guidedSpots}
         />
         {tripMap.nav && <NavBar nav={tripMap.nav} progress={navProgress} />}
+        {tripMap.nav && enRoute.card && (
+          <EnRouteReminderCard card={enRoute.card} muted onAck={enRoute.ack} onRestDecision={enRoute.decideRest} />
+        )}
         {tripMap.tabs.length > 1 && (
           <div className="hud-daytabs" role="tablist" aria-label="行程视图切换">
             {tripMap.tabs.map((t) => (
@@ -239,7 +309,9 @@ export function MobileHud({
           </div>
         )}
         {windowCard}
-        <EnergyCapsule summary={energy} stale={freshness.stale} updatedAt={freshness.updatedAt} />
+        {tripsCard}
+        {dateBanner}
+        <EnergyCapsule summary={energy} leg={leg} stale={freshness.stale} updatedAt={freshness.updatedAt} />
         {assistantNode}
         {micNode}
         {departNode}
@@ -250,7 +322,7 @@ export function MobileHud({
   return (
     // portrait 档位固定：手机不会横过来变成车机，让它按视口比例自适应
     // 反而会在横屏时切成条形屏排布，那套构图是给 1920×720 设计的。
-    <HudStage theme={theme} mode="portrait">
+    <HudStage theme={theme} mode="portrait" className={stageClass}>
       <AmapBackdrop
         theme={theme}
         center={mapView?.restored ?? (home ? { lat: home.lat, lon: home.lon } : undefined)}
@@ -288,8 +360,10 @@ export function MobileHud({
       />
 
       {windowCard}
+      {tripsCard}
+      {dateBanner}
 
-      <EnergyCapsule summary={energy} stale={freshness.stale} updatedAt={freshness.updatedAt} />
+      <EnergyCapsule summary={energy} leg={leg} stale={freshness.stale} updatedAt={freshness.updatedAt} />
 
       {assistantNode}
       {micNode}

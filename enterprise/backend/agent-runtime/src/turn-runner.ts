@@ -64,9 +64,15 @@ export interface TurnInput {
    * 仍在写指标，以后接 L1 时仍在烧钱。
    */
   fillerEnabled?: boolean;
+  /**
+   * 本轮绑定的附件（M71-04 照片；M80-01 起含视频）。照片进观察层与直连表述模型；
+   * 视频是网关派生好的帧序图 + 转写（没有原件）。见 `graph/media.ts`。
+   */
+  attachments?: TurnAttachmentInput[];
 }
 
 import type { GuardPipeline } from "./guard/pipeline";
+import { attachmentNote, isPhotoInput, isVideoInput, type TurnAttachmentInput } from "./graph/media";
 import type { ElicitationService } from "./elicitation/service";
 import { createStreamRedactor, createModerationSession } from "@carlife/guardrails";
 
@@ -596,11 +602,18 @@ export class TurnRunner {
       }
     }
 
+    // 照片与视频各走各的通道（M71-04 / M80-02）：照片进观察层，视频进【视频】段；
+    // 字节不进 `messages`（那是跨轮检查点），当前轮的用户消息只留一句附件备注。
+    const photos = (input.attachments ?? []).filter(isPhotoInput);
+    const video = (input.attachments ?? []).find(isVideoInput);
+    const note = attachmentNote(photos.length, video);
     void this.graph
       .invoke(
         {
+          photoInput: photos.length ? photos : undefined,
+          videoInput: video,
           messages: [
-            { role: "user" as const, content: input.content },
+            { role: "user" as const, content: input.content, ...(note ? { attachmentNote: note } : {}) },
             /*
              * 能源缺口的测算结果（M26-07）。与"编排层已完成的求解结果"同一条路：
              * **求解在代码里做完，模型只表述**（F-13-02）。

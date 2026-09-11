@@ -12,17 +12,24 @@
  * 交给模型就会出现"读起来完全正常、只有真上路才发现问题"的方案（merge.ts 文件头）。
  */
 
-import { runFanout, type BranchResult, type FanoutOptions } from "../fanout";
+import {
+  runFanout, type BranchResult, type FanoutOptions } from "../fanout";
 import { canonicalAgent } from "../../acp-client/agent-prompt";
 import { clearSubmission, waitSubmission } from "../../branch-submissions";
 import { currentTurnId } from "../../interrupt-bus";
-import { parseTripDraft, solve, extractConstraints, MISSING_SECTION_HEADER } from "../merge";
+import { buildLegs, parseTripDraft, solve, extractConstraints, MISSING_SECTION_HEADER, PENDING_STOP, type TripDraft } from "../merge";
+import { auditPlan, hasBlocker, invokeTool, type RouteAuditArgs, type RouteAuditResult } from "@carlife/tools";
+import type { AuditReport } from "@carlife/shared";
+import { auditBudgetMs, auditLimits, auditMaxRounds } from "../audit-config";
+import { markRepaired, planRepairs } from "../audit-repair";
+import { recordSpan } from "../../trace/span";
 // 续航分支的提示词与字段清单住在**公共层**（子图之间不许互相 import，check:arch 守）：
 // 三种能源形态各不相同，两处各写一份必然漂移，而漂移的后果是给燃油车算续航。
 import { energyBranchPrompt, energyFact, energyFields, reconcileConstraints } from "../energy";
 import type { VehicleEnergyType } from "@carlife/memory";
 import type { ChatStreamer, ChatStreamHooks } from "../../llm";
 import type { PoiKind } from "@carlife/shared";
+import { adjustPlanIdOf } from "@carlife/shared";
 import type { TripPlanState, TripPlanDay } from "../state";
 
 // ── 细化轮：改哪就只跑哪 ─────────────────────────────────────
@@ -174,6 +181,27 @@ export const ARRIVE_PATTERNS = /^\s*已到达/;
 
 export function arriveIntent(userText: string): boolean {
   return ARRIVE_PATTERNS.test(userText);
+}
+
+/**
+ * 行程提醒播报（M72-05）。与到站播报同款：**这一句不是车主说的**，是车机端点火 / 首帧时
+ * 发现某程的每日核查是 critical 且没看过，替车主发上来的一句报告式文本
+ * （`【行程提醒】青岛行程：第 1 天：新增暴雨橙色预警，要不要我把相关安排调整一下`）。
+ * 模型只需转述并问那一句，**不进 fan-out**——它不是规划诉求。
+ */
+export const REVIEW_NOTICE_PATTERNS = /^\s*【行程提醒】/;
+
+export function reviewNoticeIntent(userText: string): boolean {
+  return REVIEW_NOTICE_PATTERNS.test(userText);
+}
+
+/**
+ * 调整已确认行程（M72-05）：LLM `action=adjust` 优先，`调整行程 <planId>：` 的固定开头兜底
+ * （那是车机端「让暖暖调整」发的，形状在 contracts 的 `adjustPrompt`——两处只能有一份）。
+ * 人话「换个酒店」在**有草案**时本来就粘，不需要它；它只在没有会话内草案时起作用。
+ */
+export function wantsAdjust(userText: string, intent?: PlanActionCarrier): boolean {
+  return intent?.action === "adjust" || adjustPlanIdOf(userText) !== undefined;
 }
 
 export function departIntent(userText: string): boolean {
@@ -805,6 +833,26 @@ export function describeArrived(note: string): string {
   ].join("\n");
 }
 
+/** 行程提醒（M72-05）：端上发来的报告式一句话，只转述并问一句。 */
+export function describeReviewNotice(note: string): string {
+  return [
+    `车机端报告：${note.replace(/^\s*【行程提醒】/, "").trim()}`,
+    "**用一两句话转述这件事，并问车主要不要调整**；他说要就按他的话改那份已确认的行程。",
+    "不要展开介绍、不要自己先改、不要一次问多个问题——他刚上车。",
+  ].join("\n");
+}
+
+/** 「调整行程 <id>」找不到那份行程：如实说，不退回新规划。 */
+export function describeAdjustNotFound(planId: string | undefined): string {
+  return [
+    planId
+      ? `没有找到编号为 ${planId} 的已确认行程（可能已被取消或改掉）。`
+      : "库里没有已确认的行程可以调整。",
+    "告诉车主：主页上如果还看得到那份行程，请他说一声；要重新排一份也可以直接说要去哪、玩几天。",
+    "**不要把这句话当成新的规划请求**去排一份新行程。",
+  ].join("\n");
+}
+
 /** 导航已结束。 */
 export function describeNavEnded(): string {
   return [
@@ -1376,6 +1424,17 @@ export function mergeItinerary(
       if (solved.draft.energyStops?.length) {
         plan.energyStops = solved.draft.energyStops;
       }
+      /*
+       * 行车分段进快照（M77-01，F-62-01）：此前 legMinutes 解完只拼一句 driveLine 就丢了，
+       * 体检的时长项与途中提醒都没有输入。对齐由代码做，对不齐就不写（不猜）。
+       */
+      const legs = buildLegs(solved.draft, plan.skeleton, plan.origin);
+      if (legs) {
+        plan.legs = legs;
+      } else {
+        delete plan.legs;
+        console.warn("[itinerary] 分段与停靠对不齐，快照不写 legs");
+      }
       const totalMin = solved.draft.legMinutes.reduce((a, x) => a + x, 0);
       driveMinutes = totalMin;
       driveLine = `自驾约${Math.floor(totalMin / 60)}小时${Math.round(totalMin % 60)}分，分${solved.draft.legMinutes.length}段`;
@@ -1464,12 +1523,22 @@ function branchPrompt(branch: ItineraryBranch, input: ItineraryInput, constraint
 export interface ItineraryFanoutOutput extends ItineraryMergeOutput {
   branches: BranchResult[];
   ranBranches: ItineraryBranch[];
+  /** 体检 → 修复循环之后的最终报告（M77-03）。含 rounds / budgetExhausted 与 repaired 标记。 */
+  audit: AuditReport;
+}
+
+/** 体检循环的可注入件（单测用）：顺序体检的调用与时钟。 */
+export interface AuditHooks {
+  /** 顺序体检。缺省经 invokeTool 调 `route_audit`；测试注入假实现。 */
+  routeAudit?: (args: RouteAuditArgs) => Promise<RouteAuditResult>;
+  /** 时钟（毫秒）。缺省 Date.now；测试用它逼预算耗尽。 */
+  now?: () => number;
 }
 
 export async function runItineraryFanout(
   streamer: ChatStreamer,
   input: ItineraryInput,
-  hooks: Pick<ChatStreamHooks, "threadId" | "onUsage" | "signal"> & Pick<FanoutOptions, "onBranchEvent"> = {},
+  hooks: Pick<ChatStreamHooks, "threadId" | "onUsage" | "signal"> & Pick<FanoutOptions, "onBranchEvent"> & { audit?: AuditHooks } = {},
 ): Promise<ItineraryFanoutOutput> {
   const { kept, dropped } = reconcileConstraints(input.constraints, input.energyType);
   const constraintText = [
@@ -1595,10 +1664,193 @@ export async function runItineraryFanout(
     }
   }
 
-  return { ...merged, branches, ranBranches: targets };
+  /*
+   * 体检 → 修复 → 再体检（M77-03，F-58-08）。放在 hotel 追跳之后：追跳已经把最常见的住宿缺口补了，
+   * 循环处理的是剩下的 blocker。骨架轮与细化轮都跑——细化过的草案再确认前同样要验。
+   * 轮数与预算由 audit-config 定；预算耗尽按"未消解"交付，不无限循环。
+   */
+  const looped = await auditWithRepairs(streamer, input, kept, dropped, constraintText, targets, branches, merged, hooks);
+  return { ...looped.merged, branches: looped.branches, ranBranches: targets, audit: looped.report };
 }
 
-// ── 表述 ────────────────────────────────────────────────────
+// ── 体检与修复循环（M77-03）────────────────────────────────
+
+/** 一次体检：`plan_audit` 纯函数 + 编排层调的顺序体检。 */
+async function runAudit(
+  plan: TripPlanState,
+  kept: readonly string[],
+  dropped: readonly string[],
+  limits: ReturnType<typeof auditLimits>,
+  hooks: Pick<ChatStreamHooks, "threadId"> & { audit?: AuditHooks },
+): Promise<AuditReport> {
+  const order = await orderAudit(plan, hooks);
+  return auditPlan({
+    skeleton: plan.skeleton,
+    legs: plan.legs,
+    origin: plan.origin,
+    destination: plan.destination,
+    limits,
+    constraints: [...kept],
+    overridden: [...dropped],
+    hasReturnTransit: plan.transit?.recommended === "train" || plan.transit?.recommended === "flight",
+    ...order,
+  });
+}
+
+/**
+ * 顺序体检的确定性消费（F-58-06）：此前 `route_audit` 只有模型自己决定调不调。
+ * 只对**有坐标的天**调（规划轮的草案多数没有坐标——那时记 unverifiable「无坐标」，不阻塞）；
+ * 交叉或可省 ≥ 20% → order warning；工具异常 → unverifiable 带原因。永远不产生 blocker。
+ */
+async function orderAudit(
+  plan: TripPlanState,
+  hooks: Pick<ChatStreamHooks, "threadId"> & { audit?: AuditHooks },
+): Promise<{ orderWarnings?: Array<{ day?: number; basis: string }>; orderUnverifiable?: string }> {
+  const days: RouteAuditArgs["days"] = [];
+  for (const d of plan.skeleton) {
+    const pts = d.spots.filter((s) => typeof s.lat === "number" && typeof s.lon === "number");
+    if (pts.length >= 2 && pts.length === d.spots.length) {
+      days.push({ day: d.day, points: pts.map((s) => ({ name: s.name, lat: s.lat!, lon: s.lon! })) });
+    }
+  }
+  if (days.length === 0) return { orderUnverifiable: "无坐标" };
+  const call =
+    hooks.audit?.routeAudit ??
+    (async (args: RouteAuditArgs) =>
+      ((await invokeTool("route_audit", args, {
+        sessionId: hooks.threadId ?? "unknown",
+        agent: "trip",
+        mode: (process.env.CARLIFE_TOOLS as "real" | "mock" | "off" | undefined) ?? "real",
+      })) as { data: RouteAuditResult }).data);
+  try {
+    const res = await call({ city: plan.destination, days });
+    const warnings: Array<{ day?: number; basis: string }> = [];
+    for (const d of res.days) {
+      const saved = d.suggested?.savedPct ?? 0;
+      if (d.crossings.length > 0 || saved >= 20) {
+        warnings.push({
+          day: d.day,
+          basis:
+            `第 ${d.day ?? "?"} 天顺序${d.crossings.length ? `有 ${d.crossings.length} 处交叉` : ""}` +
+            `${d.crossings.length && saved ? "，" : ""}${saved ? `按建议顺序可省约 ${saved}%` : ""}（直线估算，以导航为准）`,
+        });
+      }
+    }
+    return { orderWarnings: warnings };
+  } catch (err) {
+    return { orderUnverifiable: `顺序体检失败：${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/** 把 drive 分支的提交按更严的单段上限重拆（F-58-09 的代码分支）。 */
+function resplitDriveBranch(branches: readonly BranchResult[], plan: TripPlanState, legLimitMin: number): BranchResult[] | undefined {
+  const legs = plan.legs;
+  if (!legs || legs.length === 0) return undefined;
+  const draft: TripDraft = {
+    legMinutes: legs.map((l) => l.driveMinutes),
+    stops: legs.slice(0, -1).map((l) => l.toStop ?? PENDING_STOP),
+    energyStops: plan.energyStops,
+  };
+  const solved = solve(draft, { maxLegMinutes: legLimitMin });
+  const drive = branches.find((b) => b.agent.replace(/-task$/, "") === "drive");
+  const base = (drive?.submission as Partial<TripDraft> | undefined) ?? {};
+  const synthetic: BranchResult = {
+    agent: "drive-task",
+    status: "ok",
+    text: "",
+    startedAt: drive?.startedAt ?? 0,
+    endedAt: drive?.endedAt ?? 0,
+    submission: { ...base, legMinutes: solved.draft.legMinutes, stops: solved.draft.stops, energyStops: solved.draft.energyStops },
+  };
+  return [...branches.filter((b) => b.agent.replace(/-task$/, "") !== "drive"), synthetic];
+}
+
+async function auditWithRepairs(
+  streamer: ChatStreamer,
+  input: ItineraryInput,
+  kept: string[],
+  dropped: string[],
+  constraintText: string,
+  targets: ItineraryBranch[],
+  branches: BranchResult[],
+  merged: ItineraryMergeOutput,
+  hooks: Pick<ChatStreamHooks, "threadId" | "onUsage" | "signal"> & Pick<FanoutOptions, "onBranchEvent"> & { audit?: AuditHooks },
+): Promise<{ merged: ItineraryMergeOutput; branches: BranchResult[]; report: AuditReport }> {
+  const now = hooks.audit?.now ?? (() => Date.now());
+  const startedAt = now();
+  const maxRounds = auditMaxRounds();
+  const budgetMs = auditBudgetMs();
+  const legMax = extractConstraints(kept).maxLegMinutes;
+  const limits = auditLimits(legMax);
+  const legLimitMin = Math.min(limits.legMaxMin ?? Infinity, limits.legSafeMaxMin);
+
+  let report = await runAudit(merged.plan, kept, dropped, limits, hooks);
+  const first = report;
+  let rounds = 0;
+  let budgetExhausted = false;
+  let current = branches;
+
+  while (hasBlocker(report) && rounds < maxRounds) {
+    if (now() - startedAt >= budgetMs) {
+      budgetExhausted = true;
+      break;
+    }
+    rounds += 1;
+    const roundStart = now();
+    const actions = planRepairs(report, merged.plan, { legLimitMin, dailyMaxMin: limits.dailyMaxMin, constraintText });
+    if (actions.length === 0) break; // 只剩分派表不认的 blocker：再转也没动作
+
+    let next = current;
+    for (const a of actions) {
+      if (a.kind === "resplit") {
+        const re = resplitDriveBranch(next, merged.plan, a.legLimitMin);
+        if (re) next = re;
+        continue;
+      }
+      // 槽里躺着首轮的提交，不清掉的话 submissionOf 立刻拿旧值兑现（与 hotel 追跳同一条理由）。
+      if (hooks.threadId) {
+        const turnId = currentTurnId(hooks.threadId);
+        if (turnId) clearSubmission(hooks.threadId, turnId, a.branch);
+      }
+      const res = await runFanout(streamer, [{ agent: `${a.branch}-task`, prompt: a.prompt }], {
+        threadId: hooks.threadId,
+        onUsage: hooks.onUsage,
+        onBranchEvent: hooks.onBranchEvent,
+        signal: hooks.signal,
+        timeoutMs: FOLLOWUP_HOTEL_TIMEOUT_MS,
+        submissionOf: (agent) => {
+          const sessionId = hooks.threadId;
+          if (!sessionId) return undefined;
+          const turnId = currentTurnId(sessionId);
+          if (!turnId) return undefined;
+          return waitSubmission(sessionId, turnId, canonicalAgent(agent));
+        },
+      });
+      const r = res[0];
+      if (!r || r.status !== "ok") continue; // 追发失败：保留上一轮结果，blocker 留在报告里
+      if (a.branch === "hotel") {
+        const combined = combineHotelBranches(next, r);
+        if (combined) next = combined;
+      } else {
+        next = [...next.filter((b) => b.agent.replace(/-task$/, "") !== a.branch), r];
+      }
+    }
+    current = next;
+    merged = mergeItinerary(current, { ...input, constraints: kept }, targets);
+    report = await runAudit(merged.plan, kept, dropped, limits, hooks);
+    recordSpan(hooks.threadId, "itinerary.audit.round", roundStart, now(), "ok", {
+      agent: "itinerary",
+      detail: JSON.stringify({
+        round: rounds,
+        actions: actions.map((a) => (a.kind === "resplit" ? "resplit" : `rerun:${a.branch}`)),
+        blockersAfter: report.findings.filter((f) => f.level === "blocker").length,
+      }),
+    });
+  }
+
+  const finalReport = markRepaired(first, report);
+  return { merged, branches: current, report: { ...finalReport, rounds, budgetExhausted } };
+}
 
 /**
  * 给应答节点（narrator）的文本。与 describeMerged 同一角色：
@@ -1626,6 +1878,21 @@ export function describeItineraryPlan(out: ItineraryMergeOutput): string {
   if (plan.caveats.length) lines.push(`必须一并说明：${plan.caveats.join("；")}`);
   if (out.violations.length) lines.push(`未能满足的约束（必须如实告知用户）：${out.violations.join("；")}`);
   if (out.missing.length) lines.push(`${MISSING_SECTION_HEADER}${out.missing.join("；")}`);
+  const audit = (out as Partial<ItineraryFanoutOutput>).audit;
+  if (audit) lines.push(describeAudit(audit));
   lines.push("最后提醒车主：说「第X天再细化」或「换个酒店」可以继续调整。");
   return lines.join("\n");
+}
+
+/** 体检一段的表述（F-58-08）：只陈述结论与数字，answer 不改数字。 */
+export function describeAudit(audit: AuditReport): string {
+  const attention = audit.findings.filter((f) => !f.repaired && f.level !== "unverifiable").map((f) => f.basis);
+  const unverifiable = audit.findings.filter((f) => f.level === "unverifiable").map((f) => `${f.basis}${f.missing ? `（缺${f.missing}）` : ""}`);
+  const repaired = audit.findings.filter((f) => f.repaired).length;
+  const parts = [`体检：已验 ${audit.passed} 项`];
+  if (repaired) parts.push(`自动修了 ${repaired} 处`);
+  if (attention.length) parts.push(`请车主看：${attention.join("；")}`);
+  if (unverifiable.length) parts.push(`验不了：${unverifiable.join("；")}`);
+  if (audit.budgetExhausted) parts.push("（修复因预算耗尽提前收手）");
+  return parts.join("；");
 }

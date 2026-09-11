@@ -21,6 +21,7 @@ import type { AssistantState } from "../generated/AssistantState";
 export type { AssistantState };
 
 import type { PoiKind } from "./poi-kind";
+import type { TripLeg } from "./trip-plan";
 
 /**
  * 环境上下文：驱动助手服饰与提示卡物品类别，两者必须一致（Brief §3.3 §7-5）。
@@ -284,6 +285,12 @@ export interface HudSnapshot {
   weather: WeatherContext;
   assistantState: AssistantState;
   freshness: Freshness;
+  /**
+   * 出发地 → 今天第一站的驾车规划（`TripPlanSnapshot.leg` 的投影，2026-09-11）。
+   * 屏底状态栏的预计里程 / 预计用时 / 道路情况**只认它**：缺席就显示「暂无」，
+   * 不再拿 `energy.distanceKm` 顶——那个数在真机上是各端 mock 快照里的常数。
+   */
+  leg?: TripLeg;
 }
 
 /** 把物品列表按每页 ≤ 3 件分页（Brief §3.3）。 */

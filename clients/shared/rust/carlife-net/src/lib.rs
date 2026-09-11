@@ -20,4 +20,6 @@ pub use media::{PlayerStatus, PlayerTrack, PlayerView, SinkBeat, SinkView};
 pub use sse::{SseClient, SseSignal};
 pub use trips::{ChargeSegment, RejectedTrip, TripQueue, TripReport, TripReportResult, MAX_BATCH};
 pub use tts::{TtsClient, TtsError, TtsRuntimeConfig};
-pub use upload::{AcceptedTurn, CreatedSession, GatewayClient, NetError, TranscribeResult};
+pub use upload::{
+    AcceptedTurn, CreatedSession, GatewayClient, NetError, TranscribeResult, UploadedAttachment,
+};

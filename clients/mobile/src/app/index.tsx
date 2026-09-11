@@ -10,13 +10,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   BottomNav,
+  DEMO_TRIP_ENTRIES,
+  DEMO_DIALOG_MESSAGES,
+  DEMO_DIALOG_SESSIONS,
+  DEMO_DIALOG_STREAMING,
   DEMO_TRIP_PLAN,
+  isDialogDemo,
+  isGuideDemo,
   DialogScreen,
+  SPRITES,
+  TripReviewSheet,
   assistantMode,
   canRetire,
   createArrivalAnnouncer,
   createGatewayHudSource,
   demoEnergy,
+  hudAlertFrom,
   mockVoicePort,
   sessionResumable,
   startEnergyPolling,
@@ -50,21 +59,26 @@ import {
   type HudSnapshot,
   type PermissionRequest,
   type SentinelIndication,
+  type TripPlanListEntry,
   type TripPlanSnapshot,
   type WeatherKind,
+  type AttachmentKind,
+  type AttachmentRef,
 } from "@carlife/shared";
 
 import { subscribeBridge } from "../bridge";
 import { createMockHudSource, makeSnapshot, MOCK_HOME } from "../data/mockSource";
-import { invokeFetchEnergy, invokeFetchTripPlan } from "../data/gatewayInvoke";
+import { invokeAckTripReview, invokeFetchEnergy, invokeFetchTripPlan } from "../data/gatewayInvoke";
 import { tripActiveFor } from "../data/tripMode";
 import { resolveTheme, setRootTheme } from "./theme";
 import { loadVehicles } from "../features/ownership/api";
 import { createInflight, INFLIGHT_BOOTSTRAP, INFLIGHT_NEW_SESSION } from "../data/inflight";
 import { planBootstrap } from "../data/bootstrapSession";
 import { sendWithSessionRetry } from "../data/sendWithRetry";
+import { buildUploadHeaders } from "../data/attachmentUpload";
 import { MobileGuide, useGuideBrief, useGuideJobs } from "../features/guide";
 import { MobileDeparture } from "../features/departure";
+import { MobileTripSheet } from "../features/trip";
 import { GuideJobsPanel } from "@carlife/ui";
 import { MobileHud } from "../features/hud";
 import { MobileOwnership } from "../features/ownership";
@@ -107,6 +121,11 @@ function forgetSession(): void {
  * （含手机号掩码）。形状就是契约 `PermissionRequest`（M65-02）——真实事件与它同型。
  * **演示态没有真实中断点**，按下去只收起、不上行（见渲染处）。
  */
+/** 本地日期 `YYYY-MM-DD`（M75-02）：周日历的「今天」按手机的钟，不按 UTC。 */
+function localDayKey(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 const DEMO_CONFIRM: PermissionRequest = {
   interruptId: "demo-interrupt",
   action: "appointment",
@@ -148,12 +167,29 @@ export function App() {
   const [weather] = useState<WeatherKind>("sunny");
   const [snapshot, setSnapshot] = useState<HudSnapshot | null>(null);
   const [stale, setStale] = useState(false);
-  const [nav, setNav] = useState<NavView>("hud");
+  /* `?dialog=demo` / `?buying=demo`：一进来就落在那一页（版式截图入口）。 */
+  const [nav, setNav] = useState<NavView>(() => (isDialogDemo() ? "dialog" : "hud"));
   /** 购车页是覆盖层，不占底部导航（M15-05，理由见渲染处）。 */
-  const [buyingOpen, setBuyingOpen] = useState(false);
+  const [buyingOpen, setBuyingOpen] = useState(
+    () => new URLSearchParams(window.location.search).get("buying") === "demo",
+  );
 
   // ── 真实行程数据源（M13-04 / M65-01）：Tauri 内轮询网关的已确认行程；浏览器走查维持 mock 源 + `?plan=demo`。
   const [fetchedPlan, setFetchedPlan] = useState<TripPlanSnapshot | null>(null);
+  /*
+   * 行程列表与核查（M75-02，对齐车机 M72-04 / M73-02）：活动行程 + 每程最新核查，与行程同一次轮询回来。
+   * `selectedPlanId` 只在端上记（不落库、不改服务端「当前行程」）；`reviewPlanId` 是打开着摘要的那程；
+   * `tripsOpen` 是行程抽屉（清单与翻页在那里，竖屏主页只放得下紧凑卡）。
+   */
+  const [fetchedEntries, setFetchedEntries] = useState<TripPlanListEntry[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [reviewPlanId, setReviewPlanId] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [tripsOpen, setTripsOpen] = useState(false);
+  /** 演示条目里点过「知道了」的（演示数据是静态的，得自己记）。 */
+  const [demoAcked, setDemoAcked] = useState<ReadonlySet<string>>(() => new Set());
+  /** 行驶中点了带点的那程：不弹，留一句话。 */
+  const [tripHint, setTripHint] = useState<string | undefined>(undefined);
   /** 车主常住地（M13-10）：没有行程时 HUD 的地图落点。浏览器没有网关那一路，用 mock 值——否则这一层走查不到。 */
   const [home, setHome] = useState<HomePlace | undefined>(isTauriEnv() ? undefined : MOCK_HOME);
   const [amapFailed, setAmapFailed] = useState(false);
@@ -175,6 +211,8 @@ export function App() {
             fetchPlanJson: invokeFetchTripPlan,
             onPlan: setFetchedPlan,
             onHome: setHome,
+            // 列表与核查（M75-02）。手机端不做点火播报（总览决策 5）：到达确认靠 alert + 红点 + 弹层。
+            onPlans: (entries) => setFetchedEntries(entries),
           })
         : createMockHudSource(weather),
     [weather],
@@ -252,6 +290,52 @@ export function App() {
   const navDay = plan ? tripPlanNavDay(plan, new Date().toISOString()) : undefined;
   const viewDay = navDay;
   const tripStops = useMemo(() => (plan ? tripPlanStops(plan, viewDay) : []), [plan, viewDay]);
+
+  /*
+   * 列表条目（M75-02）：真实数据来自轮询；浏览器 `?plan=demo` 用 `@carlife/ui` 的 7 程演示
+   * （紧凑卡 / 抽屉 / 弹层能在浏览器里被走查的唯一路径）。演示条目点过「知道了」的在本地打上 ackedAt。
+   */
+  const tripEntries: TripPlanListEntry[] = useMemo(() => {
+    if (!demoPlan) return fetchedEntries;
+    return DEMO_TRIP_ENTRIES.map((e) =>
+      e.review && demoAcked.has(e.review.reviewId)
+        ? { ...e, review: { ...e.review, ackedAt: new Date().toISOString() } }
+        : e,
+    );
+  }, [demoPlan, fetchedEntries, demoAcked]);
+  /** 选中的那程：不回落到当前行程——有选中才是选中态（与车机 M73-02 同）。 */
+  const highlightedPlanId =
+    selectedPlanId && tripEntries.some((e) => e.planId === selectedPlanId) ? selectedPlanId : undefined;
+  const reviewEntry = reviewPlanId ? tripEntries.find((e) => e.planId === reviewPlanId) : undefined;
+  /** 暖暖 alert：critical 且未确认、未作废（「知道了」即清除）。 */
+  const hudAlert = hudAlertFrom(tripEntries);
+
+  const onSelectTrip = useCallback(
+    (planId: string) => {
+      setSelectedPlanId(planId);
+      setTripsOpen(false);
+      if ("select" in source) (source as GatewayHudSource).select(planId);
+    },
+    [source],
+  );
+  /** 顶部日期条的 ×：回未选中态——紧凑卡回来、提示卡收起、地图回到列表首条。 */
+  const onClearTripSelection = useCallback(() => {
+    setSelectedPlanId(null);
+    if ("select" in source) (source as GatewayHudSource).select(null);
+  }, [source]);
+  const onOpenTripReview = useCallback(
+    (planId: string) => {
+      if (navDay !== undefined) {
+        // 行驶中不弹模态（Brief §2 / F-19-07）：留一句话，停车再看。
+        setTripHint("停车后再看行程变化");
+        window.setTimeout(() => setTripHint(undefined), 4000);
+        return;
+      }
+      setTripsOpen(false);
+      setReviewPlanId(planId);
+    },
+    [navDay],
+  );
 
   const sessionIdRef = useRef<string | null>(null);
   const openGuideRef = useRef<((spot: string) => void) | null>(null);
@@ -537,17 +621,56 @@ export function App() {
    * 助手回复都由 SSE 回流。
    */
   const sendText = useCallback(
-    async (content: string) => {
+    async (content: string, attachments?: string[]) => {
       setLastInteractionAt(Date.now());
       await sendWithSessionRetry({
         ensure: ensureUsableSession,
-        send: (sessionId, text) => invoke("send_text_message", { sessionId, content: text }),
+        // 附件句柄随消息绑到本轮（M80-03）；句柄属于上传时的那个会话——会话过期换新会话重发时，
+        // 老会话的句柄会被网关按归属拒绝（400 attachment_not_owned），那时让用户重选，不静默丢。
+        send: (sessionId, text) => invoke("send_text_message", { sessionId, content: text, ...(attachments?.length ? { attachments } : {}) }),
         startNew: startNewSession,
         isExpired: (err) => String(err).includes(SESSION_EXPIRED),
         content,
       });
     },
     [ensureUsableSession, startNewSession],
+  );
+  /*
+   * 附件通路（M80-03，F-09-07 / F-09-09）。**字节走 Rust**：令牌不进 WebView（§2.2 C2），
+   * 上传与取件都是 Tauri 命令。上传用 raw IPC（Uint8Array + 请求头），一段 40 MB 的视频不必先变成 JSON 数组；
+   * 取件回 ArrayBuffer 再包成 Blob，交给 `<img>` / `<video>` 的 blob URL。浏览器 mock 环境没有这一路。
+   */
+  const attachmentsPort = useMemo(
+    () =>
+      isTauriEnv()
+        ? {
+            upload: async (file: File): Promise<AttachmentRef> => {
+              const sessionId = await ensureUsableSession();
+              const bytes = new Uint8Array(await file.arrayBuffer());
+              /*
+               * 请求头一律先编码成 ASCII（M80-04）：Tauri 的 IPC 是 `new Headers(...)`，
+               * 中文文件名会让整次 invoke 当场抛 `TypeError: Type error`，请求根本发不出去。
+               * 编码与幂等键的拼法在 `data/attachmentUpload.ts`（纯函数、有单测）。
+               */
+              const headers = buildUploadHeaders({ sessionId, file });
+              const r = await invoke<{ handle: string; kind: AttachmentKind; bytes: number }>("upload_attachment", bytes, { headers });
+              return {
+                attachmentId: r.handle,
+                kind: r.kind,
+                handle: r.handle,
+                // 落库的是网关按魔数纠正后的 MIME；端上这份只用于本地渲染，取归一化后的值。
+                contentType: headers["content-type"],
+                bytes: r.bytes,
+                filename: file.name,
+              };
+            },
+            load: async (ref: AttachmentRef): Promise<Blob> => {
+              const buf = await invoke<ArrayBuffer>("fetch_attachment", { handle: ref.handle });
+              return new Blob([buf], { type: ref.contentType ?? "application/octet-stream" });
+            },
+          }
+        : undefined,
+    [ensureUsableSession],
   );
   // 「结束导航」与到站播报走**同一条语音链路**而不是直调工具（与车机同一条纪律）。经 ref 取最新版。
   const sendTextRef = useRef(sendText);
@@ -580,7 +703,12 @@ export function App() {
   openGuideRef.current = openGuide;
   useEffect(() => {
     const spot = new URLSearchParams(window.location.search).get("guide");
-    if (spot) openGuide(spot);
+    /*
+     * ⚠️ `?guide=demo` 是**版式截图入口**（`isGuideDemo()`，见 useGuideBrief 的初值），
+     * 不是一个叫「demo」的景点。不排除的话这条深链会立刻拿这个哨兵去发真实请求，
+     * 把演示态顶掉，页面变成「这次没有查到 demo 的导览资料」——两个 query 撞了名字。
+     */
+    if (spot && !isGuideDemo()) openGuide(spot);
   }, [openGuide]);
 
   // 导览采集进度（M40-03）：面板可见（HUD 层、导览页关着）才拉才轮。
@@ -931,9 +1059,10 @@ export function App() {
      * 分不开——这是这条链路在手机上唯一的到达确认。窗口一过（或被指令消耗）
      * 就交回服务端事件流。
      */
+    // 唤醒窗口之后是行程 alert（M75-02）：critical 未确认的核查让暖暖亮起来，「知道了」即清。
     externalState: wakeUntil > Date.now()
       ? "listening"
-      : (serverAvatarState ?? view.assistantState),
+      : hudAlert ? "alert" : (serverAvatarState ?? view.assistantState),
     // 点助手 = 进入对话层（有后果的操作都在对话层经 Guard + HITL）
     onOpenDialog: () => setNav("dialog"),
     voice,
@@ -953,7 +1082,17 @@ export function App() {
           mapView={mapView}
           home={home}
           tripMap={tripMap}
+          reminders={{ legs: plan?.legs }}
           onDepart={() => setDepartOpen(true)}
+          trips={{
+            entries: tripEntries,
+            selectedPlanId: highlightedPlanId,
+            today: localDayKey(),
+            onSelect: onSelectTrip,
+            onOpenReview: onOpenTripReview,
+            onClearSelection: onClearTripSelection,
+            onOpenList: () => setTripsOpen(true),
+          }}
           assistantMode={assistantMode({
             messageCount: messages.length,
             lastInteractionAt,
@@ -992,7 +1131,9 @@ export function App() {
               ? { primary: "麦克风未授权", secondary: "长按打开系统设置，允许使用麦克风" }
               : micPermission === "undetermined"
                 ? { primary: "麦克风待授权", secondary: "长按并在系统弹窗中允许" }
-                : undefined
+                : tripHint
+                  ? { primary: tripHint, secondary: "行程上的红点会一直留着" }
+                  : undefined
           }
         />
       </div>
@@ -1010,6 +1151,53 @@ export function App() {
       {/* 出发卡（2026-09-02）：底部升起的 sheet，压在 HUD 与导览条之上、HITL 确认之下；导览页开着时让位。 */}
       {nav === "hud" && !guide && departOpen && (
         <MobileDeparture plan={plan} vin={activeVin ?? undefined} onClose={() => setDepartOpen(false)} />
+      )}
+
+      {/* 行程抽屉（M75-02）：完整周日历卡（清单 + 翻页）；与出发卡同层，导览页开着时让位。 */}
+      {nav === "hud" && !guide && tripsOpen && (
+        <MobileTripSheet
+          entries={tripEntries}
+          selectedPlanId={highlightedPlanId}
+          today={localDayKey()}
+          homeCity={home?.city}
+          weatherIcons={SPRITES[theme].weather}
+          onSelect={onSelectTrip}
+          onOpenReview={onOpenTripReview}
+          onClose={() => setTripsOpen(false)}
+        />
+      )}
+
+      {/* 行程变化摘要（M75-02，组件与车机同一份）：「知道了」→ ack；「让暖暖调整」→ 一句话进会话并切到对话页。 */}
+      {nav === "hud" && reviewEntry?.review && (
+        <TripReviewSheet
+          entry={reviewEntry}
+          busy={reviewBusy}
+          canAdjust={isTauriEnv() && navDay === undefined}
+          onClose={() => setReviewPlanId(null)}
+          onAck={() => {
+            const review = reviewEntry.review!;
+            if (demoPlan) {
+              setDemoAcked((prev) => new Set([...prev, review.reviewId]));
+              setReviewPlanId(null);
+              return;
+            }
+            setReviewBusy(true);
+            void invokeAckTripReview(reviewEntry.planId, review.reviewId)
+              .catch((err) => console.warn("[trip-review] 确认失败（下一轮刷新如实纠正）", err))
+              .finally(() => {
+                setReviewBusy(false);
+                setReviewPlanId(null);
+                // 立即重拉：红点熄灭不该等下一个轮询周期。
+                if ("refresh" in source) (source as GatewayHudSource).refresh();
+              });
+          }}
+          onAdjust={(prompt) => {
+            setReviewPlanId(null);
+            void sendText(prompt);
+            // 后面是既有链路（无草案装载 → 细化 → 确认弹窗），车主要看到暖暖在说什么。
+            setNav("dialog");
+          }}
+        />
       )}
 
       {/* 景区导览页（M36-04）：覆盖层压在 HUD 之上，返回即关；层级低于 HITL 确认。 */}
@@ -1040,16 +1228,27 @@ export function App() {
           */}
           <DialogScreen
             railMode="drawer"
-            messages={viewing ? viewing.messages : messages}
-            streaming={viewing ? null : streaming}
-            progress={viewing ? null : toolProgress.progress}
+            /* `?dialog=demo`：喂演示消息/会话/进展——版式截图入口，见 @carlife/ui 的 demo-dialog.ts。 */
+            messages={isDialogDemo() ? DEMO_DIALOG_MESSAGES : viewing ? viewing.messages : messages}
+            streaming={isDialogDemo() ? DEMO_DIALOG_STREAMING : viewing ? null : streaming}
+            progress={isDialogDemo() ? "正在查天气（演示）" : viewing ? null : toolProgress.progress}
             branchFaults={viewing ? undefined : branchFaults.faults}
             connection={connection}
-            onSendText={isTauriEnv() ? sendText : undefined}
+            onSendText={isTauriEnv() || isDialogDemo() ? sendText : undefined}
+            attachments={attachmentsPort}
             currentSessionId={currentSessionId}
             viewing={viewing ? { sessionId: viewing.sessionId, onExit: exitViewing } : null}
             sessions={
-              isTauriEnv()
+              isDialogDemo()
+                ? {
+                    items: DEMO_DIALOG_SESSIONS,
+                    hasMore: false,
+                    loading: false,
+                    onSelect: () => {},
+                    onLoadMore: () => {},
+                    onNew: () => {},
+                  }
+                : isTauriEnv()
                 ? {
                     items: sessions,
                     hasMore: sessionsHasMore,

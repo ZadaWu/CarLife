@@ -34,6 +34,10 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 
 import { GraphState } from "./state";
 import { buildIntentInstruction, parseIntent } from "./intent";
+import { alertSection, composeRetrievalQuery, observeAttachmentsNode, photoHasSymbols, photoSection, photoSummaryLine } from "./vision";
+import { documentMatchesModel } from "@carlife/rag";
+
+import { collectTurnImages, videoHasContent, videoSection, videoSummaryLine, withImagesOnCurrentTurn } from "./media";
 import {
   composeSolved,
   dispatchTargets,
@@ -50,7 +54,7 @@ import {
   renderCompanionProvenance,
   resolveCompanionConstraints,
 } from "./companions";
-import { branchFor, decideRoute } from "./route";
+import { branchFor, decideRoute, guardRouteForPhoto } from "./route";
 import { checkHardBlock, hardBlockReply } from "../guard/hard-block-rules";
 import { isDenied, riskDecision } from "../guard/risk-policy";
 import {
@@ -75,6 +79,10 @@ import {
   wantsNavEnd,
   arriveIntent,
   describeArrived,
+  wantsAdjust,
+  reviewNoticeIntent,
+  describeReviewNotice,
+  describeAdjustNotFound,
   describeNavStarted,
   describeNavEnded,
   describeNavNotRunning,
@@ -191,6 +199,9 @@ async function invokeNav(
 }
 
 /** `trip_plan_list` 回的一条（形状见 enterprise/backend/shared/tools 的 `TripPlanRecord`）。 */
+/** 「调整行程 <id>」按 id 找行程时列表要拉够——id 指向的那份可能排在临近序的后面（列表工具上限 50）。 */
+const ADJUST_LIST_LIMIT = 50;
+
 interface StoredPlanBrief {
   planId: string;
   startDate?: string;
@@ -198,13 +209,7 @@ interface StoredPlanBrief {
   plan: TripPlanState;
 }
 import { getGuardGate, successfulToolsSince } from "../tools-endpoint";
-import {
-  isMaintenanceQuery,
-  maybeOnboardingGuidance,
-  renderMaintenanceForecastContext,
-  runOwnershipDualPath,
-  runRepairContext,
-} from "./subgraphs/ownership";
+import { type FigureHitLite, figuresEnabled, getFigureDeps, isMaintenanceQuery, maybeOnboardingGuidance, renderMaintenanceForecastContext, runOwnershipDualPath, runRepairContext, stageFigureForAnswer, takeStagedFigure } from "./subgraphs/ownership";
 import { archiveIntent, buildConsultationArchive } from "./subgraphs/service";
 import {
   runCatalogRetrieval,
@@ -235,9 +240,15 @@ import {
   runRepairBooking,
   describeRepairBooked,
 } from "./subgraphs/repair-booking";
-import { getAmapClient, invokeTool } from "@carlife/tools";
+import { auditPlan, getAmapClient, invokeTool } from "@carlife/tools";
+import { formatAuditLines } from "@carlife/shared";
+import { auditLimits } from "./audit-config";
+import { extractConstraints } from "./merge";
+import { reconcileConstraints } from "./energy";
 import {
+  adjustPlanIdOf,
   classifyAmapPoi,
+  effectiveStartDate,
   tripDayIndex,
   tripPlanNavDay,
   tripPlanStops,
@@ -650,6 +661,10 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     try {
       const probe: ChatTurnMessage[] = [
         ...state.messages,
+        // 附了照片时只给一行观察摘要（M71-04）：只有看到了什么，没有名称——名称不进意图判断。
+        ...(state.photoObservation ? [{ role: "user" as const, content: photoSummaryLine(state.photoObservation) }] : []),
+        // 附了视频时同样只给一行事实摘要（M80-02）：张数、时长、转写开头——没有判断。
+        ...(state.videoInput ? [{ role: "user" as const, content: videoSummaryLine(state.videoInput) }] : []),
         // 按开关现拼（ACR-023）：`CARLIFE_SIDE_TASKS=off` 时不带 sideTasks 一栏。
         { role: "user", content: buildIntentInstruction() },
       ];
@@ -834,6 +849,24 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         state.repairBookingPlan.status !== "booked" &&
         state.repairBookingPlan.status !== "cancelled",
     });
+    // 附了仪表照片的两道守卫（M71-04 / M80-09，判据见 guardRouteForPhoto）：落到 general 改走用车双路；
+    // 落到 service 且车主没在要修车 / 预约 / 留档也改走用车——指示灯的解释在车主手册，维修知识库里没有。
+    {
+      const rawText = lastUserText(state.messages);
+      const obs = state.photoObservation;
+      const guarded = guardRouteForPhoto(
+        route,
+        obs ? { readable: !obs.unreadable, symbols: obs.items.length, alerts: obs.alerts?.length ?? 0 } : undefined,
+        repairBookingIntent(rawText) || repairBookingIntent(state.intent?.goal ?? "") || archiveIntent(rawText),
+      );
+      route.agent = guarded.agent;
+      route.reason = guarded.reason;
+    }
+    // 视频同理（M80-02）：拍一段异响 / 抖动 / 仪表闪烁本身就是「我这车正不正常」的证据，通用应答答不了。
+    if (videoHasContent(state.videoInput) && route.agent === "general") {
+      route.agent = "ownership";
+      route.reason = `${route.reason}；附了视频→用车双路（M80-02）`;
+    }
     configurable?.onTrace?.({ kind: "route", data: { ...route } });
     // 分叉—汇合（ACR-023）：每轮清空三个 lane 通道；把副 lane 的顺序登记给权限门（M69-04 落地那一侧，
     // 门上还没有该方法时跳过——排队与登记是门的事，图只负责告诉它顺序）。
@@ -875,6 +908,19 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       configurable?.onTrace?.({ kind: "commit", data: { op: "arrive" } });
       return {
         agentResults: { itinerary: describeArrived(userText) },
+        solverDegraded: false,
+      };
+    }
+    /*
+     * ── 行程提醒播报（M72-05）──────────────────────────────────
+     *
+     * 与到站播报同款：端上点火 / 首帧发上来的一句报告式文本，只转述并问一句要不要调整。
+     * 不碰状态、不调工具、不进 fan-out——它不是规划诉求；车主答「要」之后那一轮才是。
+     */
+    if (reviewNoticeIntent(userText)) {
+      configurable?.onTrace?.({ kind: "commit", data: { op: "review_notice" } });
+      return {
+        agentResults: { itinerary: describeReviewNotice(userText) },
         solverDegraded: false,
       };
     }
@@ -1043,10 +1089,12 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
             if (pretrip.items.length > 0) {
               // 天气与物品**一起**写进去：它们出自同一次调用、同一份天气，
               // 分开写就有机会只更新一半，卡上于是出现"晴天图标 + 雨伞"。
+              // 天气没取到时**不写 weather**：工具那边的 `sunny` 是图标兜底不是结论，
+              // 落了库就成了"确认时晴天"——列表卡曾因此给查不到预报的行程画上太阳（2026-09-08）。
               planToCommit = {
                 ...planToCommit,
                 pretripItems: pretrip.items,
-                weather: pretrip.weather,
+                ...(pretrip.weatherAvailable ? { weather: pretrip.weather } : {}),
               };
             }
             configurable?.onTrace?.({
@@ -1055,7 +1103,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
                 op,
                 scope: "pretrip-items",
                 count: pretrip.items.length,
-                weather: pretrip.weather.kind,
+                weather: pretrip.weatherAvailable ? pretrip.weather.kind : "unavailable",
               },
             });
           } catch (err) {
@@ -1063,16 +1111,62 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
           }
         }
 
+        /*
+         * 带着确认血统的草案（细化过一份**已确认**的行程，或 M72-05 从库里装载的那份）再确认，
+         * 走 `trip_plan_update` **原地改写**，planId 不变——否则每改一次落一行新的、旧行还挂着，
+         * 主页列表上同一趟会出现两份（M72 的列表卡让这一点变得肉眼可见）。
+         * 弹窗上的措辞也随之换成「变更」：车主批的不是一份新行程。
+         */
+        const updating = wantCommit && activePlan.committedPlanId !== undefined;
+        const commitTool = updating ? "trip_plan_update" : "trip_plan_commit";
+
+        /*
+         * 确认轮体检（M77-04，F-58-10）：弹窗批的这份数据在进权限门之前再跑一次纯函数体检，
+         * 结论以 `体检·` 前缀的 details 行随明细一起送到弹窗——**未消解不阻塞**，出口仍是拒绝 / 确认。
+         * 这里只体检不修复（修复循环在规划轮，M77-03）；顺序体检也不调（避免确认多等一跳）。
+         * 体检失败 fail-open：不加体检行，确认照常，trace 记 failed。
+         */
+        let auditLines: string[] = [];
+        if (wantCommit) {
+          try {
+            const { kept, dropped } = reconcileConstraints(state.intent?.constraints ?? [], undefined);
+            const report = auditPlan({
+              skeleton: planToCommit.skeleton,
+              legs: planToCommit.legs,
+              origin: planToCommit.origin,
+              destination: planToCommit.destination,
+              limits: auditLimits(extractConstraints(kept).maxLegMinutes),
+              constraints: kept,
+              overridden: dropped,
+              hasReturnTransit:
+                planToCommit.transit?.recommended === "train" || planToCommit.transit?.recommended === "flight",
+            });
+            auditLines = formatAuditLines(report);
+            configurable?.onTrace?.({
+              kind: "audit",
+              data: {
+                stage: "confirm",
+                passed: report.passed,
+                blockers: report.findings.filter((f) => f.level === "blocker").length,
+                warnings: report.findings.filter((f) => f.level === "warning").length,
+                unverifiable: report.findings.filter((f) => f.level === "unverifiable").length,
+              },
+            });
+          } catch (err) {
+            console.warn("[graph] 确认轮体检失败，弹窗不带体检行", err);
+            configurable?.onTrace?.({ kind: "audit", data: { stage: "confirm", failed: true } });
+          }
+        }
         const gate = getGuardGate();
         // 未装配时一律拒绝——默认放行是这类系统最典型的致命默认值（与 tools-endpoint 同款）。
         const verdict = gate
           ? await gate.check({
               sessionId: threadId,
               agent: "trip",
-              tool: "trip_plan_commit",
+              tool: commitTool,
               summary: wantCancel
                 ? `取消已确认的行程：${activePlan.destination} ${activePlan.days}天`
-                : `确认多天行程并保存：${activePlan.destination} ${activePlan.days}天` +
+                : `${updating ? "变更已确认的行程" : "确认多天行程并保存"}：${activePlan.destination} ${activePlan.days}天` +
                   `${activePlan.startDate ? `（${activePlan.startDate} 出发）` : ""}`,
               /*
                * 弹窗逐日列出批的是什么（F-04-02）——与落库的是同一份数据。
@@ -1081,13 +1175,13 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
                * 「将提供给门店的信息」，行程挂在那个标题下等于说行程要发给门店。
                * 这份行程只是存进用户自己的档案，没有任何第三方收件人。
                */
-              details: wantCancel ? undefined : commitDisclosures(planToCommit),
+              details: wantCancel ? undefined : [...commitDisclosures(planToCommit), ...auditLines],
             })
           : { decision: "deny" as const, reason: "权限门未装配，敏感动作一律拒绝" };
 
         configurable?.onTrace?.({
           kind: "commit",
-          data: { op, decision: verdict.decision, reason: verdict.reason },
+          data: { op, decision: verdict.decision, reason: verdict.reason, ...(updating ? { update: true } : {}) },
         });
 
         if (verdict.decision !== "allow") {
@@ -1107,8 +1201,12 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
              * 原先一个工具带 `op` 判别式，弹窗摘要因此只能写成
              * "确认落库或取消"——那句话对用户没有意义。
              */
-            wantCommit ? "trip_plan_commit" : "trip_plan_cancel",
-            wantCommit ? { userId, plan: planToCommit } : { userId },
+            wantCommit ? commitTool : "trip_plan_cancel",
+            wantCommit
+              ? updating
+                ? { userId, planId: activePlan.committedPlanId, plan: planToCommit }
+                : { userId, plan: planToCommit }
+              : { userId },
             {
               sessionId: threadId,
               agent: "trip",
@@ -1428,6 +1526,59 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       }
     }
 
+    /*
+     * ── 没有会话内草案时的调整（M72-05）─────────────────────────
+     *
+     * 与上面「没有会话内草案时的出发」同因：车机端点「让暖暖调整」时会话八成是新的，
+     * 图状态里没有那份行程。不查库的话这句「调整行程 <id>：第 2 天转雨…」会被当成
+     * 新规划送进 fan-out，排出一份跟库里那份无关的新行程。
+     *
+     * 做法：抓 planId → `trip_plan_list` 里找到它（工具按 userId 查，别人的行程天然找不到）
+     * → 装进图状态（`committedPlanId` 保住，改完走 `trip_plan_update` 而不是再落一行）
+     * → **接着本轮细化**（下面的 fan-out 以它为 `plan`，走既有的局部覆盖）。
+     * 没带 id（模型判了 adjust 的人话）→ 取列表首条（进行中的排最前，与「出发」同一取舍）。
+     * 找不到 → 如实说，**不退回新规划**。
+     */
+    let basePlan: TripPlanState | undefined = state.tripPlan;
+    if (!activePlan && wantsAdjust(userText, state.intent)) {
+      const threadId = configurable?.thread_id ?? "unknown";
+      const userId = activeUserIdOf(configurable);
+      if (!userId) {
+        return { agentResults: { itinerary: describeNoActiveUser() }, solverDegraded: false };
+      }
+      const wantedId = adjustPlanIdOf(userText);
+      const toolCtx = {
+        sessionId: threadId,
+        agent: "trip" as const,
+        mode: (process.env.CARLIFE_TOOLS as "real" | "mock" | "off" | undefined) ?? "real",
+      };
+      try {
+        const listed = (await invokeTool(
+          "trip_plan_list",
+          { userId, limit: wantedId ? ADJUST_LIST_LIMIT : 5 },
+          toolCtx,
+        )) as { data: { plans: StoredPlanBrief[] } };
+        const plans = listed.data.plans ?? [];
+        const target = wantedId ? plans.find((p) => p.planId === wantedId) : plans[0];
+        configurable?.onTrace?.({
+          kind: "commit",
+          data: { op: "adjust", scope: "no-draft", wantedId, found: target ? 1 : 0, listed: plans.length },
+        });
+        if (!target) {
+          return { agentResults: { itinerary: describeAdjustNotFound(wantedId) }, solverDegraded: false };
+        }
+        // 装进图状态再往下走细化；nav 不带——一份正在导航的行程的跟车状态不该进细化。
+        basePlan = { ...target.plan, committedPlanId: target.planId, nav: undefined };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[graph] 无草案调整装载失败", err);
+        return {
+          agentResults: { itinerary: describeAdjustNotFound(wantedId) + `\n（查库失败：${msg}）` },
+          solverDegraded: false,
+        };
+      }
+    }
+
     // ④档案拿能源类型——与 tripNode 同一手法同一理由（读失败不阻塞，按"不知道"处理）。
     let energyType: VehicleEnergyType | undefined;
     if (configurable?.userId) {
@@ -1450,7 +1601,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         constraints: state.intent?.constraints ?? [],
         userText,
         energyType,
-        plan: state.tripPlan,
+        plan: basePlan,
         turnId: configurable?.thread_id ?? "unknown",
       },
       {
@@ -1473,7 +1624,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       kind: "merge",
       data: {
         agent: "itinerary",
-        mode: state.tripPlan ? "refine" : "skeleton",
+        mode: basePlan ? "refine" : "skeleton",
         ranBranches: out.ranBranches,
         days: out.plan.skeleton.length,
         violations: out.violations,
@@ -1483,6 +1634,20 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         tourSource: out.tourSource,
         transitSource: out.transitSource,
         driveSource: out.driveSource,
+      },
+    });
+    // 体检结论（M77-03，F-58-14）：只记结论计数与轮数，不记地名。
+    configurable?.onTrace?.({
+      kind: "audit",
+      data: {
+        stage: "plan",
+        passed: out.audit.passed,
+        blockers: out.audit.findings.filter((f) => f.level === "blocker" && !f.repaired).length,
+        warnings: out.audit.findings.filter((f) => f.level === "warning").length,
+        unverifiable: out.audit.findings.filter((f) => f.level === "unverifiable").length,
+        repaired: out.audit.findings.filter((f) => f.repaired).length,
+        rounds: out.audit.rounds,
+        budgetExhausted: out.audit.budgetExhausted,
       },
     });
 
@@ -1504,6 +1669,10 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
   const ownershipNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
     const configurable = config?.configurable as ChatGraphConfigurable | undefined;
     const query = state.intent?.goal ?? lastUserText(state.messages);
+    // 检索词带上照片认出的手册名称与锚点（M80-09）；留档 / 情景回忆仍用原话
+    const retrievalQuery = composeRetrievalQuery(query, state.photoObservation);
+    // 带照片却一个图标都没对上：检索词里没有手册名词，翻出来的片段与问题无关，不从里面抽警告逼模型念（M80-09）
+    const photoWithoutMatch = photoHasSymbols(state.photoObservation) && !state.photoObservation!.items.some((it) => it.match);
 
     // 售后与用车共用同一条双路：`ctx.agent` 决定查哪个知识库
     // （ownership→说明书、service→维修库，隔离由 datasetsForAgent 强制）。
@@ -1695,12 +1864,26 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       }
     }
 
+    /*
+     * 手册图示那一路（ACR-029）：开关 on 且已装配才跑。照片轮用观察节点已经召回好的（拿的是同一批 crop）；
+     * 文字轮按检索词召回。命中按车型过滤——多车型库里 Model Y 的图挂给 Model 3 车主，出处看着也像那么回事。
+     */
+    const fetchFigures = figuresEnabled()
+      ? async (): Promise<FigureHitLite[]> => {
+          const deps = getFigureDeps()!;
+          const hits = state.photoObservation?.figures ?? (await deps.recall({ text: retrievalQuery, k: 8 }));
+          return vehicleModel ? hits.filter((h) => documentMatchesModel(h.doc, vehicleModel)) : hits;
+        }
+      : undefined;
     const dual = await runOwnershipDualPath({
-      query,
+      query: retrievalQuery,
       userId: configurable?.userId,
       vehicleModel,
       ctx,
+      warnings: !photoWithoutMatch,
+      figures: fetchFigures,
     });
+    stageFigureForAnswer(configurable?.thread_id ?? "unknown", dual.figures[0]);
 
     /*
      * 双路的"我们没跑成"接进结构化失败标识（M37-02，复用 M37-01 通道）：
@@ -1741,6 +1924,8 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         })),
         usageSummary: dual.usage.summary ?? null,
         usageUnusableReason: dual.usage.unusableReason ?? null,
+        // 手册图示（ACR-029）：命中了哪几张、相似度、走的哪一路——开关 off 时是空数组
+        figures: dual.figures.map((f) => ({ figureId: f.figureId, doc: f.doc, location: f.location, sim: Number(f.sim.toFixed(3)), via: f.via })),
         // 合成上下文全量留下：它就是"喂给模型的到底是什么"的答案，
         // 而这正是双路要证明的东西。长度与 prompt 事件同量级（几 KB）。
         context: dual.context,
@@ -1754,6 +1939,34 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     // 混在一起下游会把"你上个月提过"说成"记录显示"，而那是④的说法（F-23-11）。
     const episodes = await recallEpisodesFor(configurable?.userId, query);
     let context = episodes ? `${dual.context}\n\n${episodes}` : dual.context;
+    // 【图片观察】段放在最前（M71-04）：先看到了什么，再看手册怎么说；caveats 已在段内如实写。
+    // 警报页那段再放到它之前（M80-10）——车主点开警报列表拍照，问的就是那几条，先说它。
+    if (state.photoObservation) {
+      context = `${photoSection(state.photoObservation)}\n\n${context}`;
+      const alerts = alertSection(state.photoObservation);
+      if (alerts) context = `${alerts}\n\n${context}`;
+    }
+    // 【视频】段同位（M80-02）：帧序图怎么读、按时间段的转写、如实缺失；帧序图本身在 answer 那一步以图片附上。
+    if (state.videoInput) {
+      context = `${videoSection(state.videoInput)}\n\n${context}`;
+      const v = state.videoInput;
+      configurable?.onTrace?.({
+        kind: "video",
+        data: {
+          handle: v.handle,
+          durationMs: v.durationMs,
+          analyzedMs: v.analyzedMs,
+          truncated: v.truncated,
+          sheets: v.sheets.length,
+          frames: v.sheets.reduce((n, sh) => n + sh.frames, 0),
+          transcriptLines: v.transcript.length,
+          transcriptStatus: v.transcriptStatus,
+          transcript: v.transcript.slice(0, 8),
+          notes: v.notes,
+          timings: v.timings ?? null,
+        },
+      });
+    }
 
     // 保养到期推算（M14-02，F-17-01）：④档案 × ⑥日均里程，**代码算，模型只表述**。
     // 只在保养意图 + 有档案时附上；无档案时 caveats 已经说了"没有你的车辆档案"。
@@ -1836,6 +2049,10 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
   const buyingNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
     const configurable = config?.configurable as ChatGraphConfigurable | undefined;
     const query = state.intent?.goal ?? lastUserText(state.messages);
+    // 检索词带上照片认出的手册名称与锚点（M80-09）；留档 / 情景回忆仍用原话
+    const retrievalQuery = composeRetrievalQuery(query, state.photoObservation);
+    // 带照片却一个图标都没对上：检索词里没有手册名词，翻出来的片段与问题无关，不从里面抽警告逼模型念（M80-09）
+    const photoWithoutMatch = photoHasSymbols(state.photoObservation) && !state.photoObservation!.items.some((it) => it.match);
     const ctx = {
       sessionId: configurable?.thread_id ?? "unknown",
       agent: "buying" as const,
@@ -2292,6 +2509,22 @@ ${solved}`,
     const answerStreamer = useNarrator ? narrator : streamer;
 
     /*
+     * 照片与帧序图进表述模型（M80-02，ACR-027）。三个条件缺一不可：
+     *  - 走的是直连 narrator——ACP 那条路（pi）不改，图片过不去，模型看的是【图片观察】【视频】两段文字；
+     *  - 路由到用车 / 售后——本阶段只做这两个 Agent（出行、购车、座舱附了图也只走文字）；
+     *  - 只挂当前轮的用户消息——历史轮只留一句 `attachmentNote`，理由见 media.ts 头注。
+     * 有图片的那一次请求由 llm 层切到视觉档；纯文字的下一轮自动切回。
+     */
+    const turnImages = useNarrator && (target === "ownership" || target === "service") ? collectTurnImages(state) : [];
+    // 手册图示的 top-1 图（ACR-029）：与照片同一道门、同一轮。**无论挂不挂都取走**，别让暂存跨轮残留。
+    const stagedFigure = takeStagedFigure(configurable?.thread_id ?? "unknown");
+    if (stagedFigure && useNarrator && (target === "ownership" || target === "service")) turnImages.push(stagedFigure);
+    const answerMessages = withImagesOnCurrentTurn(messages, turnImages);
+    if (turnImages.length) {
+      configurable?.onTrace?.({ kind: "media", data: { agent: target, images: turnImages.length, labels: turnImages.map((i) => i.label ?? i.mimeType) } });
+    }
+
+    /*
      * 金融场景的业务话术（M15-03，F-15-08 / §8.3 末条）。
      *
      * # 为什么是"第一个 delta"而不是拼在末尾
@@ -2334,7 +2567,7 @@ ${solved}`,
      * 栈重启后重跑照样如此。封顶不能换来假成功：超时就中止流、如实说没说完、让本轮正常结束，
      * 不静默截断后编一个答案。上限走 `answerTimeoutMs()`（默认 120s，测试用环境变量缩短）。
      */
-    const answerIter = answerStreamer(messages, {
+    const answerIter = answerStreamer(answerMessages, {
       onUsage: configurable?.onUsage,
       threadId: configurable?.thread_id,
       agent: useNarrator ? `${target}-voice` : target,
@@ -2525,6 +2758,8 @@ ${solved}`,
 
     if (enableIntent) {
       graph
+        // 看图（M71-04）：在意图之前，与 ASR 同位的输入转换；无附件直通。
+        .addNode("observeAttachments", traced("observeAttachments", observeAttachmentsNode as unknown as NodeFn))
         .addNode("understand", traced("understand", intentNode))
         // 节点名 `riskGate` 与状态字段 `risk` 刻意不同名——LangGraph 的 channel
         // 与 node 共用命名空间，撞名在 compile 时抛 "already being used as a
@@ -2544,7 +2779,8 @@ ${solved}`,
         .addNode("sideItineraryPlan", traced("sideItineraryPlan", lane("side", "itineraryPlan", nodeFns.itineraryPlan)))
         .addNode("join", traced("join", joinNode))
         .addNode("answer", traced("answer", answerNode))
-        .addEdge(START, "understand")
+        .addEdge(START, "observeAttachments")
+        .addEdge("observeAttachments", "understand")
         .addEdge("understand", "riskGate")
         /*
          * 硬禁在**这里**收口，不往下走（AC-11-7）。
@@ -2590,7 +2826,9 @@ ${solved}`,
         .addNode("sideItineraryPlan", traced("sideItineraryPlan", lane("side", "itineraryPlan", nodeFns.itineraryPlan)))
         .addNode("join", traced("join", joinNode))
         .addNode("answer", traced("answer", answerNode))
-        .addEdge(START, "dispatch")
+        .addNode("observeAttachments", traced("observeAttachments", observeAttachmentsNode as unknown as NodeFn))
+        .addEdge(START, "observeAttachments")
+        .addEdge("observeAttachments", "dispatch")
         // 分叉：返回一组 lane 节点即并行派出（ACR-023）；无副任务时只有主节点，与从前的 branchFor 逐一相等。
         .addConditionalEdges("dispatch", (s: typeof GraphState.State) => dispatchTargets(s))
         .addEdge("ownershipDual", "join")
@@ -2649,15 +2887,23 @@ export function pretripSamplePoints(plan: TripPlanState): Array<{ name: string; 
  *
  * 物品与天气**必须来自同一次调用**——工具内部就是用同一份 `phenomena` 算的两样东西，
  * 分两次调既多打一次上游，又给了它们不一致的机会。
+ *
+ * 日期按 contracts 的 `effectiveStartDate`：没定日期的行程默认明天出发（M75-03）。
+ * 以前这里传 `plan.startDate`，工具里 `?? today()` 于是查的是**今天**——与"明天出发"的口径差一天。
+ * `weatherAvailable` 一并带回：false 时 `weather` 是工具的图标兜底（`sunny`），调用方不该落库。
  */
-export async function collectPretripItems(plan: TripPlanState): Promise<{
+export async function collectPretripItems(
+  plan: TripPlanState,
+  todayIso: string = new Date().toISOString().slice(0, 10),
+): Promise<{
   items: Array<{ key: PretripItemKey; reason?: string }>;
   weather: WeatherContext;
+  weatherAvailable: boolean;
 }> {
   const points = pretripSamplePoints(plan);
   const r = (await invokeTool(
     "pretrip_items",
-    { points, date: plan.startDate },
+    { points, date: effectiveStartDate(plan, todayIso) },
     {
       sessionId: plan.updatedTurnId,
       agent: "trip",
@@ -2668,11 +2914,14 @@ export async function collectPretripItems(plan: TripPlanState): Promise<{
       items: Array<{ key: string; reason?: string }>;
       weatherKind: WeatherKind;
       weatherLabel: string;
+      weatherAvailable?: boolean;
     };
   };
   return {
     items: r.data.items.map((i) => ({ key: i.key as PretripItemKey, reason: i.reason })),
     weather: { kind: r.data.weatherKind, label: r.data.weatherLabel },
+    // 老版工具没有这个字段时按"有"处理——那是兼容路径，不该把真数据当成没取到。
+    weatherAvailable: r.data.weatherAvailable !== false,
   };
 }
 

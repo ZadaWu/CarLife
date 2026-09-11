@@ -17,10 +17,12 @@
  * 两端各写一份对话页的结局是手机端永远少几样（M65 走查：滚动纪律、已中断标记、发送失败告知）。
  */
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { ChatMessage } from "@carlife/shared";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import type { AttachmentRef, ChatMessage } from "@carlife/shared";
 
 import { SessionList, type SessionBrief } from "./SessionList";
+import { AttachmentStrip, type AttachmentLoader } from "./AttachmentStrip";
+import { checkPendingAdd, durationHint, formatBytes, kindOfMime, readyHandles, type PendingAttachment } from "./attachments";
 
 export interface StreamingTurn {
   turnId: string;
@@ -31,8 +33,21 @@ export interface DialogScreenProps {
   messages: ChatMessage[];
   streaming: StreamingTurn | null;
   connection: "online" | "reconnecting" | "unknown";
-  /** 发送文字消息；未提供时不渲染输入框（如浏览器 mock 环境） */
-  onSendText?: (content: string) => Promise<void>;
+  /**
+   * 发送文字消息；未提供时不渲染输入框（如浏览器 mock 环境）。
+   * `attachments`（M80-03）：本轮要绑的附件句柄（已上传）；没有附件时不传，老调用点签名不变。
+   */
+  onSendText?: (content: string, attachments?: string[]) => Promise<void>;
+  /**
+   * 附件（M80-03，F-09-07 / F-09-09）。
+   *  - `load`：按引用取原件（Rust 侧带令牌），两端都传——气泡里的缩略图与视频播放靠它；
+   *  - `upload`：选择并上传，**只有手机端传**——车机行车态不选文件（FL-06），不传就没有添加按钮。
+   * 整个不传（浏览器 mock 环境）时气泡里只显示「📷 照片」占位，不假装有图。
+   */
+  attachments?: {
+    load: AttachmentLoader;
+    upload?: (file: File) => Promise<AttachmentRef>;
+  };
   /** 播报总开关（F-02-12）；未提供时不渲染 */
   broadcast?: { enabled: boolean; onToggle: () => void | Promise<void> };
   /**
@@ -88,19 +103,79 @@ export interface DialogScreenProps {
   railMode?: "side" | "drawer";
 }
 
-function Bubble({ role, source, children }: {
+/*
+ * 播报开关的喇叭。原来这里是 emoji 🔊 / 🔇——**emoji 由系统字体渲染，是彩色的**，
+ * 压在琥珀描边胶囊上像贴了一张贴纸，定稿画的是与文字同色的线稿
+ * （design-system.md §6：图标 24 网格、线宽 2、圆端点，仓库不引图标库，一律内联 SVG）。
+ */
+function SpeakerIcon({ on }: { on: boolean }) {
+  return (
+    <svg className="dlg-toggle__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path
+        d="M4 9.5h3.2L12 5.5v13l-4.8-4H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      {on ? (
+        <>
+          <path d="M15.6 9.2a4 4 0 0 1 0 5.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M18.4 6.6a7.8 7.8 0 0 1 0 10.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </>
+      ) : (
+        <path d="M16 9.5l5 5m0-5l-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
+function Bubble({ role, source, attachments, load, children }: {
   role: "user" | "assistant";
   source?: "text" | "voice";
+  /** 用户消息随轮带的附件引用（M80-03）；助手消息没有。 */
+  attachments?: AttachmentRef[] | null;
+  load?: AttachmentLoader;
   children: React.ReactNode;
 }) {
   return (
     <div className={`dlg-row dlg-row--${role}`}>
+      {/*
+        「语音」在气泡**外面**、贴着气泡上沿——两端定稿都是这么画的
+        （`内部文档` 与 `内部文档`）。
+        它说的是"这条消息是怎么进来的"，不是车主说出口的内容；混在气泡里第一行，
+        读起来就像那句话是以「语音」两个字开头的。
+      */}
+      {source === "voice" && <span className="dlg-bubble__tag">语音</span>}
       <div className={`dlg-bubble dlg-bubble--${role}`}>
-        {source === "voice" && <span className="dlg-bubble__tag">语音</span>}
+        {attachments && attachments.length > 0 && <AttachmentStrip items={attachments} load={load} />}
         {children}
       </div>
     </div>
   );
+}
+
+/** 读视频时长（毫秒）——只为提示"超过 1 分钟只看前 60 秒"；读不到就算了，不阻止发送。 */
+function probeDuration(file: File): Promise<number | undefined> {
+  if (typeof document === "undefined" || !file.type.startsWith("video/")) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    const url = URL.createObjectURL(file);
+    const done = (ms?: number) => {
+      URL.revokeObjectURL(url);
+      resolve(ms);
+    };
+    const timer = setTimeout(() => done(undefined), 4000);
+    v.preload = "metadata";
+    v.onloadedmetadata = () => {
+      clearTimeout(timer);
+      done(Number.isFinite(v.duration) ? Math.round(v.duration * 1000) : undefined);
+    };
+    v.onerror = () => {
+      clearTimeout(timer);
+      done(undefined);
+    };
+    v.src = url;
+  });
 }
 
 export function DialogScreen({
@@ -108,6 +183,7 @@ export function DialogScreen({
   streaming,
   connection,
   onSendText,
+  attachments,
   broadcast,
   buyingHint,
   progress,
@@ -123,6 +199,65 @@ export function DialogScreen({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  /** 选好 / 在传 / 传好的附件（M80-03）。发送成功后清空并释放预览 URL。 */
+  const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef(attachments?.upload);
+  uploadRef.current = attachments?.upload;
+
+  const patchPending = (id: string, patch: Partial<PendingAttachment>) =>
+    setPending((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+
+  /** 起一次上传；失败留在列表里给「重试」，不静默丢（F-09-05）。 */
+  const startUpload = (item: PendingAttachment, file: File) => {
+    const upload = uploadRef.current;
+    if (!upload) return;
+    patchPending(item.id, { status: "uploading", error: undefined });
+    upload(file)
+      .then((ref) => patchPending(item.id, { status: "ready", ref }))
+      .catch((err) => patchPending(item.id, { status: "failed", error: err instanceof Error ? err.message : String(err) }));
+  };
+  const fileOf = useRef(new Map<string, File>());
+
+  const onPickFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    setPickError(null);
+    let current = pending;
+    for (const file of files) {
+      const problem = checkPendingAdd(current, file);
+      if (problem) {
+        setPickError(problem);
+        continue;
+      }
+      const kind = kindOfMime(file.type);
+      if (!kind) continue;
+      const item: PendingAttachment = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind,
+        name: file.name,
+        bytes: file.size,
+        contentType: file.type,
+        status: "uploading",
+        previewUrl: typeof URL !== "undefined" && kind === "image" ? URL.createObjectURL(file) : undefined,
+      };
+      fileOf.current.set(item.id, file);
+      current = [...current, item];
+      setPending(current);
+      startUpload(item, file);
+      if (kind === "video") void probeDuration(file).then((ms) => patchPending(item.id, { durationMs: ms }));
+    }
+  };
+
+  const removePending = (id: string) => {
+    setPending((prev) => {
+      const it = prev.find((p) => p.id === id);
+      if (it?.previewUrl) URL.revokeObjectURL(it.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+    fileOf.current.delete(id);
+  };
 
   const scrollToBottom = () => {
     const el = listRef.current;
@@ -150,15 +285,22 @@ export function DialogScreen({
     }
   }, [messages, streaming?.text]);
 
+  const handles = readyHandles(pending);
+  // 有附件时允许不打字（车主常常只发一张照片）；没附件时仍要有字。所有附件传好才能发。
+  const canSend = !sending && handles !== null && (draft.trim() !== "" || handles.length > 0);
+
   async function submit(e: FormEvent): Promise<void> {
     e.preventDefault();
     const content = draft.trim();
-    if (!content || !onSendText || sending) return;
+    if (!onSendText || !canSend) return;
     setSending(true);
     setSendError(null);
     try {
-      await onSendText(content);
+      await onSendText(content, handles && handles.length ? handles : undefined);
       setDraft("");
+      for (const p of pending) if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+      fileOf.current.clear();
+      setPending([]);
       scrollToBottom();
     } catch (err) {
       setSendError(err instanceof Error ? err.message : String(err));
@@ -229,7 +371,8 @@ export function DialogScreen({
             onClick={() => void broadcast.onToggle()}
             aria-pressed={broadcast.enabled}
           >
-            {broadcast.enabled ? "🔊 播报开启" : "🔇 播报关闭"}
+            <SpeakerIcon on={broadcast.enabled} />
+            {broadcast.enabled ? "播报开启" : "播报关闭"}
           </button>
         </div>
       )}
@@ -238,7 +381,7 @@ export function DialogScreen({
           <div className="dlg-empty">还没有对话。回到主页长按助手说话试试。</div>
         )}
         {messages.map((m) => (
-          <Bubble key={m.messageId} role={m.role} source={m.source}>
+          <Bubble key={m.messageId} role={m.role} source={m.source} attachments={m.role === "user" ? m.attachments : null} load={attachments?.load}>
             {m.content}
             {/*
               被打断的那半句（M33-01 的 `cancelled` 字段，M33-02 显示出来）。
@@ -287,20 +430,57 @@ export function DialogScreen({
           <button type="button" onClick={viewing.onExit}>回到当前对话</button>
         </div>
       )}
+      {!viewing && onSendText && pending.length > 0 && (
+        /*
+         * 待发附件条（M80-03）。每项自己的状态：传着 / 传好 / 失败（带重试）。
+         * 视频超过 1 分钟只提示不拦——服务端只看前 60 秒并会如实说明。
+         */
+        <div className="dlg-pending" data-testid="pending-attachments">
+          {pending.map((p) => (
+            <div key={p.id} className={`dlg-pending__item dlg-pending__item--${p.status}`}>
+              {p.previewUrl ? <img src={p.previewUrl} alt={p.name} /> : <span className="dlg-pending__icon" aria-hidden="true">{p.kind === "video" ? "🎬" : "📷"}</span>}
+              <span className="dlg-pending__meta">
+                <span className="dlg-pending__name">{p.name}</span>
+                <span className="dlg-pending__state">
+                  {p.status === "uploading" ? "上传中…" : p.status === "ready" ? formatBytes(p.bytes) : `失败：${p.error ?? "未知错误"}`}
+                </span>
+                {p.kind === "video" && durationHint(p.durationMs) && <span className="dlg-pending__hint">{durationHint(p.durationMs)}</span>}
+              </span>
+              {p.status === "failed" && (
+                <button type="button" onClick={() => { const f = fileOf.current.get(p.id); if (f) startUpload(p, f); }}>重试</button>
+              )}
+              <button type="button" className="dlg-pending__remove" onClick={() => removePending(p.id)} aria-label={`移除${p.name}`}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
       {!viewing && onSendText && (
         <form className="dlg-input" onSubmit={submit}>
+          {attachments?.upload && (
+            <>
+              {/*
+                系统文件选择器（M80-03）：iOS 的 WKWebView 对 accept=image/*,video/* 会弹「拍照 / 相册 / 文件」，
+                不需要相机插件；选出的视频由系统按导出质量转码，60 秒通常 15–40 MB。
+              */}
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={onPickFiles} data-testid="attachment-picker" />
+              <button type="button" className="dlg-attach" onClick={() => fileInputRef.current?.click()} disabled={sending} aria-label="添加照片或视频" title="添加照片或视频">
+                📎
+              </button>
+            </>
+          )}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="打字输入…（驾驶中请用语音）"
+            placeholder={pending.length ? "说说想问什么（可不填）" : "打字输入…（驾驶中请用语音）"}
             disabled={sending}
             aria-label="文字输入"
           />
-          <button type="submit" disabled={sending || draft.trim() === ""}>
+          <button type="submit" disabled={!canSend}>
             {sending ? "发送中" : "发送"}
           </button>
         </form>
       )}
+      {pickError && <div className="dlg-banner dlg-banner--error">{pickError}</div>}
       {sendError && <div className="dlg-banner dlg-banner--error">发送失败：{sendError}</div>}
       </div>
     </div>

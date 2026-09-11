@@ -71,3 +71,52 @@
   line-height: 1.5;
   color: var(--hud-danger);
 }
+
+/* ============================================================
+ * 新版 UI（2026-09-09，定稿 `内部文档`）。
+ * 只改视觉层：每个分组成一张白卡（原来是"裸标题 + 裸开关行"），
+ * 标题与开关放大到手指尺度，退出登录改成琥珀描边（它是次级出口，不是危险动作）。
+ * DOM 与分组顺序一字未动。
+ * ============================================================ */
+.mset { background: #eaf2fa; }
+.mset-head h1 { font-size: 30px; font-weight: 800; color: var(--hud-text); }
+.mset-body { gap: 16px; }
+
+/* 分组白卡：与档案页、对话页的卡片语言对齐。 */
+.mset-group {
+  gap: 12px;
+  padding: 18px 16px;
+  border-radius: 24px;
+  background: #fff;
+  border: 1px solid var(--hud-card-border);
+  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+}
+.mset-group h2 { font-size: 19px; font-weight: 800; color: var(--hud-text); }
+
+/* 开关行：整行浅底、更高的触达（这是这一页最常按的东西）。 */
+.mset-group .cloc-toggle {
+  min-height: 68px;
+  padding: 14px 14px;
+  border-radius: 18px;
+  background: #f4f8fc;
+  border-color: transparent;
+}
+.mset-group .cloc-toggle__label { font-size: 17px; font-weight: 700; }
+.mset-group .cloc-toggle__hint { font-size: 14px; }
+.mset-group .cloc-toggle__knob { width: 60px; height: 34px; }
+.mset-group .cloc-toggle__knob::after { width: 26px; height: 26px; }
+.mset-group .cloc-toggle.is-on .cloc-toggle__knob {
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.45);
+}
+
+.mset-account { font-size: 17px; font-weight: 700; color: var(--hud-text); }
+/* 退出登录：琥珀描边而不是红字——它是"换个人用"，不是危险动作（红只给拥堵与读不到）。 */
+.mset-logout {
+  width: 100%;
+  min-height: 50px;
+  border-radius: 16px;
+  border: 1px solid var(--hud-amber);
+  color: var(--hud-amber);
+  font-size: 17px;
+  font-weight: 700;
+}

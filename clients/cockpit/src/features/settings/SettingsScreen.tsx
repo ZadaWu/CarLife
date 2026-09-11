@@ -32,8 +32,11 @@ import { GatewayForm } from "./GatewayForm";
 import { AccountSection } from "./AccountSection";
 import { IdentitySection } from "./IdentitySection";
 import { readSoundscapePref, writeSoundscapePref } from "../cabin/soundscape-prefs";
+import { readAnnouncePref, writeAnnouncePref } from "../trip/announce-prefs";
 import { clampVolume, DEFAULT_VOLUME } from "./volume";
 import "./settings.css";
+import type { ReminderDensity } from "@carlife/ui";
+import { DENSITIES, densityFromRust, densityLabel, describeDensity } from "../trip/en-route-prefs";
 
 /** 是不是在 Tauri 里（浏览器走查没有 invoke）。 */
 function isTauriEnv(): boolean {
@@ -91,6 +94,9 @@ export interface SettingsScreenProps {
    * 在 HUD 关掉再进设置页，这里还亮着。
    */
   sentinelOn?: boolean;
+  /** 途中提醒开关 / 密度档（M77-07）：由 App 层订阅 Rust 事件后喂进来，本页不自己订阅（同 `sidecarOn`）。 */
+  enRouteOn?: boolean;
+  enRouteDensity?: ReminderDensity;
   /**
    * 定位成功后把主页那张地图挪过去（`useMapViewport().focusOn`）。
    *
@@ -100,7 +106,7 @@ export interface SettingsScreenProps {
   onLocated?: (fix: LocationFix) => void;
 }
 
-export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: SettingsScreenProps) {
+export function SettingsScreen({ theme, sidecarOn, sentinelOn, enRouteOn, enRouteDensity, onLocated }: SettingsScreenProps) {
   const tauri = isTauriEnv();
   const [filler, setFiller] = useState(true);
   const [preempt, setPreempt] = useState<"immediate" | "after_sentence">("after_sentence");
@@ -138,6 +144,21 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
    * 不是需要用户主动发现的增强。真相源是 localStorage，不是 Rust。
    */
   const [soundscape, setSoundscape] = useState(readSoundscapePref);
+  /**
+   * 途中提醒（M77-07，F-62-11 / F-62-12）。**默认开、适中**；真相源在 Rust
+   * （`speak_reminder` 要读它，语音口令也改它）。命令不在（升级中间态）就整组不渲染。
+   */
+  const [enRoute, setEnRoute] = useState(true);
+  const [density, setDensity] = useState<ReminderDensity>("normal");
+  const [enRouteAvailable, setEnRouteAvailable] = useState(false);
+  const [exportResult, setExportResult] = useState<{ ok: boolean; text: string } | null>(null);
+  /** 点火播报（M72-05，F-19-07）。**默认开**；真相源是 localStorage，不是 Rust。 */
+  const [announce, setAnnounce] = useState(readAnnouncePref);
+  const toggleAnnounce = () => {
+    const next = !announce;
+    setAnnounce(next);
+    writeAnnouncePref(next);
+  };
 
   useEffect(() => {
     if (!tauri) return;
@@ -170,7 +191,41 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
       .catch(() => {
         // 旧版 Rust 侧没有这个命令：不渲染那一组，不报错
       });
+    void invoke<boolean>("get_en_route_reminders")
+      .then((v) => {
+        setEnRoute(v);
+        setEnRouteAvailable(true);
+      })
+      .catch(() => {
+        // 旧版 Rust 侧没有这个命令：不渲染那一组，不报错
+      });
+    void invoke<string>("get_en_route_density")
+      .then((d) => setDensity(densityFromRust(d)))
+      .catch(() => {});
   }, [tauri]);
+
+  // 语音说了「少提醒点」/ 设置页之外拨了开关 → 这里跟着变（同 sidecarOn 的纪律）。
+  useEffect(() => {
+    if (typeof enRouteOn === "boolean") setEnRoute(enRouteOn);
+  }, [enRouteOn]);
+  useEffect(() => {
+    if (enRouteDensity) setDensity(enRouteDensity);
+  }, [enRouteDensity]);
+
+  const toggleEnRoute = useCallback(() => {
+    void invoke<boolean>("set_en_route_reminders", { enabled: !enRoute }).then(setEnRoute).catch(() => {});
+  }, [enRoute]);
+  const chooseDensity = useCallback((d: ReminderDensity) => {
+    setDensity(d); // 乐观：三个按钮要即时；Rust 回什么以什么为准
+    void invoke<string>("set_en_route_density", { mode: d })
+      .then((m) => setDensity(densityFromRust(m)))
+      .catch(() => {});
+  }, []);
+  const exportEnRouteLog = useCallback(() => {
+    void invoke<string>("export_en_route_log")
+      .then((path) => setExportResult({ ok: true, text: `已导出到 ${path}` }))
+      .catch((err: unknown) => setExportResult({ ok: false, text: `导出失败：${String(err)}` }));
+  }, []);
 
   // 语音拨了开关 → 界面跟着变（见 props 的说明）。
   useEffect(() => {
@@ -326,6 +381,47 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
               </section>
             )}
 
+            {enRouteAvailable && (
+              <section className="cset-group">
+                <h2>途中提醒</h2>
+                <Toggle
+                  label="路上提醒停靠和歇脚"
+                  hint="跟车时快到计划停靠点提前说一句；本段开得接近约定上限也提一下。也可以直接说「闭嘴」让这一段安静。"
+                  checked={enRoute}
+                  onChange={toggleEnRoute}
+                />
+                {enRoute && (
+                  <div className="cset-choice" role="radiogroup" aria-label="提醒密度">
+                    <span className="cset-choice__label">提醒密度</span>
+                    <div className="cset-choice__opts">
+                      {DENSITIES.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          role="radio"
+                          aria-checked={density === d}
+                          className={`cset-choice__opt${density === d ? " is-on" : ""}`}
+                          onClick={() => chooseDensity(d)}
+                        >
+                          {densityLabel(d)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="cset-choice__hint">{describeDensity(density)}</p>
+                  </div>
+                )}
+                <button type="button" className="cset-toggle cset-toggle--action" onClick={exportEnRouteLog}>
+                  <span className="cset-toggle__text">
+                    <span className="cset-toggle__label">导出最近提醒记录</span>
+                    <span className="cset-toggle__hint">写到本机应用数据目录的 en-route-log.jsonl，只有判定与口令，不含对话内容；不会上传。</span>
+                  </span>
+                </button>
+                {exportResult && (
+                  <p className={`cset-note${exportResult.ok ? "" : " cset-note--error"}`}>{exportResult.text}</p>
+                )}
+              </section>
+            )}
+
             <section className="cset-group">
               <h2>播报</h2>
               <Toggle
@@ -333,6 +429,12 @@ export function SettingsScreen({ theme, sidecarOn, sentinelOn, onLocated }: Sett
                 hint="关掉之后暖暖只在屏幕上回答，不出声。"
                 checked={broadcast}
                 onChange={toggleBroadcast}
+              />
+              <Toggle
+                label="上车时主动提醒行程变化"
+                hint="行程遇到暴雨、台风预警或路上要多开很久时，上车暖暖会说一句并问要不要调整。一份变化只说一次、一天最多一次；关掉后只在主页列表上打点。"
+                checked={announce}
+                onChange={toggleAnnounce}
               />
               {volumeAvailable && (
                 <div className={`cset-slider${broadcast ? "" : " is-disabled"}`}>

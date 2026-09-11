@@ -1,0 +1,20 @@
+{"id": "r01", "doc": "Model3_车主手册", "query": "充电口在哪，怎么打开充电口盖板", "expectedPages": [148], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r02", "doc": "Model3_车主手册", "query": "安全带未系的指示灯长什么样", "expectedPages": [15, 37], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r03", "doc": "Model3_车主手册", "query": "后雾灯的指示灯是哪个", "expectedPages": [15], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r04", "doc": "Model3_车主手册", "query": "胎压报警灯亮了是什么样子", "expectedPages": [15], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r05", "doc": "Model3_车主手册", "query": "怎么从车内打开车门", "expectedPages": [26], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r06", "doc": "Model3_车主手册", "query": "车门外把手怎么开", "expectedPages": [26], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r07", "doc": "Model3_车主手册", "query": "手套箱怎么打开", "expectedPages": [33], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r08", "doc": "Model3_车主手册", "query": "前备箱怎么关上", "expectedPages": [31], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r09", "doc": "Model3_车主手册", "query": "卡片钥匙放在哪里解锁", "expectedPages": [22], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r10", "doc": "Model3_车主手册", "query": "触摸屏顶部状态栏的图标是什么意思", "expectedPages": [8, 9], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r11", "doc": "Model3_车主手册", "query": "方向盘上的滚轮按钮怎么调方向盘", "expectedPages": [61], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r12", "doc": "Model3_车主手册", "query": "车内衣挂在哪", "expectedPages": [33], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r13", "doc": "Model3_车主手册", "query": "中控台储物盒怎么打开", "expectedPages": [33], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r14", "doc": "Model3_车主手册", "query": "驾驶室摄像头在哪", "expectedPages": [20, 89], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r15", "doc": "Model3_车主手册", "query": "蓝色雪花图标是什么意思", "expectedPages": [16, 131], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r16", "doc": "Model3_车主手册", "query": "充电设置页面怎么看", "expectedPages": [150], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r17", "doc": "Model3_车主手册", "query": "近光灯指示灯长什么样", "expectedPages": [16], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r18", "doc": "Model3_车主手册", "query": "儿童安全座椅怎么装", "expectedPages": [37, 39, 40, 41], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r19", "doc": "Model3_车主手册", "query": "牵引力控制关闭的指示灯", "expectedPages": [16], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}
+{"id": "r20", "doc": "Model3_车主手册", "query": "后备箱怎么打开", "expectedPages": [29], "note": "expectedPages 是原 PDF 页序号（pdftotext 逐页找到讲这件事且有图的页）"}

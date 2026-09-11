@@ -5,6 +5,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { configureAmap, configureLocationPort, configureNativeLocator } from "@carlife/ui";
 import "@carlife/ui/styles";
 import "./styles/app.css";
+
+/*
+ * 端标记（新版 UI）：`clients/shared/ui` 的对话页 / 导览页 / 变化弹层是两端共用的，
+ * 车机与手机各有一套新版式。所以新版样式一律写成 `[data-surface="mobile"] …`
+ * （车机那边是 `"cockpit"`，见它的 main.tsx），由这一行开闸。
+ */
+if (typeof document !== "undefined") document.documentElement.dataset.surface = "mobile";
 import { App } from "./app";
 import { resolveTheme, setRootTheme, systemPrefersDark, watchRootTheme } from "./app/theme";
 import { LoginGate } from "./features/auth";

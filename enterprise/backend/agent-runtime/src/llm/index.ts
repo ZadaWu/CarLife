@@ -12,16 +12,40 @@
 
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { thinkingForSite, withDeepSeekThinking, type ThinkingLevel } from "./thinking-policy";
-import { streamText } from "ai";
+import { streamText, type CoreMessage } from "ai";
 
 import type { ConfigStore } from "@carlife/db";
-import { DEFAULT_DEEPSEEK_MODEL, resolveDeepSeekModel } from "@carlife/shared";
+import { DEFAULT_DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_VISION_MODEL, resolveDeepSeekModel, resolveDeepSeekVisionModel } from "@carlife/shared";
 
 import { recordPrompt } from "../trace/span";
+
+/** 附在用户消息上的一张图（M80-02）：照片或视频帧序图。`label` 是给模型看的"这是哪一张"。 */
+export interface ChatImagePart {
+  mimeType: string;
+  base64: string;
+  label?: string;
+}
 
 export interface ChatTurnMessage {
   role: "user" | "assistant";
   content: string;
+  /**
+   * 本条用户消息附的图片（M80-02，ACR-027）。**只在它自己那一轮出现**——图状态里的历史消息不带，
+   * 带的是下面的 `attachmentNote`。有图片的请求走视觉档（见 `createDeepSeekStreamer`）。
+   */
+  images?: ChatImagePart[];
+  /** 历史轮的一句话（"本条附了 2 张照片"），拼在正文后面发给模型；没有字节。 */
+  attachmentNote?: string;
+}
+
+/** 发给模型的正文：正文 + 附件备注。两条直连 / ACP 路径都用它，别各拼一份。 */
+export function messageText(m: Pick<ChatTurnMessage, "content" | "attachmentNote">): string {
+  return m.attachmentNote ? `${m.content}\n${m.attachmentNote}` : m.content;
+}
+
+/** 这一次请求里有没有图片——**按请求判，不按会话钉**（M80-02）。 */
+export function hasImages(messages: readonly ChatTurnMessage[]): boolean {
+  return messages.some((m) => (m.images?.length ?? 0) > 0);
 }
 
 /**
@@ -143,6 +167,44 @@ export const NARRATOR_SYSTEM = [
   "先反问一个缺口：「您是想把出发日期改到哪天，还是改某一天的安排？」一轮只问一个。",
 ].join("\n");
 
+/**
+ * 图状态消息 → AI SDK 消息。带图片的用户消息展开成多段内容：正文、每张图的标签、图片本身
+ * （DeepSeek 只接受 `user` 消息里带图片，助手消息带图会 400——这里结构上只在 user 上展开）。
+ */
+function toCoreMessages(messages: readonly ChatTurnMessage[]): CoreMessage[] {
+  return messages.map((m): CoreMessage => {
+    if (m.role !== "user" || !m.images?.length) return { role: m.role, content: messageText(m) };
+    const parts: Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }> = [{ type: "text", text: messageText(m) }];
+    for (const img of m.images) {
+      if (img.label) parts.push({ type: "text", text: `【${img.label}】` });
+      parts.push({ type: "image", image: img.base64, mimeType: img.mimeType });
+    }
+    return { role: "user", content: parts };
+  });
+}
+
+/**
+ * 「这个模型名不认识」——用来判断要不要把视觉档回落到默认档（M80-05）。
+ *
+ * 为什么需要它：`DEEPSEEK_VISION_MODEL` 可以指向一个**限期预览档**或一个**已被别名的旧名**
+ * （预览档 `deepseek-v4.1-flash-expires-on-0910` 到期那天没有下线，而是被别名到了 `deepseek-flash`；
+ * 但别名迟早撤）。撤的那天起每一轮带图的对话都会 400，而车主看到的是"助手坏了"，
+ * 不是"某个模型名退役了"。所以只在这一种错误上、且一个字都还没吐出去时，换回默认视觉档重来一次。
+ *
+ * 判据取 DeepSeek 的原话（`The supported API model names are …, but you passed X`）
+ * 与 OpenAI 兼容口的通用说法，宽松匹配即可——认错了最多是多退回一档，认漏了才是事故。
+ */
+export function isUnknownModelError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const text = `${msg} ${(err as { responseBody?: string })?.responseBody ?? ""}`.toLowerCase();
+  if (!text) return false;
+  return (
+    /supported api model names/.test(text) ||
+    /model[^\n]{0,40}(not found|does not exist|not exist|unavailable|no longer)/.test(text) ||
+    /(unknown|invalid|unsupported)[^\n]{0,20}model/.test(text)
+  );
+}
+
 function createDeepSeekStreamer(
   apiKey: string,
   /**
@@ -154,16 +216,34 @@ function createDeepSeekStreamer(
   baseURL?: string,
   system: string = SYSTEM_PROMPT,
   temperature?: number,
+  /**
+   * 视觉档（M80-02，ACR-027）：这一次请求里有图片时用它，否则用 `modelName`。
+   * 2026-09-10 起缺省两档落在同一个模型（`deepseek-flash`，见 contracts 的 `DEFAULT_DEEPSEEK_VISION_MODEL`），
+   * 切档在缺省配置下是空转；保留它是给两档再分开、或有人把视觉档配成别家时用的。
+   */
+  visionModelName: string = DEFAULT_DEEPSEEK_VISION_MODEL,
 ): ChatStreamer {
   const resolvedModelName = resolveDeepSeekModel(modelName);
+  const resolvedVisionName = resolveDeepSeekVisionModel(visionModelName);
   // 档位写进请求体，走 fetch 包装（SDK 0.1.17 不透传思考参数）——见 thinking-policy.ts。
   const deepseek = createDeepSeek({ apiKey, ...(baseURL ? { baseURL } : {}), fetch: withDeepSeekThinking(thinking) });
-  const model = deepseek(resolvedModelName);
   return async function* (messages, hooks) {
+    // 选档按**这一次请求**：车主中途发一张照片，这一轮切视觉档；下一轮纯文字追问就切回来。
+    const useVision = hasImages(messages);
+    let chosenModelName = useVision ? resolvedVisionName : resolvedModelName;
+    let model = deepseek(chosenModelName);
     const started = Date.now();
     let status: LlmUsageSample["status"] = "ok";
     let promptTokens = 0;
     let completionTokens = 0;
+    /**
+     * 服务端**实际跑的**模型名，来自响应体的 `model` 字段。
+     *
+     * 2026-09-10 发现传 `deepseek-v4-flash-vision-exp` 回来的是 `deepseek-flash`——DeepSeek 把旧名
+     * 别名到了新模型。用量若记我们传出去的名字，账单页与轨迹就会说"这轮用了 vision-exp"，
+     * 而那个模型已经不存在了。所以记响应的；只有请求没回来（失败）时才退回传出去的那个。
+     */
+    let servedModelName: string | undefined;
     let cacheHitTokens: number | undefined;
     let cacheMissTokens: number | undefined;
     // 直连这条也要记提示词（TD-08）。**两条路径都记**，否则切到 direct 模式时
@@ -175,16 +255,23 @@ function createDeepSeekStreamer(
       // 记的必须是**这次实际用的那份** system，不是模块默认值——
       // 表述路径换了人设（`NARRATOR_SYSTEM`）之后还记默认值的话，
       // 轨迹与真实请求就各说各话，而"模型为什么这么答"恰恰只能从这里看。
-      [`[system]\n${system}`, ...messages.map((m) => `[${m.role}]\n${m.content}`)].join("\n\n"),
+      [
+        `[system]\n${system}`,
+        ...messages.map((m) => `[${m.role}]\n${messageText(m)}${m.images?.length ? `\n[images ×${m.images.length}: ${m.images.map((i) => i.label ?? i.mimeType).join(" | ")}]` : ""}`),
+      ].join("\n\n"),
     );
 
+    // 一个字都还没吐出去之前，换档重来是安全的；吐过就只能抛。
+    let emitted = false;
+    let retriedVision = false;
     try {
+      retry: for (;;) {
       // 取消要对**两条路径都生效**（TD-08）：只在 ACP 那条接上的话，
       // 切到 direct 模式时僵尸调用会悄悄回来，而那时没人会想到是这里。
       const result = streamText({
         model,
         system,
-        messages,
+        messages: toCoreMessages(messages),
         ...(temperature !== undefined ? { temperature } : {}),
         ...(hooks?.signal ? { abortSignal: hooks.signal } : {}),
       });
@@ -192,12 +279,22 @@ function createDeepSeekStreamer(
       // 走 fullStream 显式转抛 error 部件，让 turn-runner 的失败路径生效。
       for await (const part of result.fullStream) {
         if (part.type === "text-delta") {
+          emitted = true;
           yield part.textDelta;
         } else if (part.type === "error") {
-          throw part.error instanceof Error ? part.error : new Error(String(part.error));
+          const e = part.error instanceof Error ? part.error : new Error(String(part.error));
+          if (useVision && !emitted && !retriedVision && isUnknownModelError(e) && chosenModelName !== DEFAULT_DEEPSEEK_VISION_MODEL) {
+            retriedVision = true;
+            console.warn(`[llm] 视觉档 ${chosenModelName} 已不可用（${e.message.slice(0, 120)}），本次回落 ${DEFAULT_DEEPSEEK_VISION_MODEL}`);
+            chosenModelName = DEFAULT_DEEPSEEK_VISION_MODEL;
+            model = deepseek(chosenModelName);
+            continue retry;
+          }
+          throw e;
         } else if (part.type === "finish") {
           promptTokens = part.usage?.promptTokens ?? 0;
           completionTokens = part.usage?.completionTokens ?? 0;
+          servedModelName = part.response?.modelId || undefined;
           /*
            * 缓存命中/未命中在 `providerMetadata.deepseek` 里，不在标准 usage 上
            * （@ai-sdk/deepseek 的 metadata extractor 从 `prompt_cache_hit_tokens`
@@ -214,6 +311,8 @@ function createDeepSeekStreamer(
           cacheMissTokens = finite(meta?.promptCacheMissTokens);
         }
       }
+      break retry;
+      }
     } catch (err) {
       status = "failed";
       throw err;
@@ -221,7 +320,8 @@ function createDeepSeekStreamer(
       // 埋点在 finally：失败的调用也烧了钱，也要计入
       hooks?.onUsage?.({
         provider: "deepseek",
-        model: resolvedModelName,
+        // 记**服务端实际跑的**那个（响应里的 `model`），不是我们传出去的名字——见 servedModelName。
+        model: servedModelName ?? chosenModelName,
         ...(hooks?.agent ? { agent: hooks.agent } : {}),
         promptTokens,
         completionTokens,
@@ -251,13 +351,16 @@ function createFakeStreamer(tag = ""): ChatStreamer {
     if (userTurns.length > 1) {
       parts.push(`我记得你最初提到「${first}」。`);
     }
+    // 图片回显（M80-02）：离线评测要能断言"图片确实到了表述模型这一步"。
+    const images = messages.flatMap((m) => m.images ?? []);
+    if (images.length) parts.push(`我看到了你附的 ${images.length} 张图（${images.map((i) => i.label ?? i.mimeType).join("、")}）。`);
     for (const p of parts) {
       yield p;
     }
     // Fake 也写用量（tokens 记 0）——保证埋点链路在离线测试里同样被覆盖
     hooks?.onUsage?.({
       provider: "fake",
-      model: "fake",
+      model: images.length ? "fake-vision" : "fake",
       promptTokens: 0,
       completionTokens: 0,
       durationMs: Date.now() - started,
@@ -277,6 +380,9 @@ export function createChatStreamer(env: NodeJS.ProcessEnv = process.env): ChatSt
     thinkingForSite("main-direct"),
     resolveDeepSeekModel(env.DEEPSEEK_MODEL),
     env.DEEPSEEK_BASE_URL,
+    undefined,
+    undefined,
+    resolveDeepSeekVisionModel(env.DEEPSEEK_VISION_MODEL),
   );
 }
 
@@ -300,6 +406,8 @@ export interface ConfiguredStreamerOptions {
    * 「换个非推理模型」这条路已经不存在。是否思考只由下面的 `thinking` 决定（M70-01）。
    */
   model?: string;
+  /** 视觉档覆盖（M80-02）。缺省读配置 `DEEPSEEK_VISION_MODEL`，再缺省 `deepseek-flash`。 */
+  visionModel?: string;
   /**
    * 思考档，**必填**（M70-01）：从 `thinking-policy.ts` 的 `DIRECT_CALL_SITES` 取，不要在调用点手写字面量。
    * 漏声明 = 跟模型默认走 = 在思考；2026-08-28 到 09-04 narrator / 标题 / 填充语就是这么在隐式思考的。
@@ -339,6 +447,7 @@ export function createConfiguredChatStreamer(
             values.get("DEEPSEEK_BASE_URL"),
             opts.system,
             opts.temperature,
+            resolveDeepSeekVisionModel(opts.visionModel ?? values.get("DEEPSEEK_VISION_MODEL")),
           );
 
     cached = { version, streamer };

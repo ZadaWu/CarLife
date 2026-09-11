@@ -29,7 +29,12 @@ import { wrapPcmAsWav, type AsrProvider, type AsrUsage } from "../asr";
 import type { SessionBus } from "../stream/session-bus";
 import { HitlRelay } from "../hitl";
 import { runtimeUrl } from "./turn-service";
+import type { AttachmentRepository } from "@carlife/db";
+import type { ObjectStore } from "../upload/storage";
+import { parseAttachmentRefs, resolveTurnAttachments, type TurnAttachmentPayload } from "./attachments";
 import { TurnService } from "./turn-service";
+import { createVideoDeriver } from "../media/derive";
+import type { FfmpegPaths } from "@carlife/tools";
 
 const AUDIO_DIR = join(tmpdir(), "carlife-uploads");
 
@@ -189,6 +194,16 @@ export function createHttpRouter(
     bytes: Buffer;
     mime: string;
   }) => Promise<void>,
+  /**
+   * 附件绑定（M71-04，F-09-06）：`/messages` 请求体里的句柄要校验归属、取件、绑到本轮。
+   * 未接对象存储时不传——带句柄的消息会得到 404 `attachments_unavailable`，不是静默丢弃。
+   */
+  attachments?: { repo: AttachmentRepository; store: ObjectStore },
+  /**
+   * 视频派生（M80-01，ACR-027）：ffmpeg 可用时注入路径；不注入则视频照收照绑、只是不解析。
+   * 转写走与语音分支同一个 ASR provider 与同一道日用量闸门（视频的声音也是钱）。
+   */
+  media?: { ffmpeg: FfmpegPaths },
 ): Router {
   const router = Router();
   // HITL 中转（M5-03）。此前这个类写好了却**没有任何代码调它**——
@@ -205,7 +220,13 @@ export function createHttpRouter(
       return ((await r.json()) as { resumed?: boolean }).resumed === true;
     },
   });
-  const turns = new TurnService(repo, bus, hitl, ttsEngineAtSend);
+  const turns = new TurnService(
+    repo,
+    bus,
+    hitl,
+    ttsEngineAtSend,
+    media ? createVideoDeriver({ paths: media.ffmpeg, asr, asrGate, onAsrUsage: (u) => onAsrUsage?.(u) }) : undefined,
+  );
   mkdirSync(AUDIO_DIR, { recursive: true });
 
   router.post("/v1/session", json(), async (req: AuthedRequest, res: Response) => {
@@ -307,6 +328,7 @@ export function createHttpRouter(
        * 老端上（不带这个字段的版本）行为因此逐字不变。
        */
       let fillerEnabled: boolean | undefined;
+      let attachmentHandles: string[] = [];
 
       if (Buffer.isBuffer(req.body)) {
         // 音频路径：raw body + X-Audio-Meta
@@ -389,6 +411,13 @@ export function createHttpRouter(
         // JSON 分支。非 boolean 一律当没传，理由同音频分支那段注释。
         const raw = (req.body as { fillerEnabled?: unknown }).fillerEnabled;
         if (typeof raw === "boolean") fillerEnabled = raw;
+        // 附件句柄（M71-04）：形状不对或超量直接 400——**不静默丢弃**，用户拍的照片不能悄悄消失。
+        const refs = parseAttachmentRefs(req.body);
+        if ("error" in refs) {
+          res.status(400).json({ error: refs.error });
+          return;
+        }
+        attachmentHandles = refs.handles;
       }
 
       /*
@@ -398,6 +427,25 @@ export function createHttpRouter(
        * 而现象只是"助手什么都不记得"。
        */
       const sessionOwner = await repo.sessionUserId(sessionId);
+      let turnAttachments: TurnAttachmentPayload[] = [];
+      if (attachmentHandles.length > 0) {
+        if (!attachments) {
+          res.status(404).json({ error: "attachments_unavailable" });
+          return;
+        }
+        const resolved = await resolveTurnAttachments({
+          handles: attachmentHandles,
+          sessionId,
+          userId: sessionOwner ?? undefined,
+          repo: attachments.repo,
+          store: attachments.store,
+        });
+        if (!resolved.ok) {
+          res.status(resolved.error === "attachment_not_found" ? 404 : 400).json({ error: resolved.error, handle: resolved.handle });
+          return;
+        }
+        turnAttachments = resolved.attachments;
+      }
       const accepted = await turns.accept(
         sessionId,
         content,
@@ -405,7 +453,12 @@ export function createHttpRouter(
         sessionOwner ?? undefined,
         fillerEnabled,
         asrEngine,
+        turnAttachments,
       );
+      // 绑到本轮（F-09-06）：受理拿到 turnId 之后才有轮可绑；同一句柄第二次绑会返回 false——那种情况上面已经拒了。
+      for (const a of turnAttachments) {
+        void attachments!.repo.bindTurn(a.handle, accepted.turnId).catch((err) => console.warn(`[gateway] 附件绑轮失败 handle=${a.handle}`, err));
+      }
       /*
        * 录音转存（M60-02）。**不阻塞受理响应**——车主已经说完了，
        * 存档慢一点是我们的事，让他多等一秒不是。失败只打日志：

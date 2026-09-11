@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CarLife 视觉观察层评测——照片真值（M71-01）。枚举与 lib.ts 的 VOCAB 逐字相等，cases.test.ts 断言。",
+  "type": "object",
+  "required": ["id", "file", "provenance", "negative", "frame", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9]+-[0-9]{2,}$", "description": "<车型或来源>-<两位序号>，如 tesla-01。" },
+    "file": { "type": "string", "description": "相对 evals/vision-observe/ 的照片路径。" },
+    "provenance": {
+      "type": "string",
+      "enum": ["team-owned", "internal-eval-only", "public-licensed"],
+      "description": "team-owned=团队自拍；internal-eval-only=来源不明的网络图片，只作内部评测不外发；public-licensed=有明确许可的公开图片（notes 写许可）。"
+    },
+    "vehicle": { "type": "string", "description": "拍的是哪款车（用于 --match 时限定图标目录）。" },
+    "negative": { "type": "boolean", "description": "负样本：别的车型、非仪表、手册干净图标；items 必须为空。" },
+    "frame": {
+      "type": "object",
+      "required": ["cut_off_sides", "quality"],
+      "additionalProperties": false,
+      "properties": {
+        "cut_off_sides": { "type": "array", "items": { "type": "string", "enum": ["left", "right", "top", "bottom"] } },
+        "quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "blur": { "type": "boolean" }, "dark": { "type": "boolean" }, "glare": { "type": "boolean" },
+            "partial": { "type": "boolean" }, "occluded": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "bbox", "shape", "color", "state", "text", "elements"],
+        "additionalProperties": false,
+        "properties": {
+          "category": { "type": "string", "enum": ["warning_light", "readout", "tire", "fluid", "component", "other"] },
+          "bbox": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "integer", "minimum": 0, "maximum": 1000 }, "description": "[x1,y1,x2,y2]，0–1000 归一化，原点左上。" },
+          "shape": { "type": "string", "enum": ["person", "lamp", "circle", "triangle", "rectangle", "car_outline", "battery", "engine", "wheel", "thermometer", "droplet", "wrench", "steering_wheel", "letter_only", "other"] },
+          "color": { "type": "string", "enum": ["red", "amber", "green", "blue", "white", "gray", "black", "unknown"] },
+          "state": { "type": "string", "enum": ["lit", "unlit", "blinking", "unknown"] },
+          "text": { "type": "array", "items": { "type": "string" } },
+          "elements": { "type": "array", "items": { "type": "string", "enum": ["diagonal_band", "parentheses", "wavy_lines", "straight_lines", "exclamation", "arrow_left", "arrow_right", "arrow_both", "cross", "check", "plus", "minus", "slash", "circle_ring", "none"] } },
+          "symbol_id": { "type": ["string", "null"], "description": "图标目录键（M71-03）；警示灯必须显式给出，未入目录写 null。" },
+          "class": { "type": ["string", "null"], "enum": ["fault", "reminder", "status", null] }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

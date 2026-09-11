@@ -24,7 +24,7 @@
 
 面向车主全生命周期的智能用车智能体：购车咨询、日常用车、出行规划、座舱陪伴、售后服务五个业务 Agent，由一个编排层统一调度，运行在车机端与手机端，服务端可私有化部署。
 
-本仓库是 CarLife 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)。
+本仓库是 CarLife 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)，商业服务与闭源模型的调用环节、费用假设与锁定风险在 [docs/disclosure.md](docs/disclosure.md)，第三方依赖的版本与许可证在 [THIRD-PARTY.md](THIRD-PARTY.md)。
 
 ## 能做什么
 
@@ -116,6 +116,7 @@ corepack pnpm dev:upgrade
 
 ## 文档
 
+- [技术架构说明](docs/architecture.md)：模型选择、Agent 架构、工具调用、知识库与检索、上下文管理、工作流编排、数据流与安全边界
 - [逐步部署手册](docs/step-by-step.md)：不用 AI 助手，照着做到三个端都跑起来
 - [安装](docs/installation.md)
 - [快速体验](docs/quickstart.md)

@@ -42,6 +42,8 @@ coverage/
 
 # MinerU 转换产物（可重新生成，按量计费所以缓存）
 data/kb-md/
+# 同一次转换落盘的图片与块表（ACR-029，kb:figures 的输入）：几百张 jpg，与 kb-md 同一条纪律
+data/kb-figures/
 # ⚠️ data/kb-src/ **不在忽略之列**：那里放的是手写的知识库源文件（没有上游 PDF，
 # 重新生成不出来）。忽略掉的话，它就只存在于 RAGFlow 和某个人的本地磁盘上。
 
@@ -71,6 +73,16 @@ var/
 
 # 评测任务目录（M67）：控制台 / 编排器起的任务产物，不提交；仓库里提交的基线在 evals/runs/ 顶层
 evals/runs/jobs/
+# 检测器训练产物与数据集（ACR-026）：目录即真相，内容不提交，各留 README
+evals/runs/vision-trainer/
+evals/vision-observe/datasets/*/
 
 # pi-agents 本地运行时产物（会话记录、凭证与模型存储等）
 enterprise/backend/pi-agents/.pi/agent/
+
+# 负样本的画框图（M80-05）：20 张一跑就是 38 MB 的可复跑诊断产物，不进仓库；
+# tesla-01 那两张留着当两家的肉眼对照。
+evals/runs/vision-observe-boxes/neg-*.png
+
+# 小红书等来源不明的真车截图（M80-08 之后的真题 inbox）：只做内部评测，不进仓库、不进训练集、不外发
+evals/vision-observe/photos/inbox/

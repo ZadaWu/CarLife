@@ -131,7 +131,15 @@ import { recordSearchResults } from "./search-results";
 import { recordRestStopCandidates } from "./route-candidates";
 import { setMemberStore as setGraphMemberStore } from "./graph/supervisor";
 import { setCompanionFlagStore } from "./graph/companions";
-import { createRagClient } from "@carlife/rag";
+import { existsSync, readFileSync } from "node:fs";
+import { join as joinPath } from "node:path";
+
+import { createRagClient, loadAlertCatalog } from "@carlife/rag";
+import { createDashScopeEmbedder, createIconImageResolver, decideMatch, recallCandidates, recallFigures } from "@carlife/rag";
+import { createIconEmbeddingRepository, createManualFigureRepository, getPrisma as getPrismaForIcons } from "@carlife/db";
+import { createVisionProviderFromEnv } from "@carlife/tools";
+import { setVisionDeps, type IconMatcher } from "./graph/vision";
+import { setFigureDeps, type FigureHitLite } from "./graph/subgraphs/ownership";
 import {
   createTripPlanRepository,
   createTripRouteAuditRepository,
@@ -782,6 +790,106 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   // 这里把异常转成 degraded=true 交上去，由 cabin 决定怎么说。
   // ③偏好**写入**（M11-02）。读那一半由 `setPreferenceStore` 提供（座舱用），
   // 写这一半走 upsert：同领域更新而不是追加，否则③会堆着一串近义句下不去。
+  /*
+   * 视觉观察层（M71-04，ACR-024 / ACR-025）。provider 按 CARLIFE_VISION 选（dashscope / fake / off）；
+   * 图标匹配只在 CARLIFE_ICON_INDEX≠off 且有 DashScope 密钥时接（向量只召回，闸门 + 核验裁决）。
+   * 缺密钥、库不通都不该挡启动：观察节点会写 caveat，对话照常。
+   */
+  try {
+    const provider = createVisionProviderFromEnv();
+    let matchIcon: IconMatcher | undefined;
+    let iconImages: ReturnType<typeof createIconImageResolver> | undefined;
+    if (provider && (process.env.CARLIFE_ICON_INDEX ?? "on") !== "off" && process.env.DASHSCOPE_API_KEY) {
+      const store = createIconEmbeddingRepository(getPrismaForIcons());
+      const embedder = createDashScopeEmbedder({ apiKey: process.env.DASHSCOPE_API_KEY, model: process.env.CARLIFE_ICON_EMBED_MODEL || undefined });
+      /*
+       * 手册图标图片（M78-01）：`<root>/<车型目录>/<symbol_id>.png`，车型串 → 目录靠目录里那份
+       * `*-indicators.md` 的 `vehicle:` 行（与 kb:icons 建索引同一条约定）。root 缺省从本文件反推仓库根。
+       * **取不到就是取不到**：容器形态下 data/ 可能没挂进来，那时 iconImage 返回 null →
+       * decideMatch 跳过成对核验 → verified=false → 下游照旧说「疑似」。降级方向是少说话，不是说错话。
+       */
+      iconImages = createIconImageResolver({
+        root: process.env.CARLIFE_ICON_IMAGES_ROOT || new URL("../../../../data/kb-src/icons", import.meta.url).pathname,
+      });
+      matchIcon = async ({ crop, descriptor, vehicleModel }) => {
+        const { candidates } = await recallCandidates({ crop, descriptor, vehicleModel, k: 8 }, { embedder, store });
+        return decideMatch(candidates, crop, {
+          /*
+           * 车型串可能是空的：观察节点按 M71-04 的既有形态不从档案取车型（索引里只有一款车）。
+           * 那时**只有在图标目录也恰好只有一款车**时才拿它顶上——这与召回侧的前提是同一条。
+           * 目录里有多款车而档案没说是哪款，就宁可不核验（返回 null → 说「疑似」），不去猜。
+           */
+          iconImage: (symbolId) => {
+            const model = vehicleModel || iconImages?.soleVehicle() || "";
+            return model ? iconImages?.(model, symbolId) ?? null : null;
+          },
+          verifyPair: (a, b) => provider.verifyPair(a, b),
+        });
+      };
+    }
+    /*
+     * 官方警报代码表（M80-10）：本地查表，不走检索——代码是精确键，见 `rag/alert-catalog.ts` 文件头。
+     * 取不到（容器里没挂 data/）就不装：读到的警报仍然有屏幕上的原话，只是每条都标「手册里没有收录」。
+     */
+    const alertCatalog = loadAlertCatalog(
+      process.env.CARLIFE_ALERT_CATALOG_ROOT || new URL("../../../../data/kb-src/alerts", import.meta.url).pathname,
+    );
+    /*
+     * 手册图文索引（ACR-029）：开关缺省 off。on 时装两处——问诊节点按检索词召回、观察节点按 crop 召回——
+     * 同一个 embedder 与仓储。图片文件按 CARLIFE_KB_FIGURES_ROOT 读，取不到只给文字段、不挂图。
+     */
+    let recallFiguresByCrops: ((crops: Buffer[]) => Promise<FigureHitLite[]>) | undefined;
+    if ((process.env.CARLIFE_KB_FIGURES ?? "off") === "on" && process.env.DASHSCOPE_API_KEY) {
+      const figStore = createManualFigureRepository(getPrismaForIcons());
+      const figEmbedder = createDashScopeEmbedder({ apiKey: process.env.DASHSCOPE_API_KEY, model: process.env.CARLIFE_ICON_EMBED_MODEL || undefined });
+      const figRoot = process.env.CARLIFE_KB_FIGURES_ROOT || new URL("../../../../data/kb-figures", import.meta.url).pathname;
+      const recall = async (args: { text?: string; crops?: Buffer[]; k?: number }): Promise<FigureHitLite[]> => {
+        const { hits } = await recallFigures(args, { embedder: figEmbedder, store: figStore });
+        return hits.map((h) => ({
+          figureId: h.figureId,
+          doc: h.doc,
+          page: h.page,
+          location: h.location,
+          breadcrumb: h.breadcrumb,
+          anchorText: h.anchorText,
+          caption: h.caption,
+          imgPath: h.imgPath,
+          sim: Math.max(h.textSim ?? -1, h.imageSim ?? -1),
+          via: h.via,
+        }));
+      };
+      setFigureDeps({
+        recall,
+        readImage: (imgPath) => {
+          const file = joinPath(figRoot, imgPath);
+          return existsSync(file) ? readFileSync(file) : null;
+        },
+      });
+      // 每张 crop 取 24 条：库里几本手册的同一枚图标会并列在前，按车型过滤是在问诊节点做的，这里取少了就没得过滤
+      recallFiguresByCrops = (crops) => recall({ crops, k: 24 });
+      const docs = await figStore.docs().catch(() => []);
+      console.log(`[vision] 手册图文索引 on：${docs.length ? docs.map((d) => `${d.doc} ${d.rows} 行`).join("、") : "库里还没有文档（corepack pnpm kb:figures 建索引）"}；图片目录 ${figRoot}`);
+    } else {
+      setFigureDeps(undefined);
+      console.log("[vision] 手册图文索引 off（CARLIFE_KB_FIGURES=on 且有 DASHSCOPE_API_KEY 才接）");
+    }
+    setVisionDeps({ provider, matchIcon, lookupAlert: alertCatalog ? (code) => alertCatalog.lookup(code) : undefined, recallFigures: recallFiguresByCrops });
+    console.log(
+      alertCatalog
+        ? `[vision] 官方警报代码表：${alertCatalog.size} 条（${alertCatalog.fetchedAt} 抓取）——表外的代码一律说「手册里没有收录」`
+        : "[vision] 官方警报代码表：未加载（corepack pnpm kb:alerts 生成 data/kb-src/alerts/）——读到的警报只有屏幕原话",
+    );
+    const vehicles = iconImages?.vehicles() ?? [];
+    // 图标图片解析出 0 个车型 = 这台机器上成对核验不会发生、匹配只能说「疑似」——一眼看得出来，别等真跑才发现
+    console.log(
+      `[vision] 观察层：${provider ? provider.name : "off"}（检测 ${provider?.models.detect ?? "-"} / 描述 ${provider?.models.describe ?? "-"}）；` +
+        `图标索引 ${matchIcon ? "on" : "off"}；图标图片 ${vehicles.length ? `${vehicles.length} 个车型（${vehicles.join("、")}）` : "无——成对核验不会发生，匹配只能说「疑似」"}`,
+    );
+  } catch (err) {
+    console.warn("[vision] 观察层未接入（本轮对话不受影响，带图消息会写 caveat）", err);
+    setVisionDeps({ provider: null });
+  }
+
   setPreferenceWriter(async ({ userId, domain, content, confidence, evidence }) => {
     const client = getMemoryClient();
     return client.upsertPreference(userId, domain, content, {

@@ -15,7 +15,7 @@ import { describe, it } from "node:test";
 import { listForAgent } from "@carlife/tools";
 import { summarizeAction } from "../src/tools-endpoint";
 import { canonicalAgent } from "../src/acp-client/agent-prompt";
-import { branchFor, decideRoute } from "../src/graph/route";
+import { branchFor, decideRoute, guardRouteForPhoto } from "../src/graph/route";
 import type { Intent } from "../src/graph/state";
 
 const bare: Intent = { goal: "", constraints: [], context: "", riskBoundary: "" };
@@ -678,5 +678,56 @@ describe("[F-11-06][AC-11-5] 副路由透传（M69-01）", () => {
     const r = decideRoute(withIntent({ sideTasks: [{ route: "cabin", goal: "g" }] }), "就第一家", { hasActiveRepairBooking: true });
     assert.equal(r.agent, "service");
     assert.equal(r.secondary, undefined);
+  });
+});
+
+describe("[F-20-03][AC-20-1] 带照片的路由守卫 guardRouteForPhoto（M71-04 / M80-09）", () => {
+  const service = { agent: "service", reason: "意图理解给出的路由（LLM）" };
+  it("落到 service、照片认出符号、车主没在要修车 → 改走 ownership，理由说清为什么（指示灯在车主手册）", () => {
+    const r = guardRouteForPhoto(service, { readable: true, symbols: 2 }, false);
+    assert.equal(r.agent, "ownership");
+    assert.match(r.reason, /车主手册/);
+  });
+  it("车主明确要修车 / 预约 / 留档 → 不动，售后链路接着走", () => {
+    assert.equal(guardRouteForPhoto(service, { readable: true, symbols: 2 }, true).agent, "service");
+  });
+  it("照片读不出 / 一个符号都没有 / 没照片 → 不动", () => {
+    assert.equal(guardRouteForPhoto(service, { readable: false, symbols: 0 }, false).agent, "service");
+    assert.equal(guardRouteForPhoto(service, { readable: true, symbols: 0 }, false).agent, "service");
+    assert.equal(guardRouteForPhoto(service, undefined, false).agent, "service");
+  });
+  it("落到 general 的照片轮仍改走 ownership（M71-04 原行为不变）", () => {
+    const r = guardRouteForPhoto({ agent: "general", reason: "兜底" }, { readable: true, symbols: 0 }, false);
+    assert.equal(r.agent, "ownership");
+    assert.match(r.reason, /M71-04/);
+  });
+  it("其它路由（itinerary / cabin）带照片也不动", () => {
+    assert.equal(guardRouteForPhoto({ agent: "itinerary", reason: "x" }, { readable: true, symbols: 3 }, false).agent, "itinerary");
+  });
+});
+
+describe("[F-20-03][AC-20-1] 警报页的路由守卫（M80-10）", () => {
+  const photo = (over: Partial<{ readable: boolean; symbols: number; alerts: number }>) => ({ readable: true, symbols: 0, alerts: 0, ...over });
+  it("读出警报列表 → service：逐条代码的官方解释在维修知识库", () => {
+    for (const from of ["general", "ownership", "itinerary"]) {
+      const r = guardRouteForPhoto({ agent: from, reason: "x" }, photo({ alerts: 3 }), false);
+      assert.equal(r.agent, "service", from);
+      assert.match(r.reason, /维修知识库/);
+    }
+  });
+  it("已经是 service 就不动，理由不重复叠加", () => {
+    const r = guardRouteForPhoto({ agent: "service", reason: "x" }, photo({ alerts: 3 }), false);
+    assert.equal(r.agent, "service");
+    assert.equal(r.reason, "x");
+  });
+  it("**警报页压过图标那条**：两者同时有时以警报为准——车主专门点开警报页拍的", () => {
+    const r = guardRouteForPhoto({ agent: "service", reason: "x" }, photo({ symbols: 4, alerts: 2 }), false);
+    assert.equal(r.agent, "service", "不能被 M80-09 那条拽回 ownership");
+  });
+  it("没有警报时 M80-09 那条照旧生效", () => {
+    assert.equal(guardRouteForPhoto({ agent: "service", reason: "x" }, photo({ symbols: 4 }), false).agent, "ownership");
+  });
+  it("照片读不出 → 一条都不触发", () => {
+    assert.equal(guardRouteForPhoto({ agent: "general", reason: "x" }, photo({ readable: false, alerts: 3 }), false).agent, "general");
   });
 });

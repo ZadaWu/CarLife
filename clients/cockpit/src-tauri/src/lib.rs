@@ -161,6 +161,8 @@ pub fn run() {
                 tts_state.load_preempt_prefs(p);
             }
             app.manage(tts_state);
+            // 途中提醒的开关与密度档（M77-07）：跨重启保持，缺省 开 / 适中。
+            commands::reminders::load_en_route_prefs(app.handle());
             // ⑥用车流水的采集开关与待发队列（M11-01）。
             let trip_state = Arc::new(commands::trips::TripState::default());
             if let Some(p) = commands::trips::collect_pref_path(app.handle()) {
@@ -174,6 +176,8 @@ pub fn run() {
         // 能开哪些 URL 由 capabilities/default.json 的 opener 权限白名单钉死。
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            commands::attachments::fetch_attachment,
+            commands::attachments::upload_attachment,
             // 车内音乐的现场逃生阀（M63-03）：没有界面入口，见该命令的文档注释。
             music::set_music_enabled,
             // 只读（M64-03）：出发动画的音景据此决定要不要降级，它不压音乐。
@@ -224,6 +228,15 @@ pub fn run() {
             commands::prefs::set_sentinel_enabled,
             commands::prefs::get_filler_preempt_mode,
             commands::prefs::set_filler_preempt_mode,
+            // 途中提醒（M77-06 / M77-07）：端上直接说一句、取最近一句提醒原文；开关、密度档、端侧日志。
+            commands::reminders::speak_reminder,
+            commands::reminders::last_reminder_text,
+            commands::reminders::get_en_route_reminders,
+            commands::reminders::set_en_route_reminders,
+            commands::reminders::get_en_route_density,
+            commands::reminders::set_en_route_density,
+            commands::reminders::log_en_route_event,
+            commands::reminders::export_en_route_log,
             commands::stream::start_session_stream,
             commands::stream::start_mock_stream,
             commands::stream::refresh_history,
@@ -233,6 +246,7 @@ pub fn run() {
             commands::stream::plan_departure_nav,
             commands::stream::get_guide_jobs,
             commands::stream::trigger_guide_job,
+            commands::stream::ack_trip_review,
             commands::stream::fetch_vehicles,
             commands::stream::fetch_cabin,
             commands::stream::fetch_vehicle_energy,

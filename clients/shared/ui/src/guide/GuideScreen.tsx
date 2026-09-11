@@ -74,7 +74,10 @@ function Header({
   return (
     <header className="guide-screen__header">
       <button type="button" className="guide-screen__back" onClick={onBack} aria-label="返回主页">
-        ‹ 返回
+        <svg className="guide-screen__back-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="guide-screen__back-label">返回</span>
       </button>
       <div className="guide-screen__title-wrap">
         <h1 className="guide-screen__title">{spotName} · 景区导览</h1>
@@ -99,6 +102,7 @@ export function GuideScreen({
   if (state.status === "collecting") {
     return (
       <section className={rootClass} aria-label={`${spotName} 导览（采集中）`}>
+        <div className="guide-screen__sheet">
         <Header spotName={spotName} onBack={onBack} />
         <div className="guide-screen__pending" role="status">
           <span className="guide-screen__pending-dot" aria-hidden="true" />
@@ -116,6 +120,7 @@ export function GuideScreen({
             <div className="guide-screen__skeleton-map" />
           </div>
         </div>
+        </div>
       </section>
     );
   }
@@ -123,6 +128,7 @@ export function GuideScreen({
   if (state.status === "failed") {
     return (
       <section className={rootClass} aria-label={`${spotName} 导览（未查到）`}>
+        <div className="guide-screen__sheet">
         <Header spotName={spotName} onBack={onBack} />
         <div className="guide-screen__failed" role="alert">
           <p>这次没有查到{spotName}的导览资料。</p>
@@ -133,12 +139,21 @@ export function GuideScreen({
             </button>
           )}
         </div>
+        </div>
       </section>
     );
   }
 
   const { brief } = state;
-  const timeline = guideBriefToTimeline(brief);
+  /*
+   * 页面上的时间轴只列**游玩顺序**（停车 → 景点 → 离场补能）。`guideBriefToTimeline` 还会把
+   * 餐饮 / 休息 / 厕所排进轴（它服务的是播报与"下一格去哪"），但这一页下面就有
+   * 「休息 · 吃饭 · 厕所」卡——同一家餐厅在轴上第 7 格、又在卡里第 1 行，是把一个去处写两遍
+   * （定稿 guide-spot-v1.png 的轴上只有景点）。过滤后重新编号，序号才对得上地图上的点。
+   */
+  const timeline = guideBriefToTimeline(brief)
+    .filter((e) => e.kind !== "food" && e.kind !== "rest" && e.kind !== "toilet")
+    .map((e, i) => ({ ...e, index: i + 1 }));
   const firstParking = brief.access?.parking[0];
   const pitfalls = brief.comfort.filter((c) => c.kind === "pitfall");
   // 时间轴只收带名字的休憩条目（shared 的规则）；这里补齐全量休憩面与泛提示。
@@ -175,6 +190,11 @@ export function GuideScreen({
 
   return (
     <section className={rootClass} aria-label={`${spotName} 导览`}>
+      {/*
+        整页一张白色大卡（定稿 guide-spot-v1.png：顶栏之下是一整张 sheet，头部与各卡都在它里面）。
+        三种状态都包这一层，采集中 / 未查到不会突然换成另一种页面骨架。
+      */}
+      <div className="guide-screen__sheet">
       <Header
         spotName={spotName}
         onBack={onBack}
@@ -261,6 +281,7 @@ export function GuideScreen({
           ))}
         </footer>
       )}
+      </div>
     </section>
   );
 }

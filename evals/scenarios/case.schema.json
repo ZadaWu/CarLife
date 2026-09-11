@@ -157,6 +157,10 @@
         "新造"
       ],
       "description": "（M38-02）样本来源。risk case 必填——红队样本不从公开红队集整段搬运，来源要可追溯。"
+    },
+    "attachment": {
+      "type": "string",
+      "description": "随本轮消息上传并绑定的图片，相对 evals/ 的路径（M71-04）。runner 先 POST /attachments 拿句柄，再随 /messages 发。"
     }
   }
 }

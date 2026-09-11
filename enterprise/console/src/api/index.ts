@@ -124,6 +124,10 @@ export const api = {
   blob: requestBlob,
   post: <T>(path: string, body?: unknown): Promise<T> =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  del: <T>(path: string): Promise<T> => request<T>(path, { method: "DELETE" }),
+  /** 二进制上传（模型训练页试推理，M76-03）：body 是原始字节，content-type 由调用方给；错误形态与 401 广播同 request。 */
+  postBinary: <T>(path: string, bytes: ArrayBuffer, contentType: string): Promise<T> =>
+    request<T>(path, { method: "POST", body: bytes, headers: { "content-type": contentType } }),
 
   /** 用当前 token 换身份；登录页与启动恢复共用。 */
   whoami: (): Promise<ConsoleIdentity> => request<ConsoleIdentity>("/console/session", { method: "POST" }),

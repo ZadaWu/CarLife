@@ -1,0 +1,97 @@
+/* ============================================================
+ * 途中提醒卡（M77-06）。Token 全部来自 tokens.css；与站点卡同族的白卡，alert 态加琥珀光晕，不用红。
+ * 落位在暖暖光环右上（Brief §3.4）——由 .hud-reminder 的绝对定位给，竖屏另给一段。
+ * ============================================================ */
+
+.hud-reminder,
+.hud-reminder *,
+.hud-reminder-pill {
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+}
+.hud-reminder {
+  position: absolute;
+  left: calc(300 * var(--hud-unit));
+  bottom: calc(300 * var(--hud-unit));
+  width: calc(640 * var(--hud-unit));
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: calc(12 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  padding: calc(20 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-card);
+  background: var(--hud-card-bg);
+  color: var(--hud-text);
+  box-shadow: var(--hud-card-shadow);
+  z-index: 30;
+}
+/* 小三角指向暖暖（左下）。 */
+.hud-reminder::after {
+  content: "";
+  position: absolute;
+  left: calc(36 * var(--hud-unit));
+  bottom: calc(-12 * var(--hud-unit));
+  width: calc(24 * var(--hud-unit));
+  height: calc(24 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  border-right: 1px solid var(--hud-card-border);
+  border-bottom: 1px solid var(--hud-card-border);
+  transform: rotate(45deg);
+}
+.hud-reminder.is-alert {
+  box-shadow: var(--hud-card-shadow), 0 0 0 calc(6 * var(--hud-unit)) var(--hud-amber-glow);
+}
+.hud-reminder__speaker {
+  position: absolute;
+  top: calc(14 * var(--hud-unit));
+  right: calc(16 * var(--hud-unit));
+  width: calc(24 * var(--hud-unit));
+  height: calc(24 * var(--hud-unit));
+  color: var(--hud-text-muted);
+}
+.hud-reminder__speaker.is-muted { color: var(--hud-text-muted); opacity: 0.6; }
+.hud-reminder__speaker svg { width: 100%; height: 100%; display: block; }
+.hud-reminder__body { grid-column: 1 / -1; display: flex; flex-direction: column; gap: calc(6 * var(--hud-unit)); padding-right: calc(32 * var(--hud-unit)); }
+.hud-reminder__headline { display: flex; align-items: center; gap: calc(8 * var(--hud-unit)); font-size: calc(27 * var(--hud-unit)); font-weight: 700; line-height: 1.3; }
+.hud-reminder__icon { display: inline-flex; width: calc(26 * var(--hud-unit)); height: calc(26 * var(--hud-unit)); color: var(--hud-warn); }
+.hud-reminder__icon svg { width: 100%; height: 100%; display: block; }
+.hud-reminder__text { font-size: calc(24 * var(--hud-unit)); line-height: 1.4; }
+.hud-reminder__caption { font-size: calc(21 * var(--hud-unit)); color: var(--hud-text-muted); }
+.hud-reminder__actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: calc(12 * var(--hud-unit)); }
+.hud-reminder__btn {
+  min-width: calc(140 * var(--hud-unit));
+  height: calc(72 * var(--hud-unit));
+  padding: 0 calc(24 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: calc(24 * var(--hud-unit));
+  background: var(--hud-card-bg);
+  color: var(--hud-text);
+  font-size: calc(24 * var(--hud-unit));
+  font-weight: 700;
+  cursor: pointer;
+}
+.hud-reminder__btn.is-primary {
+  border-color: transparent;
+  background: linear-gradient(90deg, var(--hud-amber) 0%, var(--hud-amber-bright) 100%);
+  color: var(--hud-badge-text);
+  box-shadow: 0 10px 26px var(--hud-amber-glow);
+}
+.hud-reminder-pill {
+  position: absolute;
+  /* 手机端贴顶：让开刘海安全区（F-01-07）。 */
+  top: calc(env(safe-area-inset-top, 0px) + 100 * var(--hud-unit));
+  right: calc(24 * var(--hud-unit));
+  height: calc(52 * var(--hud-unit));
+  padding: 0 calc(20 * var(--hud-unit));
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--hud-radius-pill);
+  background: var(--hud-card-bg);
+  color: var(--hud-text);
+  font-size: calc(21 * var(--hud-unit));
+  font-weight: 700;
+  box-shadow: var(--hud-card-shadow);
+  cursor: pointer;
+  z-index: 30;
+}
+/* 竖屏（手机端）：贴在暖暖上方，占满宽度。 */
+.hud-stage--portrait .hud-reminder { left: calc(16 * var(--hud-unit)); right: calc(16 * var(--hud-unit)); width: auto; bottom: calc(380 * var(--hud-unit)); }

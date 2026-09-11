@@ -76,6 +76,8 @@ pub fn run() {
             commands::netdiag::report_ui_metrics,
             commands::chat::create_session,
             commands::chat::send_text_message,
+            commands::attachments::upload_attachment,
+            commands::attachments::fetch_attachment,
             commands::chat::start_session_stream,
             commands::chat::start_mock_stream,
             commands::chat::refresh_history,
@@ -135,6 +137,8 @@ pub fn run() {
             commands::profile::get_guide_brief,
             commands::profile::get_guide_jobs,
             commands::profile::trigger_guide_job,
+            // 行程核查「知道了」（M75-02）：弹层的 ack 这一跳。
+            commands::profile::ack_trip_review,
             // 出发卡的导航规划（2026-09-02，手机端接上车机 M66 的出发卡）。
             commands::profile::plan_departure_nav,
             // 网关地址（iOS 没有环境变量，装到手机上只能从设置页填）。

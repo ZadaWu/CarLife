@@ -22,6 +22,9 @@
 .ss-field input:focus-visible { outline: none; border-color: var(--accent); }
 /* 日期框比文本框窄得多：给它 220px 的 min-width，一排筛选就换行了。 */
 .ss-field--day input { min-width: 150px; }
+/* 勾选项与输入框同一行底对齐：其它字段是"标签在上、输入在下"的两行盒子。 */
+.ss-field--check { flex-direction: row; align-items: center; gap: 6px; align-self: flex-end; padding-bottom: 7px; white-space: nowrap; }
+.ss-field--check input { width: auto; min-width: 0; accent-color: var(--accent); cursor: pointer; }
 /* 深色底上的原生日历图标默认是黑的，几乎看不见。 */
 .ss-field--day input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
 .ss-btn {

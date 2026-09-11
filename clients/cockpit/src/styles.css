@@ -42,7 +42,8 @@ html, body, #root {
 /* 验收用临时开关条（非最终产品交互，M1-02 任务 3） */
 .hud-devbar {
   position: fixed;
-  top: 12px;
+  /* 新版 UI 的顶栏占掉屏顶 68 个单位，演示条落到它下面（原来是 12px）。 */
+  top: calc(68 * var(--hud-unit) + 10px);
   left: 12px;
   /* 撑到右边界只是为了给展开后的按钮行一个换行宽度；
      容器自己不接事件，否则这一整条透明区域会盖住 HUD 顶部点不到。 */
@@ -338,6 +339,25 @@ html, body, #root {
 .hitl-stay__same { flex: 1; min-width: 0; color: var(--hud-text-muted); }
 /* 价格靠右且不换行——扫读时对齐的是这一列。 */
 .hitl-stay__price { flex: none; font-variant-numeric: tabular-nums; }
+
+/* 体检标记（M77-04）：天序行右侧的三角徽标与住宿行的「已自动补」。 */
+.hitl-day__theme { display: flex; align-items: center; gap: calc(10 * var(--hud-unit)); }
+.hitl-day__flag {
+  display: inline-flex;
+  width: calc(26 * var(--hud-unit));
+  height: calc(26 * var(--hud-unit));
+  color: var(--hud-warn);
+}
+.hitl-day__flag svg { width: 100%; height: 100%; display: block; }
+.hitl-tag {
+  flex: none;
+  padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
+  border-radius: var(--hud-radius-pill);
+  font-size: calc(18 * var(--hud-unit));
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.hitl-tag--ok { background: rgba(47, 191, 155, 0.14); color: #1e9e6a; }
 
 /* 估算角标：源文本带（估算）才出现，是可信度标记不是装饰（Brief §2）。 */
 .hitl-est {
@@ -649,4 +669,15 @@ html, body, #root {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
   pointer-events: none; /* 不挡任何操作 */
   z-index: 60;
+}
+
+/* ── 新版 UI 的顶栏（`.hud-topbar`，hud.css 末段）压在所有页面上方 ──
+   档案页与设置页都是 `position: fixed; inset: 0` 的整页，顶边让开顶栏，
+   否则页头（车辆 / 人员页签、设置标题）整行落在顶栏底下。 */
+/* 类名叠写提高特异度：各页自己的 `inset: 0` 写在按需加载的模块样式里、排在本文件之后，
+   同特异度会把这条盖回去（走查实测：页头照旧压在顶栏底下）。 */
+.cown.cown,
+.cset.cset,
+.dlg-screen.dlg-screen {
+  top: var(--hud-topbar-h);
 }

@@ -68,6 +68,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/evals", label: "评测任务", end: true },
       // 基线 = 仓库提交的那份产物，是所有新任务的对照物，所以单独给一个入口
       { to: "/evals/baseline", label: "基线报告" },
+      // 模型训练（M76 / ACR-026）：警示灯小检测器的工作台，也是"拿数据量系统"的一种，跟评测放一组
+      { to: "/vision-trainer", label: "模型训练" },
     ],
   },
   {

@@ -239,3 +239,57 @@ export function mergeBranches(
   const result = solve(draft, extractConstraints(constraints));
   return { ...result, missing, satisfied: result.satisfied && missing.length === 0 };
 }
+
+// ── 行车分段进快照（M77-01，F-62-01）────────────────────────────────
+
+/**
+ * 把 `solve()` 的一维分段对齐成快照里的 `legs[]`。
+ *
+ * # 对齐规则（写死在这里，单测钉住）
+ *
+ * - `stops.length` 必须等于 `legMinutes.length - 1`（`TripDraft` 的不变量）。不等就返回 undefined——
+ *   **缺省而不是猜**：拆段补的 `PENDING_STOP` 是追加在 `stops` 末尾的，不满足不变量时任何"就近对齐"都是编的。
+ * - 第 i 段：起点 = `stops[i-1]`（i = 0 时是 origin），终点 = `stops[i]`（最后一段没有终点站，缺省）。
+ * - 原因：段尾站在 `energyStops` 里 → `charge`；否则 `rest`（含占位）。`pending` = 段尾是 `PENDING_STOP`。
+ * - 天：按段尾站名精确匹配 skeleton 里的 spot 名得 `day`，对不上缺省。**不按比例摊**——
+ *   摊出来的天看起来很像真的，而全天累计体检会拿它下 blocker。
+ *
+ * 只依赖 `TripDraft` 与 skeleton 的 `spots[].name`，不读别的字段。
+ */
+export function buildLegs(
+  draft: Pick<TripDraft, "legMinutes" | "stops" | "energyStops">,
+  skeleton: ReadonlyArray<{ day: number; spots: ReadonlyArray<{ name: string }> }>,
+  origin?: string,
+): TripPlanLegOut[] | undefined {
+  const { legMinutes, stops } = draft;
+  if (legMinutes.length === 0) return undefined;
+  if (stops.length !== legMinutes.length - 1) return undefined;
+  const energy = new Set(draft.energyStops ?? []);
+  const dayOf = new Map<string, number>();
+  for (const d of skeleton) for (const s of d.spots) if (!dayOf.has(s.name)) dayOf.set(s.name, d.day);
+
+  return legMinutes.map((min, i) => {
+    const from = i === 0 ? origin : stops[i - 1];
+    const to = i < stops.length ? stops[i] : undefined;
+    const leg: TripPlanLegOut = { driveMinutes: Math.round(min) };
+    if (from) leg.fromStop = from;
+    if (to !== undefined) {
+      leg.toStop = to;
+      leg.reason = energy.has(to) ? "charge" : "rest";
+      if (to === PENDING_STOP) leg.pending = true;
+      const day = dayOf.get(to);
+      if (day !== undefined) leg.day = day;
+    }
+    return leg;
+  });
+}
+
+/** 与 `@carlife/shared` 的 `TripPlanLeg` 同形；这里不 import 契约类型，避免 merge.ts 反向依赖快照层。 */
+export interface TripPlanLegOut {
+  day?: number;
+  fromStop?: string;
+  toStop?: string;
+  driveMinutes: number;
+  reason?: "rest" | "charge";
+  pending?: boolean;
+}
