@@ -11,7 +11,8 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@carlife/shared": "workspace:*"
+    "@carlife/shared": "workspace:*",
+    "@qdrant/js-client-rest": "^1.19.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

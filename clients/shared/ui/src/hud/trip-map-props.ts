@@ -3,6 +3,7 @@
  * 两端的 HUD 屏幕组件各自接收这一份，不各写一份——各写的表现是手机端永远少一个字段。
  */
 import type { NavTripProgress, TripMapStop } from "../map";
+import type { SelectedServicePoi } from "./trip-detail";
 
 /** 真实地图行程模式（M13-06）：有它就用真实标注替换装饰生活环。 */
 export interface HudTripMapProps {
@@ -13,6 +14,16 @@ export interface HudTripMapProps {
   closeLoop: boolean;
   /** 行程身份：换行程时收回镜头否决权（AmapTripLayer.planKey，M27-04）。 */
   planKey?: string;
+  /**
+   * 抽屉里选中的那一天（M83 走查追修）：别的天的站点与路线在地图上淡出。
+   * 缺省 = 都不淡出。抽屉一关就回到缺省。
+   */
+  focusDay?: number;
+  /**
+   * 要画在图上的沿途服务点（M93-05）：由页面层按「抽屉里选中的那一天 × 选中的类目」
+   * 算好（`selectedServicePois`）再传进来。缺省/空 = 这一层什么都不画。
+   */
+  servicePois?: SelectedServicePoi[];
   /** 顶部切换：全程 / 第X天（单日行程只有全程，一个 tab 就不渲染条）。 */
   tabs: Array<{ label: string; value: "all" | number }>;
   active: "all" | number;

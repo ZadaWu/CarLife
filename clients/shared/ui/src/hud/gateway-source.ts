@@ -4,6 +4,7 @@
  * 取数函数由端注入，本文件不认识 Tauri——所以它能同时喂车机、手机与浏览器走查。
  */
 import {
+  tripDayIndex,
   tripPlanToHud,
   type DestinationHighlights,
   type HudSnapshot,
@@ -38,8 +39,19 @@ export const MOCK_HOME = { city: "浙江杭州", lat: 30.2741, lon: 120.1551 };
  * 拉取失败 → onError（App 置 stale，保留最近有效快照，Brief §6）。
  */
 export interface GatewayHudSource extends HudDataSource {
-  /** 立即重拉一次（确认/取消动作完成后调，不等下个轮询周期）。 */
-  refresh(): void;
+  /**
+   * 立即重拉一次（确认/取消动作完成后调，不等下个轮询周期）。
+   *
+   * 返回的 promise 在**这一跳落地之后**兑现（成功或失败都兑现），顶栏刷新按钮
+   * 靠它决定转圈转到什么时候——不返回的话按钮只能按固定时长假转，
+   * 网慢的时候图标已经停了数据还没到。
+   *
+   * `pretrip` 是「顺带按最新天气重算行前物品」的 opt-in，缺省 **false**：
+   * 确认/取消之后的那次重拉是"把刚做的动作显示出来"，不是"又打开了一次 App"
+   * （`hud-gateway-source.test.ts` 钉着这条）。顶栏那枚按钮是用户**明确要最新的**，
+   * 所以它传 true——这正是它与 60 秒轮询的区别所在。
+   */
+  refresh(opts?: { pretrip?: boolean }): Promise<void>;
   /**
    * 选中某一程（M72-04）：主页此后展示它（地图、提示卡、出发卡都跟着切）。
    * 只在端上记、不落库、不改服务端「当前行程」的语义（出发导航仍按服务端首条）。
@@ -78,6 +90,33 @@ export interface GatewayHudSourceOptions {
    * 老网关（回包没有 `plans`）给空数组，其余行为一字不变。
    */
   onPlans?: (entries: TripPlanListEntry[], currentPlanId?: string) => void;
+}
+
+/**
+ * 这一跳**为什么**没成（2026-09-12）。
+ *
+ * # 401 不是"连不上"
+ *
+ * 车机拿的是车辆级凭证，本身不代表任何人（设计裁决 R4）。没做上车声明、
+ * 或声明成了访客，`GET /v1/trip-plan/current` 一律 401——**服务端答了，而且答得很快**
+ * （网关日志里 3～6 ms）。把它显示成「未连接」会把人支去查网络、查 Docker、查端口，
+ * 而那些全是好的；2026-09-12 用户就是这么被支走的：「我的 mock 服务我自己在 docker 上
+ * 运行了，但是点刷新按钮没用，依旧是断的」。
+ *
+ * 两者的**补救动作完全不同**，这才是必须分开的理由：连不上要重试，没身份要重新上车声明。
+ * 对 401 重试一万次也还是 401，而刷新按钮长得像它能解决问题。
+ */
+export type HudSourceFailure = "unauthorized" | "unreachable";
+
+/**
+ * 判这次失败属于哪一类。判据是 Rust 侧 `NetError::Unauthorized` 的 `Display`
+ * （`fetch_trip_plan` 把它原样 `to_string()` 交给 invoke 的 reject），
+ * 以及浏览器那条路可能出现的裸 401 文本。认不出来的一律当"连不上"——
+ * 那是更保守的一侧：它让人去查链路，而不是去怀疑自己没登录。
+ */
+export function hudSourceFailure(e: unknown): HudSourceFailure {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /unauthorized|(^|\D)401(\D|$)/i.test(msg) ? "unauthorized" : "unreachable";
 }
 
 /** 常住地。形状与网关返回一致，端上不重新拼。 */
@@ -170,22 +209,35 @@ export function createGatewayHudSource(opts: GatewayHudSourceOptions): GatewayHu
   let lastBody: { plan: TripPlanSnapshot | null; plans: TripPlanListEntry[] } | undefined;
 
   /**
-   * 此刻主页该展示哪一份（M73-02 改口径）：选中且仍在列表里的那份 → 否则**列表首条**
-   * （仓储排序：进行中 → 最近的未来 → 未定日期）→ 没有列表（老网关 / 无行程）才回落服务端「当前行程」。
+   * 此刻主页该展示哪一份（M73-02 改口径）：选中且仍在列表里的那份 → 否则**列表里第一条还没走完的**
+   * （仓储排序：进行中 → 最近的未来 → 未定日期 → 已结束）→ 没有列表（老网关 / 无行程）才回落服务端「当前行程」。
    *
    * 首条而不是「当前行程」：后者是最新确认的那份，车主上周排的下个月行程会把本周正在走的挤下地图；
    * 而「出发」处置在服务端取的正是 `trip_plan_list` 首条——两边看到的必须是同一程。
    * 选中的行程不再在列表上（改掉 / 取消 / 结束）时回到首条，不挂着一份不存在的。
+   *
+   * 「还没走完」这一道（2026-09-16 走查）：`endDate` 列还空着的老行程走完了也留在活动列表里，
+   * 而它的出发日最早、恰好排首条，于是默认展示的是一份**已结束**的行程——主页地图整块收起，
+   * 看起来像地图坏了。仓储的排序已经把它们沉到末尾，这里再挑一次是因为端上还要面对
+   * 没升级的服务端与老回包；两边是同一句话（第一条未结束的），所以「出发」取的仍是同一程。
    */
   const project = (body: { plan: TripPlanSnapshot | null; plans: TripPlanListEntry[] }) => {
     const chosen = selectedPlanId ? body.plans.find((p) => p.planId === selectedPlanId) : undefined;
     if (selectedPlanId && !chosen) selectedPlanId = null;
-    const raw = chosen ? chosen.plan : (body.plans[0]?.plan ?? body.plan);
+    const live = body.plans.find((p) => tripDayIndex(p.plan, today()) !== null);
+    const raw = chosen ? chosen.plan : (live?.plan ?? body.plans[0]?.plan ?? body.plan);
     // 推荐页在这里补齐，之后 `plan` 只有一份——投影与 onPlan 不能看到两个版本。
     const plan = raw ? withStickyHighlights(raw) : null;
     const mapped = plan ? tripPlanToHud(plan, today(), base()) : null;
-    // 整份快照先交出去：地图标注/逐日切换吃它，不吃压缩过的 HudSnapshot。
-    opts.onPlan?.(mapped ? plan : null);
+    /*
+     * 整份快照交出去：地图标注/逐日切换吃它，不吃压缩过的 HudSnapshot。
+     *
+     * 已结束的那程 `tripPlanToHud` 判它"卡片收起"（mapped 为 null），可**车主自己点开的
+     * 那一程照样交出去**（2026-09-16 走查：选中一份已结束的行程，地图停在装饰概览上）——
+     * 点它就是为了看那一程的路线。没点就不交：回落的那份可能是几个月前走完的，
+     * 交出去等于把上个月的行程一直挂在主页地图上。
+     */
+    opts.onPlan?.(mapped !== null || chosen !== undefined ? plan : null);
     // null = 没有可展示的行程——回落基线，不渲染空卡也不报错。
     onSnapshot?.(mapped ?? base());
   };
@@ -219,8 +271,9 @@ export function createGatewayHudSource(opts: GatewayHudSourceOptions): GatewayHu
 
   let timer: ReturnType<typeof setInterval> | undefined;
   return {
-    refresh() {
-      void pull();
+    refresh(opts) {
+      if (opts?.pretrip) refreshNext = true;
+      return pull();
     },
     select(planId) {
       selectedPlanId = planId;

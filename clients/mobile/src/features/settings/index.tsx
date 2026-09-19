@@ -12,13 +12,13 @@
  *
  * **定位那一组是同一个组件**（`@carlife/ui` 的 `LocationSettings`）：同一个用户
  * 对同一件事的授权界面必须逐字一样，否则"我在手机上关过了"与"车机上还开着"
- * 会同时成立。播报开关两端各有一份 Tauri 命令，默认值也不同（车机默认开、
- * 手机默认关，理由见 `commands/profile.rs`），所以那一组不共用。
+ * 会同时成立。**没有「播报」组**：手机端不出声（F-02-12「车机播报 / 手机静默」；
+ * M65-04 加过开关、2026-09-17 连音量一起撤掉，理由见 `src-tauri/src/events.rs` 文件头）。
  */
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { GatewayField } from "../auth/GatewayField";
-import { LocationSettings } from "@carlife/ui";
+import { LocationSettings, onDeviceVisionEnabled, setOnDeviceVisionEnabled } from "@carlife/ui";
 import type { LocationFix } from "@carlife/shared";
 
 import "./settings.css";
@@ -48,7 +48,6 @@ interface AuthStatus {
 
 export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
   const tauri = isTauriEnv();
-  const [broadcast, setBroadcast] = useState<boolean | null>(null);
   const [auth, setAuth] = useState<AuthStatus | null>(null);
   /**
    * 哨兵监听（语音唤醒）总开关。**默认关**——常驻麦克风不该是开箱状态，
@@ -56,14 +55,15 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
    * `SENTINEL_ENABLED` 的文档里。null = 读不到，整组不渲染。
    */
   const [sentinel, setSentinel] = useState<boolean | null>(null);
+  /** 端上框灯（ACR-044）：值在 localStorage，对话页选文件时现读；这里只负责改它。 */
+  const [onDeviceVision, setOnDeviceVision] = useState<boolean>(() => onDeviceVisionEnabled());
   /** 上一次打开失败的原因；只有"没给麦克风权限"这一种值得说。 */
   const [sentinelError, setSentinelError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tauri) return;
-    // 读不到就**整组不渲染**（`broadcast` 停在 null），不显示一个恒为假的开关
+    // 读不到就**整组不渲染**（状态停在 null），不显示一个恒为假的开关
     // ——与车机设置页同一条纪律。
-    void invoke<boolean>("get_broadcast_enabled").then(setBroadcast).catch(() => {});
     void invoke<boolean>("get_sentinel_enabled").then(setSentinel).catch(() => {});
     void invoke<AuthStatus>("auth_status").then(setAuth).catch(() => {});
   }, [tauri]);
@@ -110,10 +110,6 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
       });
   }, [sentinel]);
 
-  const toggleBroadcast = useCallback(() => {
-    void invoke<boolean>("set_broadcast_enabled", { enabled: !broadcast }).then(setBroadcast);
-  }, [broadcast]);
-
   return (
     <div className="mset">
       <header className="mset-head">
@@ -122,7 +118,7 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
 
       <div className="mset-body">
         {/* 账号放最前：走查要反复换人，而"现在登录的是谁"也该一眼看得到。
-            读不到状态就整组不渲染（浏览器走查没有 invoke），同播报那一组。 */}
+            读不到状态就整组不渲染（浏览器走查没有 invoke），同本页其它组。 */}
         {auth?.authenticated ? (
           <section className="mset-group">
             <h2>账号</h2>
@@ -170,6 +166,43 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
           </section>
         )}
 
+        {/*
+          端上框灯（ACR-044）：M104 之后从对话页输入条挪到这里。
+          输入条按定稿只放「相机 + 输入框 + 发送」三件，而这枚开关占掉近 90pt 宽、把输入框挤成一条缝；
+          它又必须在**选照片之前**定（`onPickFiles` 里读它决定跑不跑检测），放待发条上已经晚了。
+          开关值在 localStorage（`carlife.vision.onDevice`），对话页选文件时现读。
+        */}
+        <section className="mset-group">
+          <h2>端上框灯</h2>
+          <button
+            type="button"
+            className={`cloc-toggle${onDeviceVision ? " is-on" : ""}`}
+            role="switch"
+            aria-checked={onDeviceVision}
+            onClick={() => {
+              const next = !onDeviceVision;
+              setOnDeviceVision(next);
+              setOnDeviceVisionEnabled(next);
+            }}
+          >
+            <span className="cloc-toggle__text">
+              <span className="cloc-toggle__label">选完照片先在手机上框一遍指示灯</span>
+              <span className="cloc-toggle__hint">
+                {onDeviceVision
+                  ? "选照片时会先在手机本地跑一次识别，把认出的灯标出来再上传；照片不会因此多传一份。"
+                  : "关着的时候照片直接上传，由服务端识别。打开后手机会先自己框一遍，识别更快也更准。"}
+              </span>
+            </span>
+            <span className="cloc-toggle__knob" aria-hidden="true" />
+          </button>
+        </section>
+
+        {/*
+          日历账号绑定（M92-01，FL-31）。**只在手机端有**：FL-31 铁律规定
+          行车态不呈现任何凭证输入界面，所以车机设置页不放这一组。
+          读不到绑定状态时组件自己返回 null，同本页其它组的纪律。
+        */}
+
         <section className="mset-group">
           <h2>网关连接</h2>
           <GatewayField />
@@ -179,28 +212,6 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
           <h2>定位</h2>
           <LocationSettings onLocated={onLocated} />
         </section>
-
-        {broadcast !== null && (
-          <section className="mset-group">
-            <h2>播报</h2>
-            <button
-              type="button"
-              className={`cloc-toggle${broadcast ? " is-on" : ""}`}
-              role="switch"
-              aria-checked={broadcast}
-              onClick={toggleBroadcast}
-            >
-              <span className="cloc-toggle__text">
-                <span className="cloc-toggle__label">出声播报</span>
-                <span className="cloc-toggle__hint">
-                  关掉之后暖暖只在屏幕上回答，不出声。手机默认不出声——公共场合里
-                  突然说话是打扰。
-                </span>
-              </span>
-              <span className="cloc-toggle__knob" aria-hidden="true" />
-            </button>
-          </section>
-        )}
       </div>
     </div>
   );

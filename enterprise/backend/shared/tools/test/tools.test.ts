@@ -13,7 +13,6 @@ import { describe, it } from "node:test";
 import { calcCost } from "../src/cost-calc";
 import { defineExternalTool, ToolError, type ToolCallContext } from "../src/external";
 import { listExposableForMcp, listForAgent, TOOL_REGISTRY, invokeTool } from "../src/registry";
-import { createCalendarTool, createMockBackend } from "../src/calendar";
 import { ragflowTool, setRagClient } from "../src/ragflow";
 
 const ctx = (mode?: ToolCallContext["mode"]): ToolCallContext => ({
@@ -167,25 +166,18 @@ describe("注册表", () => {
   it("MCP 暴露面排除敏感与私有数据工具（F-34-09 规则写死在代码里）", () => {
     const exposable = listExposableForMcp();
     assert.ok(exposable.every((t) => !t.sensitive), "敏感工具不得对外暴露");
-    for (const forbidden of ["vehicle_profile", "usage_profile", "memory", "appointment", "calendar"]) {
+    for (const forbidden of ["vehicle_profile", "usage_profile", "memory", "appointment"]) {
       assert.ok(!exposable.some((t) => t.name === forbidden), `${forbidden} 不得出现在 MCP 暴露面`);
     }
   });
 
-  it("敏感工具一律不进 MCP 暴露面（M5-04 引入 calendar 后这条才有实际约束力）", () => {
+  it("敏感工具一律不进 MCP 暴露面", () => {
     const sensitive = TOOL_REGISTRY.filter((t) => t.sensitive);
-    assert.ok(sensitive.length > 0, "M5-04 起注册表应含敏感工具");
+    assert.ok(sensitive.length > 0, "注册表应含敏感工具");
     assert.ok(
       sensitive.every((t) => !t.mcpExposable),
       "敏感工具不得对外暴露——有副作用的能力不能给第三方（F-34-09）",
     );
-  });
-
-  it("calendar 按 §5 只挂出行规划与用车助手，**不挂购车/售后**", () => {
-    const cal = TOOL_REGISTRY.find((t) => t.name === "calendar")!;
-    assert.deepEqual([...cal.agents].sort(), ["ownership", "trip"]);
-    assert.ok(!cal.agents.includes("buying"), "试驾预约不该重复写日历（§5）");
-    assert.ok(!cal.agents.includes("service"), "维修预约不该重复写日历（§5）");
   });
 
   it("统一执行入口做入参校验，非法入参不落到工具实现里", async () => {
@@ -204,62 +196,6 @@ describe("注册表", () => {
   });
 });
 
-describe("calendar 工具（M5-04）", () => {
-  it("**读的返回类型里没有标题字段**——隐私靠结构保证，不靠脱敏（F-31-12）", async () => {
-    const tool = createCalendarTool(createMockBackend(true));
-    const r = await tool.call({ op: "read", from: "2026-08-15", to: "2026-08-15" }, ctx());
-    const data = r.data as { op: string; slots: Array<Record<string, unknown>> };
-    assert.equal(data.op, "read");
-    for (const slot of data.slots) {
-      assert.deepEqual(Object.keys(slot).sort(), ["end", "start", "status"], "只允许忙闲三元组");
-      assert.equal("title" in slot, false, "日程标题绝不能出现在返回里");
-      assert.equal("summary" in slot, false);
-    }
-  });
-
-  it("未绑定时**读直接跳过，不阻塞规划**（§5 授权前提）", async () => {
-    const tool = createCalendarTool(createMockBackend(false));
-    const r = await tool.call({ op: "read", from: "2026-08-15", to: "2026-08-15" }, ctx());
-    const data = r.data as { skipped: boolean; slots: unknown[] };
-    assert.equal(data.skipped, true);
-    assert.deepEqual(data.slots, []);
-  });
-
-  it("未绑定时**写明确报错**，不静默失败让用户以为写进去了", async () => {
-    const tool = createCalendarTool(createMockBackend(false));
-    await assert.rejects(
-      () =>
-        tool.call(
-          { op: "write", events: [{ title: "出发", start: "2026-08-15T07:00", end: "2026-08-15T08:00" }] },
-          ctx(),
-        ),
-      (e: unknown) => e instanceof ToolError && e.category === "unconfigured",
-    );
-  });
-
-  it("写入返回事件 id，供幂等对账（F-31-10）", async () => {
-    const tool = createCalendarTool(createMockBackend(true));
-    const r = await tool.call(
-      {
-        op: "write",
-        events: [
-          { title: "出发", start: "2026-08-15T07:00", end: "2026-08-15T08:00" },
-          { title: "充电停靠", start: "2026-08-15T11:00", end: "2026-08-15T11:40" },
-        ],
-      },
-      ctx(),
-    );
-    const data = r.data as { written: number; eventIds: string[] };
-    assert.equal(data.written, 2);
-    assert.equal(data.eventIds.length, 2);
-  });
-
-  it("有副作用故不重试——重试一次写入就是两条重复日程", () => {
-    const tool = createCalendarTool(createMockBackend(true));
-    assert.equal(tool.sensitive, true);
-  });
-});
-
 describe("ragflow_retrieve 不在工具层给检索参数默认值", () => {
   it("**不传 topK 时原样传 undefined**——写死会把调参结论悄悄盖掉", async () => {
     // 这条护栏是补的：`enterprise/backend/shared/rag` 的调参把 DEFAULT_PAGE_SIZE 定为 8，
@@ -269,7 +205,7 @@ describe("ragflow_retrieve 不在工具层给检索参数默认值", () => {
     setRagClient({
       async retrieve(a) {
         seen = { topK: a.topK };
-        return [{ content: "x", source: { document: "d" }, score: 1 }];
+        return [{ content: "x", source: { document: "d", dataset: "vehicle-manuals" }, provenance: "public", score: 1 }];
       },
     });
     await ragflowTool.call({ query: "q" }, { sessionId: "s", agent: "ownership", mode: "real" });
@@ -281,10 +217,88 @@ describe("ragflow_retrieve 不在工具层给检索参数默认值", () => {
     setRagClient({
       async retrieve(a) {
         seen = a.topK;
-        return [{ content: "x", source: { document: "d" }, score: 1 }];
+        return [{ content: "x", source: { document: "d", dataset: "vehicle-manuals" }, provenance: "public", score: 1 }];
       },
     });
     await ragflowTool.call({ query: "q", topK: 3 }, { sessionId: "s", agent: "ownership", mode: "real" });
     assert.equal(seen, 3);
+  });
+});
+
+describe("ragflow_retrieve 缺省查该 Agent 允许的全部集（ACR-042 / M101-02）", () => {
+  /** 录下工具实际要 client 查了哪几个集——缺省范围只有在这里才看得见。 */
+  const recording = () => {
+    const seen: { datasets?: readonly string[] } = {};
+    setRagClient({
+      async retrieve(a) {
+        seen.datasets = a.datasets ?? (a.dataset ? [a.dataset] : []);
+        return [
+          { content: "条款原文", source: { document: "示范条款.md", dataset: "insurance-kb" }, provenance: "public", score: 0.9 },
+        ];
+      },
+    });
+    return seen;
+  };
+
+  it("**售后缺省同查维修手册与车险条款**——M96 之前它只查得到前者", async () => {
+    // 这条是这次改动的全部意义：数据集接上了、文档解析完了、隔离也对，
+    // 但缺省取 `allowed[0]`，于是没有任何应答路径查得到 insurance-kb。
+    const seen = recording();
+    await ragflowTool.call({ query: "出险要什么材料" }, { sessionId: "s", agent: "service", mode: "real" });
+    assert.deepEqual(seen.datasets, ["repair-kb", "insurance-kb"]);
+  });
+
+  it("购车缺省同查车型参数与车险条款——投保前看条款是购车的事", async () => {
+    const seen = recording();
+    await ragflowTool.call({ query: "这款车投保要多少" }, { sessionId: "s", agent: "buying", mode: "real" });
+    assert.deepEqual(seen.datasets, ["car-catalog", "insurance-kb"]);
+  });
+
+  it("用车助手只有一个集，行为与改动前完全相同", async () => {
+    const seen = recording();
+    await ragflowTool.call({ query: "冬天续航" }, { sessionId: "s", agent: "ownership", mode: "real" });
+    assert.deepEqual(seen.datasets, ["vehicle-manuals"]);
+  });
+
+  it("显式指定集时收窄到它一个", async () => {
+    const seen = recording();
+    await ragflowTool.call(
+      { query: "报案时限", dataset: "insurance-kb" },
+      { sessionId: "s", agent: "service", mode: "real" },
+    );
+    assert.deepEqual(seen.datasets, ["insurance-kb"]);
+  });
+
+  it("**越权入参被忽略并退回缺省，不报错**——报错等于给模型一次换说法再试的机会", async () => {
+    const seen = recording();
+    await ragflowTool.call(
+      { query: "冬天续航", dataset: "vehicle-manuals" },
+      { sessionId: "s", agent: "service", mode: "real" },
+    );
+    assert.deepEqual(seen.datasets, ["repair-kb", "insurance-kb"]);
+  });
+
+  it("出参给的是集**列表**与逐条带标注的 chunk，没有调用级来源标签", async () => {
+    recording();
+    const r = await ragflowTool.call({ query: "q" }, { sessionId: "s", agent: "service", mode: "real" });
+    assert.deepEqual(r.data.datasets, ["repair-kb", "insurance-kb"]);
+    assert.equal(r.data.chunks[0]!.source.dataset, "insurance-kb");
+    assert.equal(r.data.chunks[0]!.provenance, "public");
+    assert.ok(!("provenance" in (r.data as Record<string, unknown>)), "来源标注不该再留在调用级——跨集时它会张冠李戴");
+  });
+
+  it("mock 模式出参同形，否则 CARLIFE_LLM=fake 下的用例会整片红", async () => {
+    const r = await ragflowTool.call({ query: "q" }, { sessionId: "s", agent: "ownership", mode: "mock" });
+    assert.deepEqual(r.data.datasets, ["vehicle-manuals"]);
+    assert.equal(r.data.chunks[0]!.source.dataset, "vehicle-manuals");
+    assert.equal(r.data.chunks[0]!.provenance, "simulated");
+  });
+
+  it("未注入客户端仍报 unconfigured，不返回空结果", async () => {
+    setRagClient(undefined);
+    await assert.rejects(
+      () => ragflowTool.call({ query: "q" }, { sessionId: "s", agent: "service", mode: "real" }),
+      (e: unknown) => String(e).includes("未接入"),
+    );
   });
 });

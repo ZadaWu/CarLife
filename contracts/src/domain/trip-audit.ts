@@ -32,7 +32,15 @@ export type AuditLevel = "blocker" | "warning" | "unverifiable";
  *
  * **没有正餐与能源项**（FL-58 2026-09-08 收窄）。
  */
-export type AuditItem = "hotel" | "return" | "leg" | "daily" | "stop" | "order" | "constraint";
+/**
+ * `days`（M77 走查追修）：**方案的天数与车主要的对不对得上**。
+ *
+ * 真跑 turn-49a88d21：车主说"中秋三天，上海→南通→张家港"，tour 只交了第 1 天，
+ * 合并出来 `days: 1`，落库也是 1 天。而 narrator 从 findings 与对话上下文拼出了三天的话，
+ * 于是车主听到的是三天、弹窗和主页只有一天——**说的和存的不一致**，这比少排两天更糟。
+ * 当时体检 4 项通过，因为没有任何一项在看"够不够天"。
+ */
+export type AuditItem = "hotel" | "return" | "leg" | "daily" | "stop" | "days" | "order" | "constraint";
 
 export interface AuditFinding {
   item: AuditItem;
@@ -69,6 +77,8 @@ export const AUDIT_LEVEL_OF: Record<AuditItem, "blocker" | "warning"> = {
   leg: "blocker",
   daily: "blocker",
   stop: "blocker",
+  // 少一天就是少一天：交付一份缺天的方案，比交付一份有瑕疵的方案严重得多。
+  days: "blocker",
   order: "warning",
   constraint: "warning",
 };

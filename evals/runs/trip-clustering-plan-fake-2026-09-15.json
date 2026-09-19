@@ -1,0 +1,129 @@
+{
+  "layer": "plan",
+  "fake": true,
+  "model": "fake",
+  "at": "2026-09-15T12:01:17.433Z",
+  "total": 8,
+  "selected": 8,
+  "command": "corepack pnpm eval:trip-clustering -- -- --layer plan --fake",
+  "results": [
+    {
+      "id": "hz-3d",
+      "input": "帮我规划一个从上海出发去杭州的三天行程，自驾，带六岁的孩子，每天别安排太满。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 2663,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "sz-2d",
+      "input": "周末从上海自驾去苏州玩两天，带爸妈，想看看园林和古镇。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 1455,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "nj-3d",
+      "input": "从上海开车去南京玩三天，主要想逛历史景点，晚上想看看夫子庙。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 1427,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "gz-4d",
+      "input": "我们一家四口从上海去广州玩四天，带娃，一定要去一天长隆，其余时间在市区逛。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 1438,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "sh-2d",
+      "input": "帮我排一个上海本地两天的行程，从嘉定出发，第一天想去迪士尼，第二天在市区逛逛。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 1445,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "nt-zjg-3d",
+      "input": "从上海出发去南通、张家港三天，第一天回如东老家看妈妈，后两天在南通市区和张家港转转。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 1449,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "hs-3d",
+      "input": "从上海自驾去黄山三天，想上山看日出，顺便逛逛徽州古村落。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 1553,
+      "mode": "skeleton",
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    },
+    {
+      "id": "xa-4d",
+      "input": "从上海去西安玩四天，坐高铁过去然后在当地打车，想看兵马俑、城墙和回民街。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 1441,
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    }
+  ],
+  "summary": {
+    "counted": [],
+    "excluded": [
+      "hz-3d",
+      "sz-2d",
+      "nj-3d",
+      "gz-4d",
+      "sh-2d",
+      "nt-zjg-3d",
+      "hs-3d",
+      "xa-4d"
+    ],
+    "points": 0,
+    "misassigned": 0
+  }
+}

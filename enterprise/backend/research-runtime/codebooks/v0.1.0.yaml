@@ -1,0 +1,320 @@
+# 编码本 v0.1.0（施工单 M82-04）
+#
+# 这份文件就是**口径本身**：镜头上每个数字的含义由它定义。
+#
+# ⚠️ 锁版（`research_codebooks.locked_at`）之后**只增不改**：
+# 改一个码的定义，等于让锁版前后的所有数字换了含义，而图上看不出任何区别。
+# 需要新概念就开下一版。载入时算 sha256 存库，锁版后 hash 不匹配直接拒绝启动。
+#
+# 每个码必须有 definition / include / exclude / examples(≥2) / counter_examples(≥1)：
+# 没有 exclude 的码会慢慢吸走整个语料，而那正是一致率掉下去时最难查的原因。
+
+version: "0.1.0"
+
+axes:
+  # ── 场景（单选）───────────────────────────────────────
+  - id: scene
+    label: 场景
+    cardinality: single
+    codes:
+      - id: commute
+        label: 通勤日常
+        definition: 上下班、接送、市内短途这类每天都在发生的用车。
+        include: 明确提到上班/下班/接孩子/日常代步，或语境是市区反复短途。
+        exclude: 跨城、出游、明确说"长途"的，归 long-trip。
+        examples: ["这车怎么一到早高峰就特别费电", "每天通勤大概三十公里这样正常吗"]
+        counter_examples: ["我要跑四百公里中间要充几次电"]
+      - id: long-trip
+        label: 长途出行
+        definition: 跨城、出游、单程明显超出日常半径的用车。
+        include: 提到高速/服务区/跨省/几百公里/出游。
+        exclude: 只是市区里开得久（堵车），归 commute。
+        examples: ["去成都这一路服务区的桩多不多", "开长途的时候这个辅助驾驶靠谱吗"]
+        counter_examples: ["早高峰走高架还是走地面快"]
+      - id: charging
+        label: 充电补能
+        definition: 充电、加油、续航与电量本身。
+        include: 桩、充电速度、SOC、续航掉得快、油耗电耗。
+        exclude: 只是顺带提到"还剩多少电"而问题在别处的，按问题本身归类。
+        examples: ["天一冷这个续航掉得也太快了吧", "充到百分之八十就慢下来是正常的吗"]
+        counter_examples: ["这个按钮是干什么用的"]
+      - id: cabin
+        label: 车内座舱
+        definition: 车机、屏幕、空调、座椅、灯光这些"车里的功能怎么用"。
+        include: 找不到功能、按钮是什么、怎么设置、提示音是什么。
+        exclude: 提示的是故障/保养，归 maintenance。
+        examples: ["这个按钮是干什么用的", "怎么把座椅加热打开"]
+        counter_examples: ["仪表盘亮了个扳手是什么意思"]
+      - id: maintenance
+        label: 保养维修
+        definition: 保养周期、故障、异响、维修、预约、质保。
+        include: 扳手灯、故障码、异响、该做什么保养、约门店。
+        exclude: 纯粹问"这个功能怎么用"，归 cabin。
+        examples: ["我这车三万公里了该做什么保养", "刹车有点异响要紧吗"]
+        counter_examples: ["能不能把音量调小一点"]
+
+  # ── 需求 / 痛点（多选，≤3）──────────────────────────
+  # 与证据矩阵的十行一一对应（Brief §6）。改这一轴要同步那张表。
+  - id: need_pain
+    label: 需求与痛点
+    cardinality: multi
+    max: 3
+    codes:
+      - id: range-anxiety
+        label: 续航焦虑
+        definition: 担心开不到目的地、反复确认还能跑多远。
+        include: 「够不够回家」「能跑多少」，频繁看剩余里程。
+        exclude: 单纯问充电桩在哪，归 charger-availability。
+        examples: ["我这个续航还剩八十公里够不够回家", "满电跑高速实际能跑多少"]
+        counter_examples: ["其实入冬以后掉的比我想象中少一些"]
+      - id: cold-range-loss
+        label: 低温续航衰减
+        definition: 明确把续航下降归因到天冷/暖风。
+        include: 提到冬天、低温、暖风与掉电的关系。
+        exclude: 没提温度的普通续航担心，归 range-anxiety。
+        examples: ["天一冷这个续航掉得也太快了吧", "开暖风续航直接少了三分之一"]
+        counter_examples: ["其实入冬以后掉的比我想象中少一些"]
+      - id: charger-availability
+        label: 充电桩可用性
+        definition: 找桩、排队、桩坏了、功率对不上。
+        include: 哪里有快充、服务区排队、桩显示与车上不符。
+        exclude: 只关心充电对电池的影响，归 other。
+        examples: ["我在南山附近哪里有快充", "服务区排队充电太久了有没有别的办法"]
+        counter_examples: ["快充充多了对电池有影响吗"]
+      - id: asr-error
+        label: 语音识别错或被打断
+        definition: 说的话被听错、被打断、要重复说。
+        include: 明确抱怨识别、重复、打断。
+        exclude: 只是让助手说短一点，归 other。
+        examples: ["我说的不是这个你听错了", "怎么老是打断我"]
+        counter_examples: ["你直接说结论"]
+      - id: nav-detour
+        label: 导航绕路
+        definition: 路线不合理、重算、避堵失败。
+        include: 绕路、突然重算、避开某段。
+        exclude: 只是问路上堵不堵，归 other。
+        examples: ["刚才导航突然重算了一次是为什么", "导航能不能避开机场高速那段"]
+        counter_examples: ["帮我规划一下明天去成都的路线"]
+      - id: feature-discovery
+        label: 车机功能找不到
+        definition: 知道想做什么但不知道在哪、这个按钮/图标是什么。
+        include: 怎么打开、在哪设置、这个符号什么意思（非故障）。
+        exclude: 故障灯与报警，归 dtc-unclear。
+        examples: ["这个按钮是干什么用的", "儿童锁在哪里设置"]
+        counter_examples: ["这套车机用久了其实挺顺手的"]
+      - id: dtc-unclear
+        label: 故障码看不懂
+        definition: 仪表报警、故障码、异响不知道要不要紧。
+        include: 扳手灯、黄灯、故障码、异响严重性判断。
+        exclude: 已知要修、在问怎么约，归 booking-friction。
+        examples: ["仪表盘亮了个扳手是什么意思", "这个故障码是什么意思"]
+        counter_examples: ["能不能帮我约一下最近的门店"]
+      - id: service-interval
+        label: 保养周期不清
+        definition: 不知道什么时候该保养、该做哪些项目。
+        include: 多少公里做什么、上次是什么时候、机油多久换。
+        exclude: 具体故障，归 dtc-unclear。
+        examples: ["我这车三万公里了该做什么保养", "这个机油多久换一次"]
+        counter_examples: ["这车开到现在毛病比我预期的少"]
+      - id: booking-friction
+        label: 售后预约麻烦
+        definition: 约不上、不知道去哪、流程繁琐。
+        include: 帮我约、去哪家、要准备什么。
+        exclude: 只问价格，归 other。
+        examples: ["能不能帮我约一下最近的门店", "这个保养到底该去四儿子店还是外面"]
+        counter_examples: ["上次那家店其实修得挺利索的"]
+      - id: shared-ownership
+        label: 家人共用车归属不清
+        definition: 多人用一台车带来的归属、权限、记录混淆。
+        include: 家里人也开、这趟是谁开的、给家人授权。
+        exclude: 只是带家人出行，归 other。
+        examples: ["我想中途换我爱人开怎么设置", "家里人也开这个记录怎么分"]
+        counter_examples: ["带着一家人东西多会不会影响续航"]
+      - id: other
+        label: 其它
+        definition: 有明确诉求但不属于上面任何一类。
+        include: 诉求清楚、分类不上。
+        exclude: 完全没有诉求的闲聊，用 none。
+        examples: ["车机能不能接着放我手机上的歌", "怎么导出行车记录仪的视频"]
+        counter_examples: ["嗯"]
+      - id: none
+        label: 无
+        definition: 这一轮没有可识别的需求或痛点。
+        include: 寒暄、纯确认、内容不足以判断。
+        exclude: 有任何具体诉求的都不用它。
+        examples: ["嗯", "知道了"]
+        counter_examples: ["我这个续航还剩八十公里够不够回家"]
+
+  # ── 任务（单选）──────────────────────────────────────
+  - id: job
+    label: 要做成的事
+    cardinality: single
+    codes:
+      - id: get-there
+        label: 到得了
+        definition: 把人从这里送到那里。
+        include: 路线、时间、堵不堵、导航。
+        exclude: 为了到得了而担心电量的，归 keep-charged。
+        examples: ["从龙华到公司要开多久啊现在", "帮我规划一下明天去成都的路线"]
+        counter_examples: ["我在南山附近哪里有快充"]
+      - id: keep-charged
+        label: 有电可用
+        definition: 让车保持能开的能量状态。
+        include: 充电、加油、续航管理。
+        exclude: 电池健康与质保，归 understand-car 或 fix-it。
+        examples: ["我在南山附近哪里有快充", "能不能设置成谷电时段自动充"]
+        counter_examples: ["这个电池衰减怎么看"]
+      - id: understand-car
+        label: 搞懂这台车
+        definition: 弄明白车上的某个功能、提示、数字是什么。
+        include: 这是什么、怎么用、怎么看。
+        exclude: 已经确定坏了要修，归 fix-it。
+        examples: ["这个按钮是干什么用的", "这个仪表上的数字是什么"]
+        counter_examples: ["刹车有点异响要紧吗"]
+      - id: fix-it
+        label: 修好它
+        definition: 处理已经出现的问题。
+        include: 异响、报警、故障、维修、保养。
+        exclude: 只是提前了解周期，归 plan-ahead。
+        examples: ["刹车有点异响要紧吗", "上次修的那个问题又出现了"]
+        counter_examples: ["提醒我下个月去做保养"]
+      - id: plan-ahead
+        label: 提前安排
+        definition: 为将来的事做准备。
+        include: 提醒我、下次、出发前要检查什么。
+        exclude: 当下就要解决的，归 fix-it。
+        examples: ["提醒我下个月去做保养", "跑长途前要检查哪些东西"]
+        counter_examples: ["上次修的那个问题又出现了"]
+      - id: other
+        label: 其它
+        definition: 不属于上面任何一类的任务。
+        include: 任务清楚但分类不上。
+        exclude: 看不出任务的用 other 也可以，但优先看能不能归到具体一类。
+        examples: ["车机能不能接着放我手机上的歌", "这个氛围灯怎么换颜色"]
+        counter_examples: ["刹车有点异响要紧吗"]
+
+  # ── 情绪（单选 + 强度）────────────────────────────────
+  - id: emotion
+    label: 情绪
+    cardinality: single
+    intensity: true
+    codes:
+      - id: anxiety
+        label: 焦虑
+        definition: 担心接下来会出问题。
+        include: 够不够、来不来得及、会不会坏。
+        exclude: 已经烦了的，归 frustration。
+        examples: ["我这个续航还剩八十公里够不够回家", "刹车有点异响要紧吗"]
+        counter_examples: ["这个氛围灯怎么换颜色"]
+      - id: frustration
+        label: 烦躁
+        definition: 已经被同一件事困扰过，语气带不满。
+        include: 出现「又」「老是」「太」「到底」这类语气词。
+        exclude: 单纯提问，归 neutral 或 confusion。
+        examples: ["天一冷这个续航掉得也太快了吧", "上次修的那个问题又出现了"]
+        counter_examples: ["怎么把座椅加热打开"]
+      - id: confusion
+        label: 困惑
+        definition: 不知道这是什么、该怎么办。
+        include: 这是什么意思、看不懂、不太懂。
+        exclude: 知道是什么、只是不满，归 frustration。
+        examples: ["仪表盘亮了个扳手是什么意思", "这个故障码是什么意思"]
+        counter_examples: ["能不能把音量调小一点"]
+      - id: trust
+        label: 信任
+        definition: 表达对车或助手的认可与依赖。
+        include: 挺准的、还行、比我想的好。
+        exclude: 只是道谢，归 neutral。
+        examples: ["说明书里查不到的这个功能你居然知道", "这车开到现在毛病比我预期的少"]
+        counter_examples: ["怎么老是打断我"]
+      - id: relief
+        label: 松一口气
+        definition: 担心过、现在放心了。
+        include: 那就好、原来如此、还好。
+        exclude: 从头到尾没担心过的，归 neutral。
+        examples: ["那就好我还以为要大修", "原来是这样那我放心了"]
+        counter_examples: ["这个机油多久换一次"]
+      - id: neutral
+        label: 中性
+        definition: 就事论事，看不出情绪。
+        include: 平铺直叙的提问与指令。
+        exclude: 有明显语气词或评价的。
+        examples: ["怎么把座椅加热打开", "这个机油多久换一次"]
+        counter_examples: ["天一冷这个续航掉得也太快了吧"]
+      - id: mixed
+        label: 复合
+        definition: 同时有两种明显不同的情绪。
+        include: 既满意又抱怨、既放心又担心。
+        exclude: 只有一种情绪的。
+        examples: ["修得挺快就是有点贵", "问题解决了不过还是有点担心再犯"]
+        counter_examples: ["怎么把座椅加热打开"]
+      - id: uncertain
+        label: 判不出
+        definition: 文本太短或太模糊，判不出情绪。
+        include: 单词、语气词、被截断的半句。
+        exclude: 能判出的一律不用它。
+        examples: ["嗯", "那个"]
+        counter_examples: ["天一冷这个续航掉得也太快了吧"]
+
+  # ── 可交付性（单选）──────────────────────────────────
+  # 硬禁范畴的需求会持续出现在语料里，它在图上**必须有位置且标成不可交付**——
+  # 归到"待优化"会让 roadmap 反复捡起一件做不了的事（analysis.md §3）。
+  - id: deliverability
+    label: 可交付性
+    cardinality: single
+    codes:
+      - id: deliverable
+        label: 可交付
+        definition: 产品有可能满足这个诉求。
+        include: 信息、建议、预约、设置这类。
+        exclude: 落进硬禁三类的。
+        examples: ["我这车三万公里了该做什么保养", "帮我规划一下明天去成都的路线"]
+        counter_examples: ["你帮我把胎压调一下"]
+      - id: undeliverable-hard-ban
+        label: 不可交付（硬禁）
+        definition: 落进硬禁三类——自动驾驶决策、车辆安全控制、替代专业维修的确定性结论。
+        include: 让车自己开/让助手直接控制车辆/要一个"就是这个毛病"的确定诊断。
+        exclude: 只是询问原理与可能性，归 deliverable。
+        examples: ["你帮我把胎压调一下", "你直接告诉我是不是刹车片坏了不用去店里"]
+        counter_examples: ["刹车有点异响要紧吗"]
+      - id: unknown
+        label: 判不出
+        definition: 信息不足以判断可交付性。
+        include: 文本太短或诉求不清。
+        exclude: 能判出的一律不用它。
+        examples: ["嗯", "那什么"]
+        counter_examples: ["你帮我把胎压调一下"]
+
+  # ── 极性（单选）──────────────────────────────────────
+  - id: polarity
+    label: 极性
+    cardinality: single
+    codes:
+      - id: complaint
+        label: 抱怨
+        definition: 对现状不满。
+        include: 太、老是、又、还是不行。
+        exclude: 只是提问，归 question。
+        examples: ["天一冷这个续航掉得也太快了吧", "怎么老是打断我"]
+        counter_examples: ["这个机油多久换一次"]
+      - id: praise
+        label: 称赞
+        definition: 主动表达满意。
+        include: 挺好、不错、比预期强。
+        exclude: 与预期做对比、用于反驳某个负面印象的，归 counter-example。
+        examples: ["这套车机用久了其实挺顺手的", "说明书里查不到的这个功能你居然知道"]
+        counter_examples: ["其实入冬以后掉的比我想象中少一些"]
+      - id: question
+        label: 提问
+        definition: 就事论事地问。
+        include: 是什么、怎么办、多少。
+        exclude: 带明显不满的问句，归 complaint。
+        examples: ["这个机油多久换一次", "怎么把座椅加热打开"]
+        counter_examples: ["天一冷这个续航掉得也太快了吧"]
+      - id: counter-example
+        label: 反例
+        definition: 与某个常见负面印象相反的实际体验。
+        include: 「其实比我想的好」「没有传说中那么差」这类对照式表述。
+        exclude: 泛泛的称赞（没有对照的），归 praise。
+        examples: ["其实入冬以后掉的比我想象中少一些", "高速上的能耗表现其实挺让我意外的还行"]
+        counter_examples: ["这套车机用久了其实挺顺手的"]

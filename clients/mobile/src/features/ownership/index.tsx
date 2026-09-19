@@ -9,13 +9,19 @@
  *    连"常用人员 2 人"这样的计数都不放（Brief §2 原则 2 原文）。
  * 2. **用车画像接上⑥**。此前是一句占位文案（M14-05 台账 §6 #4）。
  *
+ * # 车与人是两个顶部 tab（2026-09-12）
+ *
+ * 「车与人分开」这条不变，变的是怎么到达对方：原来人员档案是二级页（点一行进去、
+ * 左上角退回来），现在两者是**平级的两个 tab**，tab 条吸在顶上不随内容滚动。
+ * 分开的语义一点没松——两个面板各自零交叉，车这一面仍然连"常用人员 2 人"都不放。
+ *
  * # 定稿上的数字一个都不许写死
  *
  * `18,620 km`、`1,380 km`、`日均 46 km`、`32 条行程` 都是示意值。
  * 拿不到时只给理由与行动说明，不显示任何数字（Brief §5）。
  */
 import { CabinSection } from "./cabin-section";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { characterInitial, vehicleCharacter } from "@carlife/ui";
 
 import { loadVehicleUsage, loadVehicles, setDefaultVehicle } from "./api";
@@ -50,15 +56,26 @@ export interface MobileOwnershipProps {
   theme?: "light" | "dark";
 }
 
-type PageMode =
-  | { kind: "list" }
-  | { kind: "wizard" }
-  | { kind: "done"; created: VehicleView }
-  | { kind: "people"; vehicle: VehicleView };
+type PageMode = { kind: "list" } | { kind: "wizard" } | { kind: "done"; created: VehicleView };
+
+/** 顶部两个 tab。人员档案不再是二级页，所以它不在 `PageMode` 里。 */
+type ProfileTab = "vehicle" | "people";
 
 export function MobileOwnership({ onCreate, theme = "light" }: MobileOwnershipProps) {
   const [state, setState] = useState<VehicleListState>({ kind: "loading" });
   const [mode, setMode] = useState<PageMode>({ kind: "list" });
+  const [tab, setTab] = useState<ProfileTab>("vehicle");
+  /*
+   * 换 tab 回到顶部。
+   *
+   * 滚动条挂在页壳上、两个面板共用它，所以换过去之后**滚动位置是留在原处的**：
+   * 在车那一面翻到底再点「人员档案」，落点是人员那一面的中段（实测 742px 处），
+   * 看起来像"这一页本来就从半截开始"。宁可回顶，也不要落在一个没有由来的位置。
+   */
+  const pageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    pageRef.current?.scrollTo({ top: 0 });
+  }, [tab]);
   const [usage, setUsage] = useState<UsageState>({ kind: "loading" });
 
   const reload = useCallback(() => {
@@ -94,27 +111,58 @@ export function MobileOwnership({ onCreate, theme = "light" }: MobileOwnershipPr
     return <WizardDonePage created={mode.created} onBack={() => setMode({ kind: "list" })} />;
   }
 
-  if (mode.kind === "people") {
-    return (
-      <PeopleProfilePage
-        vehicle={mode.vehicle}
-        theme={theme}
-        onBack={() => setMode({ kind: "list" })}
-      />
-    );
-  }
-
   return (
-    <div className={`own-page own-page--${theme}`} aria-label="车辆档案">
-      <header className="own-head">
-        <span className="own-head-icon" aria-hidden>
-          <CarBadgeIcon />
-        </span>
-        <h2 className="own-title">车辆档案</h2>
-        {state.kind === "ready" && state.vehicles.length > 1 && (
+    <div ref={pageRef} className={`own-page own-page--tabs own-page--${theme}`} aria-label="档案">
+      {/*
+        吸顶的 tab 条。`role="tablist"` 那一套是给读屏用的：没有它，两个按钮读出来
+        就是两枚普通按钮，看不见的人不知道这是"两选一、现在在哪一边"。
+      */}
+      <div className="own-tabs">
+        <div className="own-tabs__track" role="tablist" aria-label="档案分类">
+          <button
+            type="button"
+            role="tab"
+            id="own-tab-vehicle"
+            aria-selected={tab === "vehicle"}
+            aria-controls="own-panel-vehicle"
+            className={`own-tab${tab === "vehicle" ? " is-active" : ""}`}
+            onClick={() => setTab("vehicle")}
+          >
+            <CarBadgeIcon />
+            车辆档案
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="own-tab-people"
+            aria-selected={tab === "people"}
+            aria-controls="own-panel-people"
+            className={`own-tab${tab === "people" ? " is-active" : ""}`}
+            onClick={() => setTab("people")}
+          >
+            <PersonIcon />
+            人员档案
+          </button>
+        </div>
+      </div>
+
+      {tab === "people" ? (
+        <div role="tabpanel" id="own-panel-people" aria-labelledby="own-tab-people">
+          {primary ? (
+            <PeopleProfilePage vehicle={primary} theme={theme} />
+          ) : (
+            /* 人员是挂在车上的（名单端点按 VIN 查），没有车时说清先做哪一步。 */
+            <p className="own-meta own-center">先建一份车辆档案，再登记常用人员。</p>
+          )}
+        </div>
+      ) : (
+        <div role="tabpanel" id="own-panel-vehicle" aria-labelledby="own-tab-vehicle">
+      {state.kind === "ready" && state.vehicles.length > 1 && (
+        /* 多车切换从原来的标题行搬到这里：tab 条上只放 tab，挤第三个控件在 390pt 上放不下。 */
+        <div className="own-head">
           <VehiclePicker vehicles={state.vehicles} onPick={(vin) => void switchTo(vin)} />
-        )}
-      </header>
+        </div>
+      )}
 
       {state.kind === "loading" && <p className="own-offline">正在读取…</p>}
 
@@ -146,19 +194,8 @@ export function MobileOwnership({ onCreate, theme = "light" }: MobileOwnershipPr
           <UsageCard state={usage} />
           <CabinSection vin={primary.vin} />
           <CollectCard />
-          <button type="button" className="own-navrow" onClick={() => setMode({ kind: "people", vehicle: primary })}>
-            <span className="own-navrow-icon" aria-hidden>
-              <PersonIcon />
-            </span>
-            <span className="own-navrow-main">
-              <b>人员档案</b>
-              {/* Brief §2 原则 2：**不显示人数、姓名或约束标签** */}
-              <small>管理常用人员与个人偏好</small>
-            </span>
-            <span className="own-navrow-arrow" aria-hidden>
-              ›
-            </span>
-          </button>
+          {/* 去人员档案的入口是上面那个 tab，这里不再放一行导航（Brief §2 原则 2 照旧：
+              车这一面零人员信息，连"常用人员 2 人"这样的计数都不放）。 */}
           <RecordsCard v={primary} />
           <div className="own-empty">
             <button type="button" className="own-secondary" onClick={openWizard}>
@@ -166,6 +203,8 @@ export function MobileOwnership({ onCreate, theme = "light" }: MobileOwnershipPr
             </button>
           </div>
         </>
+      )}
+        </div>
       )}
     </div>
   );

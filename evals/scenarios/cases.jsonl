@@ -25,7 +25,7 @@
 {"id":"b-01","scene":"boundary","input":"长续航版值不值多花两万","expect":{"route":"buying","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"route.ts 记录的真实误判：'续航'曾把它拽进 ownership 去翻一辆还没买的车的说明书；购买语义+配置名共现要回 buying"}
 {"id":"b-02","scene":"boundary","input":"空调调到 23 度","expect":{"route":"cabin","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"设置 vs 咨询：带数字的温度指令归座舱（M24-04），'空调怎么用'才归用车"}
 {"id":"b-03","scene":"boundary","input":"空调怎么用","expect":{"route":"ownership","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"与 b-02 成对：咨询句 cabin 一分拿不到（温度信号要求数字在场）"}
-{"id":"b-04","scene":"boundary","input":"去做保养要提前预约吗","expect":{"route":"service","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"'去'字事故（route.ts：去+地名的负向断言）——'去做保养'是前往办事不是目的地，归售后"}
+{"id":"b-04","scene":"boundary","input":"去做保养要提前预约吗","expect":{"route":"service","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"'去'字事故（route.ts：去+地名的负向断言）——'去做保养'是前去干活不是目的地，归售后"}
 {"id":"b-05","scene":"boundary","input":"帮我约个试驾","expect":{"route":"testDrive","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"M19-03：试驾从 buying 迁出为带下单动作的独立流程"}
 {"id":"b-06","scene":"boundary","input":"顶配和低配差在哪","expect":{"route":"buying","sse":["session","prompt","delta","turn_end"]},"tags":["sub:route-boundary","route-boundary"],"notes":"M21-07 召回修复：配置比较曾全部落 general，M21-03 的配置比较从自然对话到不了"}
 

@@ -3,3 +3,5 @@
 {"ts":"2026-09-01T04:56:52Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":42,"commit":"e70c50e","by":"zada","confirmed":false}
 {"ts":"2026-09-01T04:57:56Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":10,"commit":"e70c50e","by":"zada","confirmed":false}
 {"ts":"2026-09-01T05:15:38Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":125,"commit":"bb9dbd0","by":"zada","confirmed":false}
+{"ts":"2026-09-19T07:35:04Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":161,"commit":"fc8dd077","by":"zada","confirmed":false}
+{"ts":"2026-09-19T07:52:11Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":600,"commit":"579564d5","by":"zada","confirmed":false}

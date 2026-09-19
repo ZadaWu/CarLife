@@ -33,7 +33,7 @@ export interface GuardCheckRequest {
   sessionId: string;
   turnId?: string;
   agent?: string;
-  /** 工具名（`appointment` / `calendar` …）。 */
+  /** 工具名（`appointment` / `trip_plan_commit` …）。 */
   tool: string;
   /** 动作的人类可读摘要——**弹窗里显示的就是它**（F-04-02：不只显示动作名）。 */
   summary: string;
@@ -126,7 +126,6 @@ const DEFAULT_MAX_PENDING = 100;
  */
 export const CONFIRM_REQUIRED_TOOLS = new Set([
   "appointment",
-  "calendar",
   "trip_plan_commit",
   // M13-11 拆分：取消与变更各自成工具，两个都要问。
   // **拆工具时最容易漏的就是这里**——漏了就是 sensitive 却自动放行，
@@ -183,7 +182,7 @@ export class GuardGate {
    *
    * **只记「不」，不记「是」**——这个不对称是刻意的：
    * 记住一次同意，就等于让一次点击授权了后面所有同名动作，
-   * 一句"帮我加个日历"可能变成三条重复日程。
+   * 一句"帮我约一下"可能变成三张重复工单。
    * 而记住一次拒绝只会少打扰用户，方向是安全的。
    */
   private refused = new Map<string, { reason: string; at: number }>();

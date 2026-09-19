@@ -39,7 +39,7 @@ describe("promptGuidelines：每条点名真实工具", () => {
 
   it("工单最小集都有纪律（从各 Agent prompt 换家过来的那批）", () => {
     for (const n of [
-      "weather", "refuel", "charging", "poi_search", "transit_route",
+      "weather", "refuel", "charging", "poi_search", "spot_search", "hotel_search", "transit_route",
       "ragflow_retrieve", "insurance_quote", "loan_calc", "cost_calc",
     ]) {
       assert.ok((getTool(n)?.promptGuidelines?.length ?? 0) > 0, `${n} 缺 promptGuidelines`);
@@ -51,6 +51,24 @@ describe("promptGuidelines：每条点名真实工具", () => {
   it("transit_route：禁止编造具体航班号（原 transit.md 红线）", () => {
     assert.match((getTool("transit_route")!.promptGuidelines ?? []).join("\n"), /禁止编造具体航班号/);
   });
+  it("spot_search：一轮搜完的清单必须点名那三类——漏一类就会多走一轮往返（M77 走查追修）", () => {
+    // 实测 tour 分两批搜索时，第二批搜的永远是这三类（16-58 轮搜室内+夜市、16-35 轮搜水上+周边区县）。
+    // 它们在 tour.md 里出现得比"排草稿"晚，模型读到时第一批已经发完了，只能回头补。
+    const g = (getTool("spot_search")?.promptGuidelines ?? []).join("\n");
+    assert.match(g, /一轮搜完/);
+    // 单位是"轮"不是"调用"：turn-b2df0979 实测——把三类挤进一个调用，高德结果整体偏向郊区，
+    // 模型自己说 "first search returned mostly outlying area attractions"，第二轮又重搜了一遍。
+    assert.match(g, /并发发 2~3 个|每个调用一组同类关键词/);
+    assert.match(g, /别把它们挤进同一个调用/);
+    for (const 类 of ["室内馆", "周边区县"]) assert.match(g, new RegExp(类));
+    // **不许让它搜夜市**：turn-82afaa45 实测 spot_search 的类目只覆盖景区与文化场馆，
+    // 「夜市 夜游 演出 印象西湖 武林夜市」恒返回 1 条，加商业类目码也一样。
+    // 让模型去搜工具搜不出来的东西，它会照做、拿到空结果、再多搜一轮。
+    assert.match(g, /别单独搜夜市/);
+    // 这条只给 spot_search：hotel_search 搜的是酒店，带这套清单是噪音。
+    assert.doesNotMatch((getTool("hotel_search")?.promptGuidelines ?? []).join("\n"), /夜游|雨天备选/);
+  });
+
   it("poi_search：无价格数据 + 估算标注（原 hotel.md 红线）", () => {
     const g = (getTool("poi_search")!.promptGuidelines ?? []).join("\n");
     assert.match(g, /不含任何价格数据/);

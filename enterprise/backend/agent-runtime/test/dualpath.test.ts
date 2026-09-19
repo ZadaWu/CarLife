@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { toolDisplayName } from "../src/events/tool-display";
 import { extractWarnings, runDualPath } from "../src/graph/subgraphs/ownership";
 
 const chunks = [{ content: "锂电池低温下离子活性下降", source: { document: "说明书.pdf", location: "第 42 页" } }];
@@ -170,5 +171,59 @@ describe("[F-20-03][AC-20-1] 带照片却没对上图标时不出警告段（M80
   it("缺省仍出——文字轮的行为一字不改", async () => {
     const r = await runDualPath(async () => seat, async () => ({ summary }), true, "座椅怎么清洁");
     assert.match(r.context, /【手册警告（必须/);
+  });
+});
+
+describe("出处带集名与来源标注（ACR-042 / M101-02）", () => {
+  const mixed = [
+    {
+      content: "48 小时内报案",
+      source: { document: "理赔流程.md", location: "第 2 节", dataset: "insurance-kb" as const },
+      provenance: "public" as const,
+    },
+    {
+      content: "机油每 1 万公里更换",
+      source: { document: "保养.md", dataset: "repair-kb" as const },
+      provenance: "public" as const,
+    },
+  ];
+
+  it("**逐条标出它来自哪个集**——跨集之后整段一个标签必然张冠李戴", async () => {
+    const r = await runDualPath(async () => mixed, async () => ({ summary: undefined }));
+    assert.match(r.context, /出处：车险条款与理赔指引 · 理赔流程\.md 第 2 节/);
+    assert.match(r.context, /出处：维修与保养手册 · 保养\.md/);
+  });
+
+  it("模拟资料逐条标注，真实资料不标——方向相反的两种不实表述", async () => {
+    const r = await runDualPath(
+      async () => [
+        { ...mixed[0]! },
+        { content: "模拟的维修案例", source: { document: "案例.md", dataset: "repair-kb" as const }, provenance: "simulated" as const },
+      ],
+      async () => ({ summary: undefined }),
+    );
+    assert.match(r.context, /案例\.md，模拟资料/);
+    assert.ok(!/理赔流程\.md 第 2 节，模拟资料/.test(r.context), "真实公开资料不能被标成模拟");
+  });
+
+  it("没有集信息的 chunk 照常渲染——出处不因此丢失", async () => {
+    const r = await runDualPath(async () => chunks, async () => ({ summary: undefined }));
+    assert.match(r.context, /出处：说明书\.pdf 第 42 页/);
+  });
+});
+
+describe("检索进度的说法跟着 Agent 走（ACR-042 / M101-02）", () => {
+  it("售后与购车说「条款」，用车助手不说——多说的那一半车主会当真去找", () => {
+    assert.equal(toolDisplayName("ragflow_retrieve", "service"), "正在翻手册与条款");
+    assert.equal(toolDisplayName("ragflow_retrieve", "buying"), "正在翻车型资料与条款");
+    assert.equal(toolDisplayName("ragflow_retrieve", "ownership"), "正在翻手册");
+  });
+
+  it("不传 agent 退到通用说法，不报错", () => {
+    assert.equal(toolDisplayName("ragflow_retrieve"), "正在翻手册");
+  });
+
+  it("表里没有的工具仍返回 undefined——调用方据此不发事件", () => {
+    assert.equal(toolDisplayName("不存在的工具", "service"), undefined);
   });
 });

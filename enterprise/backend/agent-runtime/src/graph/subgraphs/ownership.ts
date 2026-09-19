@@ -22,7 +22,15 @@
  * **绝不用过期或不足的数据冒充个性化结论**（F-16-08），那比"没有个性化"更严重。
  */
 
+import { datasetFor, type DatasetKey } from "@carlife/rag";
+import type { DiagnosisReport } from "@carlife/shared";
 import { invokeTool, type ToolCallContext } from "@carlife/tools";
+import { financeDisclaimer, renderDisclaimer } from "../../guard/disclaimers";
+import {
+  renderEntitlementGuideContext,
+  renderInsurerEntitlementsContext,
+  type PolicyForEntitlements,
+} from "../entitlement-guide";
 import {
   forecastMaintenance,
   usableRate,
@@ -33,8 +41,24 @@ import {
 
 export interface RagPath {
   ok: boolean;
-  chunks: Array<{ content: string; source: { document: string; location?: string } }>;
+  chunks: Array<{
+    content: string;
+    /** `dataset` 与 `provenance` 自 ACR-042 起**每条 chunk 自带**：一次检索可以跨多个集。 */
+    source: { document: string; location?: string; dataset?: DatasetKey };
+    provenance?: "public" | "simulated";
+  }>;
   error?: string;
+}
+
+/**
+ * 一条 chunk 的出处串。**集名与"模拟资料"跟着这一条走，不跟着整段走**（ACR-042）：
+ * 售后缺省同查维修手册与车险条款，整段打一个标签不是把真的说成假的，就是把假的说成真的。
+ */
+export function chunkSourceLabel(c: RagPath["chunks"][number]): string {
+  const dataset = c.source.dataset ? `${datasetFor(c.source.dataset).name} · ` : "";
+  const location = c.source.location ? ` ${c.source.location}` : "";
+  const simulated = c.provenance === "simulated" ? "，模拟资料" : "";
+  return `${dataset}${c.source.document}${location}${simulated}`;
 }
 
 export interface UsagePath {
@@ -173,6 +197,59 @@ export const FIGURE_MIN_SIM_TEXT = 0.7;
 export const FIGURE_MIN_SIM_IMAGE = 0.65;
 export const FIGURE_MAX_HITS = 3;
 export const figureMinSim = (via: FigureHitLite["via"]): number => (via === "text" ? FIGURE_MIN_SIM_TEXT : FIGURE_MIN_SIM_IMAGE);
+/**
+ * 【本次问诊结论】段（M104-06）：把刚给车主看过的那份诊断报告放进**下一轮**的上下文。
+ *
+ * # 为什么必须有这一段
+ *
+ * 2026-09-18 真跑 turn-413bb4d5：车主在报告页点「预约门店检查」，端上发的是
+ * 「帮我预约门店检查一下这个问题」——而 service agent 看不到任何报告，于是按 `prompts/service.md`
+ * 的「缺对象先反问，不猜一个进流程」如实回了「您说的「这个问题」我这边没查到具体是哪一项」，
+ * 接着从维修知识库里翻出一条不相干的充电警报，念了句「得通过 Tesla 手机应用来约」。
+ *
+ * 模型没做错——**是我们没把它需要的事实放进它的输入**（ADR-010）。报告一直在图状态的
+ * `diagnosis` 通道里，只是没人往上下文里拼。
+ *
+ * 段里只放**代码算出来的**东西（等级、依据、观察项、手册锚点），不放报告正文：
+ * 正文是上一轮的回答，再塞回去会让模型复读自己。
+ */
+export const DIAGNOSIS_SECTION = "【本次问诊结论（车主刚看过的那份报告；他说「这个问题」「这次的故障」指的就是它，不要再反问是哪一项）】";
+
+const RISK_ZH: Record<DiagnosisReport["risk"]["level"], string> = { low: "低风险", medium: "中风险", high: "高风险" };
+
+/** 一句话预约事由：拿观察到的第一项（或风险等级）当主语，给模型一个可直接用的串。 */
+export function bookingSubject(report: DiagnosisReport): string {
+  const first = report.observation?.items.find((it) => it.name);
+  if (first?.name) return `${first.name}（${RISK_ZH[report.risk.level]}）`;
+  return `${RISK_ZH[report.risk.level]}问诊结论，需到店检查`;
+}
+
+/** 报告 → 一段上下文。没有报告返回 undefined，不出空段。 */
+export function diagnosisSection(report: DiagnosisReport | undefined): string | undefined {
+  if (!report) return undefined;
+  const lines = [`- 风险分级：${RISK_ZH[report.risk.level]} · ${report.risk.action}`];
+  if (report.risk.basis.length) lines.push(`- 判定依据：${report.risk.basis.join("；")}`);
+  const items = report.observation?.items ?? [];
+  if (items.length) {
+    lines.push(
+      "- 照片里观察到：" +
+        items
+          .map((it) => {
+            const name = it.name ? (it.suspected ? `疑似 ${it.name}` : it.name) : "未能对上手册的符号";
+            return it.manualAnchor ? `${name}（${it.manualAnchor}）` : name;
+          })
+          .join("、"),
+    );
+  }
+  if (report.observation?.unreadable) lines.push("- 这张照片没读出来，结论只基于车主的描述");
+  /*
+   * 预约事由：车主点「预约门店检查」时端上发的是一句泛指，落到这里才有具体对象。
+   * 不写这一句的话，模型仍会按「缺对象先反问」去问一遍——而对象就在上面那几行里。
+   */
+  lines.push(`- 车主要预约维修时，预约事由用上面这些（例如「${bookingSubject(report)}」），不要再问他是哪个问题`);
+  return `${DIAGNOSIS_SECTION}\n${lines.join("\n")}`;
+}
+
 export const FIGURE_SECTION = "【手册图示（手册里与本问题相关的图；引用时说「手册第 N 页的图」，只讲它锚定的那段，不要描述图里没写的细节）】";
 
 let figureDeps: FigureDeps | undefined;
@@ -281,6 +358,11 @@ export interface DualPathOptions {
    * 图是增强不是必需，"没查到图"对车主不是缺失。不给就不跑，上下文与现状逐字节相同。
    */
   figures?: () => Promise<FigureHitLite[]>;
+  /**
+   * 刚给车主看过的诊断报告（M104-06）。有就拼一段【本次问诊结论】进上下文——
+   * 车主下一句「帮我约一下这个问题」里的「这个问题」指的就是它（ADR-010）。
+   */
+  diagnosis?: DiagnosisReport;
 }
 
 export async function runDualPath(
@@ -338,7 +420,7 @@ export async function runDualPath(
     parts.push(
       "【通用原理（须在回答中附出处）】\n" +
         rag.chunks
-          .map((c) => `- ${c.content}（出处：${c.source.document}${c.source.location ? ` ${c.source.location}` : ""}）`)
+          .map((c) => `- ${c.content}（出处：${chunkSourceLabel(c)}）`)
           .join("\n"),
     );
   }
@@ -355,6 +437,9 @@ export async function runDualPath(
   // 图示段放在警告之后、用车数据之前：图讲的是"手册怎么说"，与通用原理同一侧（ACR-029）。
   const figureText = figureSection(figures);
   if (figureText) parts.push(figureText);
+  // 问诊结论放在手册之后、用车数据之前：它是"这辆车此刻的事实"，与⑥用车数据同一侧。
+  const diagnosisText = diagnosisSection(opts.diagnosis);
+  if (diagnosisText) parts.push(diagnosisText);
   if (usage.summary) {
     const s = usage.summary;
     const lines = [`- 近期日均里程 ${s.avgDailyKm.toFixed(1)}km（样本 ${s.sampleSize} 条行程）`];
@@ -470,6 +555,12 @@ export function isMaintenanceQuery(query: string): boolean {
   return MAINTENANCE_RE.test(query);
 }
 
+/** 保养意图：模型说了算，正则只在它没表态时兜底（同 `wantsArchive`）。 */
+export function wantsMaintenance(query: string, intent?: { secondaryIntents?: string[] }): boolean {
+  if (intent?.secondaryIntents) return intent.secondaryIntents.includes("maintenance");
+  return isMaintenanceQuery(query);
+}
+
 /*
  * ── 4S 维修系统那一路（M41-03，F-20-05/10/13）──────────────────────
  *
@@ -483,22 +574,146 @@ export function isMaintenanceQuery(query: string): boolean {
 const REPAIR_HISTORY_RE = /修过|修理过|维修(记录|史|历史)|保养(记录|史|历史)/;
 /** 维修中报价意图：问"正在修的这单多少钱"。 */
 const REPAIR_QUOTE_RE = /报价|维修.{0,6}(多少钱|费用|花费)|修.{0,6}(要花|得花|多少钱)/;
-/** 理赔预检意图：问"保险能报多少"。 */
-const INSURANCE_CLAIM_RE = /保险.{0,10}(报|赔)|理赔|能报(销)?多少|走保险/;
+/** 理赔意图：问"保险能报多少 / 走不走保险划不划算"。 */
+const INSURANCE_CLAIM_RE = /保险.{0,10}(报|赔|划算|划不划算)|理赔|能报(销)?多少|走保险|走不走.{0,4}(保险|车险)/;
+/** 出险材料与时限意图（M96-03）：问"要准备什么 / 报案时限 / 会不会拒赔"。 */
+const CLAIM_MATERIALS_RE = /报案|出险|拒赔|定损|理赔.{0,4}(材料|流程|资料)|要准备什么|带什么材料/;
+/** 权益意图（M96-03）：问"送几次救援 / 充电额度 / 有什么权益 / 去哪查"。 */
+const ENTITLEMENT_RE = /权益|送.{0,4}次|救援次数|免费救援|充电额度|保养券|洗车券/;
 
 export interface RepairContextNeeds {
   history: boolean;
   quote: boolean;
   claim: boolean;
+  /** 出险材料与时限（M96-03）。 */
+  materials: boolean;
+  /** 权益查询指引（M96-03）。 */
+  entitlement: boolean;
 }
 
-export function repairContextNeeds(query: string): RepairContextNeeds {
+export function repairContextNeeds(query: string, intent?: { secondaryIntents?: string[] }): RepairContextNeeds {
+  /*
+   * 模型表了态就按它的来（同 `wantsArchive`）：这几张表认的是「修过 / 维修记录」
+   * 「报价 / 多少钱」「理赔 / 走保险」「报案 / 出险」「权益 / 送几次」这类字面，
+   * 而「上回那次换了什么」「4S 店要我多少」「碰了一下要不要报」它们都不认。
+   * 误判的代价只是多查或少查一次，所以这里不设字面否决。
+   */
+  const s2 = intent?.secondaryIntents;
+  if (s2) {
+    const claim = s2.includes("insurance_claim");
+    return {
+      history: s2.includes("repair_history"),
+      // 理赔测算自带报价单，claim 命中时 quote 块单独给是重复
+      quote: s2.includes("repair_quote") && !claim,
+      claim,
+      materials: s2.includes("claim_materials"),
+      entitlement: s2.includes("entitlement"),
+    };
+  }
   return {
     history: REPAIR_HISTORY_RE.test(query),
-    // 理赔预检自带报价单，claim 命中时 quote 块单独给是重复
     quote: REPAIR_QUOTE_RE.test(query) && !INSURANCE_CLAIM_RE.test(query),
     claim: INSURANCE_CLAIM_RE.test(query),
+    materials: CLAIM_MATERIALS_RE.test(query),
+    entitlement: ENTITLEMENT_RE.test(query),
   };
+}
+
+/** 出险咨询要从意图层拿的两个事实（M96-03）；类型与 `Intent` 同形，这里只收本文件用到的字段。 */
+export interface ClaimIntentFacts {
+  secondaryIntents?: string[];
+  estimatedLossCny?: number;
+  accidentType?: string;
+}
+
+const LEANING_TEXT: Record<string, string> = {
+  claim: "倾向走保险",
+  "self-pay": "倾向自费",
+  either: "两可（差别在保费增量的 10% 以内）",
+};
+
+/**
+ * 渲染 `claim_advisor` 的结果（M96-03）：赔付净额与次年保费增量放进同一段，
+ * `leaning` 翻成人话但**标明是倾向**。免责两句都带：工具自己的（模拟测算）与
+ * `financeDisclaimer()`（"测算说明"，F-20-14 免责集中）。
+ */
+export function renderClaimAdvisorContext(
+  r:
+    | {
+        lossSource: string;
+        lossCny: number;
+        payout: { covered: number; deductible: number; net: number };
+        premium: { current: number; nextYear: number; nextYearIfNoClaim: number; delta: number; ruleNote: string; renewalRisk: boolean };
+        netBenefit: number;
+        leaning: string;
+        basis: string[];
+        disclaimer: string;
+      }
+    | { error: string },
+): string {
+  const lines: string[] = ["【走不走保险（模拟测算）】"];
+  if ("error" in r) {
+    lines.push(`- ${r.error}`);
+  } else {
+    lines.push(`- ${r.basis[0] ?? "按在保保单算"}`);
+    lines.push(
+      `- 损失依据：${r.lossSource === "quote" ? "进行中的维修报价单" : "车主口述估损，未经定损"} ${r.lossCny} 元；` +
+        `赔付净额 ${r.payout.net} 元（可赔 ${r.payout.covered}，免赔额 ${r.payout.deductible} 已扣）`,
+    );
+    lines.push(
+      `- 次年保费：不报 ${r.premium.nextYearIfNoClaim} 元、报了 ${r.premium.nextYear} 元（今年 ${r.premium.current} 元），报这一次多交 ${r.premium.delta} 元`,
+    );
+    lines.push(`- 净收益 = ${r.payout.net} − ${r.premium.delta} = ${r.netBenefit} 元 → ${LEANING_TEXT[r.leaning] ?? r.leaning}`);
+    lines.push(`- 保费规则：${r.premium.ruleNote}`);
+    if (r.premium.renewalRisk) lines.push("- 出险次数已到拒保风险阈值：续保可能被拒保或加费，这一点比这一单的净收益更要紧");
+  }
+  const own = "error" in r ? "模拟测算，实际以保险公司核定为准" : r.disclaimer;
+  lines.push(
+    `表述要求：这是**倾向不是决定**，决定是车主的，不说"肯定能赔"；结论必须带原文免责——"${own}"；` +
+      `金额引用原文；末尾附 ${renderDisclaimer(financeDisclaimer())}`,
+  );
+  return lines.join("\n");
+}
+
+/**
+ * 渲染 `claim_checklist` 的结果（M96-03，答复预算 M101-04）。`assumedType` 为 true 表示事故类型是
+ * 缺省的单方事故，不是车主说的——要让模型追问，而不是把单方的清单当成他的清单。
+ *
+ * # 为什么把材料拆成 essentials 与"其余 N 项"
+ *
+ * 清单本身是对的，但一口气念完是 5~8 条材料 + 3~4 条不要做 + 注意事项，落到答复里六七百字。
+ * 车主刚出事故、站在路边，这种长度等于没说——他记不住，更分不出哪几样是**现在就得去拿**的。
+ * 定损单、维修发票要等保险公司先动作，此刻催他准备反而添乱。
+ *
+ * 所以整份清单照旧全给模型（追问时它答得上），但**这一轮该说哪几条由代码指定**：
+ * 两条时限 + essentials，其余数出条数带过。这条"说多少"的纪律与材料内容本身一样，
+ * 不指望模型自己拿捏——上一版只写"引用原文不增删"，它就真的一条不落地念完了。
+ */
+export function renderClaimChecklistContext(
+  r:
+    | { label: string; materials: string[]; essentials: string[]; deadlines: string[]; dontDo: string[]; notes: string[] }
+    | { error: string },
+  assumedType: boolean,
+): string {
+  const lines: string[] = ["【出险材料与时限（公开资料整理）】"];
+  if ("error" in r) {
+    lines.push(`- ${r.error}`);
+    return lines.join("\n");
+  }
+  lines.push(`- 事故类型：${r.label}${assumedType ? "——**这是缺省按单方事故给的**，若涉及对方车辆、人伤或三电充电桩，先问清再给对应清单" : ""}`);
+  lines.push(`- 时限（事后无法补救）：${r.deadlines.join("；")}`);
+  lines.push(`- 先备齐这几样：${r.essentials.join("；")}`);
+  const rest = r.materials.filter((m) => !r.essentials.includes(m));
+  if (rest.length) {
+    lines.push(`- 其余还有 ${rest.length} 项（车主追问时再逐条给）：${rest.join("；")}`);
+  }
+  lines.push(`- 不要做：${r.dontDo.join("；")}`);
+  if (r.notes.length) lines.push(`- 注意：${r.notes.join("；")}`);
+  lines.push(
+    `表述要求：先说两条时限与关键材料，其余用一句「还有 ${rest.length} 项，要我逐条念吗」收尾，**全段不超过 300 字**；` +
+      "48 小时报案与未经定损不修两条原样转述；材料引用原文不增删；不承诺赔付结果",
+  );
+  return lines.join("\n");
 }
 
 interface RepairHistoryRow {
@@ -615,23 +830,50 @@ export function renderInsurancePrecheckContext(
  * ToolError 话术本身就是给模型的指令），绝不静默略过——静默略过的表现是
  * 模型换个话题，用户以为系统没听懂。
  */
+/**
+ * 本轮意图 + 这次出险咨询已说清的事实 → 交给预取用的那份事实（M101-04）。
+ *
+ * **本轮优先、缺席沿用**。两条都要：车主更正「其实是撞了别人的车」时要覆盖，
+ * 而第二句只问材料、一个数都没说时要沿用——否则清单退回缺省单方事故，
+ * 等于把他刚说过的话丢了。
+ */
+export function mergeClaimFacts(
+  intent: ClaimIntentFacts | undefined,
+  facts: { estimatedLossCny?: number; accidentType?: string } | undefined,
+): ClaimIntentFacts | undefined {
+  if (!intent && !facts) return undefined;
+  return {
+    ...(intent ?? {}),
+    estimatedLossCny: intent?.estimatedLossCny ?? facts?.estimatedLossCny,
+    accidentType: intent?.accidentType ?? facts?.accidentType,
+  };
+}
+
 export async function runRepairContext(args: {
   query: string;
   vin?: string;
   profile?: Pick<VehicleProfile, "maintenance" | "repairs">;
   ctx: ToolCallContext;
+  /**
+   * 意图层的表态（M96-03）。此前调用处从没传过它，`repairContextNeeds` 的模型分支在线上是死的
+   * （ADR-010 的形状：判断者的输入里没有它需要的事实）；补传后模型表了态按模型，没表态仍按正则。
+   */
+  intent?: ClaimIntentFacts;
 }): Promise<string | undefined> {
-  const needs = repairContextNeeds(args.query);
-  if (!needs.history && !needs.quote && !needs.claim) return undefined;
-  if (!args.vin) {
-    // 没有 VIN 连"查了没查到"都说不出——如实告知缺档案，别让模型编。
-    return "【维修与保险查询】没有车辆档案（缺 VIN），查不了 4S 维修记录/报价单/保险——请如实告知车主，可先建档";
-  }
+  const needs = repairContextNeeds(args.query, args.intent);
+  if (!needs.history && !needs.quote && !needs.claim && !needs.materials && !needs.entitlement) return undefined;
 
   const sections: string[] = [];
   const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-  if (needs.history) {
+  // 材料清单与权益指引不需要 VIN（它们是词条不是查询）；查系统的三路没有 VIN 连"查了没查到"都说不出。
+  const needsVin = needs.history || needs.quote || needs.claim;
+  if (needsVin && !args.vin) {
+    // 如实告知缺档案，别让模型编。
+    sections.push("【维修与保险查询】没有车辆档案（缺 VIN），查不了 4S 维修记录/报价单/保险——请如实告知车主，可先建档");
+  }
+
+  if (needs.history && args.vin) {
     try {
       const r = (await invokeTool("repair_history", { vin: args.vin }, args.ctx)) as {
         data: { records: RepairHistoryRow[]; known: boolean };
@@ -641,7 +883,7 @@ export async function runRepairContext(args: {
       sections.push(renderRepairHistoryContext({ error: errText(e) }, args.profile));
     }
   }
-  if (needs.quote) {
+  if (needs.quote && args.vin) {
     try {
       const r = (await invokeTool("repair_quote", { vin: args.vin }, args.ctx)) as {
         data: { quotes: Array<{ quoteId: string; items: Array<{ name: string; partsFee: number; laborFee: number }>; total: number; currency: string; updatedAt: string }> };
@@ -651,15 +893,54 @@ export async function runRepairContext(args: {
       sections.push(renderRepairQuoteContext({ error: errText(e) }));
     }
   }
-  if (needs.claim) {
+  if (needs.claim && args.vin) {
+    // M96-03：理赔那一路改调 claim_advisor——它内部已含预检（有报价单时）并加上次年保费增量，
+    // 不再单独调 insurance_precheck。估损与人伤来自意图层，工具层不解析原话（ADR-012）。
     try {
-      const r = (await invokeTool("insurance_precheck", { vin: args.vin }, args.ctx)) as {
-        data: Parameters<typeof renderInsurancePrecheckContext>[0];
-      };
-      sections.push(renderInsurancePrecheckContext(r.data));
+      const r = (await invokeTool(
+        "claim_advisor",
+        {
+          vin: args.vin,
+          ...(args.intent?.estimatedLossCny !== undefined ? { estimatedLossCny: args.intent.estimatedLossCny } : {}),
+          ...(args.intent?.accidentType === "injury" ? { injury: true } : {}),
+        },
+        args.ctx,
+      )) as { data: Parameters<typeof renderClaimAdvisorContext>[0] };
+      sections.push(renderClaimAdvisorContext(r.data));
     } catch (e) {
-      sections.push(renderInsurancePrecheckContext({ error: errText(e) }));
+      sections.push(renderClaimAdvisorContext({ error: errText(e) }));
     }
+  }
+  if (needs.materials) {
+    const assumed = !args.intent?.accidentType;
+    try {
+      const r = (await invokeTool(
+        "claim_checklist",
+        { accidentType: args.intent?.accidentType ?? "single_vehicle" },
+        args.ctx,
+      )) as { data: Parameters<typeof renderClaimChecklistContext>[0] };
+      sections.push(renderClaimChecklistContext(r.data, assumed));
+    } catch (e) {
+      sections.push(renderClaimChecklistContext({ error: errText(e) }, assumed));
+    }
+  }
+  if (needs.entitlement) {
+    // 险企赠送的那一类**先问保单**（ACR-043）：次数写在特约条款里，而保单在我们手里。
+    // 主机厂与门店的本仓确实没有接口，仍只给"去哪查"。
+    if (args.vin) {
+      try {
+        const r = (await invokeTool("insurance_policy", { vin: args.vin }, args.ctx)) as {
+          data: { policies: PolicyForEntitlements[] };
+        };
+        const insurer = renderInsurerEntitlementsContext(r.data.policies ?? []);
+        if (insurer) sections.push(insurer);
+      } catch (e) {
+        // 保险系统没连通要如实说，**不能静默退回"去哪查"**——那会让"没载明"和
+        // "查不到"变成同一句话，而车主据此做的下一步完全不同。
+        sections.push(`【险企权益（保单载明）】查保单失败：${errText(e)}——请如实告知车主保险系统没连通`);
+      }
+    }
+    sections.push(renderEntitlementGuideContext());
   }
   return sections.length > 0 ? sections.join("\n\n") : undefined;
 }
@@ -736,6 +1017,8 @@ export async function runOwnershipDualPath(args: {
   warnings?: boolean;
   /** 见 `DualPathOptions.figures`。 */
   figures?: () => Promise<FigureHitLite[]>;
+  /** 见 `DualPathOptions.diagnosis`。 */
+  diagnosis?: DiagnosisReport;
 }): Promise<DualPathResult> {
   const { query, userId, vin, vehicleModel, ctx } = args;
   // ctx.agent 决定查哪个知识库——`datasetsForAgent` 在调用层强制隔离：
@@ -774,6 +1057,6 @@ export async function runOwnershipDualPath(args: {
     },
     Boolean(vehicleModel),
     query,
-    { warnings: args.warnings, figures: args.figures },
+    { warnings: args.warnings, figures: args.figures, diagnosis: args.diagnosis },
   );
 }

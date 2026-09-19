@@ -196,9 +196,20 @@ describe("输出侧审核判「拦」时撤回（F-26-06）", () => {
     );
     const rt = events.find(
       (e) => e.type === "update" && (e as { kind: string }).kind === "retract",
-    ) as unknown as { reason: string } | undefined;
+    ) as unknown as { reason: string; replacement: string } | undefined;
     assert.ok(rt, "宁可不回复也不放行未审核的输出");
     assert.match(rt!.reason, /不可用/, "原因要和「内容违规」区分开");
+    /*
+     * `reason` 只进审计，**用户看的是 `replacement`**。两者曾经分家：
+     * 原因写着"审核不可用"，屏幕上却是"内容没有通过安全检查"。
+     * 于是审核一挂，用户就照着那句话反复改自己的说法，改多少遍都一样收回
+     * （2026-09-18/19 连撤 8 轮的那次）。
+     */
+    assert.doesNotMatch(
+      rt!.replacement,
+      /没有通过安全检查/,
+      "审核挂了不能说成是用户的内容有问题——他会照着这句话白改一晚上",
+    );
   });
 
   it("**最后一片也要审**：结尾残余只有 finish() 会送", async () => {

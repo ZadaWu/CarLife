@@ -11,12 +11,13 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { createRagClient, type DatasetKey } from "../../../enterprise/backend/shared/rag/src/index";
+import { createRagClient, type DatasetKey, datasetIdsFromEnv } from "../../../enterprise/backend/shared/rag/src/index";
 
 const AGENTS: Record<DatasetKey, string> = {
   "vehicle-manuals": "ownership",
   "repair-kb": "service",
   "car-catalog": "buying",
+  "insurance-kb": "service",
 };
 
 function env(k: string): string {
@@ -42,11 +43,7 @@ async function main(): Promise<void> {
   const client = createRagClient({
     baseUrl: env("RAGFLOW_BASE_URL"),
     apiKey: env("RAGFLOW_API_KEY"),
-    datasetIds: {
-      "vehicle-manuals": env("RAGFLOW_DATASET_VEHICLE_MANUALS"),
-      "repair-kb": env("RAGFLOW_DATASET_REPAIR_KB"),
-      "car-catalog": env("RAGFLOW_DATASET_CAR_CATALOG"),
-    },
+    datasetIds: datasetIdsFromEnv(env),
     timeoutMs: 120_000,
   });
 

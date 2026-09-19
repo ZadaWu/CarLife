@@ -44,24 +44,24 @@ html, body, #root {
   position: fixed;
   /* 新版 UI 的顶栏占掉屏顶 68 个单位，演示条落到它下面（原来是 12px）。 */
   top: calc(68 * var(--hud-unit) + 10px);
-  left: 12px;
+  left: calc(12 * var(--hud-unit));
   /* 撑到右边界只是为了给展开后的按钮行一个换行宽度；
      容器自己不接事件，否则这一整条透明区域会盖住 HUD 顶部点不到。 */
-  right: 12px;
+  right: calc(12 * var(--hud-unit));
   pointer-events: none;
   z-index: 99;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: calc(8 * var(--hud-unit));
   opacity: 0.35;
   transition: opacity 0.2s ease;
 }
 .hud-devbar:hover { opacity: 1; }
 .hud-devbar > * { pointer-events: auto; }
 .hud-devbar button {
-  padding: 6px 12px;
-  font-size: 13px;
+  padding: calc(6 * var(--hud-unit)) calc(12 * var(--hud-unit));
+  font-size: calc(13 * var(--hud-unit));
   border-radius: 999px;
   border: 1px solid rgba(140, 180, 220, 0.5);
   background: rgba(255, 255, 255, 0.75);
@@ -73,18 +73,18 @@ html, body, #root {
 .hud-devbar-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 6px;
+  gap: calc(8 * var(--hud-unit));
+  padding-left: calc(6 * var(--hud-unit));
 }
 .hud-devbar-chevron {
-  width: 20px;
-  height: 20px;
+  width: calc(20 * var(--hud-unit));
+  height: calc(20 * var(--hud-unit));
   border-radius: 50%;
   border: 1px solid rgba(140, 180, 220, 0.7);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: calc(14 * var(--hud-unit));
   line-height: 1;
   transition: transform 0.2s ease;
 }
@@ -98,7 +98,7 @@ html, body, #root {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: calc(8 * var(--hud-unit));
   max-width: 100%;
 }
 
@@ -150,7 +150,7 @@ html, body, #root {
   padding-top: calc(56 * var(--hud-unit));
   /* 压暗地图但保留可辨识度：助手与生活环仍要看得见（Brief §2「不遮断世界」）。 */
   background: rgba(6, 16, 30, 0.4);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(calc(6 * var(--hud-unit)));
   /* 卡内的浅色嵌条。一个值同时适配两个主题：白底上压深、深底上提亮。 */
   --hitl-inset: rgba(120, 160, 205, 0.12);
 }
@@ -175,7 +175,7 @@ html, body, #root {
   border: 1px solid var(--hud-card-border);
   border-radius: var(--hud-radius-card);
   background: var(--hud-card-bg);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(calc(18 * var(--hud-unit)));
   box-shadow: var(--hud-card-shadow);
   color: var(--hud-text);
 }
@@ -200,10 +200,8 @@ html, body, #root {
 [data-theme="dark"] .hitl-head__icon { color: var(--hud-amber); }
 .hitl-head__icon svg { width: 100%; height: 100%; display: block; }
 .hitl-head__title {
+  font: var(--hud-type-headline);
   margin: 0;
-  font-size: calc(40 * var(--hud-unit));
-  font-weight: 700;
-  line-height: 1.2;
 }
 .hitl-head__pills {
   display: flex;
@@ -211,10 +209,10 @@ html, body, #root {
   gap: calc(12 * var(--hud-unit));
 }
 .hitl-pill {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   padding: calc(4 * var(--hud-unit)) calc(18 * var(--hud-unit));
   border-radius: var(--hud-radius-pill);
-  font-size: calc(24 * var(--hud-unit));
-  line-height: 1.5;
   white-space: nowrap;
 }
 /* 动作对象（「广州 · 4天」）用琥珀，与日徽章同族——它是这次动作的主语。 */
@@ -262,6 +260,8 @@ html, body, #root {
 .hitl-day:last-child::before { display: none; }
 
 .hitl-day__badge {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   position: relative;
   z-index: 1;
   width: calc(40 * var(--hud-unit));
@@ -273,14 +273,10 @@ html, body, #root {
   border-radius: 50%;
   background: var(--hud-card-bg);
   color: var(--hud-amber);
-  font-size: calc(24 * var(--hud-unit));
-  font-weight: 700;
 }
 .hitl-day__main { display: flex; flex-direction: column; gap: calc(7 * var(--hud-unit)); }
 .hitl-day__theme {
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 600;
-  line-height: 1.3;
+  font: var(--hud-type-title);
 }
 
 .hitl-chips {
@@ -299,6 +295,8 @@ html, body, #root {
  * 折行比字小糟：滚动意味着用户可能没看全就按了确认。
  */
 .hitl-chip {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: center;
   gap: calc(6 * var(--hud-unit));
@@ -306,8 +304,6 @@ html, body, #root {
   border: 1px solid var(--hud-card-border);
   border-radius: var(--hud-radius-pill);
   background: var(--hitl-inset);
-  font-size: calc(20 * var(--hud-unit));
-  line-height: 1.4;
 }
 .hitl-chip__icon {
   width: calc(20 * var(--hud-unit));
@@ -319,13 +315,13 @@ html, body, #root {
 /* 住宿行是整张卡里最长的一行（酒店名 + 价格 + 角标），定稿把它排得比
    景点 chips 小一档——正因为它最长，跟着 chips 走就必然折行。 */
 .hitl-stay {
+  font: var(--hud-type-caption);
   display: flex;
   align-items: center;
   gap: calc(10 * var(--hud-unit));
   padding: calc(6 * var(--hud-unit)) calc(14 * var(--hud-unit));
   border-radius: calc(14 * var(--hud-unit));
   background: var(--hitl-inset);
-  font-size: calc(18 * var(--hud-unit));
 }
 .hitl-stay__icon {
   flex: none;
@@ -334,11 +330,28 @@ html, body, #root {
   color: var(--hud-text-muted);
 }
 .hitl-stay__icon svg { width: 100%; height: 100%; display: block; }
-.hitl-stay__name { flex: 1; min-width: 0; }
+/*
+ * 名字优先保住可读宽度（M93-03）：`min-width` 从 0 提到 120u。
+ * 从前是 `min-width:0` 配价格的 `flex:none`——价格一寸不让，名字就被压到 0 宽，
+ * 「上海迪士尼乐园酒店」一个字一行竖着排了九行。长名字宁可折行（`anywhere`），
+ * 也不要竖排。
+ */
+.hitl-stay__name {
+  flex: 1 1 auto;
+  min-width: calc(120 * var(--hud-unit));
+  overflow-wrap: anywhere;
+}
 /* 「同前一晚」是折叠提示不是内容，压一档色重，别和真酒店名一样抢眼。 */
 .hitl-stay__same { flex: 1; min-width: 0; color: var(--hud-text-muted); }
-/* 价格靠右且不换行——扫读时对齐的是这一列。 */
-.hitl-stay__price { flex: none; font-variant-numeric: tabular-nums; }
+/* 价格靠右且不换行——扫读时对齐的是这一列；但它**可以被压缩**，最多占四成半宽。 */
+.hitl-stay__price {
+  flex: 0 1 auto;
+  max-width: 45%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
 
 /* 体检标记（M77-04）：天序行右侧的三角徽标与住宿行的「已自动补」。 */
 .hitl-day__theme { display: flex; align-items: center; gap: calc(10 * var(--hud-unit)); }
@@ -350,24 +363,24 @@ html, body, #root {
 }
 .hitl-day__flag svg { width: 100%; height: 100%; display: block; }
 .hitl-tag {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   flex: none;
   padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
   border-radius: var(--hud-radius-pill);
-  font-size: calc(18 * var(--hud-unit));
-  line-height: 1.5;
   white-space: nowrap;
 }
 .hitl-tag--ok { background: rgba(47, 191, 155, 0.14); color: #1e9e6a; }
 
 /* 估算角标：源文本带（估算）才出现，是可信度标记不是装饰（Brief §2）。 */
 .hitl-est {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   flex: none;
   padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
   border: 1px solid var(--hud-amber);
   border-radius: var(--hud-radius-pill);
   color: var(--hud-amber);
-  font-size: calc(20 * var(--hud-unit));
-  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -380,11 +393,10 @@ html, body, #root {
   background: var(--hitl-inset);
 }
 .hitl-transit__title {
+  font: var(--hud-type-title);
   margin: 0 0 calc(14 * var(--hud-unit));
   padding-bottom: calc(12 * var(--hud-unit));
   border-bottom: 1px dashed var(--hud-divider);
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 600;
 }
 .hitl-transit__list {
   list-style: none;
@@ -395,11 +407,10 @@ html, body, #root {
   gap: calc(14 * var(--hud-unit));
 }
 .hitl-transit__row {
+  font: var(--hud-type-body);
   display: flex;
   align-items: center;
   gap: calc(10 * var(--hud-unit));
-  font-size: calc(24 * var(--hud-unit));
-  line-height: 1.4;
 }
 .hitl-transit__icon {
   flex: none;
@@ -416,22 +427,20 @@ html, body, #root {
   gap: calc(2 * var(--hud-unit));
 }
 /* 出行方式单独一行且加重：这一屏要先回答「怎么去」，再回答「多久多少钱」。 */
-.hitl-transit__mode { font-weight: 600; }
+.hitl-transit__mode { font-weight: 700; }
 .hitl-transit__text { font-variant-numeric: tabular-nums; }
 .hitl-transit__note {
+  font: var(--hud-type-caption);
   margin: calc(16 * var(--hud-unit)) 0 0;
   color: var(--hud-text-muted);
-  font-size: calc(21 * var(--hud-unit));
-  line-height: 1.4;
 }
 
 /* ── 结构化不了的明细：原样逐行显示 ────────────────────────── */
 .hitl-details { display: flex; flex-direction: column; gap: calc(8 * var(--hud-unit)); }
 .hitl-detail {
+  font: var(--hud-type-body);
   display: flex;
   gap: calc(12 * var(--hud-unit));
-  font-size: calc(24 * var(--hud-unit));
-  line-height: 1.45;
 }
 .hitl-detail__label { flex: none; color: var(--hud-text-muted); }
 .hitl-detail__value { word-break: break-word; }
@@ -449,14 +458,14 @@ html, body, #root {
   background: var(--hitl-inset);
 }
 .hitl-disclosure__title {
-  font-size: calc(26 * var(--hud-unit));
-  font-weight: 600;
+  font: var(--hud-type-title);
   color: var(--hud-amber);
 }
 .hitl-disclosure .hitl-details { margin: calc(10 * var(--hud-unit)) 0 0; }
 
 /* 确认没被接住时的告知条。用琥珀描边而不是红色：这不是故障，是"没生效"。 */
 .hitl-notice {
+  font: var(--hud-type-body);
   flex: none;
   margin: 0;
   padding: calc(14 * var(--hud-unit)) calc(18 * var(--hud-unit));
@@ -464,8 +473,6 @@ html, body, #root {
   border-radius: calc(14 * var(--hud-unit));
   background: var(--hitl-inset);
   color: var(--hud-text);
-  font-size: calc(24 * var(--hud-unit));
-  line-height: 1.5;
 }
 
 /* ── 动作条：只有两个出口，确认是琥珀主行动 ─────────────────── */
@@ -477,10 +484,10 @@ html, body, #root {
   border-top: 1px solid var(--hud-divider);
 }
 .hitl-btn {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   min-height: calc(64 * var(--hud-unit));
   padding: calc(14 * var(--hud-unit)) calc(24 * var(--hud-unit));
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 600;
   border-radius: calc(16 * var(--hud-unit));
   border: none;
   cursor: pointer;
@@ -607,6 +614,12 @@ html, body, #root {
   }
   .hitl-day::before { bottom: calc(-11 * var(--hud-unit)); }
   .hitl-stay__icon { width: calc(16 * var(--hud-unit)); height: calc(16 * var(--hud-unit)); }
+  /*
+   * 竖屏主列比横屏窄得多（住宿行实测自然宽 308u 对可用宽 308u，贴着边界），
+   * 所以两侧的尺寸各自取值：名字保底 96u，价格最多占四成（M93-03）。
+   */
+  .hitl-stay__name { min-width: calc(96 * var(--hud-unit)); }
+  .hitl-stay__price { max-width: 40%; }
   .hitl-est {
     padding: calc(1 * var(--hud-unit)) calc(6 * var(--hud-unit));
     font-size: calc(10 * var(--hud-unit));
@@ -641,12 +654,12 @@ html, body, #root {
 /* ── 导览采集进度卡（M40-02）：右下小卡，不遮地图主视区与底部导航 ── */
 .hud-guide-jobs-slot {
   position: fixed;
-  right: 24px;
+  right: calc(24 * var(--hud-unit));
   /* 右列空带：行前提示卡（底 ≈638）与右下数据条（顶 ≈820）之间；
      放不下的行在卡内滚动——挤占地图或叠在别的卡上都比滚动糟。 */
-  bottom: 88px;
-  width: 300px;
-  max-height: 184px;
+  bottom: calc(88 * var(--hud-unit));
+  width: calc(300 * var(--hud-unit));
+  max-height: calc(184 * var(--hud-unit));
   overflow-y: auto;
   z-index: 40;
 }
@@ -655,18 +668,18 @@ html, body, #root {
  * 顶部居中、压在 HUD 之上：它要在任何一屏都看得见。
  * 播报只说一次，而中途上车的人只能靠它知道现在是降级态。 */
 .cockpit-guest-badge {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   position: fixed;
-  top: 12px;
+  top: calc(12 * var(--hud-unit));
   left: 50%;
   transform: translateX(-50%);
-  padding: 8px 18px;
+  padding: calc(8 * var(--hud-unit)) calc(18 * var(--hud-unit));
   border-radius: 999px;
   background: rgba(214, 158, 46, 0.92);
   color: #1a1205;
-  font-size: 17px;
-  font-weight: 600;
   letter-spacing: 0.02em;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 calc(2 * var(--hud-unit)) calc(12 * var(--hud-unit)) rgba(0, 0, 0, 0.28);
   pointer-events: none; /* 不挡任何操作 */
   z-index: 60;
 }
@@ -680,4 +693,14 @@ html, body, #root {
 .cset.cset,
 .dlg-screen.dlg-screen {
   top: var(--hud-topbar-h);
+}
+
+/* 行程首行（M77 走查追修，2026-09-12）：「上海 → 广州，共 4 天」。比标题轻、比明细重——它是这份清单的对象。 */
+.hitl-route {
+  font: var(--hud-type-title);
+  margin: calc(-4 * var(--hud-unit)) 0 0;
+  color: var(--hud-text-muted);
+}
+@media (max-aspect-ratio: 85/100) {
+  .hitl-route { font-size: calc(15 * var(--hud-unit)); }
 }

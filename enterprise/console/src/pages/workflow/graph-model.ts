@@ -1147,6 +1147,28 @@ export const AGENT_ROSTER: readonly AgentEntry[] = [
     note: "无直达路由。每天配雨天备选",
   },
   {
+    name: "tour-plan",
+    label: "逐天骨架裁决",
+    prompt: "prompts/tour-plan.md",
+    forms: ["-task 分支"],
+    drivenBy: "itineraryPlan 的 Plan 层 1c：四条腿之前的单支 fan-out，交回逐天主题与剔换点",
+    note:
+      "M86-03（ACR-037）。-task 会话里思考 high 的例外（PI_OVERRIDES）：只做语义裁决、不搜、不排时段；" +
+      "名字只能来自骨架候选池，不合法整份回落 1b 骨架；经 submit_tour_days 交回。" +
+      "CARLIFE_TRIP_PLAN_LAYER=off 时不发（M87-05 起缺省 plan）",
+  },
+  {
+    name: "trip-review",
+    label: "装配体检裁决",
+    prompt: "prompts/trip-review.md",
+    forms: ["-task 分支"],
+    drivenBy: "itineraryPlan 的 reviewLoop：四条腿之后的单支 fan-out，判断草案能不能交付、追发哪条腿、自己改哪里",
+    note:
+      "M86-05（ACR-037 第 5 步）。-task 会话里思考 high 的例外（PI_OVERRIDES）：拿 itinerary_assemble / plan_audit / route_audit " +
+      "看事实，plan_edit 做机械改动，submit_repairs 让编排层追发，submit_verdict 收口；硬顶（轮数 / 预算 / 会话超时）在编排层。" +
+      "只在 CARLIFE_TRIP_PLAN_LAYER=review 时被发",
+  },
+  {
     name: "transit",
     label: "大交通",
     prompt: "prompts/transit.md",

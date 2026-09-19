@@ -7,6 +7,7 @@ members = [
     "clients/shared/rust/carlife-voice",
     "clients/shared/rust/carlife-tts",
     "clients/shared/rust/carlife-telemetry",
+    "clients/shared/rust/carlife-vision",
     "clients/mobile/src-tauri",
     "clients/cockpit/src-tauri",
 ]

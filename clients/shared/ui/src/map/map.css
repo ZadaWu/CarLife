@@ -105,6 +105,8 @@
    按钮整个落在 WiFi/电量图标底下（iPhone 16 Pro Max 实拍）。这是与上面那次
    同一种坏法——它自己不报错，只有"想回到全程却按不着"时才暴露。 */
 .hud-map-recenter {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   position: absolute;
   right: calc(32 * var(--hud-unit));
   top: calc(32 * var(--hud-unit) + env(safe-area-inset-top));
@@ -115,9 +117,6 @@
   background: var(--hud-card-bg);
   box-shadow: var(--hud-card-shadow);
   color: var(--hud-text);
-  font-family: inherit;
-  font-size: var(--hud-font-body);
-  font-weight: 600;
   cursor: pointer;
 }
 
@@ -131,4 +130,25 @@
   .hud-tripmark__runner {
     transition: none;
   }
+}
+
+/*
+ * 非选中天的淡出（M83 走查追修）：抽屉里选了某一天时，别的天退成灰色半透明。
+ *
+ * **不是隐藏**：整程的形状要还在，否则"这一程有几天、别的天在哪"就没了。
+ * 灰度 + 半透明两样一起用——只降不透明度的话，琥珀序号徽标在灰白底图上仍然跳眼。
+ * 圆点一并淡出，不然会剩下一串"没有胶囊的点"。
+ */
+.hud-tripmark--dim,
+.hud-tripmark__dot--dim {
+  opacity: 0.32;
+  filter: grayscale(1);
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
+}
+.hud-tripmark {
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
 }

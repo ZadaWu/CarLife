@@ -1,78 +1,19 @@
 /**
- * 保养提醒合并确认单测（施工单 M8-04）。零依赖。
+ * 保养到期推算单测（施工单 M14-02，FL-17 F-17-01）。零依赖。
+ *
+ * 「保养提醒搭行程确认的便车」那一组（M8-04）随 FL-31 日历下线一并移除——
+ * 它的落点 `ownership-maintenance.ts` 从头到尾没有生产代码引用，
+ * 只有这份测试在证明它自己。
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  isNearDue,
-  mergeMaintenanceIntoTrip,
-  writeReceipt,
-  type CalendarDraftItem,
-  type MaintenanceHint,
-} from "../src/graph/subgraphs/ownership-maintenance";
-import {
   isMaintenanceQuery,
   renderMaintenanceForecastContext,
 } from "../src/graph/subgraphs/ownership";
 
-const tripItems: CalendarDraftItem[] = [
-  { kind: "trip", title: "出发", start: "2026-08-15T07:00", end: "2026-08-15T08:00" },
-  { kind: "trip", title: "充电停靠", start: "2026-08-15T11:00", end: "2026-08-15T11:40" },
-];
-const when = { start: "2026-09-01T09:00", end: "2026-09-01T10:00" };
-const title = () => "保养到期提醒";
-
-describe("临近判定", () => {
-  it("剩余里程少 → 临近", () => {
-    assert.equal(isNearDue({ remainingKm: 800, degraded: false }), true);
-  });
-
-  it("里程还多但天数临近 → 也算临近", () => {
-    assert.equal(isNearDue({ remainingKm: 5_000, etaDays: 20, degraded: false }), true);
-  });
-
-  it("都不临近 → 不提醒", () => {
-    assert.equal(isNearDue({ remainingKm: 5_000, etaDays: 120, degraded: false }), false);
-  });
-
-  it("已超期当然算临近", () => {
-    assert.equal(isNearDue({ remainingKm: -300, degraded: false }), true);
-  });
-});
-
-describe("搭便车合并（§5：不单独触发一轮确认）", () => {
-  it("有行程写入且保养临近 → 并入同一次确认", () => {
-    const d = mergeMaintenanceIntoTrip(tripItems, { remainingKm: 500, degraded: false }, title, when);
-    assert.equal(d.maintenanceMerged, true);
-    assert.equal(d.items.length, 3);
-    assert.equal(d.items[2].kind, "maintenance", "**保养项可视觉区分**，端上据此加标记");
-  });
-
-  it("**没有行程写入时不强行创造一次写入**——那就成了主动打扰", () => {
-    const d = mergeMaintenanceIntoTrip([], { remainingKm: 500, degraded: false }, title, when);
-    assert.equal(d.maintenanceMerged, false);
-    assert.match(d.notMergedReason ?? "", /低打扰呈现/);
-  });
-
-  it("保养未临近 → 不打扰", () => {
-    const d = mergeMaintenanceIntoTrip(tripItems, { remainingKm: 8_000, etaDays: 200, degraded: false }, title, when);
-    assert.equal(d.maintenanceMerged, false);
-    assert.equal(d.items.length, 2);
-  });
-
-  it("降级推算被标注在条目上——用户要知道这是通用周期估的", () => {
-    const d = mergeMaintenanceIntoTrip(tripItems, { remainingKm: 500, degraded: true }, title, when);
-    assert.match(d.items[2].note ?? "", /通用保养周期/);
-  });
-
-  it("无推算结果时不合并，也不报错", () => {
-    const d = mergeMaintenanceIntoTrip(tripItems, undefined, title, when);
-    assert.equal(d.maintenanceMerged, false);
-    assert.equal(d.items.length, 2);
-  });
-});
 
 describe("保养到期推算的编排接线（M14-02，F-17-01）", () => {
   const profile = {
@@ -116,18 +57,5 @@ describe("保养到期推算的编排接线（M14-02，F-17-01）", () => {
   it("降级（无周期记录）→ 明确要求向用户说明是通用参考", () => {
     const ctx = renderMaintenanceForecastContext({ odometerKm: 5_000, maintenance: [] }, 40);
     assert.match(ctx, /通用参考/);
-  });
-});
-
-describe("写入回执（F-17-03 的风险缓解）", () => {
-  it("**说清楚写了几条、哪条是保养**——四条一起确认时用户可能只注意到行程", () => {
-    const r = writeReceipt([...tripItems, { kind: "maintenance", title: "保养", start: "", end: "" }]);
-    assert.match(r, /已写入 3 条/);
-    assert.match(r, /行程 2 条/);
-    assert.match(r, /保养提醒 1 条/);
-  });
-
-  it("纯行程时不提保养，避免噪声", () => {
-    assert.ok(!writeReceipt(tripItems).includes("保养"));
   });
 });

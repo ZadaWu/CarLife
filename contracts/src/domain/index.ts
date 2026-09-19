@@ -29,3 +29,10 @@ export * from "./location";
 export * from "./trip-review";
 // 行程可执行性体检的结论形状、分级表与弹窗 details 的往返（M77-01，F-58-01）。
 export * from "./trip-audit";
+// 任务工作状态（M84-01，ACR-036 §4.9）：一件正在办的事的形状、状态机与 reducer；键是 userId × kind，不是会话。
+export * from "./task-state";
+// 用户长期状态（M84-03，ACR-036 §4.9）：每轮由 TurnRunner 从权威源投影、按 Agent 注入；不另存。
+export * from "./user-context";
+// 拍照问诊的结构化报告（M104-01）：服务端拼、端上只读。
+export * from "./diagnosis";
+export * from "./interaction";

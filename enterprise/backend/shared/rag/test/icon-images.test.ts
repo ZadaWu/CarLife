@@ -109,3 +109,60 @@ describe("[F-24-02][AC-24-8] 手册图标图片定位", () => {
     assert.equal(fs.dirReads.length, 1);
   });
 });
+
+/*
+ * 原文说明（2026-09-19 用户走查）：观察卡上每条灯要有一句「它是什么意思」，
+ * 而分类与锚点回答的是「它属于哪一类、去哪查」——车主此刻在车里，手册在手套箱里。
+ * 这一路与图片同源同一份目录，所以寄在同一个 resolver 上（共用那座「车型串 → 目录名」的桥）。
+ */
+describe("[F-24-02][AC-24-8] 手册图标目录的原文说明", () => {
+  const HEADER = "| symbol_id | 名称 | class | severity | shape | color | elements | text | 手册锚点 | 原文说明 | 描述子来源 | 图片 |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+  const row = (id: string, name: string, desc: string, source = "manual-image") =>
+    `| ${id} | ${name} | reminder | info | person | red | diagonal_band | - | 手册 › 指示灯 | ${desc} | ${source} | ${id}.png |\n`;
+  const md = (rows: string) => `# 目录\n\nvehicle: Tesla Model 3/Y\n\n${HEADER}${rows}`;
+
+  it("按 symbol_id 取到那一条的说明；取不到的返回 null", () => {
+    const fs = fakeFs({ "/icons/tesla-model3-indicators.md": md(row("seatbelt_unfastened", "安全带未系提醒", "乘客座椅安全带未系好（指示灯为红色），请参阅座椅安全带")) });
+    const r = createIconImageResolver({ root: "/icons", ...fs });
+    assert.equal(r.meaning("Tesla Model 3/Y", "seatbelt_unfastened"), "乘客座椅安全带未系好（指示灯为红色），请参阅座椅安全带");
+    assert.equal(r.meaning("Tesla Model 3/Y", "tpms_warning"), null, "目录里没有这一条");
+  });
+
+  it("拿不到车型串时退到 soleVehicle；有多款车却不知道是哪款就不猜", () => {
+    const one = createIconImageResolver({ root: "/icons", ...fakeFs({ "/icons/tesla-model3-indicators.md": md(row("low_beam", "近光灯已开", "近光灯已打开")) }) });
+    assert.equal(one.meaning(undefined, "low_beam"), "近光灯已打开");
+
+    const two = createIconImageResolver({
+      root: "/icons",
+      ...fakeFs({
+        "/icons/tesla-model3-indicators.md": md(row("low_beam", "近光灯已开", "近光灯已打开")),
+        "/icons/byd-han-indicators.md": `# 目录\n\nvehicle: 比亚迪 汉 EV\n\n${HEADER}${row("low_beam", "近光灯", "别的车的说明")}`,
+      }),
+    });
+    // 宁可端上少一行说明，也不要把 Model 3 的说明挂到别的车的灯上。
+    assert.equal(two.meaning(undefined, "low_beam"), null);
+    assert.equal(two.meaning("比亚迪 汉 EV", "low_beam"), "别的车的说明");
+  });
+
+  it("deprecated 的条目不给说明——它在那款车的手册里根本不存在", () => {
+    const fs = fakeFs({ "/icons/tesla-model3-indicators.md": md(row("fog_lamp_front", "前雾灯已开", "起草时凭空补的", "deprecated")) });
+    assert.equal(createIconImageResolver({ root: "/icons", ...fs }).meaning("Tesla Model 3/Y", "fog_lamp_front"), null);
+  });
+
+  it("读不到 / 解析不了 / symbol_id 不安全 —— 一律 null 且不抛，与图片那一路同一条纪律", () => {
+    assert.equal(createIconImageResolver({ root: "/nope", ...fakeFs({}) }).meaning("Tesla Model 3/Y", "low_beam"), null);
+    const broken = createIconImageResolver({ root: "/icons", ...fakeFs({ "/icons/a-indicators.md": "vehicle: X\n\n不是一张表\n" }) });
+    assert.equal(broken.meaning("X", "low_beam"), null);
+    const ok = createIconImageResolver({ root: "/icons", ...fakeFs({ "/icons/tesla-model3-indicators.md": md(row("low_beam", "近光灯已开", "近光灯已打开")) }) });
+    assert.equal(ok.meaning("Tesla Model 3/Y", "../../etc/passwd"), null);
+  });
+
+  it("同一个目录只解析一次", () => {
+    const fs = fakeFs({ "/icons/tesla-model3-indicators.md": md(row("low_beam", "近光灯已开", "近光灯已打开") + row("high_beam", "远光灯已开", "远光灯已打开")) });
+    const r = createIconImageResolver({ root: "/icons", ...fs });
+    r.meaning("Tesla Model 3/Y", "low_beam");
+    r.meaning("Tesla Model 3/Y", "high_beam");
+    const parses = fs.reads.filter((p) => p.endsWith("-indicators.md")).length;
+    assert.equal(parses, 2, "一次是 scan() 认车型，一次是解析说明表——两次都只发生一遍");
+  });
+});

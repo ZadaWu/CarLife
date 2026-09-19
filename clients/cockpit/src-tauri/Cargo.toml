@@ -27,6 +27,8 @@ carlife-telemetry = { path = "../../../clients/shared/rust/carlife-telemetry" }
 # 哨兵的纯逻辑层（唤醒词 / 对话窗口 / 降级闸），与手机端共用一份。
 # 移出去的理由见 clients/shared/rust/carlife-voice/src/lib.rs 文件头。
 carlife-voice = { path = "../../../clients/shared/rust/carlife-voice" }
+# 端侧指示灯检测（ACR-044）：tract 跑 yolo11n，纯 Rust。
+carlife-vision = { path = "../../../clients/shared/rust/carlife-vision" }
 # 回采文本比对（voice/echo.rs）仍直接用它做拼音归一——唤醒词那一路已经
 # 搬进 carlife-voice，但回声消除是车机独有的（手机端没有本地播报）。
 pinyin = "0.11.0"

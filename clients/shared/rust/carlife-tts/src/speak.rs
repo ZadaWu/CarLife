@@ -78,7 +78,8 @@ pub fn speak(ctx: &SpeakCtx, state: &Arc<TtsState>, text: &str) {
             on_state(AssistantState::Idle);
             return;
         };
-        let playback = match start_mp3_playback(bytes) {
+        // 增益取自**当前**音量（用户在合成那 1~2 秒里可能刚拖过滑块）。
+        let playback = match start_mp3_playback(bytes, state.gain()) {
             Ok(p) => p,
             Err(e) => {
                 eprintln!("[tts] 播放启动失败: {e}");

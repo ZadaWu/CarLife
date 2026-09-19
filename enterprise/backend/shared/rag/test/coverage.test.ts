@@ -78,3 +78,33 @@ test("文件名不含车型的文档会被点名", () => {
     "vehicle-manuals/某车企通用保养须知.md",
   ]);
 });
+
+test("shared 集里的行业文档不是隐形的（ACR-042）——M96 那条红就是判据用错了集", () => {
+  // 三篇行业级条款文件名里没有任何车型，用 per-model 的判据量它们就是"对所有车隐形"，
+  // 而它们本来就该对所有车可见。probe 因此红了一条，且那条红指着一个不存在的问题。
+  const kb: DocumentsByDataset = {
+    "insurance-kb": [
+      "[整理]行业_通用_理赔流程_2026_车险出险流程与材料时限.md",
+      "[整理]行业_通用_权益_2026_车主权益的来源与失效规则.md",
+      "中保协_行业示范_新能源商业险_2021-12_示范条款（试行）.md",
+    ],
+  };
+  assert.deepEqual(invisibleDocuments(catalogModels(), kb), []);
+});
+
+test("shared 集里点了目录外车型的文档仍被点名——通常是车名写错了", () => {
+  // 它既不是行业级（所以不对所有车可见），指向的车又不在目录里（所以也没人看得到它）。
+  const kb: DocumentsByDataset = {
+    "insurance-kb": ["[整理]特斯拉_ModelQ_通用_2026_出险注意事项.md"],
+  };
+  assert.deepEqual(invisibleDocuments(catalogModels(), kb), [
+    "insurance-kb/[整理]特斯拉_ModelQ_通用_2026_出险注意事项.md",
+  ]);
+});
+
+test("shared 集里点名在目录内车型的文档可见，不被点名", () => {
+  const kb: DocumentsByDataset = {
+    "insurance-kb": ["[整理]特斯拉_通用_通用_2026_Model3_ModelY_车主出险注意事项.md"],
+  };
+  assert.deepEqual(invisibleDocuments(catalogModels(), kb), []);
+});

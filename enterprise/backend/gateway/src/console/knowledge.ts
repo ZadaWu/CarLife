@@ -34,11 +34,12 @@ import type { ChatRepository } from "@carlife/db";
 
 import { requireAnyRole, CONSOLE_READERS, type ConsoleRequest } from "../auth/console";
 
-/** 后台以哪个身份访问数据集：admin 能看全部三个集，隔离规则本身不放宽。 */
+/** 后台以哪个身份访问数据集：admin 能看全部四个集，隔离规则本身不放宽。 */
 const CONSOLE_AGENTS: Record<DatasetKey, string> = {
   "vehicle-manuals": "ownership",
   "repair-kb": "service",
   "car-catalog": "buying",
+  "insurance-kb": "service",
 };
 
 function isDatasetKey(v: unknown): v is DatasetKey {

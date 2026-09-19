@@ -108,3 +108,34 @@ describe("[F-09-10][AC-09-9] 每轮附件上限按类别计（M80-01）", () => 
     assert.ok(!b.ok && b.error === "attachment_too_many_videos" && b.handle === twoVideos[1].id);
   });
 });
+
+describe("[F-09-06][AC-09-3] 端上的框随消息上行（ACR-045）", () => {
+  const H = "handle_aaaaaaaa";
+  const det = { width: 300, height: 400, items: [{ bbox: [111, 197, 189, 222], name: "parking_lights", conf: 0.97 }], inferMs: 120 };
+
+  it("parseAttachmentRefs：detections 按句柄索引、形状对 → 一起带回；老端上不带就没有这个键", () => {
+    const r = parseAttachmentRefs({ attachments: [H], detections: { [H]: det } });
+    assert.ok(!("error" in r));
+    assert.deepEqual(r.handles, [H]);
+    assert.deepEqual(r.detections, { [H]: det });
+    const plain = parseAttachmentRefs({ attachments: [H] });
+    assert.ok(!("error" in plain) && !("detections" in plain));
+  });
+
+  it("parseAttachmentRefs：键不在附件里 / bbox 越界 / 超 24 条 / 没附件却带框 → attachment_invalid（不静默丢）", () => {
+    assert.deepEqual(parseAttachmentRefs({ attachments: [H], detections: { handle_bbbbbbbb: det } }), { error: "attachment_invalid" });
+    assert.deepEqual(parseAttachmentRefs({ attachments: [H], detections: { [H]: { ...det, items: [{ bbox: [0, 0, 1001, 1], name: "x", conf: 0.5 }] } } }), { error: "attachment_invalid" });
+    assert.deepEqual(parseAttachmentRefs({ attachments: [H], detections: { [H]: { ...det, items: Array.from({ length: 25 }, () => det.items[0]) } } }), { error: "attachment_invalid" });
+    assert.deepEqual(parseAttachmentRefs({ detections: { [H]: det } }), { error: "attachment_invalid" });
+  });
+
+  it("resolveTurnAttachments：框挂到对应的照片上；挂到视频句柄上按 attachment_kind_unsupported 拒", async () => {
+    const store: ObjectStore = { async put() { throw new Error("no"); }, async get() { return { body: Buffer.from("abc"), contentType: "image/png" }; }, async delete() {} } as never;
+    const ok = await resolveTurnAttachments({ handles: [H], sessionId: "s1", userId: "u1", repo: repoWith([meta({ id: H })]), store, detections: { [H]: det } });
+    assert.ok(ok.ok);
+    assert.deepEqual(ok.attachments[0].detections, det);
+    const V = "handle_vvvvvvvv";
+    const bad = await resolveTurnAttachments({ handles: [V], sessionId: "s1", userId: "u1", repo: repoWith([meta({ id: V, kind: "video", contentType: "video/mp4" })]), store, detections: { [V]: det } });
+    assert.deepEqual(bad, { ok: false, error: "attachment_kind_unsupported", handle: V });
+  });
+});

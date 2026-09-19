@@ -59,6 +59,7 @@ def main() -> None:
     ap.add_argument("--synth", default="synth-real-bg")
     ap.add_argument("--val-videos", default="")
     ap.add_argument("--pad", type=float, default=0.03)
+    ap.add_argument("--full-frame", action="store_true", help="用整帧（带车内环境）而不是屏幕裁剪")
     args = ap.parse_args()
 
     synth_dir = PATHS.datasets / args.synth
@@ -90,10 +91,15 @@ def main() -> None:
         video = items[0]["video"]
         split = "val" if video in val_videos else "train"
         im = Image.open(frame).convert("RGB")
-        sx0, sy0, sx1, sy1 = items[0]["screen"]
-        pad = int(min(sx1 - sx0, sy1 - sy0) * args.pad)
-        cx0, cy0 = max(0, sx0 - pad), max(0, sy0 - pad)
-        cx1, cy1 = min(im.width, sx1 + pad), min(im.height, sy1 + pad)
+        if args.full_frame:
+            # 整帧：保留车内环境（M80-14）。车主举着手机拍，屏幕只占画面一部分，
+            # 训练构图必须和这件事对齐——只喂屏幕裁剪的后果见 composite.py 里那段注释。
+            cx0, cy0, cx1, cy1 = 0, 0, im.width, im.height
+        else:
+            sx0, sy0, sx1, sy1 = items[0]["screen"]
+            pad = int(min(sx1 - sx0, sy1 - sy0) * args.pad)
+            cx0, cy0 = max(0, sx0 - pad), max(0, sy0 - pad)
+            cx1, cy1 = min(im.width, sx1 + pad), min(im.height, sy1 + pad)
         crop = im.crop((cx0, cy0, cx1, cy1))
         ow, oh = crop.size
         stem = f"real-{Path(frame).stem[:28]}"

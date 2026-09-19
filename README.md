@@ -22,7 +22,9 @@
   <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791?logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
 </p>
 
-面向车主全生命周期的智能用车智能体：购车咨询、日常用车、出行规划、座舱陪伴、售后服务五个业务 Agent，由一个编排层统一调度，运行在车机端与手机端，服务端可私有化部署。
+**CarLife 是面向主机厂的车载智能体底座：车主开口就有答案，拍照就有结果；私有化部署、国产模型随时切换、全程留痕可追溯、满足生成式 AI 合规审计。车主省下时间，车企留下资产。**
+
+CarLife 覆盖车主全生命周期：购车咨询、日常用车、出行规划、座舱陪伴、售后服务。
 
 本仓库是 CarLife 的公开源码镜像。帮助文档在 [docs/](docs/README.md)，数据合规说明在 [data/README.md](data/README.md)，商业服务与闭源模型的调用环节、费用假设与锁定风险在 [docs/disclosure.md](docs/disclosure.md)，第三方依赖的版本与许可证在 [THIRD-PARTY.md](THIRD-PARTY.md)。
 

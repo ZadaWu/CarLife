@@ -45,7 +45,7 @@ export interface InterruptPoint {
 export const INTERRUPT_POINTS = {
   guardConfirm: {
     id: "guard.confirm",
-    trigger: "敏感工具（appointment / calendar / trip_plan_commit）经 POST /internal/guard/check 裁决为「需确认」",
+    trigger: "敏感工具（appointment / trip_plan_commit / vehicle_profile_write）经 POST /internal/guard/check 裁决为「需确认」",
     semantics:
       "该次调用的 Promise 保持挂起 → interrupt-bus 把 permission 事件推进本轮 SSE → " +
       "用户经网关 resume → 裁决作为这次挂起调用的返回值。超时按「未确认 = 不执行」收敛，绝不默认同意。",

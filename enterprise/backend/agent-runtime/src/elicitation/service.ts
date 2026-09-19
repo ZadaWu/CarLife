@@ -192,6 +192,13 @@ export interface NextInput {
    * **规划阶段不传**：那时问了到出发也过期了（AC-54-1）。
    */
   pretrip?: PretripContext;
+  /**
+   * 本轮还剩几个问题位（M106-02）。`undefined` = 不限（问诊轮之外没有人跟它抢）。
+   *
+   * 问诊轮里问诊追问先拿位（`graph/prompt-budget.ts`），剩下的才轮到这里。**`<= 0` 时在一切副作用之前返回**——
+   * 下面会写 `asked`，而「没问出口却记成问过」的后果是下一轮把车主的话当成对它的拒答去结算。
+   */
+  questionBudgetLeft?: number;
 }
 
 export interface ElicitationService {
@@ -528,7 +535,9 @@ export function createElicitationService(deps: ElicitationDeps): ElicitationServ
       }
     },
 
-    async next({ sessionKey, userId, vin, agent, answered, pretrip }) {
+    async next({ sessionKey, userId, vin, agent, answered, pretrip, questionBudgetLeft }) {
+      // 本轮的问题位已经用完（M106-02）：不查库、不记 asked，当这一轮没有合适载体。
+      if (questionBudgetLeft !== undefined && questionBudgetLeft <= 0) return undefined;
       // 先看载体与回答状态，**不满足就不查库**——这一步在每一轮都会跑，
       // 而绝大多数轮次都不是合适载体。
       // 明说要出发的那一轮不看路由（见 pickElicitation 的 `departing`）。

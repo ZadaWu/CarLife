@@ -81,8 +81,22 @@ function readablePayload(kind: string, data: Record<string, unknown>): string {
       return join(g("name"), g("durationMs") && `${g("durationMs")}ms`, g("status"), g("agent"), g("detail"));
     case "prompt":
       return join(g("agent"), g("chars") && `${g("chars")} 字`, g("truncated") && "已截断");
+    case "agent_output":
+      // 人话版只给长度与状态，原文在「原始载荷」开关与业务视图里——一屏几百行时全文塞不下。
+      return join(g("agent"), g("chars") && `${g("chars")} 字`, g("status"), g("truncated") && "已截断");
     case "tool_call":
       return join(g("name"), g("provider"), (data.source as { kind?: string })?.kind, g("status"));
+    case "context": {
+      // 两级状态的体量一句话：几段档案、几件任务、几个 Agent 取过块。正文在会话页的「查看上下文」。
+      const sections = data.user && typeof data.user === "object" ? Object.keys(data.user).filter((k) => k !== "userId").length : 0;
+      const tasks = data.tasksBefore && typeof data.tasksBefore === "object" ? Object.keys(data.tasksBefore).length : 0;
+      const served = Array.isArray(data.served) ? data.served.length : 0;
+      return join(
+        g("mode"),
+        data.loaded === false ? "未装载" : `档案 ${sections} 段 · 任务 ${tasks} 件 · ${served} 个 Agent 取块`,
+        g("loadMs") && `${g("loadMs")}ms`,
+      );
+    }
     case "guard":
       return join(g("tool"), g("decision"), g("durationMs") && `${g("durationMs")}ms`, g("reason"));
     case "route":

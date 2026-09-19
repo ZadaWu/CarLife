@@ -47,8 +47,12 @@ import {
   type ThemeName,
   outstandingGuideJobs,
   readyGuideSpots,
+  tripActiveFor,
 } from "@carlife/ui";
+import type { OnDeviceDetectResult } from "@carlife/ui";
+import type { ClientDetections } from "@carlife/shared";
 import {
+  ACCOUNT_EVENTS,
   SESSION_EXPIRED,
   highlightsPage,
   tripPlanNavDay,
@@ -66,26 +70,47 @@ import {
   type AttachmentRef,
 } from "@carlife/shared";
 
+import { listen } from "@tauri-apps/api/event";
+
 import { subscribeBridge } from "../bridge";
 import { createMockHudSource, makeSnapshot, MOCK_HOME } from "../data/mockSource";
 import { invokeAckTripReview, invokeFetchEnergy, invokeFetchTripPlan } from "../data/gatewayInvoke";
-import { tripActiveFor } from "../data/tripMode";
 import { resolveTheme, setRootTheme } from "./theme";
 import { loadVehicles } from "../features/ownership/api";
 import { createInflight, INFLIGHT_BOOTSTRAP, INFLIGHT_NEW_SESSION } from "../data/inflight";
 import { planBootstrap } from "../data/bootstrapSession";
 import { sendWithSessionRetry } from "../data/sendWithRetry";
 import { buildUploadHeaders } from "../data/attachmentUpload";
+import { createAttachmentSessions } from "../data/attachmentSessions";
 import { MobileGuide, useGuideBrief, useGuideJobs } from "../features/guide";
 import { MobileDeparture } from "../features/departure";
 import { MobileTripSheet } from "../features/trip";
 import { GuideJobsPanel } from "@carlife/ui";
 import { MobileHud } from "../features/hud";
+import { MobileHome, isHomeDemo, DEMO_HOME_VEHICLE, DEMO_HOME_TRIP_COUNT, DEMO_HOME_REMINDER } from "../features/home";
+import { maintenanceReminder, toHomeVehicle, type HomeVehicle, type VehicleReadState } from "../features/home/model";
+import { MobileTripPage } from "../features/trip/secondary";
+import type { VehicleView } from "../features/ownership/types";
 import { MobileOwnership } from "../features/ownership";
 import { MobileSettings } from "../features/settings";
 import { ConfirmDialog } from "../features/confirm";
 import { resumeDisposition } from "../features/confirm/decide";
 import { MobileBuying } from "../features/buying";
+import {
+  bookingPrompt,
+  DEMO_DIAGNOSIS_MESSAGES_FOLLOWUP,
+  DEMO_DIAGNOSIS_MESSAGES_GUIDED,
+  DEMO_DIAGNOSIS_REPORT,
+  DiagnosisCards,
+  MobileCapture,
+  MobileDiagnosisReport,
+  PromptCards,
+  QuickReplies,
+  ReportPin,
+  diagnosisDemoView,
+  loadDiagnosis,
+  type DiagnosisState,
+} from "../features/service";
 import "../features/buying/buying.css";
 
 /** 跨重启复用会话——"重启后历史仍在"的前提。 */
@@ -94,6 +119,12 @@ import "../features/buying/buying.css";
  * 判据与踩过的坑写在 `data/inflight.ts` 的模块注释里。
  */
 const sessionInflight = createInflight();
+
+/**
+ * 句柄 → 上传时的会话（`data/attachmentSessions.ts`）。模块级：与 `sessionInflight` 同理，
+ * StrictMode 的两次挂载共用同一份，重挂载也不该把刚拍的那张照片的归属忘掉。
+ */
+const attachmentSessions = createAttachmentSessions();
 
 const SESSION_STORAGE_KEY = "carlife.mobile.sessionId";
 /** 与 id 成对保存的本地创建时间（M65-02，与车机同款）：只给日志与列表回落用，不改复用判定。 */
@@ -168,10 +199,23 @@ export function App() {
   const [snapshot, setSnapshot] = useState<HudSnapshot | null>(null);
   const [stale, setStale] = useState(false);
   /* `?dialog=demo` / `?buying=demo`：一进来就落在那一页（版式截图入口）。 */
-  const [nav, setNav] = useState<NavView>(() => (isDialogDemo() ? "dialog" : "hud"));
+  /** `?diagnosis=demo[&view=report|followup]`：拍照问诊三步的版式截图入口（M104-04）。 */
+  const dxDemo = useMemo(() => diagnosisDemoView(), []);
+  const [nav, setNav] = useState<NavView>(() => (isDialogDemo() || dxDemo ? "dialog" : "hud"));
   /** 购车页是覆盖层，不占底部导航（M15-05，理由见渲染处）。 */
   const [buyingOpen, setBuyingOpen] = useState(
     () => new URLSearchParams(window.location.search).get("buying") === "demo",
+  );
+  /*
+   * 拍照问诊的报告（M104-04）：每轮助手回复落地后从网关拉一次（结构化，端上不解析回答文本）；
+   * 换会话清空。`reportOpen` 是报告页，`followupOpen` 是"基于报告继续问"态（钉顶条 + 快捷芯片）。
+   */
+  const [diagnosis, setDiagnosis] = useState<DiagnosisState | null>(null);
+  const [reportOpen, setReportOpen] = useState(() => dxDemo === "report");
+  const [followupOpen, setFollowupOpen] = useState(() => dxDemo === "followup");
+  /** 拍照问诊的拍照页（M104-03）：全屏层，不占底导；`?capture=demo` 是版式截图入口。 */
+  const [captureOpen, setCaptureOpen] = useState(
+    () => new URLSearchParams(window.location.search).get("capture") === "demo",
   );
 
   // ── 真实行程数据源（M13-04 / M65-01）：Tauri 内轮询网关的已确认行程；浏览器走查维持 mock 源 + `?plan=demo`。
@@ -202,6 +246,18 @@ export function App() {
   const demoNav = demoPlan && demoQuery.get("nav") === "1";
   // 跟车演示的 nav 只挂一次：每次渲染新造一份会让 startedAt 一直往前跑，车标钉在起点一动不动。
   const demoNavPlan = useMemo(() => withDemoNav(DEMO_TRIP_PLAN, 2), []);
+  /*
+   * 行程规划二级页（M103-02）：2026-09-17 起主页是功能入口页（`features/home`），`MobileHud` 整个是
+   * 这一页的内容。`?plan=demo` / `?depart=1` / `?guide=` 这些走查入口看的都是行程页的东西，一进来就打开它。
+   */
+  const [tripOpen, setTripOpen] = useState(
+    () => demoPlan || demoQuery.get("depart") === "1" || Boolean(demoQuery.get("guide")),
+  );
+  /**
+   * 对话页的「请拉起一次选择器」计数（M103-02 加的 prop）。M104-03 起主页卡改开拍照页，
+   * 这里没有调用方再递增它——留着是因为 `DialogScreen` 的 prop 还在（车机不传、零副作用）。
+   */
+  const [pickerRequest] = useState(0);
 
   const source = useMemo(
     () =>
@@ -228,17 +284,25 @@ export function App() {
    * HUD 在没进过档案页时也得有能量——所以这里自己解析一次默认车。只在 Tauri 里做：
    * 浏览器没有网关那一路，硬拉只会把环境限制说成设备故障。
    */
-  const [activeVin, setActiveVin] = useState<string | null>(null);
+  /*
+   * M103-02 起整条默认车留住（入口页要 `model` / `odometerKm` / `forecast` / `repairs`），
+   * `activeVin` 从它派生。浏览器预览没有网关那一路：`offline`，入口页照纪律写「暂无 / 读不到」，不 mock。
+   */
+  const [defaultVehicle, setDefaultVehicle] = useState<VehicleView | null>(null);
+  const [vehicleState, setVehicleState] = useState<VehicleReadState>(() => (isTauriEnv() ? "loading" : "offline"));
   useEffect(() => {
     if (!isTauriEnv()) return;
     let alive = true;
     void loadVehicles().then((r) => {
-      if (alive && r.kind === "ready" && r.vehicles[0]) setActiveVin(r.vehicles[0].vin);
+      if (!alive) return;
+      setVehicleState(r.kind);
+      setDefaultVehicle(r.kind === "ready" ? (r.vehicles[0] ?? null) : null);
     });
     return () => {
       alive = false;
     };
   }, []);
+  const activeVin = defaultVehicle?.vin ?? null;
   const [liveEnergy, setLiveEnergy] = useState<LiveEnergy | undefined>(demoEnergy);
   /* 能量轮询：换车即重起一路，旧的立刻停——否则切完车还会收到上一辆的读数。 */
   useEffect(() => {
@@ -281,7 +345,6 @@ export function App() {
   // 真实地图报废（无 key/离线）→ 回落装饰概览。memo 化：内联箭头函数会被地图层当成"配置变了"。
   const onTripMapFallback = useCallback(() => setAmapFailed(true), []);
   const plan = demoPlan ? (demoNav ? demoNavPlan : DEMO_TRIP_PLAN) : fetchedPlan;
-  const tripActive = tripActiveFor({ plan, amapFailed, today: new Date().toISOString().slice(0, 10) });
   /*
    * 跟车（M31-03）：判据在 `@carlife/shared`（`tripPlanNavDay`）。手机端**没有位置源**，
    * 车标位置与车机同一套"按真实路线与车程模拟"（nav-position.ts），倍速恒为 1——
@@ -306,6 +369,17 @@ export function App() {
   /** 选中的那程：不回落到当前行程——有选中才是选中态（与车机 M73-02 同）。 */
   const highlightedPlanId =
     selectedPlanId && tripEntries.some((e) => e.planId === selectedPlanId) ? selectedPlanId : undefined;
+  /*
+   * 行程模式判定（判据在 `@carlife/ui` 的 `tripActiveFor`，与车机同一份）。
+   * 排在 `highlightedPlanId` 之后是因为它要知道"这一程是不是车主自己点开的"：
+   * 点开的那程即使已经走完也照画（2026-09-16 走查）。
+   */
+  const tripActive = tripActiveFor({
+    plan,
+    amapFailed,
+    today: new Date().toISOString().slice(0, 10),
+    selected: highlightedPlanId !== undefined,
+  });
   const reviewEntry = reviewPlanId ? tripEntries.find((e) => e.planId === reviewPlanId) : undefined;
   /** 暖暖 alert：critical 且未确认、未作废（「知道了」即清除）。 */
   const hudAlert = hudAlertFrom(tripEntries);
@@ -386,7 +460,22 @@ export function App() {
    * 会话生命周期（M22-03；M65-02 手机端对齐）。`lastInteractionAt` 只驱动**端上判定**——
    * 正确性由服务端兜（过期的会话 `POST /messages` 直接 409，下面 `sendText` 会换会话重发）。
    */
-  const [lastInteractionAt, setLastInteractionAt] = useState<number | undefined>(undefined);
+  const [lastInteractionAtState, setLastInteractionAtState] = useState<number | undefined>(undefined);
+  /**
+   * 判定用的**同步副本**（2026-09-18 真机 INC：拍照问诊「上传失败 attachment_not_owned」）。
+   *
+   * `ensureUsableSession` 会在同一个闭包里被连着调两次——先上传附件、紧接着发消息——
+   * 而 `useCallback` 捕的是那一拍的 state：上传那一步刚建好的会话，在第二次调用里又被
+   * 老的 `lastInteractionAt` 判成"该退休"，于是消息落到**另一段**会话，句柄按归属被网关
+   * 400 拒收（实测 02:23:36.431 上传进 sess-82141ba8，18 ms 后又建了 sess-a911010f）。
+   * 所以退休判定读 ref 不读 state；两者必须一起改，走下面这个 setter。
+   */
+  const lastInteractionRef = useRef<number | undefined>(undefined);
+  const lastInteractionAt = lastInteractionAtState;
+  const setLastInteractionAt = useCallback((ts: number | undefined) => {
+    lastInteractionRef.current = ts;
+    setLastInteractionAtState(ts);
+  }, []);
   // 30 秒一跳只驱动**形象**（休息/办公）：比每秒重渲染整屏 HUD 划算得多。
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
@@ -492,17 +581,24 @@ export function App() {
    * 引导不再预建会话，所以"还没有会话"是启动后的常态；建会话推到这里，
    * 因为这条路建完立刻就发消息——它从不留下零消息的空会话。
    */
-  const ensureUsableSession = useCallback(async (): Promise<string> => {
+  const ensureUsableSession = useCallback(async (opts?: { keep?: string }): Promise<string> => {
     const sid = sessionIdRef.current;
+    /*
+     * `keep` = 刚才把附件上传进去的那个会话（模块级的 `attachmentSessions` 记的账）。附件句柄**按会话归属**，
+     * 换一个会话发就等于把车主刚拍的照片丢掉（网关 400 `attachment_not_owned`）。
+     * 刚上传完本身就是一次交互，这里不该再走退休判定。
+     */
+    if (opts?.keep && opts.keep === sid) return sid;
     if (!sid) return startNewSession();
     const retire = canRetire({
-      lastInteractionAt,
+      // 读 ref 不读 state：同一拍里连着调两次时，state 还是上一拍的值（见 `lastInteractionRef`）。
+      lastInteractionAt: lastInteractionRef.current,
       now: Date.now(),
       streaming: streaming !== null,
       awaitingPermission: permission !== null,
     });
     return retire ? startNewSession() : sid;
-  }, [lastInteractionAt, streaming, permission, startNewSession]);
+  }, [streaming, permission, startNewSession]);
 
   /**
    * 结束当前这段对话：关掉它（可选）、把端上的会话位置空，**不预建下一个**（M50-02）。
@@ -621,13 +717,16 @@ export function App() {
    * 助手回复都由 SSE 回流。
    */
   const sendText = useCallback(
-    async (content: string, attachments?: string[]) => {
+    async (content: string, attachments?: string[], detections?: Record<string, ClientDetections>) => {
       setLastInteractionAt(Date.now());
       await sendWithSessionRetry({
-        ensure: ensureUsableSession,
+        // 带附件时把会话钉在上传的那一段（`data/attachmentSessions.ts`），不让退休判定把它换掉。
+        ensure: () => ensureUsableSession({ keep: attachmentSessions.sessionFor(attachments) }),
         // 附件句柄随消息绑到本轮（M80-03）；句柄属于上传时的那个会话——会话过期换新会话重发时，
         // 老会话的句柄会被网关按归属拒绝（400 attachment_not_owned），那时让用户重选，不静默丢。
-        send: (sessionId, text) => invoke("send_text_message", { sessionId, content: text, ...(attachments?.length ? { attachments } : {}) }),
+        // 端上框灯的结果（ACR-046）随句柄一起上行；服务端对带框的照片不再框图
+        send: (sessionId, text) =>
+          invoke("send_text_message", { sessionId, content: text, ...(attachments?.length ? { attachments } : {}), ...(detections ? { detections } : {}) }),
         startNew: startNewSession,
         isExpired: (err) => String(err).includes(SESSION_EXPIRED),
         content,
@@ -640,6 +739,31 @@ export function App() {
    * 上传与取件都是 Tauri 命令。上传用 raw IPC（Uint8Array + 请求头），一段 40 MB 的视频不必先变成 JSON 数组；
    * 取件回 ArrayBuffer 再包成 Blob，交给 `<img>` / `<video>` 的 blob URL。浏览器 mock 环境没有这一路。
    */
+  /*
+   * 报告的拉取时机（M104-04）：最后一条消息是助手的 = 这一轮结束了，问一次网关有没有报告。
+   * 3~6 ms 的只读端点，不做增量判断；换会话先清空——上一段的报告不该挂在新会话上。
+   */
+  const diagnosisSessionRef = useRef(currentSessionId);
+  useEffect(() => {
+    // 只在会话**真的换了**时清（挂载那一拍不算——`?diagnosis=demo&view=followup` 的初值要留住）。
+    if (diagnosisSessionRef.current === currentSessionId) return;
+    diagnosisSessionRef.current = currentSessionId;
+    setDiagnosis(null);
+    setFollowupOpen(false);
+  }, [currentSessionId]);
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return;
+    let alive = true;
+    void loadDiagnosis(currentSessionId).then((s) => {
+      if (alive) setDiagnosis(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [messages, currentSessionId]);
+
   const attachmentsPort = useMemo(
     () =>
       isTauriEnv()
@@ -654,6 +778,8 @@ export function App() {
                */
               const headers = buildUploadHeaders({ sessionId, file });
               const r = await invoke<{ handle: string; kind: AttachmentKind; bytes: number }>("upload_attachment", bytes, { headers });
+              // 句柄属于**这一个**会话；发消息时按它钉住，别让退休判定换掉（见 attachmentSessions）。
+              attachmentSessions.remember(r.handle, sessionId);
               return {
                 attachmentId: r.handle,
                 kind: r.kind,
@@ -667,6 +793,11 @@ export function App() {
             load: async (ref: AttachmentRef): Promise<Blob> => {
               const buf = await invoke<ArrayBuffer>("fetch_attachment", { handle: ref.handle });
               return new Blob([buf], { type: ref.contentType ?? "application/octet-stream" });
+            },
+            // 端上框灯（ACR-044）：字节进 Rust、框出；不出端。开关在对话层。
+            detect: async (file: File): Promise<OnDeviceDetectResult> => {
+              const bytes = new Uint8Array(await file.arrayBuffer());
+              return invoke<OnDeviceDetectResult>("vision_detect", bytes, { headers: { "content-type": file.type || "application/octet-stream" } });
             },
           }
         : undefined,
@@ -888,6 +1019,32 @@ export function App() {
     [permission, source],
   );
 
+  /*
+   * 账号级事件 → 整拉会话列表（ACR-033）。
+   *
+   * **回看态下照样重拉**：列表与「正在看哪一段」是两件事。回看时不刷新的话，
+   * 车主翻着旧对话、车机上新聊的那段始终不出现，而他会以为是回看态的毛病。
+   * 整拉而不是把那一条插进去：通道的语义就是整拉，端上自作增量会把乱序引回来。
+   */
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let stop: (() => void) | undefined;
+    let disposed = false;
+    void listen<{ reason: string }>(ACCOUNT_EVENTS.sessionsChanged, (e) => {
+      console.info(`[session] 别处改了会话列表（${e.payload.reason}），重拉一次`);
+      void loadSessionsRef.current?.(true);
+    })
+      .then((un) => {
+        if (disposed) un();
+        else stop = un;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, []);
+
   useEffect(() => {
     if (!isTauriEnv()) return;
     let cleanup: (() => void) | undefined;
@@ -1010,6 +1167,15 @@ export function App() {
         // 哨兵跟上这段对话（M60-01）。没有会话时不绑——见下面 sentinel_start 的说明。
         invoke("sentinel_bind_session", { sessionId: sid }).catch(() => {});
       }
+      /*
+       * 账号级事件流（ACR-033）：车机上动了会话列表，这条流会来叫我们重拉。
+       *
+       * **不 await 也不挡引导**：它断了只是列表不会自动刷新，对话一切照常。
+       * 与会话流各跑各的——那条每换一次会话被替换，这条与登录态同寿。
+       */
+      invoke("start_user_events_stream").catch((err) =>
+        console.warn("[session] 账号事件流启动失败，列表仍可手动刷新", err),
+      );
       // 会话历史（M28-01）。**放最后且不 await**：列表拉不到不该挡住对话可用。
       void loadSessionsRef.current?.(true);
     };
@@ -1049,6 +1215,21 @@ export function App() {
    */
   const mapView = useMapViewport();
 
+  /**
+   * 「拍照问诊」（M104-03 起）：开拍照页。快门在页内、在用户手势栈里直接点那枚 capture 的 input——
+   * M103-02 那条"切页后在 effect 里 click，出了手势栈 iOS 不弹"的尾巴由此解掉。
+   * `pickerRequest` 那条路保留给对话页自己（现在没有调用方递增它）。
+   */
+  const openDiagnosis = useCallback(() => setCaptureOpen(true), []);
+
+  /*
+   * 主页暖暖**只响应点一下**（进对话层）：长按 PTT 不挂（2026-09-18 用户第三次定调「手机端不要语音」）。
+   * M103 那一版只把界面上的「长按说话」去掉、手势还留着——界面不写、长按却真的在录音，
+   * 是"只有读过代码的人才知道"的功能，误触时车主只看到暖暖忽然「正在聆听」。
+   * 状态（listening / alert）仍由 `assistant.state` 驱动，那是哨兵唤醒与服务端事件的显示，不受这里影响。
+   */
+  const homeAssistantGesture = useMemo(() => ({ onClick: () => setNav("dialog") }), []);
+
   const carousel = useCarousel(view.tips.pages.length);
   const assistant = useAssistantInteraction({
     // 服务端事件流优先，HUD mock 快照兜底；本地交互态在 hook 内最优先
@@ -1068,12 +1249,77 @@ export function App() {
     voice,
   });
 
+  const derivedAssistantMode = assistantMode({
+    messageCount: messages.length,
+    lastInteractionAt,
+    // `clock` 只是让这个派生值随时间重算；判据本身用的是真实 now。
+    now: Math.max(clock, Date.now()),
+    wakeUntil: wakeUntil || undefined,
+  });
+  /*
+   * 入口页的数据（M103-02）。`?home=demo` 是版式截图入口：浏览器没有 Tauri，不喂演示数据的话
+   * 车辆 / 能量全是「暂无 / 读不到」，版式看不出来。演示文案自带「（演示）」。
+   */
+  // `?diagnosis=demo` 也喂演示车：报告页的车辆行要有东西看。
+  const homeDemo = isHomeDemo() || Boolean(dxDemo);
+  const homeVehicle: HomeVehicle | null = homeDemo ? DEMO_HOME_VEHICLE : defaultVehicle ? toHomeVehicle(defaultVehicle) : null;
+  const homeVehicleState: VehicleReadState = homeDemo ? "ready" : vehicleState;
+  const homeTripCount = homeDemo ? DEMO_HOME_TRIP_COUNT : tripEntries.length;
+  const maintenance = maintenanceReminder(homeVehicle?.forecastRemainingKm);
+  const homeReminder = tripHint
+    ? { title: tripHint, body: "行程上的红点会一直留着", linkLabel: "查看行程 ›", onLink: () => setTripOpen(true) }
+    : homeDemo
+      ? { ...DEMO_HOME_REMINDER, onLink: () => setNav("profile") }
+      : maintenance
+        ? { ...maintenance, linkLabel: "查看保养记录 ›", onLink: () => setNav("profile") }
+        : undefined;
+
+  /** 当前可用的报告：演示态用演示报告；真实态只认拉到的那份。 */
+  const report = dxDemo ? DEMO_DIAGNOSIS_REPORT : diagnosis?.kind === "ready" ? diagnosis.report : null;
+  /**
+   * 「预约门店检查」——报告页与快捷芯片共用一句话，后面是既有的维修预约子图 + HITL 确认弹窗。
+   * 句子带上报告里的具体事由（见 `bookingPrompt`）：没有报告就不该走到这里。
+   */
+  const bookInspection = () => {
+    if (!report) return;
+    setReportOpen(false);
+    setNav("dialog");
+    void sendText(bookingPrompt(report));
+  };
+  const homeVehicleLabel = homeVehicle ? `${homeVehicle.model}` : undefined;
+
   return (
     <>
-      {/* HUD 保持挂载：切层往返不丢状态机与轮播上下文 */}
-      <div style={{ display: nav === "hud" ? "contents" : "none" }}>
+      {/* 主页 = 功能入口页（M103-02）。保持挂载：切层往返不丢暖暖的状态。 */}
+      <div style={{ display: nav === "hud" && !tripOpen ? "contents" : "none" }}>
+        <MobileHome
+          theme={theme}
+          assistantState={assistant.state}
+          assistantMode={derivedAssistantMode}
+          assistantGestureProps={homeAssistantGesture}
+          onAssistantDismiss={isTauriEnv() ? dismissAssistant : undefined}
+          vehicle={homeVehicle}
+          vehicleState={homeVehicleState}
+          energy={liveEnergy}
+          tripCount={homeTripCount}
+          reminder={homeReminder}
+          onOpenDiagnosis={openDiagnosis}
+          onOpenTrips={() => setTripOpen(true)}
+        />
+      </div>
+
+      {/* 行程规划二级页（M103-02）：`MobileHud` 整个是它的内容，保持挂载——跟车进度与轮播上下文都在它里面。 */}
+      <div style={{ display: nav === "hud" && tripOpen ? "contents" : "none" }}>
+        <MobileTripPage
+          tripCount={tripEntries.length}
+          navigating={navDay !== undefined}
+          onBack={() => setTripOpen(false)}
+          onOpenList={() => setTripsOpen(true)}
+        >
         <MobileHud
           theme={theme}
+          // 二级页没有暖暖（她在主页）；哨兵指示跟她一起收。
+          assistant={false}
           snapshot={{ ...view, assistantState: assistant.state }}
           tipsPage={carousel.page}
           tipsGestureProps={carousel.gestureProps}
@@ -1093,13 +1339,7 @@ export function App() {
             onClearSelection: onClearTripSelection,
             onOpenList: () => setTripsOpen(true),
           }}
-          assistantMode={assistantMode({
-            messageCount: messages.length,
-            lastInteractionAt,
-            // `clock` 只是让这个派生值随时间重算；判据本身用的是真实 now。
-            now: Math.max(clock, Date.now()),
-            wakeUntil: wakeUntil || undefined,
-          })}
+          assistantMode={derivedAssistantMode}
           onAssistantDismiss={isTauriEnv() ? dismissAssistant : undefined}
           /*
            * 未授权的文字说明（走查 2026-08-29 ②）。两种未授权文案不同：
@@ -1136,10 +1376,11 @@ export function App() {
                   : undefined
           }
         />
+        </MobileTripPage>
       </div>
 
       {/* 导览采集进度（M40-03）：底部折叠节，展开是共享面板；导览页开着时让位。只列未完成的（见 guideJobsOutstanding）。 */}
-      {nav === "hud" && !guide && guideJobs.jobs && guideJobsOutstanding && guideJobsOutstanding.spots.length > 0 && (
+      {nav === "hud" && tripOpen && !guide && guideJobs.jobs && guideJobsOutstanding && guideJobsOutstanding.spots.length > 0 && (
         <details className="mobile-guide-jobs">
           <summary>
             景点导览采集 · {guideJobs.jobs.summary.ready}/{guideJobs.jobs.summary.total} 就绪
@@ -1149,12 +1390,12 @@ export function App() {
       )}
 
       {/* 出发卡（2026-09-02）：底部升起的 sheet，压在 HUD 与导览条之上、HITL 确认之下；导览页开着时让位。 */}
-      {nav === "hud" && !guide && departOpen && (
+      {nav === "hud" && tripOpen && !guide && departOpen && (
         <MobileDeparture plan={plan} vin={activeVin ?? undefined} onClose={() => setDepartOpen(false)} />
       )}
 
       {/* 行程抽屉（M75-02）：完整周日历卡（清单 + 翻页）；与出发卡同层，导览页开着时让位。 */}
-      {nav === "hud" && !guide && tripsOpen && (
+      {nav === "hud" && tripOpen && !guide && tripsOpen && (
         <MobileTripSheet
           entries={tripEntries}
           selectedPlanId={highlightedPlanId}
@@ -1168,7 +1409,7 @@ export function App() {
       )}
 
       {/* 行程变化摘要（M75-02，组件与车机同一份）：「知道了」→ ack；「让暖暖调整」→ 一句话进会话并切到对话页。 */}
-      {nav === "hud" && reviewEntry?.review && (
+      {nav === "hud" && tripOpen && reviewEntry?.review && (
         <TripReviewSheet
           entry={reviewEntry}
           busy={reviewBusy}
@@ -1201,7 +1442,7 @@ export function App() {
       )}
 
       {/* 景区导览页（M36-04）：覆盖层压在 HUD 之上，返回即关；层级低于 HITL 确认。 */}
-      {nav === "hud" && guide && (
+      {nav === "hud" && tripOpen && guide && (
         <MobileGuide
           spotName={guide.spot}
           state={guide.state}
@@ -1229,13 +1470,55 @@ export function App() {
           <DialogScreen
             railMode="drawer"
             /* `?dialog=demo`：喂演示消息/会话/进展——版式截图入口，见 @carlife/ui 的 demo-dialog.ts。 */
-            messages={isDialogDemo() ? DEMO_DIALOG_MESSAGES : viewing ? viewing.messages : messages}
+            messages={
+              dxDemo
+                ? dxDemo === "followup"
+                  ? DEMO_DIAGNOSIS_MESSAGES_FOLLOWUP
+                  : DEMO_DIAGNOSIS_MESSAGES_GUIDED
+                : isDialogDemo()
+                  ? DEMO_DIALOG_MESSAGES
+                  : viewing
+                    ? viewing.messages
+                    : messages
+            }
             streaming={isDialogDemo() ? DEMO_DIALOG_STREAMING : viewing ? null : streaming}
             progress={isDialogDemo() ? "正在查天气（演示）" : viewing ? null : toolProgress.progress}
             branchFaults={viewing ? undefined : branchFaults.faults}
             connection={connection}
             onSendText={isTauriEnv() || isDialogDemo() ? sendText : undefined}
             attachments={attachmentsPort}
+            pickerRequest={pickerRequest}
+            /* 主页没有长按说话了（M103）：空态不能再指着一个不存在的手势。 */
+            emptyHint="还没有对话。回到主页点一下暖暖，或拍一张照片试试。"
+            /*
+             * 拍照问诊（M104-04）：报告在手、且不是在回看历史时——
+             *  - 追问态：报告钉在列表上方 + 列表末尾三枚快捷芯片，输入框占位换成「基于报告继续问…」；
+             *  - 引导态：列表末尾挂观察 / 补拍 / 追问三张卡。
+             * 全部读结构化报告；换会话时报告已清空，槽自然消失。
+             */
+            pinned={report && !viewing && followupOpen ? <ReportPin report={report} vehicleLabel={homeVehicleLabel} onOpen={() => setReportOpen(true)} /> : undefined}
+            trailing={
+              report && !viewing ? (
+                followupOpen ? (
+                  <>
+                    {/* 追问态也要看得到 Agent 新发起的卡（M106-04）：此前这一态只有三枚固定芯片，服务端给的题没处显示。 */}
+                    <div className="dx-cards">
+                      <PromptCards key={report.at} prompts={report.prompts} onAnswer={(text) => void sendText(text)} onCapture={() => setCaptureOpen(true)} />
+                    </div>
+                    <QuickReplies onAnswer={(text) => void sendText(text)} onBook={bookInspection} />
+                  </>
+                ) : (
+                  <DiagnosisCards
+                    report={report}
+                    onRetake={() => setCaptureOpen(true)}
+                    onAnswer={(text) => void sendText(text)}
+                    onOpenReport={() => setReportOpen(true)}
+                  />
+                )
+              ) : undefined
+            }
+            /* 手机端恒定给占位：默认那句是「打字输入…（驾驶中请用语音）」，而手机端没有语音入口（2026-09-18）。 */
+            inputPlaceholder={report && followupOpen ? "基于报告继续问…" : "打字输入…"}
             currentSessionId={currentSessionId}
             viewing={viewing ? { sessionId: viewing.sessionId, onExit: exitViewing } : null}
             sessions={
@@ -1269,6 +1552,39 @@ export function App() {
         它只**读**结构化结果；改假设与约试驾都发回对话层，
         绝不在页面上直接调工具（那会绕过 §8.4 的权限门）。
       */}
+      {/* 诊断报告页（M104-04）：覆盖层，与购车页同形态；两枚出口——预约门店检查（HITL）/ 基于报告继续问。 */}
+      {reportOpen && report && (
+        <MobileDiagnosisReport
+          report={report}
+          vehicle={homeVehicle}
+          vehicleState={homeVehicleState}
+          onClose={() => setReportOpen(false)}
+          onBook={bookInspection}
+          onFollowup={() => {
+            setReportOpen(false);
+            setFollowupOpen(true);
+            setNav("dialog");
+          }}
+          onGoProfile={() => {
+            setReportOpen(false);
+            setNav("profile");
+          }}
+        />
+      )}
+
+      {/* 拍照页（M104-03）：全屏层，压在底导之上、HITL 之下；拍完发出去就关，落到对话页。 */}
+      {captureOpen && (
+        <MobileCapture
+          attachments={attachmentsPort}
+          onSend={(handle, detections) => sendText("", [handle], detections)}
+          onDone={() => {
+            setCaptureOpen(false);
+            setNav("dialog");
+          }}
+          onClose={() => setCaptureOpen(false)}
+        />
+      )}
+
       {buyingOpen && (
         <MobileBuying
           sessionId={sessionIdRef.current}

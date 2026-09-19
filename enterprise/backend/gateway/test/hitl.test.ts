@@ -24,13 +24,13 @@ function makeRelay(forwardOk = true) {
 const notice = (over: Partial<InterruptNotice> = {}): InterruptNotice => ({
   sessionId: "sess-1",
   interruptId: "itr-1",
-  action: "calendar_write",
-  title: "确认写入日历",
+  action: "trip_plan_commit",
+  title: "确认这份行程",
   details: [
     { label: "出发", value: "8 月 15 日 07:00 深圳" },
     { label: "沿途停靠", value: "赣州服务区 充电 40 分钟" },
   ],
-  scope: "Google 日历（zada@example.com）",
+  scope: "trip:sess-1",
   ...over,
 });
 
@@ -53,15 +53,15 @@ describe("中断投影为 permission 事件（§3）", () => {
       ev.details.every((d) => d.value.trim().length > 0),
       "每项都要有实际内容，不能只有标签",
     );
-    // 反面：只有一个"写入日历"的标题是不够的
+    // 反面：只有一个"确认行程"的标题是不够的
     assert.notEqual(ev.details.length, 0);
   });
 
-  it("影响范围随事件下发（写到哪个账号，F-26-09 知情）", () => {
+  it("影响范围随事件下发（动作落到哪儿，F-26-09 知情）", () => {
     const { relay, emitted } = makeRelay();
     relay.onInterrupt(notice());
     const ev = emitted[0].event as SessionEvent & { scope: string | null };
-    assert.match(ev.scope ?? "", /Google/);
+    assert.match(ev.scope ?? "", /trip:sess-1/);
   });
 });
 
@@ -170,7 +170,7 @@ describe("外发个人信息独立成段下发（M15-04）", () => {
 
   it("**没有外发项时是空数组**，不是缺字段——端上少一个分支判断", () => {
     const { relay, emitted } = makeRelay();
-    relay.onInterrupt(notice()); // 写日历，不外发个人信息给第三方
+    relay.onInterrupt(notice()); // 落我们自己的库，不外发个人信息给第三方
     const ev = emitted[0].event as SessionEvent & { disclosure: unknown };
     assert.deepEqual(ev.disclosure, []);
   });

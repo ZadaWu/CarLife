@@ -33,7 +33,12 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import { GraphState } from "./state";
-import { buildIntentInstruction, parseIntent } from "./intent";
+import { buildIntentInstruction, cancelCandidatesLine, claimFactsLine, parseIntentFrom, planStateLine } from "./intent";
+import { peekSubmission } from "../branch-submissions";
+import { recordEnergyConsumption } from "../energy-consumption";
+import { currentTurnId } from "../interrupt-bus";
+import type { TurnContext } from "../context";
+import type { DiagnosisReport, TaskEvent } from "@carlife/shared";
 import { alertSection, composeRetrievalQuery, observeAttachmentsNode, photoHasSymbols, photoSection, photoSummaryLine } from "./vision";
 import { documentMatchesModel } from "@carlife/rag";
 
@@ -60,6 +65,7 @@ import { isDenied, riskDecision } from "../guard/risk-policy";
 import {
   wantsCancel,
   commitDisclosures,
+  newAsksOf,
   wantsCommit,
   describeCancelDenied,
   describeCancelled,
@@ -71,8 +77,11 @@ import {
   describeItineraryPlan,
   describeNoStoredPlan,
   describeStoredPlan,
+  matchPlanChoice,
   resolvePendingCancelReply,
   resolveDestinationRegion,
+  resolveDayDriveLegs,
+  resolveTransitLegMinutes,
   resolveTripPlanCoords,
   runItineraryFanout,
   wantsDepart,
@@ -90,7 +99,11 @@ import {
   describeDepartNotConfirmed,
   describeDepartNoTrip,
   describeDepartOutOfRange,
+  decideTripClarify,
+  describeTripClarify,
+  recordTripClarify,
 } from "./subgraphs/itinerary";
+import { tripClarify } from "./trip-plan-layer";
 import type { TripPlanState } from "./state";
 
 /**
@@ -202,6 +215,18 @@ async function invokeNav(
 /** 「调整行程 <id>」按 id 找行程时列表要拉够——id 指向的那份可能排在临近序的后面（列表工具上限 50）。 */
 const ADJUST_LIST_LIMIT = 50;
 
+/**
+ * 这一天在不在这份行程的日期范围内（M77 走查追修）。
+ *
+ * `endDate` 是后加的列，老行没有——那时退化成只比出发日，而不是把它整个排除掉：
+ * 查不到比多查一条难排查得多。
+ */
+function planCoversDay(p: { startDate?: string; endDate?: string }, day: string): boolean {
+  if (!p.startDate) return false;
+  if (p.startDate > day) return false;
+  return p.endDate ? p.endDate >= day : p.startDate === day;
+}
+
 interface StoredPlanBrief {
   planId: string;
   startDate?: string;
@@ -209,8 +234,12 @@ interface StoredPlanBrief {
   plan: TripPlanState;
 }
 import { getGuardGate, successfulToolsSince } from "../tools-endpoint";
-import { type FigureHitLite, figuresEnabled, getFigureDeps, isMaintenanceQuery, maybeOnboardingGuidance, renderMaintenanceForecastContext, runOwnershipDualPath, runRepairContext, stageFigureForAnswer, takeStagedFigure } from "./subgraphs/ownership";
-import { archiveIntent, buildConsultationArchive } from "./subgraphs/service";
+import { type FigureHitLite, figuresEnabled, getFigureDeps, wantsMaintenance, maybeOnboardingGuidance, mergeClaimFacts, renderMaintenanceForecastContext, runOwnershipDualPath, runRepairContext, stageFigureForAnswer, takeStagedFigure } from "./subgraphs/ownership";
+import { buildConsultationArchive, wantsArchive } from "./subgraphs/service";
+import { QUESTION_BANK, budgetInputFor, buildDiagnosisReport, isDiagnosisTurn } from "./diagnosis";
+import { looksLikeDeparting } from "./elicitation";
+import { budgetPrompts, type BudgetResult } from "./prompt-budget";
+import { startProposals } from "./service-asks";
 import {
   runCatalogRetrieval,
   runCostEstimate,
@@ -231,6 +260,7 @@ import { runCabinContext, runCabinControl } from "./subgraphs/cabin";
 import { runFanout } from "./fanout";
 import { failureFollowup } from "./failure-followup";
 import { noteNodeStart } from "../trace/live";
+import { clipForTrace, OUTPUT_MAX_CHARS } from "../trace/span";
 import { cabinTaskPrompt, cabinTaskResult, MUTATING_CABIN_TOOLS, type PrefetchedCaps } from "./cabin-task";
 import { mentionsCabinDevice } from "./cabin-commands";
 import { matchModel, pickCityDistrict, runTestDrive, describeBooked } from "./subgraphs/test-drive";
@@ -240,11 +270,12 @@ import {
   runRepairBooking,
   describeRepairBooked,
 } from "./subgraphs/repair-booking";
-import { auditPlan, getAmapClient, invokeTool } from "@carlife/tools";
+import { auditPlan, getAmapClient, invokeTool, isRateLimited, splitLegMinutes } from "@carlife/tools";
 import { formatAuditLines } from "@carlife/shared";
 import { auditLimits } from "./audit-config";
-import { extractConstraints } from "./merge";
-import { reconcileConstraints } from "./energy";
+import { reconcileConstraints, type VehicleRangeFacts } from "./energy";
+import { loadVehicleEnergyNow, type VehicleEnergyNow } from "./energy-now";
+import { loadVehicleEnergyFacts } from "./range-facts";
 import {
   adjustPlanIdOf,
   classifyAmapPoi,
@@ -375,9 +406,19 @@ export interface ChatGraphConfigurable {
   resolveElicitation?: (ctx: {
     agent?: string;
     answered: boolean;
+    /** 本轮还剩几个问题位（M106-02）；不传 = 不限。问诊轮由 `budgetPrompts` 算出来传入。 */
+    questionBudgetLeft?: number;
   }) => Promise<string | undefined>;
   /** 结算上一轮的提问（拒答留痕）。在意图理解之前调，输入是车主这一轮的原话。 */
   settleElicitation?: (userText: string) => Promise<void>;
+  /**
+   * 这一轮的上下文（M84-03，ACR-036 §4.9）。由 `TurnRunner` 在图执行**之前**装好。
+   *
+   * **节点只读，不自己查库**——"谁去把事实取来"是 harness 的职责，不是节点的。
+   * `undefined` = 装载层关着（`CARLIFE_CONTEXT_LAYER=off`），各节点走老路径，
+   * 三条链路的 prompt 逐字等于从前。
+   */
+  turnContext?: TurnContext;
 }
 
 export interface BuildGraphOptions {
@@ -422,6 +463,11 @@ export interface BuildGraphOptions {
    * 不 import 任何 pi/ACP SDK（F-12-10，CI 守）。
    */
   narrator?: ChatStreamer;
+  /**
+   * 问诊轮的「配合请求」提议 streamer（M106-03）。**缺省不注入即第三路恒空**（离线 / fake / 开关 off）。
+   * 只在问诊轮起调用，与应答并发；产出由 `budgetPrompts` 裁决。系统提示词由装配层在造它时给定。
+   */
+  proposer?: ChatStreamer;
 }
 
 const MAX_STREAM_HISTORY = 0; // 占位：截断策略随 FL-14 状态治理评估（M4 验收 §6-6）
@@ -587,6 +633,18 @@ async function learnEpisodes(
   }
 }
 
+/**
+ * 这个会话里已经发过的卡的题干 / 标题（M106-03）——给提议者看，免得它换个说法再问一遍。
+ * 报告只跨轮存 id：题库的 id 能查回题干，模型的只拿得到上一轮那几张（`previous.prompts`）。
+ * 更早的模型题拿不到——提问至多两轮，这个缺口最多漏一轮。
+ */
+function askedPromptTexts(previous: DiagnosisReport | undefined): string[] {
+  if (!previous) return [];
+  const fromBank = QUESTION_BANK.filter((q) => previous.askedIds.includes(q.id)).map((q) => q.text);
+  const fromLast = previous.prompts.map((p) => ("text" in p ? p.text : p.title));
+  return [...new Set([...fromBank, ...fromLast])];
+}
+
 function lastUserText(messages: ChatTurnMessage[]): string {
   return [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 }
@@ -651,11 +709,34 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
   // 否则"分支有没有接上"这件事在 fake 模式下无法被测到。
   const enableRouting = opts.enableRouting ?? true;
   const narrator = opts.narrator;
+  const proposer = opts.proposer;
 
   /** 意图理解：产出结构，**不下发 token**。 */
   const intentNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
     const configurable = config?.configurable as ChatGraphConfigurable | undefined;
     const userText = lastUserText(state.messages);
+    const cancelCandidates = cancelCandidatesLine(state.pendingCancel?.candidates ?? []);
+    // 上一轮已经说清的出险事实（M101-04，ADR-010）：不给它，第二句「那要准备什么材料」
+    // 里没有数字，模型如实不给两栏，下游只好退回缺省单方事故并再问一遍车主刚说过的事。
+    const claimFacts = claimFactsLine(state.claimFacts);
+    const turnCtx = configurable?.turnContext;
+    const turnBlock = turnCtx?.turnFor("supervisor-intent");
+    /*
+     * 老路径的行程状态行（`off` 档）。**`dirty` 从图状态推得出来**：
+     * `committedPlanId` 在场 + `status === "refining"` 就是"落过库、之后又改过"——
+     * `mergeItinerary` 每次细化都会把状态压成 refining，这一组合正是 M84-04 说的 dirty。
+     * 不推这一下的话，老路径会对着一份改过的行程说"内容没变，那是 none"，
+     * 而车主说「定了」就永远存不进去（这个 Sprint 的症状三）。
+     */
+    const legacyPlanState = planStateLine(
+      state.tripPlan
+        ? {
+            ...state.tripPlan,
+            dirty:
+              state.tripPlan.committedPlanId !== undefined && state.tripPlan.status === "refining",
+          }
+        : undefined,
+    );
 
     let raw = "";
     try {
@@ -665,8 +746,25 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         ...(state.photoObservation ? [{ role: "user" as const, content: photoSummaryLine(state.photoObservation) }] : []),
         // 附了视频时同样只给一行事实摘要（M80-02）：张数、时长、转写开头——没有判断。
         ...(state.videoInput ? [{ role: "user" as const, content: videoSummaryLine(state.videoInput) }] : []),
+        /*
+         * 手上有什么、办到哪一步了（M84-03 起由装载层给；此前是 `planStateLine` + `cancelCandidatesLine`）。
+         *
+         * 两条路的内容是同一件事，来源不同：老路径只看得到**本会话图状态里**的草案，
+         * 换个会话就什么都没有——那正是"换会话后把行程改成 3 天被当成新规划"的根因。
+         * 装载层按 userId 取，跨会话看得见。装载层关着时逐字走老路径。
+         */
+        ...(turnBlock
+          ? [{ role: "user" as const, content: turnBlock }]
+          : [
+              ...(legacyPlanState ? [{ role: "user" as const, content: legacyPlanState }] : []),
+              // 上一轮问过"取消哪一份"时，把那张候选表也给它（ADR-010）——不给候选，
+              // 「九月二十五号那条」它对不到任何一份上。序号与报给车主的那份列表同序。
+              ...(cancelCandidates ? [{ role: "user" as const, content: cancelCandidates }] : []),
+            ]),
+        // 出险事实与行程无关，所以**不挂在装载层那个 if 里**：装载层开着时它照样要给。
+        ...(claimFacts ? [{ role: "user" as const, content: claimFacts }] : []),
         // 按开关现拼（ACR-023）：`CARLIFE_SIDE_TASKS=off` 时不带 sideTasks 一栏。
-        { role: "user", content: buildIntentInstruction() },
+        { role: "user", content: buildIntentInstruction(undefined, Boolean(cancelCandidates)) },
       ];
       // 意图理解发给 **Supervisor** 的独立会话（§11 时序 `L->Sup: 意图理解`）。
       // 与应答分开是必须的：同一会话里插一段"请输出 JSON"会污染对话历史，
@@ -675,6 +773,10 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         onUsage: configurable?.onUsage,
         threadId: configurable?.thread_id,
         signal: configurable?.signal,
+        // 车主档案进 pi 会话的第一条 prompt（直连那条会拼进 system）。见 ChatStreamHooks.systemSuffix。
+        ...(turnCtx?.anchorFor("supervisor-intent") !== undefined
+          ? { systemSuffix: turnCtx.anchorFor("supervisor-intent")! }
+          : {}),
         // **意图抽取要用与应答分开的会话**（`-intent` 后缀）。
         // 共用时模型刚被要求输出四要素 JSON，紧接着的应答就继续输出 JSON——
         // 用户看到的回答是一段 `{"goal":…}`。同一个 pi 进程，两个 ACP 会话。
@@ -687,8 +789,16 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       console.error("[graph] 意图理解调用失败，降级继续", err);
     }
 
-    const intent = parseIntent(raw, userText);
-    if (intent.degraded) console.warn("[graph] 意图解析降级：未能从模型输出中解析出四要素");
+    /*
+     * 四要素先从提交槽读（ACR-047）：意图会话经 `submit_intent` 落槽，键是 (threadId, 本轮 turnId, "supervisor")——
+     * `canonicalAgent("supervisor-intent")` 就是 supervisor，与 tools-endpoint 写槽时用的名字同源。
+     * 没有提交（fake 桩、图外直调）才回到正文里的裸 JSON。
+     */
+    const threadId = configurable?.thread_id;
+    const turnId = threadId ? currentTurnId(threadId) : undefined;
+    const submitted = threadId && turnId ? peekSubmission(threadId, turnId, "supervisor")?.payload : undefined;
+    const intent = parseIntentFrom(submitted, raw, userText);
+    if (intent.degraded) console.warn("[graph] 意图解析降级：未能从提交槽或模型输出中解析出四要素");
 
     /*
      * 常用人员档案带入同行者硬约束（M17-05，F-46-10）。
@@ -714,7 +824,23 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         companionMemberIds: [...new Set(companions.map((c) => c.memberId))],
       },
     });
-    return { intent: enriched, companionConstraints: companions };
+    /*
+     * 出险事实落图状态（M101-04）。只在这一轮**真的说了**时写——
+     * 没说就不写，让 reducer 保留上一轮的值；写一个空对象会把 updatedAt 推到现在，
+     * 而"这个数是哪一轮说的"就再也看不出来了。
+     */
+    const claimFactsPatch =
+      enriched.estimatedLossCny !== undefined || enriched.accidentType !== undefined
+        ? {
+            claimFacts: {
+              ...(enriched.estimatedLossCny !== undefined ? { estimatedLossCny: enriched.estimatedLossCny } : {}),
+              ...(enriched.accidentType ? { accidentType: enriched.accidentType } : {}),
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : {};
+
+    return { intent: enriched, companionConstraints: companions, ...claimFactsPatch };
   };
 
   /**
@@ -857,7 +983,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       const guarded = guardRouteForPhoto(
         route,
         obs ? { readable: !obs.unreadable, symbols: obs.items.length, alerts: obs.alerts?.length ?? 0 } : undefined,
-        repairBookingIntent(rawText) || repairBookingIntent(state.intent?.goal ?? "") || archiveIntent(rawText),
+        repairBookingIntent(rawText) || repairBookingIntent(state.intent?.goal ?? "") || wantsArchive(rawText, state.intent),
       );
       route.agent = guarded.agent;
       route.reason = guarded.reason;
@@ -881,7 +1007,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
    * **不下发 token**——产物是 tripPlan 草案与表述文本，说话交给 answer。
    * 骨架轮四支全跑；细化轮读 state.tripPlan、只跑诉求指到的分支（refineTargets）。
    */
-  const itineraryNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
+  const itineraryNodeInner = async (state: typeof GraphState.State, config?: RunnableConfig) => {
     const configurable = config?.configurable as ChatGraphConfigurable | undefined;
     const userText = lastUserText(state.messages);
 
@@ -925,8 +1051,100 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       };
     }
 
-    const activePlan =
-      state.tripPlan && state.tripPlan.status !== "cancelled" ? state.tripPlan : undefined;
+    /*
+     * ── 行程从哪里来（M84-04，ACR-036 §4.9）────────────────────────
+     *
+     * `tasks` 档：来自**按 userId 存的任务**，换会话也在。
+     * `off` / `inject` 档：来自图状态，寿命等于会话（30 分钟）——那正是
+     * "换会话后把行程改成 3 天被当成全新规划"的根因，本档保留只为逐级可退。
+     *
+     * `committedPlanId` 从 `base.ref` 物化回快照上，好让下面几百行既有逻辑一字不改：
+     * 它们问的都是"这份落过库没有"，而那件事在任务那边叫 `base`。
+     */
+    const turnCtx = configurable?.turnContext;
+    const useTasks = turnCtx?.mode === "tasks";
+    let tripTask = useTasks ? turnCtx.tasks.trip : undefined;
+
+    // 迁入种子：`tasks` 档下还没有任务、而旧检查点里有草案——把它搬过来，只搬一次。
+    // **已有活跃任务时一律不种**，否则旧检查点会把新状态盖回去。
+    if (useTasks && !tripTask && state.tripPlan && state.tripPlan.status !== "cancelled") {
+      tripTask = await turnCtx.writer.open({
+        kind: "trip",
+        draft: state.tripPlan,
+        ...(state.tripPlan.builtWith ? { constraints: state.tripPlan.builtWith } : {}),
+        ...(state.tripPlan.committedPlanId ? { baseRef: state.tripPlan.committedPlanId } : {}),
+        sessionId: configurable?.thread_id ?? "unknown",
+        turnId: configurable?.thread_id ?? "unknown",
+      });
+      configurable?.onTrace?.({
+        kind: "commit",
+        data: { op: "task_seed", from: "checkpoint", seeded: tripTask !== undefined },
+      });
+    }
+
+    const taskPlan: TripPlanState | undefined = tripTask
+      ? {
+          ...(tripTask.draft as TripPlanState),
+          ...(tripTask.base ? { committedPlanId: tripTask.base.ref } : {}),
+        }
+      : undefined;
+
+    const activePlan = useTasks
+      ? tripTask && tripTask.status !== "cancelled"
+        ? taskPlan
+        : undefined
+      : state.tripPlan && state.tripPlan.status !== "cancelled"
+        ? state.tripPlan
+        : undefined;
+
+    /** 一条本轮事件（`tasks` 档才真的写；别的档直接空转）。 */
+    const emitTrip = async (event: TaskEvent): Promise<void> => {
+      if (!useTasks || !turnCtx) return;
+      await turnCtx.writer.emit("trip", event);
+    };
+
+    /**
+     * 记一版草案。**没有任务就先开一件**（M84-05 真跑补）。
+     *
+     * # 这一条是真跑打出来的
+     *
+     * 第一版只有 `emit(task.draft.updated)`，而 `emit` 在"这件事还不存在"时是**空转**
+     * （`createTaskWriter` 里第一行就 `if (!current) return undefined`）。于是唯一能开出任务的路
+     * 只剩迁入种子，而种子要求 `state.tripPlan` 已经在——**第一轮排行程时它当然不在**。
+     *
+     * 结果：2026-09-14 真跑，会话 A 排出一份完整的青岛三天行程，`working_tasks` 里一行都没有；
+     * 换到会话 B 说「把第二天换成室内的」，编排层手里没有任务，退回无草案兜底取了
+     * `trip_plan_list` 的首条——**改到了另一份普陀山的行程上**，而且答得像模像样。
+     * 这正是这个 Sprint 要修的那个现象，只是换了个入口又发作了一次。
+     */
+    const recordTripDraft = async (draft: TripPlanState, startOver = false): Promise<void> => {
+      if (!useTasks || !turnCtx) return;
+      /*
+       * 另起一趟必须**开新的一件事**，不能往手上那件上写（INC-0155）。
+       *
+       * 写上去的后果不是"多一份草案"，是**少一份行程**：那件事的 `base` 还指着
+       * 上一趟已落库的 planId，下一次「定了」走的就是 `trip_plan_update`——
+       * 苏州那份会被浙江这份原地覆盖。`store.open` 在同一事务里关掉旧的活跃行，
+       * 新的一件没有 `baseRef`，于是确认时走 create。
+       */
+      if (turnCtx.tasks.trip && !startOver) {
+        await turnCtx.writer.emit("trip", { type: "task.draft.updated", draft, ...turnStamp() });
+        return;
+      }
+      await turnCtx.writer.open({
+        kind: "trip",
+        draft,
+        ...(draft.builtWith ? { constraints: draft.builtWith } : {}),
+        ...(draft.committedPlanId ? { baseRef: draft.committedPlanId } : {}),
+        sessionId: configurable?.thread_id ?? "unknown",
+        turnId: configurable?.thread_id ?? "unknown",
+      });
+    };
+    const turnStamp = () => ({
+      at: Date.now(),
+      turnId: configurable?.thread_id ?? "unknown",
+      sessionId: configurable?.thread_id ?? "unknown",
+    });
     if (activePlan) {
       /*
        * ── 出发 / 结束导航（M31-01）─────────────────────────────
@@ -1029,6 +1247,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
           activePlan.committedPlanId !== undefined || activePlan.status === "confirmed";
         if (wantCancel && !everCommitted) {
           configurable?.onTrace?.({ kind: "commit", data: { op, scope: "draft-only", decision: "allow" } });
+          await emitTrip({ type: "task.cancelled", ...turnStamp() });
           return {
             tripPlan: { ...activePlan, status: "cancelled" as const, updatedTurnId: threadId },
             agentResults: { itinerary: describeCancelled(false) },
@@ -1061,17 +1280,154 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
                 const [top] = await amap.textSearch({ keywords: kw, region: kw, limit: 1 });
                 return top ? { name: top.name, cityName: top.cityName } : undefined;
               });
-          planToCommit = await resolveTripPlanCoords(activePlan, async (name) => {
-            const pois = await amap.textSearch(
-              { keywords: name, region, cityLimit: true, limit: 1 },
-            );
-            const top = pois[0];
-            // name/cityName 是 trustCoordHit 的校验材料——缺了它们，
-            // "剥括号命中了另一家店"这类错坐标就没法被拒掉（M27-04）。
-            return top
-              ? { lat: top.lat, lon: top.lon, poiKind: classifyAmapPoi(top), name: top.name, cityName: top.cityName }
-              : undefined;
-          });
+          planToCommit = await resolveTripPlanCoords(
+            activePlan,
+            async (name) => {
+              const pois = await amap.textSearch(
+                { keywords: name, region, cityLimit: true, limit: 1 },
+              );
+              const top = pois[0];
+              // name/cityName 是 trustCoordHit 的校验材料——缺了它们，
+              // "剥括号命中了另一家店"这类错坐标就没法被拒掉（M27-04）。
+              return top
+                ? { lat: top.lat, lon: top.lon, poiKind: classifyAmapPoi(top), name: top.name, cityName: top.cityName }
+                : undefined;
+            },
+            {
+              /*
+               * 坐标回填这一步原来**一点痕迹都不留**：某个点没坐标，事后分不清是
+               * 「高德说没有这个地方」（诚实的缺席）还是「被限流问都没问到」
+               * （这个点存在，只是这一刻没拿到）。两者在图上长得一样——都是少一个点。
+               * 分开计数写进 trace，并且**被限流要 warn**：它是可修的，缺席不是。
+               */
+              onReport: (r) => {
+                configurable?.onTrace?.({
+                  kind: "commit",
+                  data: {
+                    op,
+                    scope: "coords",
+                    resolved: r.resolved,
+                    missed: r.missed,
+                    failed: r.failed,
+                    rejected: r.rejected,
+                    ...(r.failures.length > 0
+                      ? { failures: r.failures.map((f) => `${f.name}:${f.rateLimited ? "限流" : "失败"}${f.code ? `(${f.code})` : ""}`) }
+                      : {}),
+                  },
+                });
+                const limited = r.failures.filter((f) => f.rateLimited);
+                if (limited.length > 0) {
+                  console.warn(
+                    `[graph] 坐标回填被限流 ${limited.length} 个点（${limited.map((f) => f.name).join("、")}）——这些点是存在的，地图上少的不是"查不到"`,
+                  );
+                }
+              },
+            },
+          );
+        }
+
+        /*
+         * 大交通分段的行车分钟数按高德重算（M102-01）：`legs[].driveMinutes` 是 drive 分支转述的数
+         * （同一条上海→苏州三份行程 95 / 78 / 138，高德实测 94），这里按起终点坐标各算一次去程与返程，
+         * 各段按原比例分摊——段数、停靠点、归属天一律不动，那些是"在哪停"的决策。
+         *
+         * 位置有讲究：坐标回填之后（同一段代码块，不依赖它的结果）、逐日车程之前、
+         * 确认轮体检 `auditPlan` 之前——弹窗上的「体检·」行与落库的必须是同一份数字。
+         * 任何失败都不阻塞确认（与逐日车程、行前物品同一取向）；限流单独计数进 trace。
+         */
+        if (wantCommit && amap) {
+          try {
+            const { plan: withTransit, report } = await resolveTransitLegMinutes(planToCommit, {
+              geocode: (name) => amap.geocode(name),
+              driveMinutes: async (origin, destination) => {
+                const path = await amap.driving({ origin, destination });
+                if (!(path.durationS > 0)) throw new Error("no-duration");
+                return path.durationS / 60;
+              },
+            });
+            planToCommit = withTransit;
+            configurable?.onTrace?.({ kind: "commit", data: { op, scope: "transit-legs", ...report } });
+            if (report.rateLimited > 0) {
+              console.warn(`[graph] 大交通算路被限流 ${report.rateLimited} 次——分钟数保持规划时的值，不是算不出`);
+            }
+          } catch (err) {
+            console.warn("[graph] transit_legs 失败，行程照常确认", err);
+          }
+        }
+
+        /*
+         * 每天两头的车程（M83 走查追修，字段 `startLeg` / `endLeg`）：
+         * 早上从住处到第一站、晚上从最后一站到酒店。
+         *
+         * 位置有讲究——必须在**坐标回填之后**（要两端坐标）、权限门之前（弹窗批的与落库的
+         * 是同一份数据）。补的是行程详情抽屉里「从酒店出发」没有时刻、「入住」没有时刻
+         * 那两个洞：`legs` 只装大交通，市内段从来没有人提交过。
+         *
+         * 与行前物品同一取向：**它挂了不该让车主的行程定不下来**，所以整段吞异常，
+         * 单段失败在 `resolveDayDriveLegs` 里已经各自跳过。
+         */
+        if (wantCommit && amap) {
+          /*
+           * 这一段也要把「被限流」和「算不出来」分开。少一个时刻本身是诚实的
+           * （抽屉里就是不显示），但**为什么少**决定了要不要去修：限流是可修的。
+           */
+          let legsRateLimited = 0;
+          const countLimit = (err: unknown) => {
+            if (isRateLimited(err)) legsRateLimited += 1;
+          };
+          try {
+            planToCommit = await resolveDayDriveLegs(planToCommit, async (points) => {
+              const expected = points.length - 1;
+              const origin = points[0]!;
+              const destination = points[points.length - 1]!;
+              const waypoints = points.slice(1, -1);
+              /*
+               * 一次问完一整天（M83 走查追修）：高德把整条路的 steps 拉平返回，
+               * 唯一的分段依据是 `navi.assistant_action` 的「到达途经地」（见 `splitLegMinutes`）。
+               */
+              let path;
+              try {
+                path = await amap.driving({ origin, destination, waypoints, withNavi: true });
+              } catch (err) {
+                countLimit(err);
+                throw err; // 整天跳过，由 resolveDayDriveLegs 承接
+              }
+              const split = splitLegMinutes(path.steps, expected);
+              if (split) return split;
+              /*
+               * 切不出来（标记数对不上）就**退回一段一个请求**——半套分段比没有分段更糟：
+               * 前几段对、最后一段把剩下的全算进去，看起来完全正常而那个数是错的。
+               * 这条路更慢，但它只在异常形状上走。
+               */
+              const one: Array<number | undefined> = [];
+              for (let i = 0; i + 1 < points.length; i += 1) {
+                try {
+                  const p = await amap.driving({ origin: points[i]!, destination: points[i + 1]! });
+                  one.push(p.durationS > 0 ? p.durationS / 60 : undefined);
+                } catch (err) {
+                  countLimit(err);
+                  one.push(undefined);
+                }
+              }
+              return one;
+            });
+            configurable?.onTrace?.({
+              kind: "commit",
+              data: {
+                op,
+                scope: "day-legs",
+                start: planToCommit.skeleton.filter((d) => d.startLeg).length,
+                end: planToCommit.skeleton.filter((d) => d.endLeg).length,
+                days: planToCommit.skeleton.length,
+                ...(legsRateLimited > 0 ? { rateLimited: legsRateLimited } : {}),
+              },
+            });
+            if (legsRateLimited > 0) {
+              console.warn(`[graph] 逐日车程被限流 ${legsRateLimited} 次——少的时刻是没问到，不是算不出`);
+            }
+          } catch (err) {
+            console.warn("[graph] day_legs 失败，行程照常确认", err);
+          }
         }
 
         /*
@@ -1135,7 +1491,8 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
               legs: planToCommit.legs,
               origin: planToCommit.origin,
               destination: planToCommit.destination,
-              limits: auditLimits(extractConstraints(kept).maxLegMinutes),
+              // 单段上限来自意图理解（ADR-012），不再从约束文本里解析。
+              limits: auditLimits(state.intent?.tripLimits?.maxLegMinutes),
               constraints: kept,
               overridden: dropped,
               hasReturnTransit:
@@ -1157,6 +1514,14 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
             configurable?.onTrace?.({ kind: "audit", data: { stage: "confirm", failed: true } });
           }
         }
+        /*
+         * **确认状态要在进门之前落库**（M84-04）：权限门最长挂 10 分钟
+         * （`guard/http-endpoint.ts` 的 `DEFAULT_CONFIRM_TIMEOUT_MS`），这期间进程可能重启，
+         * 重启后新进程读到的必须是"在等确认"而不是"还在草稿"——否则车主按下确认时，
+         * 另一边已经不知道自己问过什么了。
+         */
+        if (wantCommit) await emitTrip({ type: "task.awaiting_confirm", ...turnStamp() });
+
         const gate = getGuardGate();
         // 未装配时一律拒绝——默认放行是这类系统最典型的致命默认值（与 tools-endpoint 同款）。
         const verdict = gate
@@ -1175,7 +1540,20 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
                * 「将提供给门店的信息」，行程挂在那个标题下等于说行程要发给门店。
                * 这份行程只是存进用户自己的档案，没有任何第三方收件人。
                */
-              details: wantCancel ? undefined : [...commitDisclosures(planToCommit), ...auditLines],
+              details: wantCancel
+                ? undefined
+                : [
+                    // 这一轮才提、草案还没照着排的要求也列出来（见 newAsksOf）：由模型自己报，
+                    // 不挡确认，只让车主看见——判据换过一次，理由在 newAsksOf 的注释里。
+                    // 交通方式以**这一轮**说的为准（ADR-012）：草案存的 recommended 是上一轮挑的，
+                    // 而他可能正在这句话里改主意（真跑 turn-a3e96c3d：一边确认一边说「做飞机」）。
+                    ...commitDisclosures(
+                      planToCommit,
+                      newAsksOf(state.intent),
+                      state.intent?.transitMode,
+                    ),
+                    ...auditLines,
+                  ],
             })
           : { decision: "deny" as const, reason: "权限门未装配，敏感动作一律拒绝" };
 
@@ -1186,6 +1564,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
 
         if (verdict.decision !== "allow") {
           // 拒绝/超时是正常路径：状态不动、不落库，answer 如实说"仍是草案/保持原样"。
+          await emitTrip({ type: "task.confirm.denied", reason: verdict.reason, ...turnStamp() });
           return {
             agentResults: {
               itinerary: wantCancel ? describeCancelDenied(verdict.reason) : describeCommitDenied(verdict.reason),
@@ -1221,12 +1600,21 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
               committedPlanId: r.data.planId,
               updatedTurnId: threadId,
             };
+            // 先记一版（这件事还不存在时会开出来——无草案兜底装载的那份就走这条）。
+            await recordTripDraft(confirmed);
+            await emitTrip({
+              type: "task.committed",
+              ref: r.data.planId,
+              mode: updating ? "update" : "create",
+              ...turnStamp(),
+            });
             return {
               tripPlan: confirmed,
-              agentResults: { itinerary: describeCommitted(confirmed) },
+              agentResults: { itinerary: describeCommitted(confirmed, newAsksOf(state.intent)) },
               solverDegraded: false,
             };
           }
+          await emitTrip({ type: "task.cancelled", ...turnStamp() });
           return {
             tripPlan: { ...activePlan, status: "cancelled" as const, updatedTurnId: threadId },
             agentResults: { itinerary: describeCancelled(true) },
@@ -1276,7 +1664,19 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
      * 放在 `cancelIntent` 之前：「确认」「第二个」「全部」本身都不是取消指涉，
      * 它们只有挂在那个问题后面才有意义。
      */
-    const pending = state.pendingCancel;
+    /*
+     * 上一轮问过「取消哪一份」（M84-04）：`tasks` 档从任务的 `pending` 取——
+     * 它跟着人走，而 `state.pendingCancel` 跟着会话走。提问与回答之间隔着一轮，
+     * 那一轮里车主完全可能换到另一个端上答。
+     */
+    const pending = useTasks
+      ? tripTask?.pending?.kind === "cancel_pick" && tripTask.pending.candidates?.length
+        ? {
+            candidates: tripTask.pending.candidates.map((c) => ({ planId: c.ref, label: c.label })),
+            askedTurnId: tripTask.pending.askedTurnId,
+          }
+        : undefined
+      : state.pendingCancel;
     if (pending && pending.candidates.length > 0) {
       const threadId = configurable?.thread_id ?? "unknown";
       const userId = activeUserIdOf(configurable);
@@ -1288,7 +1688,17 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         agent: "trip" as const,
         mode: (process.env.CARLIFE_TOOLS as "real" | "mock" | "off" | undefined) ?? "real",
       };
-      const pick = resolvePendingCancelReply(userText, pending.candidates);
+      /*
+       * 挑哪一份：**LLM 第一信号，字面判据兜底**（M77 走查追修）——与 `action` 同一条纪律。
+       * 模型看得懂「九月二十五号那条」「南通那趟」，正则追不完；而意图解析会降级，
+       * 降级时 `cancelPick` 是 undefined，那时字面判据仍然管用。
+       * 越界的序号一律丢弃：模型给 3 而候选只有 2 份时，宁可再问一次。
+       */
+      const llmPick = state.intent?.cancelPick;
+      const pick =
+        llmPick === "all" || (typeof llmPick === "number" && llmPick >= 1 && llmPick <= pending.candidates.length)
+          ? llmPick
+          : resolvePendingCancelReply(userText, pending.candidates);
       if (pick !== undefined) {
         const chosen =
           pick === "all" ? pending.candidates : [pending.candidates[pick - 1]!];
@@ -1391,7 +1801,30 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
          * 表明上一句是个问题，两个字既不是取消指涉也不是确认指涉，
          * 于是被判成规划请求送进 fan-out，回一句"找不到"（实测 turn-2afe30ad）。
          */
-        if (plans.length > 1 && !wantAll) {
+        /*
+         * 车主这句话已经指明了哪一份就直接用（M77 走查追修）。
+         *
+         * 此前只要有多份就无条件追问，而追问文案写着"说目的地或出发日期都行"——
+         * 真跑里他第一句就说了「从上海到张家港的行程」，还是被问了一遍。
+         * 这一轮 intent 没见过候选（候选是刚查出来的），所以这里只能走字面比对；
+         * 它是封闭集合上的唯一性匹配，含糊就退回追问，下一轮 LLM 接手。
+         */
+        /*
+         * 先用**模型已经填好的日期**筛（`intent.when.date`，它有 dateline 能把
+         * 「九月二十五号」算成 2026-09-25）。比的是**那天在不在行程期内**，不是出发日——
+         * 一份 9/25 出发的三天行程覆盖 25、26、27，按出发日比一天都对不上。
+         * 唯一命中才用；筛完还剩多份就退回字面比对，再含糊才追问。
+         */
+        const askedDay = state.intent?.when?.date;
+        const byDay = askedDay ? plans.filter((pl) => planCoversDay(pl, askedDay)) : [];
+        const direct =
+          plans.length > 1 && !wantAll && byDay.length !== 1
+            ? matchPlanChoice(userText, plans.map((pl) => ({ label: describeStoredPlan(pl) })))
+            : undefined;
+        const narrowed =
+          byDay.length === 1 ? byDay : typeof direct === "number" ? [plans[direct - 1]!] : plans;
+
+        if (narrowed.length > 1 && !wantAll) {
           return {
             pendingCancel: {
               candidates: plans.map((p) => ({ planId: p.planId, label: describeStoredPlan(p) })),
@@ -1407,7 +1840,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
           return cancelBatch(plans, threadId, userId, toolCtx);
         }
 
-        const target = plans[0]!;
+        const target = narrowed[0]!;
         const gate = getGuardGate();
         // 未装配时一律拒绝——默认放行是这类系统最典型的致命默认值。
         const verdict = gate
@@ -1538,15 +1971,35 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
      * → **接着本轮细化**（下面的 fan-out 以它为 `plan`，走既有的局部覆盖）。
      * 没带 id（模型判了 adjust 的人话）→ 取列表首条（进行中的排最前，与「出发」同一取舍）。
      * 找不到 → 如实说，**不退回新规划**。
+     *
+     * # 点名的那一份**压过**手上那件（INC-0157）
+     *
+     * 这一段原先只在 `!activePlan` 时才跑，理由是"手上有草案就改手上那份"。
+     * 而 `tasks` 档下手上几乎总有一件（任务跨会话在），于是**点名的 id 被整个丢掉**。
+     *
+     * 真跑：车机端发「调整行程 cmu1dr80t…：第 1 天删除七里山塘…」，那是一份苏州 3 天的；
+     * 而手上那件的 base 指着另一份**安徽 4 天**的。编排层照旧改手上那件，
+     * 于是安徽那份的第 1~3 天被苏州的内容覆盖，第 4 天（黟县→上海：宏村、黟县古城）
+     * 和大交通（G7301 上海—黄山北）原样留着，拼成一份两地混合的行程；
+     * 下一轮「确认」再走 `trip_plan_update`，把它写回安徽那份的行数据上。
+     * 助手当时自己说漏了嘴——"第 4 天这次没重排"，一份 3 天的行程哪来的第 4 天。
+     *
+     * `adjustPlanIdOf` 认的是车机端拼的机器消息（行首 `调整行程 <id>：`，锚定 + 8 位以上 id），
+     * 不会被人话误命中，所以它在场时是**硬事实**：他指的就是那一份，压过"手上那件"。
      */
-    let basePlan: TripPlanState | undefined = state.tripPlan;
-    if (!activePlan && wantsAdjust(userText, state.intent)) {
+    // `tasks` 档从任务取（跨会话也在）；其余档从图状态取（寿命 = 会话）。
+    let basePlan: TripPlanState | undefined = useTasks ? taskPlan : state.tripPlan;
+    /** 车机端点名的那一份（行首 `调整行程 <id>：`）；人话没有这一段。 */
+    const namedPlanId = adjustPlanIdOf(userText);
+    /** 点名的那一份，与手上那件不是同一份——此时必须按点名的来。 */
+    const namesOtherPlan = namedPlanId !== undefined && activePlan?.committedPlanId !== namedPlanId;
+    if ((!activePlan || namesOtherPlan) && wantsAdjust(userText, state.intent)) {
       const threadId = configurable?.thread_id ?? "unknown";
       const userId = activeUserIdOf(configurable);
       if (!userId) {
         return { agentResults: { itinerary: describeNoActiveUser() }, solverDegraded: false };
       }
-      const wantedId = adjustPlanIdOf(userText);
+      const wantedId = namedPlanId;
       const toolCtx = {
         sessionId: threadId,
         agent: "trip" as const,
@@ -1569,6 +2022,27 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         }
         // 装进图状态再往下走细化；nav 不带——一份正在导航的行程的跟车状态不该进细化。
         basePlan = { ...target.plan, committedPlanId: target.planId, nav: undefined };
+        /*
+         * `tasks` 档还得把**手上那件**换过去（INC-0157）。
+         *
+         * 只改 basePlan 不够：落库那一步读的是 `activePlan.committedPlanId`，
+         * 也就是任务的 `base.ref`——它还指着原来那一份，确认时照样更新错行。
+         * `store.open` 在同一事务里关掉旧的活跃行，新的一件 base 指向他点名的这一份，
+         * 于是 activePlan / basePlan / 落库目标三者一致，不用在别处逐个特判。
+         */
+        if (useTasks && turnCtx) {
+          await turnCtx.writer.open({
+            kind: "trip",
+            draft: basePlan,
+            baseRef: target.planId,
+            sessionId: threadId,
+            turnId: threadId,
+          });
+          configurable?.onTrace?.({
+            kind: "commit",
+            data: { op: "adjust", scope: "retarget", wantedId, to: target.planId },
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[graph] 无草案调整装载失败", err);
@@ -1579,21 +2053,117 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       }
     }
 
+    /*
+     * ── 另起一趟，还是接着改（INC-0155，ADR-010）─────────────────
+     *
+     * 从前这里没有判断：只要状态/任务里有一份行程，这一轮就是细化轮。
+     * 真跑 turn-7f6d6356——苏州那份刚定完，车主说「帮我定一个从上海到浙江的三日游」：
+     * 意图理解判得很准，`context` 写着「本次是新的浙江三日游诉求，属新一轮规划，
+     * 不是对苏州那份的修改」，`destinations` 是 `["浙江"]`。而编排层照旧把苏州那份
+     * 当底子传进 fan-out，提示词那句「你只更新自己负责的部分，**其余保持不变**」
+     * 于是被照做了：嘉兴的行程配苏州的酒店、苏州的车程，任务状态还停在 dirty。
+     *
+     * 判断权交还给模型（它手里同时有原话和已确认行程清单），编排层只消费。
+     * 缺席按细化走——与改动前逐字同行为，老检查点不会因此改道。
+     */
+    // 车机端点名了 id 时不认 new：那句话是「改这一份」的机器消息，不可能是另起一趟。
+    const startingOver = state.intent?.planScope === "new" && namedPlanId === undefined;
+    if (startingOver) basePlan = undefined;
+
+    /*
+     * ── 出行需求澄清门（ACR-039 / M90-01，F-11-05）────────────────
+     *
+     * 骨架轮缺目的地或天数：不 fan-out、不落草案、不取车辆档案，让应答问一句，
+     * 同一会话只问一次（`tripClarify` 通道，见 state.ts）。判断在纯函数里，这里只消费。
+     * 放在取档案之前：问一句不该花一次 `vehicle_profile` 与续航查询。
+     */
+    const clarify = decideTripClarify({
+      enabled: tripClarify() === "on",
+      skeletonTurn: basePlan === undefined,
+      intent: state.intent,
+      prior: state.tripClarify,
+    });
+    if (clarify.kind === "ask") {
+      configurable?.onTrace?.({ kind: "commit", data: { op: "clarify", missing: clarify.missing } });
+      recordTripClarify(configurable?.thread_id, clarify.missing);
+      return {
+        agentResults: { itinerary: describeTripClarify(clarify.missing) },
+        solverDegraded: false,
+        ...clarify.patch,
+      };
+    }
+    /** 天数：意图层给的优先，澄清轮存的补上；其余上限原样。 */
+    const tripLimits =
+      state.intent?.tripLimits || clarify.days !== undefined
+        ? { ...state.intent?.tripLimits, ...(clarify.days !== undefined ? { days: clarify.days } : {}) }
+        : undefined;
+
     // ④档案拿能源类型——与 tripNode 同一手法同一理由（读失败不阻塞，按"不知道"处理）。
     let energyType: VehicleEnergyType | undefined;
+    let vin: string | undefined;
+    const toolCtx = {
+      sessionId: configurable?.thread_id ?? "unknown",
+      agent: "trip",
+      mode: (process.env.CARLIFE_TOOLS as "real" | "mock" | "off" | undefined) ?? "real",
+    };
     if (configurable?.userId) {
       try {
-        const r = (await invokeTool("vehicle_profile", { userId: configurable.userId }, {
-          sessionId: configurable.thread_id ?? "unknown",
-          agent: "trip",
-          mode: (process.env.CARLIFE_TOOLS as "real" | "mock" | "off" | undefined) ?? "real",
-        })) as { data: { profile: { energyType?: VehicleEnergyType } | null } };
+        const r = (await invokeTool("vehicle_profile", { userId: configurable.userId }, toolCtx)) as {
+          data: { profile: { energyType?: VehicleEnergyType; vin?: string } | null };
+        };
         energyType = r.data.profile?.energyType;
+        vin = r.data.profile?.vin;
       } catch (err) {
         console.warn("[graph] 取车辆档案失败，本次按「不知道能源类型」处理", err);
       }
     }
+    /*
+     * ⑥画像拿实测续航（沿途服务数据源交接，待执行事项 1）：drive 分支调 `charging` 的 rangeKm 从此有出处。
+     * **只给纯电 / 插混**——燃油车的 `refuel` 没有这个入参；能源类型未知时 `energyFact` 已经说了不要假设。
+     * 骨架轮才取：细化轮（改酒店 / 换景点）不重跑续航评估，drive 若被点名重跑也仍拿同一份事实。
+     */
+    let range: VehicleRangeFacts | undefined;
+    if (configurable?.userId) {
+      /*
+       * 同一次取数顺带算出这辆车的**百公里能耗口径**，记进按轮暂存供 `energy_gap` 取
+       * （turn-9386d1c2）。此前这一栏是模型自己拿 `mildTempRangeKm` 换算的，它换错了两次。
+       * 纯电那一档是零 IO 的算术；油侧才多一次 `refuel` 区间读，且只在 icev/phev 发生。
+       * 能源类型未知时 `loadVehicleEnergyFacts` 一个数都不给——与 `energyFact` 同源。
+       */
+      const facts = await loadVehicleEnergyFacts(
+        { userId: configurable.userId, ...(vin ? { vin } : {}) },
+        toolCtx,
+        energyType,
+      );
+      range = facts.range;
+      const turnIdForFacts = configurable.thread_id ? currentTurnId(configurable.thread_id) : undefined;
+      recordEnergyConsumption(
+        { sessionId: configurable.thread_id, turnId: turnIdForFacts },
+        facts.consumption,
+      );
+      if (!facts.consumption && energyType) {
+        console.warn(`[graph] 本轮没有百公里能耗口径：${facts.consumptionReason ?? "原因未知"}`);
+      }
+    }
+    /*
+     * 车机拿此刻的电量 / 油量与仪表剩余续航（`energy-now.ts`）。
+     *
+     * **三种能源都取**，与 `range` 只给纯电/插混不同：燃油车也有油量，而在这之前
+     * 补能评估那条分支被明写"系统没有实时油量数据"——那句话在能量遥测接线之后不成立了。
+     * 能源类型未知时不取：连烧什么都不知道，一个百分比读数没有可安全表述的口径。
+     * 与上面两次取数同一手法：读失败不阻塞，`loadVehicleEnergyNow` 内部按"读不到"处理并带理由。
+     */
+    let energyNow: VehicleEnergyNow | undefined;
+    if (configurable?.userId && energyType !== undefined) {
+      energyNow = await loadVehicleEnergyNow(
+        { userId: configurable.userId, ...(vin ? { vin } : {}) },
+        toolCtx,
+      );
+    }
 
+    // Plan 层骨架先落盘（M86-03，ACR-037）：四条腿之前任务里就有骨架；另起一趟只在这里 open 一次，
+    // 汇聚后的那次写就只能是 update（否则 startOver 两次 = 开两件事，INC-0155 的另一种走法）。
+    let skeletonWritten = false;
     const out = await runItineraryFanout(
       streamer,
       {
@@ -1601,6 +2171,18 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
         constraints: state.intent?.constraints ?? [],
         userText,
         energyType,
+        ...(range ? { range } : {}),
+        ...(energyNow ? { energyNow } : {}),
+        // 目的地亮点在 fan-out 开头并行预取（M77 走查追修），要它知道去哪。澄清轮存的目的地在这里补上。
+        ...(clarify.destinations?.length ? { destinations: clarify.destinations } : {}),
+        // 数量上限由意图理解直接给（ADR-012）：总天数进「够不够天」体检，单段上限进求解器。
+        ...(tripLimits ? { tripLimits } : {}),
+        // 交通方式（ADR-012）：他点名了就按他的来，没点名这一栏不给、由方案自己挑。
+        ...(state.intent?.transitMode ? { transitMode: state.intent.transitMode } : {}),
+        // 车、常住地、同行人（M84-03）。四条分支共用 `drive` 那一行的投影，理由见 `ItineraryInput.contextAnchor`。
+        ...(configurable?.turnContext?.anchorFor("drive") !== undefined
+          ? { contextAnchor: configurable.turnContext.anchorFor("drive")! }
+          : {}),
         plan: basePlan,
         turnId: configurable?.thread_id ?? "unknown",
       },
@@ -1611,13 +2193,35 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
           configurable?.emit?.onBranch?.(e),
         // 取消一路带到分支（M33-01）。
         signal: configurable?.signal,
+        onSkeleton: async (plan: TripPlanState) => {
+          await recordTripDraft(plan, startingOver);
+          skeletonWritten = true;
+        },
+        // 裁决会话每次 plan_edit 生效落一次草案（M86-05，只在 review 档被调）：与骨架落盘同一函数、同一"另起一趟"判据。
+        onDraft: async (plan: TripPlanState) => {
+          await recordTripDraft(plan, startingOver && !skeletonWritten);
+          skeletonWritten = true;
+        },
       },
     );
 
     for (const b of out.branches) {
+      /*
+       * 提交通道的结论随 branch 一起落（2026-09-15，业务视图）。
+       * 走提交通道的分支，流被「提交即收工」掐掉，`agent_output` 里只有半截文本——
+       * 酒店专家真正交回的名单在这里。文本路径不重复落：那份已经在 `agent_output`。
+       */
+      const submission = b.submission === undefined ? undefined : clipForTrace(b.submission, OUTPUT_MAX_CHARS);
       configurable?.onTrace?.({
         kind: "branch",
-        data: { agent: b.agent, status: b.status, startedAt: b.startedAt, endedAt: b.endedAt },
+        data: {
+          agent: b.agent,
+          status: b.status,
+          startedAt: b.startedAt,
+          endedAt: b.endedAt,
+          ...(submission ? { submission: submission.text, ...(submission.truncated ? { submissionTruncated: true } : {}) } : {}),
+          ...(b.error ? { error: b.error.slice(0, 300) } : {}),
+        },
       });
     }
     configurable?.onTrace?.({
@@ -1651,11 +2255,50 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       },
     });
 
+    await recordTripDraft(out.plan, startingOver && !skeletonWritten);
+    /*
+     * 收尾句由**本轮事件**决定（M84-04）：
+     * 有 committed → 已经写进主页那份；只有 draft.updated 且库里有一份 → 主页那份是旧版；
+     * 两者都没有 → 仍是草案。原来那句无条件写着"仍是草案、不在座舱主页上"，
+     * 对已落库行程的细化轮是事实错误——而车主据此又说一遍「定了」时，
+     * 意图那一侧还会告诉模型"内容没变，那是 none"。两句互相矛盾，他因此被反复要求确认。
+     */
+    const tripEvents = useTasks && turnCtx ? turnCtx.writer.eventsOf("trip") : [];
+    const save = {
+      committed: tripEvents.includes("task.committed"),
+      hasBase: useTasks ? turnCtx?.tasks.trip?.base !== undefined : basePlan?.committedPlanId !== undefined,
+    };
     return {
-      agentResults: { itinerary: describeItineraryPlan(out) },
+      agentResults: { itinerary: describeItineraryPlan(out, save) },
       tripPlan: out.plan,
       solverDegraded: out.solverDegraded,
+      // 澄清轮存的那一半用过即清（见 state.ts `tripClarify`）。
+      ...clarify.patch,
     };
+  };
+
+  /**
+   * 停写旧通道（M84-05，ACR-036 §4.9）。
+   *
+   * `tasks` 档下同一份行程只有**一个**写入方：任务。双写在 M84-04 是刻意的
+   * （逐级可退的保障），但留着就是两处可能分家，而分家那一次不会报错。
+   *
+   * # 为什么剥在这里而不是逐个 return 上判
+   *
+   * `itineraryNodeInner` 有九处会返回 `tripPlan`，逐处加一个三元运算符是"漏一处就分家"
+   * 的典型形状——而漏的那一处平时看不出来。在出口剥一次，覆盖面是可证明的。
+   *
+   * # 通道本身不删
+   *
+   * 声明与 reducer 一律保留：旧检查点里躺着 `tripPlan`，`itineraryNode` 要读它当迁入种子；
+   * 删通道会让那些检查点一读就抛。
+   */
+  const itineraryNode = async (state: typeof GraphState.State, config?: RunnableConfig) => {
+    const patch = await itineraryNodeInner(state, config);
+    const configurable = config?.configurable as ChatGraphConfigurable | undefined;
+    if (configurable?.turnContext?.mode !== "tasks") return patch;
+    const { tripPlan: _tripPlan, pendingCancel: _pendingCancel, ...rest } = patch as Record<string, unknown>;
+    return rest as typeof patch;
   };
 
   /**
@@ -1709,7 +2352,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
      * 这句话覆盖掉真正的症状记录。判据与 M13-02 确认路径同款：导出的意图门。
      * 图直调不过 tools-endpoint 的权限门（invokeTool 是纯执行），必须自己 check。
      */
-    if (agent === "service" && archiveIntent(query)) {
+    if (agent === "service" && wantsArchive(query, state.intent)) {
       const threadId = configurable?.thread_id ?? "unknown";
       const plan = buildConsultationArchive({
         profile: vehicleProfile,
@@ -1882,6 +2525,12 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
       ctx,
       warnings: !photoWithoutMatch,
       figures: fetchFigures,
+      /*
+       * 上一轮给车主看过的诊断报告（M104-06）。车主在报告页点「预约门店检查」时端上发的是
+       * 「帮我预约门店检查一下这个问题」——不给这一份，agent 只能按「缺对象先反问」去问一遍
+       * （2026-09-18 真跑 turn-413bb4d5 就是这么答的）。报告跨轮存活，这里直接取。
+       */
+      diagnosis: state.diagnosis,
     });
     stageFigureForAnswer(configurable?.thread_id ?? "unknown", dual.figures[0]);
 
@@ -1921,7 +2570,16 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
           text: c.content.slice(0, 300),
           document: c.source.document,
           location: c.source.location ?? null,
+          // 跨集之后"引的是哪一本"才说得清（ACR-042）：同一次检索里可能一半手册一半条款。
+          dataset: c.source.dataset ?? null,
+          provenance: c.provenance ?? null,
         })),
+        /** 每个集各命中几条——判"维修类问题有没有被条款块挤占"看这一栏，不用逐条数。 */
+        ragByDataset: dual.rag.chunks.reduce<Record<string, number>>((acc, c) => {
+          const k = c.source.dataset ?? "unknown";
+          acc[k] = (acc[k] ?? 0) + 1;
+          return acc;
+        }, {}),
         usageSummary: dual.usage.summary ?? null,
         usageUnusableReason: dual.usage.unusableReason ?? null,
         // 手册图示（ACR-029）：命中了哪几张、相似度、走的哪一路——开关 off 时是空数组
@@ -1970,7 +2628,7 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
 
     // 保养到期推算（M14-02，F-17-01）：④档案 × ⑥日均里程，**代码算，模型只表述**。
     // 只在保养意图 + 有档案时附上；无档案时 caveats 已经说了"没有你的车辆档案"。
-    if (isMaintenanceQuery(query) && vehicleProfile) {
+    if (wantsMaintenance(query, state.intent) && vehicleProfile) {
       /*
        * ④ 的里程陈不陈旧（M26-05）。陈旧要在依据里说出来——
        * 按一个三个月前的里程算出来的"还剩多少公里"会偏早，
@@ -2004,11 +2662,16 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     // **判据用原话不用 intent.goal**（M15-02 同款坑）："修过什么"经意图抽取会被
     // 归纳成"了解维修情况"，关键词被改写掉，门就永远不开——真跑实测踩到。
     // 任一路失败会以工具层的如实话术进上下文，不静默。
+    // M96-03：补传意图层的表态——此前这里从没传过 intent，`repairContextNeeds` 的模型分支在线上是死的
+    // （ADR-010 的形状）。原话仍传：模型没表态时按正则兜底，语义不变。
     const repairCtx = await runRepairContext({
       query: lastUserText(state.messages),
       vin: vehicleProfile?.vin,
       profile: vehicleProfile,
       ctx,
+      // M101-04：本轮说的优先，没说就沿用这次出险咨询里已经说清的（跨轮）。
+      // 合并在这里做而不是在 `runRepairContext` 里，是为了让那个函数保持纯粹的"给什么算什么"。
+      intent: mergeClaimFacts(state.intent, state.claimFacts),
     });
     if (repairCtx) {
       context = `${context}\n\n${repairCtx}`;
@@ -2440,16 +3103,6 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
     // 现象是助手对刚查到的真实门店只字不提，然后凭印象说话；单路由时它与旧的固定优先级链逐字相同。
     const composed = composeSolved(state);
     const solved = composed.text;
-    const messages = solved
-      ? [
-          ...state.messages,
-          {
-            role: "user" as const,
-            content: `【编排层已完成的求解结果，请据此作答，不要另行推算】
-${solved}`,
-          },
-        ]
-      : state.messages;
 
     // threadId 让 ACP 实现把本轮映射到该会话的独立 ACP 会话（M4-01）；直连实现忽略它。
     // 应答发给**路由到的** Agent 的独立会话（§11 时序 `L->Trip: ...`）。
@@ -2466,6 +3119,23 @@ ${solved}`,
         : ANSWER_AGENTS.includes(routed as (typeof ANSWER_AGENTS)[number])
           ? (routed as (typeof ANSWER_AGENTS)[number])
           : "supervisor";
+
+    /*
+     * 本轮尾区（M84-03，ACR-036 §4.9）：今天几号、里程多久没更新、他手上那件事办到哪了。
+     *
+     * **只能在最后一条 user 消息里**，而且排在求解结果之前。放到 `state.messages` 前面
+     * 等于每轮把整段历史的缓存作废——前缀缓存只认从第 0 个 token 起完全相同。
+     * 装载层关着时 `turnBlock` 是 undefined，这一段逐字退回从前的形状。
+     */
+    const turnCtx = configurable?.turnContext;
+    const turnBlock = turnCtx?.turnFor(target);
+    const tail = [
+      turnBlock,
+      solved ? `【编排层已完成的求解结果，请据此作答，不要另行推算】\n${solved}` : undefined,
+    ]
+      .filter((s): s is string => Boolean(s))
+      .join("\n\n");
+    const messages = tail ? [...state.messages, { role: "user" as const, content: tail }] : state.messages;
 
     /*
      * 表述路径（施工单 TD-08 第三步）。
@@ -2567,10 +3237,33 @@ ${solved}`,
      * 栈重启后重跑照样如此。封顶不能换来假成功：超时就中止流、如实说没说完、让本轮正常结束，
      * 不静默截断后编一个答案。上限走 `answerTimeoutMs()`（默认 120s，测试用环境变量缩短）。
      */
+    /*
+     * 问诊轮的配合请求提议（M106-03）：**起在应答流之前、收在它之后**——两者并发，墙钟不增加。
+     * 吃的是不带图片的 `messages`：观察层的文字段与求解结果都已经在里面，图片只会把这一跳推到视觉档。
+     * 非问诊轮不起（普通用车问答不该每轮多烧一次 LLM）；`proposer` 缺席 ⇒ 句柄恒空。
+     */
+    const diagnosisAgent = state.route?.agent ?? "general";
+    const diagnosisTurn = isDiagnosisTurn({ agent: diagnosisAgent, intent: state.intent, photoObservation: state.photoObservation });
+    const budgetBase = diagnosisTurn
+      ? budgetInputFor({ intent: state.intent, photoObservation: state.photoObservation, previous: state.diagnosis })
+      : undefined;
+    const proposalsHandle = startProposals(
+      budgetBase ? proposer : undefined,
+      {
+        answerMessages: messages,
+        bankTexts: budgetBase?.bank.map((q) => q.text) ?? [],
+        askedTexts: askedPromptTexts(state.diagnosis),
+        riskLevel: budgetBase?.riskLevel ?? "low",
+      },
+      { onUsage: configurable?.onUsage, threadId: configurable?.thread_id },
+    );
+
     const answerIter = answerStreamer(answerMessages, {
       onUsage: configurable?.onUsage,
       threadId: configurable?.thread_id,
       agent: useNarrator ? `${target}-voice` : target,
+      // 车主档案：直连拼进 system，pi 走会话首条 prompt。两条都按线程钉住，不每轮重拼。
+      ...(turnCtx?.anchorFor(target) !== undefined ? { systemSuffix: turnCtx.anchorFor(target)! } : {}),
     })[Symbol.asyncIterator]();
     const answerDeadline = Date.now() + answerTimeoutMs();
     let answerTimedOut = false;
@@ -2635,6 +3328,39 @@ ${solved}`,
       }
     }
 
+    /*
+     * 这一轮向车主要什么——统一预算（M106-02）。**排在 elicitation 之前**：问诊轮里问诊的题先拿问题位
+     * （它关系到车主刚问的事），剩下的位才给事实补录；`next()` 有副作用，所以位数得在调它之前传过去。
+     * 失败追问那一句也占一位——它同样是「一段回答后面挂一个问题」。非问诊轮不算预算，elicitation 行为逐字节不变。
+     */
+    // 收提议：应答已经说完，最多再等一个宽限期；超时 / 抛错 / 吐坏都只是「模型没提」（永不 reject）。
+    const proposed = await proposalsHandle.settle();
+    const promptBudget: BudgetResult | undefined = budgetBase
+      ? budgetPrompts({
+          ...budgetBase,
+          proposals: proposed.proposals,
+          reservedAsks: followup ? 1 : 0,
+          // 车主明说要出发的那一轮给补录留一位（AC-54-10：过期即废的能源余量优先）。
+          reserveForElicitation: looksLikeDeparting(lastUserText(state.messages)),
+        })
+      : undefined;
+
+    if (promptBudget) {
+      // 「模型提了什么、为什么没出来」要在轨迹里查得到——卡没出来时，这是唯一能分清"没提"与"被裁"的地方。
+      configurable?.onTrace?.({
+        kind: "prompts",
+        data: {
+          outcome: proposed.outcome,
+          proposed: proposed.proposals.length,
+          // 原文的头一段：`proposed: 0` 时要分得清「模型说 []」「模型说了一段话」还是「吐了半截 JSON」（M106-05 真跑头两轮就是 0）。
+          ...(proposed.raw !== undefined ? { rawChars: proposed.raw.length, rawHead: proposed.raw.slice(0, 400) } : {}),
+          accepted: promptBudget.prompts.map((p) => ({ id: p.id, kind: p.kind, origin: p.origin })),
+          dropped: promptBudget.dropped,
+          asksLeft: promptBudget.asksLeft,
+        },
+      });
+    }
+
     if (full.trim() && !followup) {
       /*
        * ⚠️ **必须 try/catch**：这一句是 fail-open 的（§4.6）。
@@ -2648,6 +3374,7 @@ ${solved}`,
         ask = await configurable?.resolveElicitation?.({
           agent: state.route?.agent,
           answered: true,
+          ...(promptBudget ? { questionBudgetLeft: promptBudget.asksLeft } : {}),
         });
       } catch (err) {
         console.error(
@@ -2663,6 +3390,25 @@ ${solved}`,
 
     const reply: ChatTurnMessage = { role: "assistant", content: full };
     const agent = state.route?.agent ?? "general";
+
+    /*
+     * 拍照问诊的结构化报告（M104-01）：问诊轮把这一轮算好的东西（风险分级、观察与目录匹配、
+     * 补拍指引、追问、自查、必须停车迹象、到店追问）收成一份进 `diagnosis` 通道，端上经
+     * `/internal/diagnosis` 只读、不解析回答文本。**非问诊轮不写**——「空调怎么开」不该冒出一份「低风险」报告。
+     */
+    const diagnosis = promptBudget
+      ? buildDiagnosisReport({
+          threadId: configurable?.thread_id ?? "unknown",
+          // isDiagnosisTurn 已经把 general 之外的两个 agent 筛出来了；这里只是把 string 收窄
+          agent: agent as "service" | "ownership",
+          intent: state.intent,
+          photoObservation: state.photoObservation,
+          previous: state.diagnosis,
+          budget: promptBudget,
+          answer: full,
+        })
+      : undefined;
+    const diagnosisPatch = diagnosis ? { diagnosis } : {};
 
     // ③偏好学习（M11-02）。**只看用户原话，不看助手回复**——
     // 助手的措辞里全是"你可以…""建议你…"，拿它当来源等于让系统
@@ -2686,11 +3432,13 @@ ${solved}`,
       return {
         messages: [reply],
         agentResults: { [agent]: full },
-        consultation: { ...state.consultation, resolutionSummary: full.slice(0, 200) },
+        // 风险等级随报告写进问诊记录（F-20-13）：留档的 resolution 从此带【中风险】这类前缀。
+        consultation: { ...state.consultation, resolutionSummary: full.slice(0, 200), ...(diagnosis ? { riskLevel: diagnosis.risk.level } : {}) },
+        ...diagnosisPatch,
       };
     }
 
-    return { messages: [reply], agentResults: { [agent]: full } };
+    return { messages: [reply], agentResults: { [agent]: full }, ...diagnosisPatch };
   };
 
   /**

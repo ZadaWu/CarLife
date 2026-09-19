@@ -22,7 +22,7 @@
  * 和一个解析失败的文档，对检索的影响完全一样：查不到。
  */
 
-import { DATASETS, createRagClient, type DatasetKey, type DocumentStatus } from "@carlife/rag";
+import { DATASETS, createRagClient, datasetIdsFromEnv, type DatasetKey, type DocumentStatus } from "@carlife/rag";
 
 import type { JobContext, JobDefinition, JobResult } from "./job-runner";
 
@@ -31,11 +31,12 @@ const HOUR_MS = 3_600_000;
 /** 解析停留在 queued/parsing 超过此时长即视为卡住。 */
 export const STUCK_AFTER_MS = 2 * HOUR_MS;
 
-/** 三个数据集各自的巡检身份——`datasetsForAgent` 在调用层强制隔离，这里按数据集取对应 agent。 */
+/** 四个数据集各自的巡检身份——`datasetsForAgent` 在调用层强制隔离，这里按数据集取消费方第一个。 */
 const DATASET_AGENTS: Record<DatasetKey, string> = {
   "vehicle-manuals": "ownership",
   "repair-kb": "service",
   "car-catalog": "buying",
+  "insurance-kb": "service",
 };
 
 export interface KbSyncDeps {
@@ -123,11 +124,7 @@ export function createKbSyncDeps(): KbSyncDeps {
   const rag = createRagClient({
     baseUrl,
     apiKey,
-    datasetIds: {
-      "vehicle-manuals": process.env.RAGFLOW_DATASET_VEHICLE_MANUALS ?? "",
-      "repair-kb": process.env.RAGFLOW_DATASET_REPAIR_KB ?? "",
-      "car-catalog": process.env.RAGFLOW_DATASET_CAR_CATALOG ?? "",
-    },
+    datasetIds: datasetIdsFromEnv(),
   });
   return {
     list: (dataset, agent) => rag.listDocuments(dataset, agent),

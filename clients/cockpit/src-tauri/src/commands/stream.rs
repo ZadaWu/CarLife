@@ -11,7 +11,7 @@ use carlife_core::contract::ChatMessage;
 use carlife_net::GatewayClient;
 use tauri::{AppHandle, State};
 
-use crate::events::{run_mock_stream, spawn_session_stream, StreamState};
+use crate::events::{run_mock_stream, spawn_session_stream, spawn_user_events_stream, StreamState};
 
 pub(crate) fn gateway_env() -> (String, String) {
     // 统一走设置层（ACR-004 第 3 步）：env → 端上持久化 → 默认。
@@ -27,6 +27,16 @@ pub fn start_session_stream(
 ) {
     let (base_url, token) = gateway_env();
     spawn_session_stream(app, Arc::clone(&state), base_url, token, session_id);
+}
+
+/// 账号级事件流（ACR-032）：订阅的键是**人**不是会话，所以它不吃 session_id。
+///
+/// 换人（上车声明）时前端要再调一次——服务端按连接建立时的那个人订阅，
+/// 不重起的话换人之后收到的还是上一个人的会话变动。
+#[tauri::command]
+pub fn start_user_events_stream(app: AppHandle, state: State<'_, Arc<StreamState>>) {
+    let (base_url, _token) = gateway_env();
+    spawn_user_events_stream(app, Arc::clone(&state), base_url);
 }
 
 #[tauri::command]

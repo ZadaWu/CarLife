@@ -14,7 +14,7 @@ describe("[F-58-11][AC-58-7] parseConfirm × 体检行", () => {
     const v = parseConfirm(DEMO_PERMISSION.details, DEMO_PERMISSION.title);
     assert.equal(v.days.length, 4);
     assert.ok(v.transit);
-    assert.equal(v.rows.length, 0, "体检行不该掉进未结构化的 rows");
+    assert.equal(v.rows.length, 0, "体检行与行程首行都不该掉进未结构化的 rows");
     assert.ok(v.audit);
     assert.equal(v.audit.passed, 5);
     assert.equal(v.audit.attention.length, 1);
@@ -23,7 +23,23 @@ describe("[F-58-11][AC-58-7] parseConfirm × 体检行", () => {
     assert.deepEqual(v.days[1]!.flags, { repaired: true });
     assert.deepEqual(v.days[2]!.flags, { attention: true });
     assert.equal(v.days[0]!.flags, undefined);
-    assert.match(v.audit.unverifiable[0]!.text, /缺出发地/);
+    // 演示夹具自 M77 走查追修起带出发地，所以"验不了"的原因不再是缺它
+    assert.match(v.audit.unverifiable[0]!.text, /返程段/);
+    assert.doesNotMatch(v.audit.unverifiable[0]!.text, /缺出发地/);
+  });
+
+  it("[F-58-10] 行程首行解成 route，不掉进 rows 也不被当成某一天", () => {
+    const v = parseConfirm(DEMO_PERMISSION.details, DEMO_PERMISSION.title);
+    assert.equal(v.route, "上海 → 广州，共 4 天，2026-10-01 出发");
+    assert.equal(v.days.length, 4, "首行不该被 DAY_LABEL_RE 认成第 5 天");
+    assert.ok(v.rows.every((r) => r.label !== "行程"));
+  });
+
+  it("[F-58-10] 没有行程行时 route 为 undefined——老服务端的载荷照常解", () => {
+    const old = DEMO_PERMISSION.details.filter((d) => d.label !== "行程");
+    const v = parseConfirm(old, DEMO_PERMISSION.title);
+    assert.equal(v.route, undefined);
+    assert.equal(v.days.length, 4);
   });
 
   it("没有体检行：audit 为 undefined，其余解析与之前逐字相同", () => {

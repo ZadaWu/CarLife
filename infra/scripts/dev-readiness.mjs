@@ -375,6 +375,22 @@ async function main() {
     };
   });
 
+  // research-runtime 自 2026-09-17 起在 dev.sh 的默认集合里（见那里的注释）：
+  // 后台热配置的 RESEARCH_RUNTIME_URL 已填 8800，进程不起控制台就报 research_unreachable。
+  // 进了默认集合就得在这里锁住，否则"起了但挂了"只有系统页看得见。
+  // 只断言 ok 与 codebook——acp.describeCalls 在首次探查前就是 0，不能拿它当健康判据。
+  const research = process.env.RESEARCH_RUNTIME_URL ?? "http://localhost:8800";
+  await retry("research-runtime /health", async () => {
+    const r = await responseOf(url(research, "/health"));
+    return {
+      ok: r.status === 200 && r.body?.ok === true && r.body?.codebook?.version !== undefined,
+      detail:
+        r.status === 200
+          ? `codebook v${r.body?.codebook?.version}${r.body?.codebook?.locked ? "（已锁）" : ""}，uptime ${r.body?.uptime}s`
+          : `HTTP ${r.status}`,
+    };
+  });
+
   if (process.platform === "darwin") {
     await retry("mock-tts /health", async () => {
       const r = await responseOf("http://localhost:8794/health");

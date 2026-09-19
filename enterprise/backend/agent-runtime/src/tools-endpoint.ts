@@ -211,11 +211,11 @@ export function actionFingerprint(sessionId: string, tool: string, args: unknown
  * 拒绝记忆的键。**优先按轮次，退化到入参指纹。**
  *
  * 语义是"这一轮里这个工具已经被否过"，不是"这一组入参被否过"：
- * 用户拒绝的是"把它写进我日历"，不是某个特定标题。
+ * 用户拒绝的是"别替我去预约"，不是某个特定门店。
  *
  * 实测过按指纹的版本：模型被拒后重试四次、每次换个措辞，
  * 于是四个不同指纹、四个弹窗，抑制等于没做。
- * 反过来按会话又太宽——用户两分钟后重新开口要求写日历，不该被自动否掉。
+ * 反过来按会话又太宽——用户两分钟后重新开口要求预约，不该被自动否掉。
  * 轮次是这两者之间唯一说得通的边界：一次提问对应一次表态。
  */
 export function refusalKey(sessionId: string, tool: string, args: unknown): string {
@@ -228,8 +228,8 @@ export function refusalKey(sessionId: string, tool: string, args: unknown): stri
  *
  * # 为什么是一张表而不是给所有敏感工具都塞点什么
  *
- * `calendar` / `trip_plan_commit` 也是敏感工具，但它们外发的**不是个人信息给第三方**
- * （前者写用户自己的日历，后者写我们自己的库），语义完全不同。
+ * `trip_plan_commit` / `vehicle_profile_write` 也是敏感工具，但它们外发的
+ * **不是个人信息给第三方**（写的是我们自己的库），语义完全不同。
  * 硬塞会让这个字段失去含义——弹窗上"将提供给门店的信息"底下列着一行行程标题，
  * 用户下次就不会再认真看它了。
  *
@@ -474,7 +474,7 @@ export async function handleToolsRequest(
   const piSessionId = body.piSessionId ?? "unknown";
   const resolved = resolveSession?.(piSessionId);
   // 会话身份带后缀（`trip-task` / `supervisor-intent`），而工具 ACL 按**规范 Agent** 裁剪。
-  // 不归一的话 `listForAgent("trip-task")` 返回空表，出行分支调 calendar 会被自己人 403。
+  // 不归一的话 `listForAgent("trip-task")` 返回空表，出行分支调 trip_plan_commit 会被自己人 403。
   const agent = canonicalAgent(resolved?.agent ?? body.agent ?? "supervisor") as AgentName;
 
   // 工具表按 Agent 裁剪（§4.3）——pi 侧即使发来不属于它的工具名也要拒。

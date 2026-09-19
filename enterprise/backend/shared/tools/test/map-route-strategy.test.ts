@@ -61,7 +61,9 @@ const OK_AROUND = {
       type: "道路附属设施;服务区;高速服务区",
       typecode: "180300",
       address: "G4 京港澳高速",
-      location: "113.7000,22.9400",
+      // 坐标必须落在 fakeDriving 那条折线上（第 6 个 step 的端点 114.5,22.75 附近约 1km）——
+      // map_route 会把离路线超过 OFF_ROUTE_MAX_KM 的候选当"要下道绕过去"剔掉。
+      location: "114.5100,22.7520",
       cityname: "东莞市",
       distance: "1200",
     },
@@ -190,15 +192,16 @@ describe("nav 的工具表与 submit_nav_plan（M66-01）", () => {
 
   it("listForAgent('nav') 恰好两项；trip / drive 的清单与改动前逐字相同", () => {
     assert.deepEqual(listForAgent("nav").map((t) => t.name).sort(), ["map_route", "submit_nav_plan"]);
-    // 改动前固化的两份清单（2026-09-02，route.test.ts 的 drive 白名单同源）。
+    // 改动前固化的清单（2026-09-02，route.test.ts 的 drive 白名单同源）。
+    // `pretrip_items` 于 M77 走查追修摘除：它挂在确认那一跳、由编排层自己调，
+    // 留在 drive 表里只会让它白走一轮（真跑 turn-98a133c8）。
     assert.deepEqual(listForAgent("drive").map((t) => t.name).sort(), [
       "charging",
       "energy_gap",
       "map_route",
-      "pretrip_items",
       "refuel",
       "refuel_log",
-      "submit_drive_draft",
+      "submit_drive_plan",
       "transit_route",
       "weather",
     ]);

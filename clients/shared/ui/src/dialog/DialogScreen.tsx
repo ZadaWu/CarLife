@@ -17,12 +17,12 @@
  * 两端各写一份对话页的结局是手机端永远少几样（M65 走查：滚动纪律、已中断标记、发送失败告知）。
  */
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import type { AttachmentRef, ChatMessage } from "@carlife/shared";
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import type { ClientDetections, AttachmentRef, ChatMessage } from "@carlife/shared";
 
 import { SessionList, type SessionBrief } from "./SessionList";
 import { AttachmentStrip, type AttachmentLoader } from "./AttachmentStrip";
-import { checkPendingAdd, durationHint, formatBytes, kindOfMime, readyHandles, type PendingAttachment } from "./attachments";
+import { checkPendingAdd, detectSummary, durationHint, formatBytes, kindOfMime, onDeviceVisionEnabled, readyDetections, readyHandles, type OnDeviceDetectResult, type PendingAttachment } from "./attachments";
 
 export interface StreamingTurn {
   turnId: string;
@@ -36,8 +36,9 @@ export interface DialogScreenProps {
   /**
    * 发送文字消息；未提供时不渲染输入框（如浏览器 mock 环境）。
    * `attachments`（M80-03）：本轮要绑的附件句柄（已上传）；没有附件时不传，老调用点签名不变。
+   * `detections`（ACR-046）：端上框灯的结果，按句柄索引；没有可带的不传。车机端不选文件，永远拿不到它。
    */
-  onSendText?: (content: string, attachments?: string[]) => Promise<void>;
+  onSendText?: (content: string, attachments?: string[], detections?: Record<string, ClientDetections>) => Promise<void>;
   /**
    * 附件（M80-03，F-09-07 / F-09-09）。
    *  - `load`：按引用取原件（Rust 侧带令牌），两端都传——气泡里的缩略图与视频播放靠它；
@@ -47,7 +48,34 @@ export interface DialogScreenProps {
   attachments?: {
     load: AttachmentLoader;
     upload?: (file: File) => Promise<AttachmentRef>;
+    /**
+     * 端上框灯（ACR-044）：照片字节进、框出，不出端。开关 `carlife.vision.onDevice` 打开时，
+     * 选进来的照片顺手跑一遍并在待发条上显示；只有手机端传（车机行车态不选文件，FL-06，
+     * 产品 2026-09-17 决定车机也不加自测入口）。
+     */
+    detect?: (file: File) => Promise<OnDeviceDetectResult>;
   };
+  /**
+   * 请拉起一次系统文件选择器（施工单 M103-02，F-20-15「拍照问诊」主页入口）。
+   * 单调递增的计数：每次变化触发一次 `fileInputRef.click()`，与点 📎 是同一个动作。
+   * 只在有 `attachments.upload` 时生效（车机不选文件）；**不渲染任何节点**——不传时标记逐字节不变。
+   * ⚠️ iOS WebKit 只在用户手势的调用栈里弹选择器：从主页卡点过来要先切页再触发，已经出了手势栈，
+   * 真机上可能静默不弹（总览 M103-00 约束 4）；浏览器里能证明 click 发生。
+   */
+  pickerRequest?: number;
+  /**
+   * 空态的引导句（M103-02）。缺省是车机那句「回到主页长按助手说话试试」；手机端 2026-09-17 起主页没有长按说话，
+   * 传自己的一句——一句做不到的指示比没有指示更糟。
+   */
+  emptyHint?: string;
+  /**
+   * 三个可选槽（M104-04，拍照问诊）：`pinned` 在消息列表**上方**（钉着的报告条），`trailing` 在列表**末尾**
+   * （观察 / 补拍 / 追问卡，或快捷回复芯片），`inputPlaceholder` 覆盖输入框占位。
+   * 都不传时**不渲染任何节点**、标记逐字节不变（车机不传）。槽里放什么由端上决定，本组件不认识报告。
+   */
+  pinned?: ReactNode;
+  trailing?: ReactNode;
+  inputPlaceholder?: string;
   /** 播报总开关（F-02-12）；未提供时不渲染 */
   broadcast?: { enabled: boolean; onToggle: () => void | Promise<void> };
   /**
@@ -129,6 +157,55 @@ function SpeakerIcon({ on }: { on: boolean }) {
   );
 }
 
+/**
+ * 把答案里的 `**关键信息**` 切成「普通 / 高亮」两种片段。
+ *
+ * # 为什么是这一种标记
+ *
+ * 服务端让模型只用 `**` 标关键信息（规则在 `agent-runtime/src/llm/answer-format.ts`，
+ * 叙述者与会答话的 pi 会话共用同一份）。这里**不做 markdown 解析**——不认标题、
+ * 列表、链接、代码块。多认一种记号，就多一类"车主打的字被吃掉"的可能。
+ *
+ * # 流式时不能闪出星号
+ *
+ * 一段话是一个 token 一个 token 到的，`**订单号` 会先以「开了但没关」的形态出现。
+ * 这里按 `**` 逐个**切换**状态而不是找配对，于是没闭合的那一半直接当高亮渲染，
+ * 星号一次都不会出现在屏幕上；等收尾的 `**` 到了，这段高亮自然收住。
+ *
+ * 用户自己打的字不走这里（见 `Bubble` 的调用处）：他真打了两个星号，就该原样显示。
+ */
+export function splitHighlights(text: string): ReadonlyArray<{ text: string; key: boolean }> {
+  const out: Array<{ text: string; key: boolean }> = [];
+  let at = 0;
+  let key = false;
+  for (;;) {
+    const next = text.indexOf("**", at);
+    const chunk = next < 0 ? text.slice(at) : text.slice(at, next);
+    if (chunk) out.push({ text: chunk, key });
+    if (next < 0) break;
+    key = !key;
+    at = next + 2;
+  }
+  return out;
+}
+
+/** 助手正文：`**…**` 渲染成高亮片段，其余原样。 */
+function RichText({ text }: { text: string }) {
+  return (
+    <>
+      {splitHighlights(text).map((seg, i) =>
+        seg.key ? (
+          <mark key={i} className="dlg-key">
+            {seg.text}
+          </mark>
+        ) : (
+          <Fragment key={i}>{seg.text}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 function Bubble({ role, source, attachments, load, children }: {
   role: "user" | "assistant";
   source?: "text" | "voice";
@@ -178,6 +255,29 @@ function probeDuration(file: File): Promise<number | undefined> {
   });
 }
 
+/**
+ * 端上框灯的灯箱（ACR-044 验机用）：原图（浏览器按 EXIF 摆正，与框的坐标系一致）+ 一层 SVG 叠框。
+ * `viewBox 0 0 1000 1000` + `preserveAspectRatio="none"`：框是 0–1000 归一化的，直接按比例贴上去，不用算像素。
+ */
+function DetectionLightbox({ item, onClose }: { item: PendingAttachment; onClose: () => void }) {
+  const r = item.detect?.result;
+  return (
+    <div className="dlg-det__lightbox" role="dialog" aria-label="端上框灯结果" onClick={onClose} data-testid="detection-lightbox">
+      <div className="dlg-det__frame">
+        {item.previewUrl && <img src={item.previewUrl} alt={item.name} />}
+        {r && (
+          <svg className="dlg-det__overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+            {r.detections.map((d, i) => (
+              <rect key={i} x={d.bbox[0]} y={d.bbox[1]} width={Math.max(1, d.bbox[2] - d.bbox[0])} height={Math.max(1, d.bbox[3] - d.bbox[1])} />
+            ))}
+          </svg>
+        )}
+      </div>
+      <span className="dlg-att__lightbox-hint">{detectSummary(item.detect) ?? item.name} · 点击任意处关闭</span>
+    </div>
+  );
+}
+
 export function DialogScreen({
   messages,
   streaming,
@@ -192,6 +292,11 @@ export function DialogScreen({
   currentSessionId,
   branchFaults,
   railMode = "side",
+  pickerRequest,
+  emptyHint = "还没有对话。回到主页长按助手说话试试。",
+  pinned,
+  trailing,
+  inputPlaceholder,
 }: DialogScreenProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -203,8 +308,19 @@ export function DialogScreen({
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /* 主页「拍照问诊」卡要的那一下（M103-02）：计数一变就点一次隐藏的 input，没有 upload 端口时什么都不做。 */
+  useEffect(() => {
+    if (!pickerRequest || !attachments?.upload) return;
+    fileInputRef.current?.click();
+    // 只认计数变化；upload 端口是稳定引用，不进依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerRequest]);
   const uploadRef = useRef(attachments?.upload);
   uploadRef.current = attachments?.upload;
+  const detectRef = useRef(attachments?.detect);
+  detectRef.current = attachments?.detect;
+  /** 正在看框的那一项（灯箱）。 */
+  const [boxView, setBoxView] = useState<PendingAttachment | null>(null);
 
   const patchPending = (id: string, patch: Partial<PendingAttachment>) =>
     setPending((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -219,6 +335,17 @@ export function DialogScreen({
       .catch((err) => patchPending(item.id, { status: "failed", error: err instanceof Error ? err.message : String(err) }));
   };
   const fileOf = useRef(new Map<string, File>());
+
+  /** 端上跑一遍检测（ACR-044）：失败只记在这一项上，不影响上传与发送。 */
+  const startDetect = (item: PendingAttachment, file: File) => {
+    const detect = detectRef.current;
+    if (!detect) return;
+    patchPending(item.id, { detect: { status: "running" } });
+    detect(file)
+      .then((result) => patchPending(item.id, { detect: { status: "done", result } }))
+      .catch((err) => patchPending(item.id, { detect: { status: "failed", error: err instanceof Error ? err.message : String(err) } }));
+  };
+
 
   const onPickFiles = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -246,6 +373,11 @@ export function DialogScreen({
       current = [...current, item];
       setPending(current);
       startUpload(item, file);
+      /*
+       * 端上框灯（ACR-044）：**现读开关，不缓存**。它的开关在设置页（M104 之后从输入条挪走），
+       * 缓存成 state 的话，用户刚在设置页打开、回到对话页选的第一张照片仍然不跑。
+       */
+      if (kind === "image" && onDeviceVisionEnabled()) startDetect(item, file);
       if (kind === "video") void probeDuration(file).then((ms) => patchPending(item.id, { durationMs: ms }));
     }
   };
@@ -296,7 +428,9 @@ export function DialogScreen({
     setSending(true);
     setSendError(null);
     try {
-      await onSendText(content, handles && handles.length ? handles : undefined);
+      const hasHandles = Boolean(handles && handles.length);
+      const detections = hasHandles ? readyDetections(pending) : undefined;
+      await onSendText(content, hasHandles ? handles! : undefined, ...(detections ? [detections] : []));
       setDraft("");
       for (const p of pending) if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
       fileOf.current.clear();
@@ -376,13 +510,15 @@ export function DialogScreen({
           </button>
         </div>
       )}
+      {pinned}
       <div className="dlg-list" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 && !streaming && (
-          <div className="dlg-empty">还没有对话。回到主页长按助手说话试试。</div>
+          <div className="dlg-empty">{emptyHint}</div>
         )}
         {messages.map((m) => (
           <Bubble key={m.messageId} role={m.role} source={m.source} attachments={m.role === "user" ? m.attachments : null} load={attachments?.load}>
-            {m.content}
+            {/* 高亮只给助手：车主自己打的两个星号该原样显示，不该被当成排版记号吃掉。 */}
+            {m.role === "assistant" ? <RichText text={m.content} /> : m.content}
             {/*
               被打断的那半句（M33-01 的 `cancelled` 字段，M33-02 显示出来）。
               **气泡不删**：车主已经听见这半句了，删掉会让刷新前后不一致；
@@ -395,7 +531,7 @@ export function DialogScreen({
         ))}
         {streaming && streaming.text.length > 0 && (
           <Bubble role="assistant">
-            {streaming.text}
+            <RichText text={streaming.text} />
             <span className="dlg-cursor" aria-hidden="true" />
           </Bubble>
         )}
@@ -412,6 +548,7 @@ export function DialogScreen({
             {progress}
           </div>
         )}
+        {trailing}
       </div>
 
       {hasNew && (
@@ -438,12 +575,27 @@ export function DialogScreen({
         <div className="dlg-pending" data-testid="pending-attachments">
           {pending.map((p) => (
             <div key={p.id} className={`dlg-pending__item dlg-pending__item--${p.status}`}>
-              {p.previewUrl ? <img src={p.previewUrl} alt={p.name} /> : <span className="dlg-pending__icon" aria-hidden="true">{p.kind === "video" ? "🎬" : "📷"}</span>}
+              {p.previewUrl ? (
+                p.detect?.result ? (
+                  <button type="button" className="dlg-pending__thumb" onClick={() => setBoxView(p)} aria-label={`查看${p.name}的端上框`}>
+                    <img src={p.previewUrl} alt={p.name} />
+                  </button>
+                ) : (
+                  <img src={p.previewUrl} alt={p.name} />
+                )
+              ) : (
+                <span className="dlg-pending__icon" aria-hidden="true">{p.kind === "video" ? "🎬" : "📷"}</span>
+              )}
               <span className="dlg-pending__meta">
                 <span className="dlg-pending__name">{p.name}</span>
                 <span className="dlg-pending__state">
                   {p.status === "uploading" ? "上传中…" : p.status === "ready" ? formatBytes(p.bytes) : `失败：${p.error ?? "未知错误"}`}
                 </span>
+                {/*
+                  端上框灯的那行「seatbelt_unfastened 72%、…」**不在待发条上显示**（2026-09-18 用户走查）。
+                  它是给验机的人看的原始类别名与置信度，车主读不懂，而它占掉一整行、把这张卡撑高一倍。
+                  检测本身照跑、框照样随轮发出去；要看框就点缩略图，灯箱里那一行仍在（`DetectionLightbox`）。
+                */}
                 {p.kind === "video" && durationHint(p.durationMs) && <span className="dlg-pending__hint">{durationHint(p.durationMs)}</span>}
               </span>
               {p.status === "failed" && (
@@ -454,6 +606,7 @@ export function DialogScreen({
           ))}
         </div>
       )}
+      {boxView && <DetectionLightbox item={boxView} onClose={() => setBoxView(null)} />}
       {!viewing && onSendText && (
         <form className="dlg-input" onSubmit={submit}>
           {attachments?.upload && (
@@ -464,14 +617,19 @@ export function DialogScreen({
               */}
               <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={onPickFiles} data-testid="attachment-picker" />
               <button type="button" className="dlg-attach" onClick={() => fileInputRef.current?.click()} disabled={sending} aria-label="添加照片或视频" title="添加照片或视频">
-                📎
+                {/* 相机线稿，不是 📎 emoji：emoji 的字形随系统走（灰扁的一枚回形针），
+                    与定稿对不上，也与拍照页那枚相机不是一套语言。 */}
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2l1.2-2h4.6l1.2 2h2A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" />
+                  <circle cx="12" cy="12.5" r="3.5" />
+                </svg>
               </button>
             </>
           )}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={pending.length ? "说说想问什么（可不填）" : "打字输入…（驾驶中请用语音）"}
+            placeholder={pending.length ? "说说想问什么（可不填）" : (inputPlaceholder ?? "打字输入…（驾驶中请用语音）")}
             disabled={sending}
             aria-label="文字输入"
           />

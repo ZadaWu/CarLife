@@ -17,6 +17,7 @@ import type { ChatTurnMessage } from "../llm";
 import type { ConsultationState } from "./subgraphs/service";
 import type { RiskCategory, RiskDecision } from "../guard/risk-policy";
 import type { PhotoInput, PhotoObservationState } from "./vision";
+import type { DiagnosisReport } from "@carlife/shared";
 import type { VideoInput } from "./media";
 
 /**
@@ -26,8 +27,35 @@ import type { VideoInput } from "./media";
  * "我妈"携带的时长约束就丢了——最终方案看起来完全正常，只有真的带着老人上路才发现问题。
  * 所以 `constraints` 是这个结构里最重要的字段，不是附属信息。
  */
+/** 车主点名的交通方式。与 `TripPlanState.transit.recommended` 同一套取值。 */
+export type TransitMode = "drive" | "train" | "flight";
+
+/** 出险的事故类型（M96-03）。五型与 `claim_checklist` 的分叉一一对应。 */
+export type AccidentType = "single_vehicle" | "two_party" | "injury" | "battery_or_fire" | "charging_pile";
+
+/**
+ * 一次出险咨询里已经说清的事实（M101-04）。见下面 `claimFacts` 通道的注释。
+ * `updatedAt` 只为排查用——"这个数是哪一轮说的"在轨迹里要看得见。
+ */
+export interface ClaimFactsState {
+  estimatedLossCny?: number;
+  accidentType?: AccidentType;
+  updatedAt: string;
+}
+
 export interface Intent {
   goal: string;
+  /**
+   * 故障症状的四个判定（M104-01，ADR-012）：只在 route 是 service / ownership 且原话描述了症状时由模型给，
+   * 没说到的字段不给。`assessRisk` 的输入就是它们（`warningLight` 另由观察层从代码判）；
+   * 编排层**不从 constraints 或原话里解析**"随速度加剧""一直响"这些说法——补不完，那是模型的活。
+   */
+  symptom?: {
+    safetyCritical?: boolean;
+    worsensWithSpeedOrBraking?: boolean;
+    persistent?: boolean;
+    warningLight?: boolean;
+  };
   /** 硬约束（同行者、时间窗、预算…）。**丢掉约束的分类等于没有理解。** */
   constraints: string[];
   context: string;
@@ -42,6 +70,107 @@ export interface Intent {
    * `unknown` 处理——放行并告警，不当作"无风险"。
    */
   riskCategory?: RiskCategory;
+  /**
+   * 这一轮**顺带**要办的事，取值是一张封闭候选表（见 `intent.ts` 的 `SECONDARY_INTENTS`）。
+   *
+   * 与 `action` 的分工：`action` 是"对行程草案的处置"，一轮只有一个；这一栏是
+   * 别的领域里"要不要顺手做某件事"的门，可以同时有几个，也可以一个都没有。
+   *
+   * # 为什么要有它
+   *
+   * 留档、保养推算、维修记录预取这些门，此前各用一张正则表判——
+   * 「记录 / 留档 / 记下 + 档案 / 问诊」「保养 / 机油 / 首保」这种。
+   * 判据是字面的而人的说法不是，与 `action` 那几张表栽的是同一个跟头
+   * （turn-bdb074dd：说「坐飞机**出发**」被当成要导航）。
+   *
+   * **不给每个场景加一栏**：那样 schema 会随场景线性变长，而 99% 的轮次用不到其中任何一个。
+   * 一栏数组、封闭候选，模型填起来自然，下游各取所需。
+   */
+  secondaryIntents?: string[];
+  /**
+   * 出险咨询的两个事实（M96-03，ADR-012）：车主口述的估损金额（元）与事故类型。
+   * 由意图层从原话里给，编排层不再拿正则去抠"两千块"——`claim_advisor` 拿它算走不走保险，
+   * `claim_checklist` 拿它选材料清单。没说就缺席，缺席时下游退到报价单 / 单方事故并说明。
+   */
+  estimatedLossCny?: number;
+  accidentType?: AccidentType;
+  /**
+   * 这一轮原话里**新提**、当前草案还没体现的要求（ADR-010 / INC-0148）。
+   *
+   * 是 `constraints` 的子集，语义不同：`constraints` 是**全量快照**（每轮把一直生效的老要求
+   * 重抄一遍，下游要拿全量去排），`newAsks` 是**增量**。别用两轮 `constraints` 做集合差去推它——
+   * 那是两次独立 LLM 调用各自的复述，措辞必然漂移，差集恒为假。
+   */
+  newAsks?: string[];
+  /**
+   * 这一轮是接着改手上那份行程（`refine`），还是另起一趟（`new`）——ADR-010 / INC-0155。
+   *
+   * 编排层从前只问"状态里有没有行程"，有就当细化轮：于是苏州那份定完之后说
+   * 「订一个到浙江的三日游」，浙江的行程接着用苏州的酒店与车程，
+   * 而且任务的 base 还挂着苏州那份的 id——一确认就把苏州那份原地覆盖掉。
+   * 这件事只有模型判得了（它手里同时有原话和已确认行程清单），所以直接问它。
+   *
+   * 缺席按 `refine` 走，与改动前的行为一致。
+   */
+  planScope?: "new" | "refine";
+  /**
+   * 上一轮问过"取消哪一份"时，车主这句话指的是第几份（1 起）或 `"all"`（M77 走查追修）。
+   *
+   * **由 LLM 给**，正则退成兜底——与 `action` 同一条纪律（见本文件 `Intent.action` 与
+   * `intent.ts` 文件头）。理由是真跑打脸：追问文案白纸黑字写着"说目的地或出发日期都行"，
+   * 而字面判据只认序号和「全部」，车主说「从上海到张家港的行程」「九月二十五号的行程」
+   * 两次都认不出（turn-066bc428 / turn-ef5d58cb）。开放说法（「南通那趟」「带娃那个」
+   * 「中秋那次」）更是补不完——那正是模型该做的事。
+   *
+   * 候选列表由编排层送进 probe（ADR-010），没送就没有这一栏。
+   */
+  cancelPick?: number | "all";
+  /**
+   * 这一轮要去的目的地（M77 走查追修），只在 route=itinerary 时有。
+   *
+   * 用途只有一个：让编排层在 fan-out **一开始**就并行预取目的地亮点（`destination_highlights`），
+   * 而不是等 tour 排完再由它自己去搜。真跑 turn-c9830c68：tour 21.6 秒里含一次 4.2 秒的亮点搜索
+   * 外加一次模型往返，而 hotel / drive 在 11 秒就都完了——tour 是唯一的长腿，这一搜正好在它身上。
+   * 没有这一栏就不预取，narration 少一句风味，主页卡片仍由确认后的后台补算给出，不影响功能。
+   */
+  destinations?: string[];
+  /**
+   * 车主**明确说出来的**交通方式（ADR-012），只在他真的说了时才有。
+   *
+   * # 为什么必须由模型给
+   *
+   * 真跑 turn-a3e96c3d：助手自己在上一轮建议「按三天算，建议飞机去」，车主回「做飞机」，
+   * 意图理解也读懂了（`constraints` 里写着"坐飞机往返（不自驾）"、`context` 里写着
+   * "车主认可并明确交通方式改为飞机"）——而确认弹窗上的大交通是**火车**。
+   *
+   * 根因是 `assembleTransit` 的推荐是一张**写死的优先级表**（短途自驾 → 有高铁走高铁 →
+   * 才是飞机），车主说什么完全不参与：昆明到上海 2300 公里，只要 transit 分支返回了车次，
+   * 就恒定推荐火车。这一栏就是把"他已经说了什么"送进那个判断（ADR-010 同一条）。
+   *
+   * 与 `constraints` 的分工同 `tripLimits`：那里是给人看的原话，这一栏是给代码用的枚举，
+   * **不要再从 constraints 的文本里解析一遍**——「坐飞机」「飞过去」「不自驾」「走高铁」
+   * 的说法补不完，那正是模型该做的事。
+   */
+  transitMode?: TransitMode;
+  /**
+   * 车主明确说出来的行程数量约束（ADR-012），只在 route=itinerary 时有。
+   *
+   * **由 LLM 给，不从 `constraints` 的文本里再解析一遍。** 这一栏的来由是一次真跑事故
+   * （turn-8e667b9f / INC-0151）：车主说「三日行程」，意图理解读懂了并写进了 constraints，
+   * 而体检那一侧用正则去捞总天数，两条判据要的是「天行程」或「三日游」，
+   * 「三**日**行程」一条都不匹配 → `requestedDays` 取不到 → 「够不够天」整项跳过 →
+   * tour 只交了第 1 天也没人拦，一天的方案一路走到弹窗和落库。
+   *
+   * 模型已经读懂的东西不要再用正则解回来——压成文本再解析，中间那一压一解就是漏的地方。
+   */
+  tripLimits?: {
+    /** 这趟总共几天。 */
+    days?: number;
+    /** 单段连续行车上限（分钟）。模型按小时说，`parseIntent` 换算并归一到分钟。 */
+    maxLegMinutes?: number;
+    /** 到达时续航余量下限（百分比）。 */
+    minRangeMarginPct?: number;
+  };
   /**
    * 这一轮该交给谁（M13-13）。**由 LLM 在意图理解里给出**，取值见 `ROUTE_TARGETS`。
    *
@@ -245,8 +374,32 @@ export const GraphState = Annotation.Root({
    * reducer 右值覆盖：itinerary 轮写整份更新后的 plan；其它节点不写它，
    * LangGraph 对未返回的 channel 保留旧值——跨轮存活由此而来，不需要特殊 reducer。
    * 过期跟随 thread 24h 轮换（检查点一起作废），不另建过期机制。
+   *
+   * ⚠️ **M84-05 起在 `CARLIFE_CONTEXT_LAYER=tasks` 档下停止写入**（ACR-036 §4.9）：
+   * 跨轮的行程状态搬去了按 `userId × kind` 的 `working_tasks`，形状真相源是
+   * `@carlife/shared` 的 `TaskState`。这一栏**只读旧检查点作迁入种子**，
+   * 声明与 reducer 一律保留——库里躺着一批切档前的检查点，删通道会让它们一读就抛。
+   * `off` / `inject` 两档仍然照旧读写（逐级可退的那两档）。
    */
   tripPlan: Annotation<TripPlanState | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 出行需求澄清门问过没有（ACR-039 / M90-01）。**跨轮存活**，与 `tripPlan` 同机制。
+   *
+   * 骨架轮缺目的地或天数时，itinerary 节点不排、只让应答问一句；这一栏记"问过了"，
+   * 同一会话**只问一次**——第二次仍缺就按 M90 之前的路径闷头排（fail-open 兜底），
+   * 不会把车主卡在问答里。问的时候把**已经知道的那一半**（目的地或天数）存在这里：
+   * 答复轮意图层常常只给他刚说的那个数（「两天」），上一轮的目的地不重抄——
+   * 编排层从这里补，只补它上一轮**已经给过**的，不推断新的（ADR-012）。
+   * 用过一次就清回 `{ asked: true }`，免得陈货串到下一趟。
+   *
+   * `tasks` 档的包装层剥 `tripPlan` / `pendingCancel` 时**不剥它**：它不是行程状态，是会话级的"问过没有"。
+   * 旧检查点没有它，读出来是 undefined，按"没问过"处理。
+   */
+  tripClarify: Annotation<TripClarifyState | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
   }),
@@ -264,9 +417,39 @@ export const GraphState = Annotation.Root({
    *
    * 存的是候选的 planId 与一句话描述：下一轮据此认「全部」「第二个」「确认」。
    * 一轮用完即清（`itineraryNode` 处理后写 undefined），不留着误伤后面的对话。
+   *
+   * ⚠️ **M84-05 起在 `tasks` 档下同样停止写入**（与 `tripPlan` 同一条命）：
+   * 它搬去了 `TaskState.pending`。提问与回答之间隔着一轮，而那一轮里车主完全可能
+   * 换到另一个端上答——挂在会话上的问题接不住那种回答。
    */
   pendingCancel: Annotation<PendingCancelState | undefined>({
     reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 这一次出险咨询里已经说清的事实（M101-04）：估损金额与事故类型。**跨轮存活**。
+   *
+   * # 为什么不能只读本轮 intent
+   *
+   * 第一句「划痕走保险划算吗，大概两千块」之后，第二句「那要准备什么材料」里没有任何数字，
+   * 意图层如实地不给这两栏——于是材料清单退回缺省的单方事故，并**再问一遍**事故类型。
+   * 车主刚说过的事又被问一次，是最伤信任的那种。
+   *
+   * # 为什么是图状态而不是 working_tasks
+   *
+   * 估损与事故类型是**一次对话内**的事：车主问完材料就走了，不需要跨会话接着办。
+   * `working_tasks` 是跨会话任务（预约、行程）的机制，为理赔咨询开一个 `TaskKind`
+   * 等于给一个不存在的生命周期建模。随线程检查点活着、会话轮换后清掉，正合适。
+   *
+   * reducer 是**逐字段合并**不是整体替换：车主这一轮只更正事故类型时，
+   * 上一轮说的估损还得在。
+   */
+  claimFacts: Annotation<ClaimFactsState | undefined>({
+    reducer: (left, right) => {
+      if (!right) return left;
+      return { ...(left ?? {}), ...right, updatedAt: right.updatedAt };
+    },
     default: () => undefined,
   }),
 
@@ -277,6 +460,16 @@ export const GraphState = Annotation.Root({
    * 其余节点不写它，LangGraph 保留旧值。过期随 thread 24h 轮换。
    */
   consultation: Annotation<ConsultationState | undefined>({
+    reducer: (_left, right) => right,
+    default: () => undefined,
+  }),
+
+  /**
+   * 拍照问诊的结构化报告（M104-01，F-20-06 / F-20-09）。**跨轮存活**，与 `consultation` 同机制：
+   * 问诊轮由 answer 节点覆盖写入，非问诊轮不写（LangGraph 保留旧值）；端上经 `/internal/diagnosis` 只读。
+   * 追问轮次与问过的题从上一份累计。只由主图的 answer 节点写，不进任何 lane 白名单。
+   */
+  diagnosis: Annotation<DiagnosisReport | undefined>({
     reducer: (_left, right) => right,
     default: () => undefined,
   }),
@@ -443,7 +636,27 @@ export const GraphState = Annotation.Root({
  * HUD 就会一直挂着一份用户已经不要了的行程）。
  * 它**不进落库快照**：`trip_plan_commit` 的 zod 是 strip 模式，多余键自然剥掉。
  */
-export type TripPlanState = TripPlanSnapshot & { committedPlanId?: string };
+/** 见 `GraphState.tripClarify`。 */
+export interface TripClarifyState {
+  asked: boolean;
+  /** 问的时候已经知道的目的地（只在问"玩几天"时有）。 */
+  destinations?: string[];
+  /** 问的时候已经知道的天数（只在问"去哪儿"时有）。 */
+  days?: number;
+}
+
+export type TripPlanState = TripPlanSnapshot & {
+  committedPlanId?: string;
+  /**
+   * 生成这一版草案时**实际用到的约束**（会话内，不落库——zod 是 strip 模式，进不了 `trip_plans.plan`）。
+   *
+   * 用途只有一个：确认时和这一轮的约束做集合差，把车主**这一轮才提出、草案还没体现**的要求
+   * 列到确认弹窗上。真跑 turn-75baf900：他说「这样定了我们就这样定了我们是走自驾啊」，
+   * 意图理解把"自驾出行（不走高铁/飞机）"抓进了 constraints，而确认那条路只读 action，
+   * 直接把高铁那一版落了库，然后让他重说一遍。
+   */
+  builtWith?: string[];
+};
 
 /**
  * 一次候选收敛的完整快照。结构由 `subgraphs/buying.ts` 定义，

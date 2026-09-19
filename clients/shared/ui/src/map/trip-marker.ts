@@ -43,16 +43,47 @@ export interface TripMarkerOptions {
   guided?: boolean;
   /** 品类贴纸地址；缺省不画贴纸。 */
   sticker?: string;
+  /**
+   * 淡出（M83 走查追修）：抽屉里选了某一天时，**别的天**的胶囊退成灰色半透明。
+   * 初值写进 HTML 只是为了首帧不闪；之后由 `data-days` 驱动、只翻 class 不重建
+   * （与导览角标同一条纪律——重建覆盖物等于把路径规划与取景全部重做）。
+   */
+  dim?: boolean;
 }
+
+/** 行程胶囊的根类名。服务点的名字要绕开它们（文字盖文字，两行都读不成）。 */
+export const TRIP_MARKER_CLASS = "hud-tripmark";
 
 /** 导览就绪的修饰类；AmapTripLayer 在轮询结果变化时按 data-spot 增删它。 */
 export const TRIP_MARKER_GUIDED_CLASS = "hud-tripmark--guided";
 
-/** 角标文案——"能看了"必须是字，不是只有颜色的点：车机上一眼扫过去要读得出来。 */
+/** 非选中天的淡出类（M83 走查追修）；按 `data-days` 增删，不重建覆盖物。 */
+export const TRIP_MARKER_DIM_CLASS = "hud-tripmark--dim";
+
+/** 这枚标记覆盖哪几天——连住酒店跨多天，`days` 优先于 `day`。 */
+export function markerDays(stop: TripMarkerStop): number[] {
+  return stop.days?.length ? [...stop.days] : [stop.day];
+}
+
+/**
+ * 逐条对齐的天表里，哪几条属于第 `day` 天（2026-09-16 走查：切天要把镜头框到那一天）。
+ *
+ * 独立成纯函数是为了能直接测：取景本身要浏览器里的 AMap，而"挑哪几个点"这件事
+ * 恰好是全部业务判断所在——**连住酒店两天都算它**（`markerDays` 给的就是两天），
+ * 少算的话第 2 天框出来的视野会把住的地方甩在框外。
+ */
+export function indexesOfDay(dayLists: readonly (readonly number[])[], day: number): number[] {
+  const hit: number[] = [];
+  dayLists.forEach((days, i) => {
+    if (days.includes(day)) hit.push(i);
+  });
+  return hit;
+}
+
 export const TRIP_MARKER_GUIDED_LABEL = "✓ 导览";
 
 export function tripMarkerHtml(stop: TripMarkerStop, o: TripMarkerOptions): string {
-  const { seq, showDayBadge, time, index = 0, gen = 0, entering = false, guided = false, sticker } = o;
+  const { seq, showDayBadge, time, index = 0, gen = 0, entering = false, guided = false, sticker, dim = false } = o;
   const badge = seq !== null ? String(seq) : stop.kind === "hotel" ? "🏨" : "⚡";
   // 品类贴纸（M13-07）：与生活环同一套卡通图，地图标记与环上观感一致。
   const poi = sticker ? `<img class="hud-tripmark__poi" src="${escapeHtml(sticker)}" alt="" />` : "";
@@ -61,7 +92,10 @@ export function tripMarkerHtml(stop: TripMarkerStop, o: TripMarkerOptions): stri
   // "预计"二字不可省：停留时长是本仓的假设值，不写清楚就成了看起来像真的时刻表。
   const timeText = time?.arrive ? `预计 ${time.arrive}–${time.depart}` : "";
   const meta = [dayText, timeText].filter(Boolean).join(" · ");
-  const cls = `hud-tripmark hud-tripmark--${stop.kind}${guided ? ` ${TRIP_MARKER_GUIDED_CLASS}` : ""}`;
+  const cls =
+    `hud-tripmark hud-tripmark--${stop.kind}` +
+    `${guided ? ` ${TRIP_MARKER_GUIDED_CLASS}` : ""}` +
+    `${dim ? ` ${TRIP_MARKER_DIM_CLASS}` : ""}`;
   return (
     // data-i 是贴边夹持用来**按下标精确配对**的锚（不能靠 DOM 顺序猜，
     // 顺序会随 zIndex/重绘变化，配错了就是把 A 的修正量加到 B 头上）。
@@ -70,6 +104,7 @@ export function tripMarkerHtml(stop: TripMarkerStop, o: TripMarkerOptions): stri
     // data-spot 是导览角标的锚：轮询说"某景点就绪了"时按名字找到胶囊、只改一个 class，
     // 不重建覆盖物（重建 = 路线/视野/7 段路径规划全部重做，M19-05 的那个坑）。
     `<div class="${cls}" data-i="${index}" data-gen="${gen}" data-spot="${escapeHtml(stop.name)}"` +
+    ` data-days="${markerDays(stop).join(",")}"` +
     ` style="opacity:${entering ? 0 : 1}">` +
     poi +
     `<span class="hud-tripmark__text">` +

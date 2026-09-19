@@ -7,26 +7,25 @@
   place-items: center;
   background: var(--surface-base, #0b0d12);
   color: var(--text-primary, #f5f7fa);
-  padding: 32px;
+  padding: calc(32 * var(--hud-unit));
   z-index: 40;
 }
 
 .boarding-card {
-  width: min(720px, 100%);
+  width: min(calc(720 * var(--hud-unit)), 100%);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: calc(18 * var(--hud-unit));
 }
 
 .boarding-card h1 {
+  font: var(--hud-type-headline);
   margin: 0;
-  font-size: 30px;
-  font-weight: 600;
 }
 
 .boarding-steps {
   margin: 0;
-  padding-left: 20px;
+  padding-left: calc(20 * var(--hud-unit));
   line-height: 1.9;
   opacity: 0.8;
 }
@@ -37,55 +36,56 @@
  */
 .boarding-qr {
   align-self: center;
-  padding: 12px;
-  border-radius: 12px;
+  padding: calc(12 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
   background: #fff;
   line-height: 0;
 }
 
 .boarding-qr svg {
   display: block;
-  width: min(300px, 42vh);
+  width: min(calc(300 * var(--hud-unit)), 42vh);
   height: auto;
 }
 
 .boarding-device-id {
+  font: var(--hud-type-caption);
   margin: 0;
-  padding: 14px 16px;
-  border-radius: 10px;
+  padding: calc(14 * var(--hud-unit)) calc(16 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
   background: var(--surface-raised, rgba(255, 255, 255, 0.06));
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 18px;
   letter-spacing: 0.06em;
   word-break: break-all;
 }
 
 .boarding-code-row {
   display: flex;
-  gap: 12px;
+  gap: calc(12 * var(--hud-unit));
 }
 
 .boarding-code-row input {
+  font: var(--hud-type-metric);
+  font-variant-numeric: tabular-nums;
   flex: 1;
-  height: 56px;
-  padding: 0 16px;
-  border-radius: 12px;
+  height: calc(56 * var(--hud-unit));
+  padding: 0 calc(16 * var(--hud-unit));
+  border-radius: calc(12 * var(--hud-unit));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
   background: var(--surface-raised, rgba(255, 255, 255, 0.06));
   color: inherit;
-  font-size: 24px;
   letter-spacing: 0.3em;
 }
 
 .boarding-code-row button {
-  min-width: 140px;
-  height: 56px;
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
+  min-width: calc(140 * var(--hud-unit));
+  height: calc(56 * var(--hud-unit));
   border: none;
-  border-radius: 12px;
+  border-radius: calc(12 * var(--hud-unit));
   background: var(--accent, #4c8dff);
   color: #fff;
-  font-size: 18px;
-  font-weight: 600;
 }
 
 .boarding-members {
@@ -93,20 +93,20 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(calc(200 * var(--hud-unit)), 1fr));
+  gap: calc(12 * var(--hud-unit));
 }
 
 .boarding-members button {
   width: 100%;
-  min-height: 88px;
+  min-height: calc(88 * var(--hud-unit));
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 14px;
+  gap: calc(6 * var(--hud-unit));
+  padding: calc(16 * var(--hud-unit));
+  border-radius: calc(14 * var(--hud-unit));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
   background: var(--surface-raised, rgba(255, 255, 255, 0.06));
   color: inherit;
@@ -114,12 +114,12 @@
 }
 
 .boarding-name {
-  font-size: 20px;
-  font-weight: 600;
+  font: var(--hud-type-title);
 }
 
 .boarding-role {
-  font-size: 14px;
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
 
@@ -128,15 +128,15 @@
 }
 
 .boarding-hint {
+  font: var(--hud-type-caption);
   margin: 0;
-  font-size: 13px;
   opacity: 0.6;
 }
 
 .boarding-error {
+  font: var(--hud-type-caption);
   margin: 0;
   color: var(--danger, #ff6b6b);
-  font-size: 15px;
 }
 
 .boarding-members button:disabled,
@@ -153,21 +153,20 @@
   place-items: center;
   background: var(--surface-base, #0b0d12);
   color: var(--text-primary, #f5f7fa);
-  padding: 32px;
+  padding: calc(32 * var(--hud-unit));
   z-index: 40;
 }
 
 .clogin-card {
-  width: min(480px, 100%);
+  width: min(calc(480 * var(--hud-unit)), 100%);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: calc(14 * var(--hud-unit));
 }
 
 .clogin-card h1 {
+  font: var(--hud-type-headline);
   margin: 0;
-  font-size: 32px;
-  font-weight: 600;
 }
 
 .clogin-hint {
@@ -176,32 +175,34 @@
 }
 
 .clogin-field {
+  font: var(--hud-type-label);
+  letter-spacing: 0.04em;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  gap: calc(6 * var(--hud-unit));
 }
 
 .clogin-field input {
-  font-size: 18px;
-  padding: 12px 14px;
-  border-radius: 10px;
+  font: var(--hud-type-input);
+  padding: calc(12 * var(--hud-unit)) calc(14 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
   background: var(--surface-raised, rgba(255, 255, 255, 0.06));
   color: inherit;
 }
 
 .clogin-error {
+  font: var(--hud-type-caption);
   margin: 0;
   color: var(--danger, #ff7a70);
-  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
 .clogin-submit {
-  font-size: 18px;
-  padding: 12px;
-  border-radius: 10px;
+  font: var(--hud-type-action);
+  letter-spacing: 0.02em;
+  padding: calc(12 * var(--hud-unit));
+  border-radius: calc(10 * var(--hud-unit));
   border: none;
   background: var(--accent, #3d7bfd);
   color: #fff;
@@ -214,21 +215,22 @@
 .clogin-alt {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: calc(10 * var(--hud-unit));
 }
 
 .clogin-alt button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   background: none;
   border: none;
   color: var(--text-secondary, rgba(255, 255, 255, 0.64));
-  font-size: 14px;
-  padding: 6px 0;
+  padding: calc(6 * var(--hud-unit)) 0;
   text-decoration: underline;
 }
 
 .clogin-gateway {
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
-  padding-top: 12px;
+  padding-top: calc(12 * var(--hud-unit));
 }
 
 /* ============================================================
@@ -236,6 +238,8 @@
  * `boarding-gate-v1.png`）：两道门从深色改成与主屏同一套浅色语言。
  *
  * 这一段**只改视觉层**（底色、卡面、字色、控件形状），DOM 与相位机一字未动——
+ * 字号字重也不在这里：2026-09-16 起由基线规则引用的 `--hud-type-*` 样式承担，
+ * 这一段原来那 11 处放大（h1 56/40、配对码 22、姓名 26…）在样式系统里没有落脚处。
  * 上面那些规则的布局（grid、min-height、二维码白底静区）继续生效，
  * 这里只覆盖颜色与圆角。放在文件末尾靠顺序取胜，特异度与上面同级。
  *
@@ -249,29 +253,25 @@
     radial-gradient(60% 55% at 88% 8%, rgba(255, 176, 60, 0.16), transparent 70%),
     linear-gradient(180deg, #eef4fb 0%, #e6eef8 100%);
   color: #1f3d63;
-  padding: 40px;
+  padding: calc(40 * var(--hud-unit));
 }
 
 .boarding-card,
 .clogin-card {
-  padding: 44px 48px;
-  border-radius: 32px;
+  padding: calc(44 * var(--hud-unit)) calc(48 * var(--hud-unit));
+  border-radius: calc(32 * var(--hud-unit));
   background: #fff;
   border: 1px solid rgba(163, 200, 232, 0.55);
-  box-shadow: 0 18px 48px rgba(70, 120, 170, 0.18);
+  box-shadow: 0 calc(18 * var(--hud-unit)) calc(48 * var(--hud-unit)) rgba(70, 120, 170, 0.18);
 }
-.clogin-card { width: min(720px, 100%); gap: 18px; text-align: center; }
-.boarding-card { width: min(900px, 100%); gap: 20px; }
+.clogin-card { width: min(calc(720 * var(--hud-unit)), 100%); gap: calc(18 * var(--hud-unit)); text-align: center; }
+.boarding-card { width: min(calc(900 * var(--hud-unit)), 100%); gap: calc(20 * var(--hud-unit)); }
 
 .clogin-card h1 {
-  font-size: 56px;
-  font-weight: 800;
   letter-spacing: 0.01em;
   color: #1f3d63;
 }
 .boarding-card h1 {
-  font-size: 40px;
-  font-weight: 800;
   text-align: center;
   color: #1f3d63;
 }
@@ -279,50 +279,43 @@
 .clogin-hint,
 .boarding-hint {
   color: #6c8bb0;
-  font-size: 18px;
   opacity: 1;
 }
-.clogin-hint { font-size: 20px; margin-bottom: 6px; }
-.boarding-hint { text-align: center; font-size: 16px; }
+.clogin-hint { margin-bottom: calc(6 * var(--hud-unit)); }
+.boarding-hint { text-align: center; }
 
 /* 输入行：左对齐的标签 + 高白框（卡片整体居中，唯独表单左对齐才好填）。 */
 .clogin-field {
   text-align: left;
-  gap: 10px;
-  font-size: 18px;
-  font-weight: 700;
+  gap: calc(10 * var(--hud-unit));
   color: #1f3d63;
 }
 .clogin-field input,
 .boarding-code-row input {
-  height: 68px;
-  padding: 0 20px;
-  border-radius: 16px;
+  height: calc(68 * var(--hud-unit));
+  padding: 0 calc(20 * var(--hud-unit));
+  border-radius: calc(16 * var(--hud-unit));
   border: 1px solid rgba(163, 200, 232, 0.75);
   background: #fff;
   color: #1f3d63;
-  font-size: 22px;
-  font-weight: 600;
 }
 .clogin-field input:focus,
 .boarding-code-row input:focus {
   outline: none;
   border-color: #3d8fd6;
-  box-shadow: 0 0 0 3px rgba(61, 143, 214, 0.22);
+  box-shadow: 0 0 0 calc(3 * var(--hud-unit)) rgba(61, 143, 214, 0.22);
 }
 
 /* 主行动：一屏只有一个，走 amber/cta 的渐变与暖投影。 */
 .clogin-submit,
 .boarding-code-row button {
-  height: 72px;
-  padding: 0 28px;
-  border-radius: 20px;
+  height: calc(72 * var(--hud-unit));
+  padding: 0 calc(28 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
   border: none;
   background: linear-gradient(180deg, #ffa51f, #ff8a00);
   color: #fff;
-  font-size: 24px;
-  font-weight: 800;
-  box-shadow: 0 10px 26px rgba(255, 190, 90, 0.55);
+  box-shadow: 0 calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit)) rgba(255, 190, 90, 0.55);
   cursor: pointer;
 }
 .clogin-submit:disabled,
@@ -336,33 +329,31 @@
 /* 次级出口：文字按钮不用下划线，改成蓝色可点文字（定稿）。 */
 .clogin-alt {
   justify-content: center;
-  gap: 48px;
-  padding-top: 4px;
+  gap: calc(48 * var(--hud-unit));
+  padding-top: calc(4 * var(--hud-unit));
 }
 .clogin-alt button {
   color: #3d8fd6;
-  font-size: 18px;
-  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
 
-.clogin-gateway { border-top-color: rgba(150, 190, 225, 0.45); padding-top: 18px; }
+.clogin-gateway { border-top-color: rgba(150, 190, 225, 0.45); padding-top: calc(18 * var(--hud-unit)); }
 .clogin-error,
 .boarding-error { color: #c0392b; }
 
 /* 上车门的成员：定稿是**竖排整行**，不是并排小卡——一行一个人，触达更大。 */
 .boarding-members {
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: calc(14 * var(--hud-unit));
 }
 .boarding-members button {
-  min-height: 96px;
+  min-height: calc(96 * var(--hud-unit));
   flex-direction: row;
   align-items: center;
-  gap: 18px;
-  padding: 18px 24px;
-  border-radius: 20px;
+  gap: calc(18 * var(--hud-unit));
+  padding: calc(18 * var(--hud-unit)) calc(24 * var(--hud-unit));
+  border-radius: calc(20 * var(--hud-unit));
   border: 1px solid rgba(163, 200, 232, 0.55);
   background: #fff;
   color: #1f3d63;
@@ -372,16 +363,14 @@
   border-color: #f5a623;
   background: rgba(245, 166, 35, 0.08);
 }
-.boarding-name { font-size: 26px; font-weight: 700; }
+.boarding-name { }
 /* 角色是标签不是说明：蓝底片小胶囊，与站点卡上的「✓ 导览」同一族。 */
 .boarding-role {
   margin-left: auto;
-  padding: 4px 16px;
+  padding: calc(4 * var(--hud-unit)) calc(16 * var(--hud-unit));
   border-radius: 999px;
   background: #e3f0fb;
   color: #3d8fd6;
-  font-size: 16px;
-  font-weight: 700;
   opacity: 1;
 }
 /* 访客那一行是次级出口：虚线描边保留（上面的 !important），底色收成灰。 */
@@ -392,7 +381,7 @@
 .boarding-device-id {
   background: #f2f6fb;
   color: #1f3d63;
-  border-radius: 14px;
+  border-radius: calc(14 * var(--hud-unit));
 }
 
 /* ── 两道门必须盖住主屏的顶栏与底栏 ─────────────────────────────
@@ -419,7 +408,7 @@
   inset: 0;
   z-index: 0;
   /* 失焦 + 压低对比：它是舞台不是内容，任何一处都不该被读。 */
-  filter: blur(1.5px);
+  filter: blur(calc(1.5 * var(--hud-unit)));
   opacity: 0.95;
 }
 .clogin-stage .hud-map-backdrop {
@@ -430,12 +419,12 @@
 }
 .clogin-mascot {
   position: absolute;
-  left: 40px;
+  left: calc(40 * var(--hud-unit));
   bottom: 0;
   z-index: 1;
-  height: min(46vh, 420px);
+  height: min(46vh, calc(420 * var(--hud-unit)));
   width: auto;
-  filter: drop-shadow(0 14px 30px rgba(20, 50, 90, 0.28));
+  filter: drop-shadow(0 calc(14 * var(--hud-unit)) calc(30 * var(--hud-unit)) rgba(20, 50, 90, 0.28));
   pointer-events: none;
 }
 .clogin-card { position: relative; z-index: 2; }

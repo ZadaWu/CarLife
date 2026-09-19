@@ -22,7 +22,22 @@ export interface CarouselApi {
   goTo: (page: number) => void;
 }
 
-export function useCarousel(pageCount: number, intervalMs = CAROUSEL_INTERVAL_MS): CarouselApi {
+export interface CarouselOptions {
+  intervalMs?: number;
+  /**
+   * 暂停自动翻页（M83-03）。**暂停而不是隐藏**：行程详情抽屉盖在这个窗口上时，
+   * 底下继续每 6 秒翻一页毫无意义，而抽屉一关就该原样接着翻——所以不重置页码、
+   * 也不重置计时依据，只是这段时间里不排下一次 timeout。
+   */
+  paused?: boolean;
+}
+
+export function useCarousel(
+  pageCount: number,
+  options: number | CarouselOptions = {},
+): CarouselApi {
+  const { intervalMs = CAROUSEL_INTERVAL_MS, paused = false } =
+    typeof options === "number" ? { intervalMs: options } : options;
   const [page, setPage] = useState(1);
   // tick 变化即重置计时器——手动滑动后从当前页重新计时
   const [tick, setTick] = useState(0);
@@ -33,12 +48,12 @@ export function useCarousel(pageCount: number, intervalMs = CAROUSEL_INTERVAL_MS
   }, [pageCount, page]);
 
   useEffect(() => {
-    if (pageCount <= 1) return;
+    if (pageCount <= 1 || paused) return;
     const id = window.setTimeout(() => {
       setPage((p) => (p >= pageCount ? 1 : p + 1));
     }, intervalMs);
     return () => window.clearTimeout(id);
-  }, [page, pageCount, intervalMs, tick]);
+  }, [page, pageCount, intervalMs, tick, paused]);
 
   const goTo = useCallback(
     (next: number) => {

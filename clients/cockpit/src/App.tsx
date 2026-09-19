@@ -24,6 +24,7 @@ import {
   useCarousel,
   useMapViewport,
   useToolProgress,
+  tripActiveFor,
   type GuideScreenState,
   type NavView,
   type ThemeName,
@@ -31,6 +32,8 @@ import {
   vehicleCharacter,
   type EnRouteEvent,
   type ReminderDensity,
+  selectedServicePois,
+  type ServiceCategoryKey,
 } from "@carlife/ui";
 
 import { guideBriefIsEmpty,
@@ -44,7 +47,7 @@ import type {
   GuideJobsStatus,
   PermissionRequest,
 } from "@carlife/shared";
-import { SESSION_EXPIRED } from "@carlife/shared";
+import { ACCOUNT_EVENTS, SESSION_EXPIRED } from "@carlife/shared";
 
 import { HudScreen, type HudTripMapProps } from "./hud/HudScreen";
 import type { NavTripProgress } from "@carlife/ui";
@@ -60,8 +63,6 @@ import {
 } from "./data/mockSource";
 import {
   highlightsPage,
-  tripDayIndex,
-  tripPlanHasCoords,
   tripPlanNavDay,
   tripPlanStops,
   validateHudSnapshot,
@@ -108,13 +109,18 @@ import {
   createReviewAnnouncer,
   demoEnergy,
   hudAlertFrom,
+  hudSourceFailure,
   startEnergyPolling,
+  type EnergyPoller,
+  type HudSourceFailure,
+  type TopBarLink,
 } from "@carlife/ui";
 import { createAnnounceStore } from "./features/trip/announce-prefs";
 import { ConfirmSheet } from "./features/hitl/ConfirmSheet";
 // 样式在入口引：组件文件不 import css——node 的测试跑器加载不了它（M72-04）。
 import { invokeAckTripReview } from "./data/mockSource";
-import type { TripPlanListEntry } from "@carlife/shared";
+import { adjustStructurePrompt } from "@carlife/shared";
+import type { TripPlanListEntry, TripStructureEdit } from "@carlife/shared";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { SettingsScreen } from "./features/settings/SettingsScreen";
 import { demoTheme, isProfileDemo } from "./data/demoVehicleProfile";
@@ -232,6 +238,26 @@ export function App({
   const [profileReady, setProfileReady] = useState(false);
   const [liveEnergy, setLiveEnergy] = useState<LiveEnergy | undefined>(demoEnergy);
   const [stale, setStale] = useState(false);
+  /*
+   * 顶栏那枚指示灯要分得清「还没拿到过」与「拿到过但这次失败了」（2026-09-12 用户走查）。
+   *
+   * `stale` 一个布尔说不了三件事：它的初值 false 同时是"开机头两秒"和"一切正常"。
+   * 只凭它点灯的话，网关根本没起来时开机那几秒也是绿的——而那正是用户会盯着看的几秒。
+   * 所以另记一笔"成功过没有"：绿灯的前提是**真的收到过一份数据**。
+   */
+  const [linkSeen, setLinkSeen] = useState(false);
+  /*
+   * 最近一次取数失败属于哪一类（2026-09-12 用户走查：「点刷新按钮没用，依旧是断的」）。
+   *
+   * 当时网关好好的，3 ms 就回话，回的是 **401**——车机没做上车声明（或声明成了访客），
+   * 车辆级凭证不代表任何人，个人域端点一律拒。而屏上写着「未连接」，于是人去查了
+   * Docker、查了端口，查到的全是好的。连不上要重试，没身份要重新声明，
+   * 两条补救动作没有交集，所以这两种失败必须分开记。
+   */
+  const [linkFail, setLinkFail] = useState<HudSourceFailure | null>(null);
+  /** 顶栏刷新按钮这一轮还在路上。 */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
   // ⑥用车流水的采集开关与最近一次上报结果（M11-01，仅 Tauri 内有效）
   const [tripCollect, setTripCollect] = useState(true);
   const [tripNote, setTripNote] = useState("");
@@ -261,6 +287,25 @@ export function App({
   const [fetchedEntries, setFetchedEntries] = useState<TripPlanListEntry[]>([]);
   const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(undefined);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  /** 胶囊上的工具菜单是否展开（M83-02）。 */
+  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
+  /** 行程详情抽屉（M83-03）：开没开、看的是第几天。两者都只在端上记，不落库。 */
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailDay, setDetailDay] = useState(1);
+  /**
+   * 沿途服务里选中了哪几类（M93-05）。**只在端上记、不落库**——与 `detailOpen` / `detailDay`
+   * 同一条纪律；抽屉一关就清空，下次打开是干净的一屏。
+   *
+   * 住在页面层是因为它要同时喂给两个兄弟组件：抽屉那一排格子（选中态）与地图那一层标记。
+   */
+  const [selectedServices, setSelectedServices] = useState<ServiceCategoryKey[]>([]);
+  /**
+   * 编辑态与变更集（M83-04）。放在这里而不是抽屉里：关抽屉、换一程、切页面
+   * 都要先问一句"有没有没保存的改动"，那几处只有页面层管得着。
+   */
+  const [detailEditing, setDetailEditing] = useState(false);
+  const [detailEdits, setDetailEdits] = useState<TripStructureEdit[]>([]);
+  const [detailConfirmDiscard, setDetailConfirmDiscard] = useState(false);
   const [reviewPlanId, setReviewPlanId] = useState<string | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   /** 演示条目里点过「知道了」的（演示数据是静态的，得自己记）。 */
@@ -362,10 +407,18 @@ export function App({
         if (problems.length) console.warn("HUD 快照不满足 Brief 约束:", problems);
         setSnapshot(s);
         setStale(false);
+        setLinkFail(null);
+        setLinkSeen(true);
       },
-      () => {
-        // 弱网降级：保留最近有效快照并标记「数据更新中」，不空白、不全屏遮挡
-        setStale(true);
+      (err) => {
+        const kind = hudSourceFailure(err);
+        setLinkFail(kind);
+        /*
+         * **只有真连不上才算 stale**。401 时服务是好的，状态栏那四格再写
+         * 「服务暂不可用」就是第二处同样的误导——那时它们没有数据，写「暂无」才是实话，
+         * 至于"为什么没有"由顶栏那枚灯负责说（它还带着能修好的那一下）。
+         */
+        setStale(kind === "unreachable");
       },
     );
   }, [source]);
@@ -391,10 +444,16 @@ export function App({
   }, []);
 
   /* 能量轮询：换车即重起一路，旧的立刻停——否则切完车还会收到上一辆的读数。 */
+  const energyPollerRef = useRef<EnergyPoller | null>(null);
   useEffect(() => {
     if (!isTauriEnv()) return;
     const poller = startEnergyPolling(activeVin, setLiveEnergy, { fetchEnergyJson: invokeFetchEnergy });
-    return () => poller.stop();
+    energyPollerRef.current = poller;
+    return () => {
+      poller.stop();
+      // 只清自己：换车时新的那一路已经写进来了，无条件置 null 会把它抹掉。
+      if (energyPollerRef.current === poller) energyPollerRef.current = null;
+    };
   }, [activeVin]);
 
   // 首帧到达前使用同源的默认快照，避免空白页（Brief §6）
@@ -433,19 +492,12 @@ export function App({
   // 地图层当成"配置变了"，那正是白屏事故的引信（AmapTripLayer 的注释）。
   const onTripMapFallback = useCallback(() => setAmapFailed(true), []);
 
-  // 行程模式判定：确认过、未过期、有真实坐标、且真实地图没有报废——缺一样都回落装饰概览。
   /*
    * 跟车演示的 nav 只挂一次（useMemo）：每次渲染新造一份会让 startedAt 一直往前跑，
    * navKey 跟着变，跟车于是每帧从头起跑——车标钉在起点一动不动。
    */
   const demoNavPlan = useMemo(() => withDemoNav(DEMO_TRIP_PLAN, 2), [demoNav]);
   const plan = demoPlan ? (demoNav ? demoNavPlan : DEMO_TRIP_PLAN) : fetchedPlan;
-  const tripActive =
-    !amapFailed &&
-    plan !== null &&
-    plan.status === "confirmed" &&
-    tripDayIndex(plan, new Date().toISOString().slice(0, 10)) !== null &&
-    tripPlanHasCoords(plan);
 
   /*
    * ── 跟车模式（M31-03）───────────────────────────────────────
@@ -480,6 +532,18 @@ export function App({
   const highlightedPlanId =
     selectedPlanId && tripEntries.some((e) => e.planId === selectedPlanId) ? selectedPlanId : undefined;
   void currentPlanId;
+  /*
+   * 行程模式判定（判据在 `@carlife/ui` 的 `tripActiveFor`，与手机端同一份）：
+   * 确认过、这一程该上地图、有真实坐标、且真实地图没有报废——缺一样都回落装饰概览。
+   * 排在 `highlightedPlanId` 之后是因为它要知道"这一程是不是车主自己点开的"：
+   * 点开的那程即使已经走完也照画（2026-09-16 走查）。
+   */
+  const tripActive = tripActiveFor({
+    plan,
+    amapFailed,
+    today: new Date().toISOString().slice(0, 10),
+    selected: highlightedPlanId !== undefined,
+  });
   const reviewEntry = reviewPlanId ? tripEntries.find((e) => e.planId === reviewPlanId) : undefined;
   /** 暖暖 alert：critical 且未确认、未作废（AC-01-4，「知道了」即清除）。 */
   const hudAlert = hudAlertFrom(tripEntries);
@@ -488,6 +552,11 @@ export function App({
   const onSelectTrip = useCallback(
     (planId: string) => {
       setSelectedPlanId(planId);
+      // 菜单与抽屉都是"对这一程"的：换了一程还开着，看的、点的就都是另一程了。
+      setDetailMenuOpen(false);
+      setDetailOpen(false);
+      setDetailEditing(false);
+      setDetailEdits([]);
       if ("select" in source) (source as GatewayHudSource).select(planId);
     },
     [source],
@@ -495,8 +564,61 @@ export function App({
   /** 顶部日期条的 ×（M73-02）：回未选中态——周日历卡回来、提示卡收起、地图回到列表首条。 */
   const onClearTripSelection = useCallback(() => {
     setSelectedPlanId(null);
+    setDetailMenuOpen(false);
+    setDetailOpen(false);
+    setDetailEditing(false);
+    setDetailEdits([]);
     if ("select" in source) (source as GatewayHudSource).select(null);
   }, [source]);
+  /**
+   * 胶囊上的工具菜单（M83-02）。状态在这里而不是组件里：抽屉、"换了一程"、"切走页面"
+   * 都要能把它收起来，藏在组件内部这几处就够不着。
+   */
+  const onToggleDetailMenu = useCallback(() => setDetailMenuOpen((v) => !v), []);
+  /**
+   * 打开抽屉。默认看第几天：跟车中看**当前导航天**（车主此刻关心的就是它），
+   * 否则第 1 天。`navDay` 在这一行之前已经算好。
+   */
+  const onOpenDetail = useCallback(() => {
+    setDetailMenuOpen(false);
+    setDetailDay(navDay ?? 1);
+    setDetailEditing(false);
+    setDetailEdits([]);
+    setSelectedServices([]);
+    setDetailOpen(true);
+  }, [navDay]);
+  const onCloseDetail = useCallback(() => {
+    setSelectedServices([]);
+    setDetailOpen(false);
+  }, []);
+  /** 点一格就取反（M93-05）：可多选，再点一次取消。 */
+  const onToggleService = useCallback((key: ServiceCategoryKey) => {
+    setSelectedServices((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  }, []);
+  /** 退出编辑态并丢掉变更集。关抽屉、取消、放弃三处共用。 */
+  const dropDetailEdits = useCallback(() => {
+    setDetailEditing(false);
+    setDetailEdits([]);
+    setDetailConfirmDiscard(false);
+  }, []);
+  /**
+   * 想关抽屉：有未保存的变更就先弹确认，没有就直接关。
+   * **不静默丢弃**——改了半天点个 × 就没了，用户不会知道发生过什么。
+   */
+  const onRequestCloseDetail = useCallback(() => {
+    if (detailEditing && detailEdits.length > 0) {
+      setDetailConfirmDiscard(true);
+      return;
+    }
+    dropDetailEdits();
+    setSelectedServices([]);
+    setDetailOpen(false);
+  }, [detailEditing, detailEdits.length, dropDetailEdits]);
+  const onConfirmDiscardDetail = useCallback(() => {
+    dropDetailEdits();
+    setSelectedServices([]);
+    setDetailOpen(false);
+  }, [dropDetailEdits]);
   const onOpenTripReview = useCallback(
     (planId: string) => {
       if (navDay !== undefined) {
@@ -597,6 +719,35 @@ export function App({
       stops.forEach((u) => u());
     };
   }, []);
+  /*
+   * 账号级事件 → 重拉会话列表（ACR-032）。
+   *
+   * 这条订阅是这次跨端同步的**唯一消费点**：Rust 侧收到 `/v1/events` 的
+   * `sessions_changed` 就发这个事件，前端只做一件事——整拉一次列表。
+   *
+   * **回看态下照样重拉**：列表与「正在看哪一段」是两件事。回看时不刷新的话，
+   * 车主翻着旧对话、手机上新聊的那段始终不出现在左栏，而他会以为是回看态的毛病。
+   * 整拉而不是把那一条插进去：通道的语义就是整拉，端上自作增量会把乱序引回来。
+   */
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let stop: (() => void) | undefined;
+    let disposed = false;
+    void listen<{ reason: string }>(ACCOUNT_EVENTS.sessionsChanged, (e) => {
+      console.info(`[session] 别处改了会话列表（${e.payload.reason}），重拉一次`);
+      void loadSessionsRef.current?.(true);
+    })
+      .then((un) => {
+        if (disposed) un();
+        else stop = un;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, []);
+
   /** 端侧判定日志（F-62-14）：进 Rust 的有界缓冲，不上报；浏览器走查不记。 */
   const logEnRoute = useCallback((e: EnRouteEvent) => {
     if (!isTauriEnv()) return;
@@ -721,6 +872,72 @@ export function App({
     const t = setInterval(() => void refreshGuideJobs(), GUIDE_JOBS_POLL_MS);
     return () => clearInterval(t);
   }, [nav, guide, guideJobs, refreshGuideJobs]);
+
+  /*
+   * ── 顶栏刷新按钮（2026-09-12 用户走查）─────────────────────────
+   *
+   * 主页的数据是**三路各自轮询**的，节奏与失败语义都不一样（行程 60s、能量 15s、
+   * 导览任务 10s 且只在有在途任务时）。等它们各自转到下一拍最坏要一分钟，
+   * 所以"重新请求"必须把三路一起踢一遍，少踢一路就会出现"刷了但那张卡没动"。
+   *
+   * # 刷新改数据，不改操作
+   *
+   * 用户明说了：选中的那一程要留着。这里**一个 setState 都不碰**——
+   *  - 选中的行程记在数据源闭包里（`gateway-source` 的 `selectedPlanId`），
+   *    `pull()` 之后照原样重投影；那一程被改掉/取消了才回落首条，那不是刷新干的；
+   *  - 逐日页签 `dayMode`、当前页 `nav`、摘要弹层 `reviewPlanId`、演示开关全在
+   *    别的 state 里，这个函数读都不读它们；
+   *  - **不重新解析默认车**：车主可能在档案页切过车，重解析会把他切走的那辆换回来——
+   *    那正是"操作状态被改掉"。能量按现在这辆 vin 重读就够了。
+   *
+   * # 带 pretrip 重算
+   *
+   * 这是它与 60 秒轮询唯一的语义差别：用户按下按钮＝"我现在就要最新的"，
+   * 等同于「又打开了一次 App」，所以带上按最新天气重算行前物品的 opt-in。
+   */
+  const refreshHome = useCallback(() => {
+    if (refreshingRef.current) return; // 连点不叠发
+    refreshingRef.current = true;
+    setRefreshing(true);
+    const tasks: Array<Promise<unknown>> = [refreshGuideJobs()];
+    if ("refresh" in source) tasks.push((source as GatewayHudSource).refresh({ pretrip: true }));
+    if (energyPollerRef.current) tasks.push(energyPollerRef.current.refresh());
+    /*
+     * 转圈的下限 450ms。本地网关常常 30ms 就回来了，那样图标只闪一下白光，
+     * 看起来像"按了没反应"——而这颗按钮唯一的反馈就是它转没转。
+     */
+    tasks.push(new Promise((r) => setTimeout(r, 450)));
+    void Promise.allSettled(tasks).then(() => {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    });
+  }, [source, refreshGuideJobs]);
+
+  /*
+   * 指示灯取值。分支顺序是有讲究的：
+   *  - 401 排最前，它是**最具体**的那一种失败，而且只有它有补救动作；
+   *  - `stale` 次之，它是"这一跳真的没连上"这个事实，devbar 的开关也拨它；
+   *  - 浏览器（无 Tauri）走 mock 源，永远"成功"——必须显式说成演示数据，不能给绿灯。
+   */
+  const topBarLink: TopBarLink =
+    linkFail === "unauthorized"
+      ? "noidentity"
+      : stale
+        ? "offline"
+        : !isTauriEnv()
+          ? "demo"
+          : linkSeen
+            ? "online"
+            : "connecting";
+  /*
+   * 灯自己的补救动作。**只有未上车这一档有**：重新挂出 `BoardingGate`，
+   * 人点一下自己的名字，`create_session_as` 落地 → `acting::session()` 有值 →
+   * 下一跳请求带上 `x-carlife-session` → 网关回查到人 → 绿灯。
+   *
+   * 刷新按钮治不了这一档：它重发的是同一个没有身份的请求，一万次也还是 401。
+   */
+  const topBarLinkAction =
+    topBarLink === "noidentity" && onNeedBoarding ? onNeedBoarding : undefined;
   /*
    * HUD 小卡只挂"还欠着的"：ready 的行采完即从卡上消失，全采完整张卡收掉。
    * 卡是待办条不是索引——已就绪的导览入口在地图景点标记上（onStopClick → openGuide），
@@ -758,7 +975,8 @@ export function App({
     [refreshGuideJobs],
   );
 
-  const tripMap: HudTripMapProps | undefined = tripActive
+  // `plan &&` 是给类型收窄的（`tripActiveFor` 里已经判过 null，但判据搬进函数后 TS 看不见了）。
+  const tripMap: HudTripMapProps | undefined = tripActive && plan
     ? {
         stops: tripStops,
         // 点击景点标记 → 导览页（M36-03）。AmapTripLayer 只对 kind=spot 回调。
@@ -778,6 +996,17 @@ export function App({
           : {}),
         // 行程身份：确认/更新都会换轮次 id，换行程时地图收回镜头否决权重新取景。
         planKey: plan.updatedTurnId,
+        /*
+         * 抽屉开着时，地图跟着它选的那一天走（M83 走查追修）：选中的天保持原样，
+         * 别的天淡成灰色半透明——**不是隐藏**，整程的形状要还在。
+         * 抽屉一关就没有焦点天，地图回到全程原样。
+         */
+        focusDay: detailOpen ? detailDay : undefined,
+        /*
+         * 选中的那几类沿途服务点（M93-05）。筛选在 `selectedServicePois` 里做（纯函数、可测），
+         * 地图只负责画。抽屉关着就是空数组——那一层跟着收起来。
+         */
+        servicePois: detailOpen ? selectedServicePois(plan, detailDay, selectedServices) : [],
         showDayBadge: viewDay === undefined,
         /*
          * 单日视图闭环：酒店 → 景点 → 回酒店（首日放行李/末日寄存的场景语义）。
@@ -1154,8 +1383,18 @@ export function App({
          * 放在 finally：接管失败不影响"现在已经有身份了"这件事。
          */
         const src = sourceRef.current;
-        if ("refresh" in src) (src as GatewayHudSource).refresh();
+        if ("refresh" in src) void (src as GatewayHudSource).refresh();
         void refreshGuideJobs();
+        /*
+         * 账号事件流要跟着换人重起（ACR-032）。
+         *
+         * 它订阅的键是**人**，而服务端是按连接建立时的那个人订阅的：
+         * 不重起的话，换人之后这条流推来的还是上一个人的会话变动——
+         * 而车机恰恰是那个会换人的端。Rust 侧 `replace_user_stream` 负责把旧的掐掉。
+         */
+        invoke("start_user_events_stream").catch((err) =>
+          console.warn("[session] 换人后账号事件流重起失败", err),
+        );
       });
   }, [declaredSessionId, adoptSession, refreshGuideJobs]);
 
@@ -1267,6 +1506,45 @@ export function App({
   // 上面 onNavEnd 经 ref 用它（声明顺序所迫，见那里的说明）。
   sendTextRef.current = sendText;
 
+  /** 结构变更发送中（M83-05）：两个出口都禁用，失败时留在编辑态。 */
+  const [detailSaving, setDetailSaving] = useState(false);
+  /**
+   * 「保存调整」：把变更集拼成一句话发进会话，后面全是「让暖暖调整」的既有链路
+   * （无草案装载 → 粘性细化 → 确认弹窗 → `trip_plan_update`）。
+   *
+   * **抽屉不写库、不绕 HITL**——它只是替车主说一句话（HUD Brief §2）。
+   *
+   * 失败不静默：抽屉留在编辑态、变更集不清，屏上把原因说出来。
+   * 静默丢弃的话，车主看到的是"抽屉关了、改动没了、暖暖也没说话"，
+   * 他会以为保存成功了。
+   */
+  const onSaveDetailEdits = useCallback(
+    (next: readonly TripStructureEdit[]) => {
+      const planId = highlightedPlanId;
+      if (!planId || next.length === 0) return;
+      const entry = tripEntries.find((e) => e.planId === planId);
+      if (!entry) return;
+      const prompt = adjustStructurePrompt(planId, entry.plan, next);
+      setDetailSaving(true);
+      void sendText(prompt)
+        .then(() => {
+          setDetailSaving(false);
+          setDetailEditing(false);
+          setDetailEdits([]);
+          setDetailOpen(false);
+          // 后面是既有链路（细化 → 确认弹窗），车主要看到暖暖在说什么。
+          setNav("dialog");
+        })
+        .catch((err) => {
+          console.warn("[trip-detail] 结构变更没发出去", err);
+          setDetailSaving(false);
+          setTripHint("调整没发出去，再试一次");
+          window.setTimeout(() => setTripHint(undefined), 4000);
+        });
+    },
+    [highlightedPlanId, tripEntries, sendText],
+  );
+
 
   const appendMessage = useCallback((m: ChatMessage) => {
     setMessages((prev) =>
@@ -1296,7 +1574,7 @@ export function App({
        * source 经 ref 取（见 sourceRef 的注释），不进本回调的依赖。
        */
       const src = sourceRef.current;
-      if ("refresh" in src) (src as GatewayHudSource).refresh();
+      if ("refresh" in src) void (src as GatewayHudSource).refresh();
     }
     /*
      * **依赖只挂 `toolProgress.reset`，不挂整个 `toolProgress`**（M28-01 事故修复）。
@@ -1353,7 +1631,7 @@ export function App({
       setPermission(null);
       setPermissionNotice(undefined);
       // 确认动作大概率改变了行程状态（confirm/cancel）——立即刷 HUD，不等轮询。
-      if (approved && "refresh" in source) (source as GatewayHudSource).refresh();
+      if (approved && "refresh" in source) void (source as GatewayHudSource).refresh();
     },
     [permission, source],
   );
@@ -1526,6 +1804,15 @@ export function App({
       invoke<boolean>("sentinel_start")
         .then((started) => console.info(`[sentinel] ${started ? "已启动" : "已在运行"}`))
         .catch(() => {});
+      /*
+       * 账号级事件流（ACR-032）：别的端改了会话列表，这条流会来叫我们重拉。
+       *
+       * **不 await 也不挡引导**：它断了只是列表不会自动刷新，对话一切照常。
+       * 与会话流各跑各的——那条每换一次会话被替换，这条与「谁在用车」同寿。
+       */
+      invoke("start_user_events_stream").catch((err) =>
+        console.warn("[session] 账号事件流启动失败，列表仍可手动刷新", err),
+      );
       // 左侧历史（M28-01）。**放最后且不 await**：列表拉不到不该挡住对话可用。
       void loadSessionsRef.current?.(true);
     };
@@ -1577,7 +1864,11 @@ export function App({
    */
   const mapView = useMapViewport();
 
-  const carousel = useCarousel(view.tips.pages.length);
+  /*
+   * 抽屉开着时**暂停**轮播（M83-03）：右侧那个窗口被抽屉整个盖住，
+   * 底下继续每 6 秒翻一页毫无意义；抽屉一关就原样接着翻（不重置页码）。
+   */
+  const carousel = useCarousel(view.tips.pages.length, { paused: detailOpen });
   const assistant = useAssistantInteraction({
     // 服务端事件流优先（M2-04），HUD mock 快照兜底；本地交互态在 hook 内仍最优先。
     // alert 抢占（AC-01-4）：有 critical 且未确认的核查时，形象先说"有一条提醒"。
@@ -1675,6 +1966,29 @@ export function App({
             onSelect: onSelectTrip,
             onOpenReview: onOpenTripReview,
             onClearSelection: onClearTripSelection,
+            detailMenuOpen,
+            onToggleDetailMenu,
+            onOpenDetail,
+            detailOpen,
+            detailDay,
+            selectedServices,
+            onToggleService,
+            onSelectDetailDay: setDetailDay,
+            onCloseDetail: onRequestCloseDetail,
+            // 行驶中可看不可改（与 TripReviewSheet.canAdjust 同口径）。
+            canEditDetail: navDay === undefined,
+            detailEditing,
+            detailEdits,
+            onChangeDetailEdits: setDetailEdits,
+            onStartDetailEdit: () => setDetailEditing(true),
+            onCancelDetailEdit: dropDetailEdits,
+            onSaveDetailEdits,
+            detailSaving,
+            // 浏览器走查里 planId 是演示的，发出去只会被告知"没找到这份行程"。
+            detailSaveDisabledReason: isTauriEnv() ? undefined : "浏览器走查不发送",
+            detailConfirmDiscard,
+            onConfirmDiscardDetail,
+            onKeepEditingDetail: () => setDetailConfirmDiscard(false),
           }}
           assistantMode={assistantMode({
             messageCount: messages.length,
@@ -1846,7 +2160,7 @@ export function App({
                 setReviewBusy(false);
                 setReviewPlanId(null);
                 // 立即重拉：点熄灭不该等下一个 60 秒。
-                if ("refresh" in source) (source as GatewayHudSource).refresh();
+                if ("refresh" in source) void (source as GatewayHudSource).refresh();
               });
           }}
           onAdjust={(prompt) => {
@@ -1905,6 +2219,15 @@ export function App({
       */}
       <TopBar
         active={nav}
+        link={topBarLink}
+        onLinkAction={topBarLinkAction}
+        linkHint={
+          topBarLink === "noidentity"
+            ? "服务是通的，但车机还没有上车声明（或在访客模式），读不到个人行程。点这里重新声明"
+            : undefined
+        }
+        onRefresh={refreshHome}
+        refreshing={refreshing}
         city={home?.city}
         weather={{ icon: SPRITES[theme].weather[view.weather.kind] ?? SPRITES[theme].weather.sunny, label: view.weather.label }}
         onSelect={(next) => {
@@ -1974,8 +2297,9 @@ export function App({
             回放 Mock 流
           </button>
         )}
+        {/* 标签跟着行为改（2026-09-11）：这个开关现在让状态栏四格写「服务暂不可用」，不再浮「数据更新中」。 */}
         <button onClick={() => setStale(!stale)}>
-          数据：{stale ? "更新中" : "正常"}
+          数据：{stale ? "服务不可用" : "正常"}
         </button>
         {/* 行程演示（M13-06）：浏览器没有 Tauri invoke，这是真实地图标注层
             能在浏览器里被走查的唯一路径。数据名称自带「演示」字样。 */}

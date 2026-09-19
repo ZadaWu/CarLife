@@ -1,0 +1,32 @@
+{
+ "how": "onnx(square letterbox 960), model train-20260917-120344-e7b9",
+ "imgsz": 960,
+ "conf": 0.25,
+ "iou": 0.7,
+ "width": 2856,
+ "height": 2142,
+ "detections": [
+  {
+   "bbox": [
+    79,
+    182,
+    107,
+    203
+   ],
+   "class_id": 9,
+   "name": "parking_lights",
+   "conf": 0.9627
+  },
+  {
+   "bbox": [
+    84,
+    139,
+    109,
+    171
+   ],
+   "class_id": 3,
+   "name": "parking_brake_on",
+   "conf": 0.9225
+  }
+ ]
+}

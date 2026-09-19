@@ -34,22 +34,23 @@
 
 .login-title {
   margin: 0;
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--m-font-display);
+  line-height: var(--m-lh-display);
+  font-weight: var(--m-weight-bold);
   letter-spacing: 0.02em;
 }
 
 .login-hint {
   margin: 0;
   opacity: 0.7;
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 
 .login-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 
 .login-field input {
@@ -59,13 +60,13 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
   color: inherit;
-  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+  font-size: var(--m-font-title); /* title 档正好 16px——低于 16 时 iOS 会自动放大页面 */
 }
 
 .login-error {
   margin: 0;
   color: var(--hud-danger);
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 
 .login-submit {
@@ -74,8 +75,8 @@
   border-radius: 10px;
   background: var(--hud-pin);
   color: var(--hud-badge-text);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 
 .login-submit:disabled {
@@ -101,7 +102,7 @@
   padding: 0;
   color: inherit;
   opacity: 0.65;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   text-align: left;
 }
 
@@ -125,8 +126,8 @@
 .login-gateway__hint,
 .login-gateway__warn {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
   opacity: 0.7;
 }
 
@@ -142,7 +143,7 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
   color: inherit;
-  font-size: 16px; /* 同上：16px 以下 iOS 会自动放大页面 */
+  font-size: var(--m-font-title); /* 同上：低于 16px 时 iOS 会自动放大页面 */
 }
 
 .login-gateway__save {
@@ -151,7 +152,7 @@
   border-radius: 10px;
   background: transparent;
   color: inherit;
-  font-size: 15px;
+  font-size: var(--m-font-body);
 }
 
 .login-gateway__save:disabled {
@@ -162,10 +163,10 @@
 .login-diag { margin: 6px 0 12px; }
 .login-diag__btn {
   padding: 8px 14px; border-radius: 8px; border: 1px solid var(--hud-card-border);
-  background: transparent; color: inherit; font-size: 14px;
+  background: transparent; color: inherit; font-size: var(--m-font-body);
 }
 .login-diag__list {
-  margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5;
+  margin: 10px 0 0; padding-left: 18px; font-size: var(--m-font-caption); line-height: var(--m-lh-caption);
   color: var(--hud-text-muted); word-break: break-all;
 }
 
@@ -222,30 +223,30 @@
   margin-bottom: 18vh;
   gap: 14px;
   padding: 26px 22px 22px;
-  border-radius: 28px;
-  background: #fff;
+  border-radius: var(--m-radius-modal);
+  background: var(--m-card-bg);
   border: 1px solid var(--hud-card-border);
   box-shadow: var(--hud-card-shadow);
   text-align: center;
 }
-.login-title { font-size: 40px; font-weight: 800; color: var(--hud-text); }
-.login-hint { opacity: 1; color: var(--hud-text-muted); font-size: 16px; margin-bottom: 4px; }
+.login-title { font-size: var(--m-font-display); line-height: var(--m-lh-display); font-weight: var(--m-weight-bold); color: var(--hud-text); }
+.login-hint { opacity: 1; color: var(--hud-text-muted); font-size: var(--m-font-body); margin-bottom: 4px; }
 /* 表单左对齐：整卡居中好看，但填的时候标签要贴着框。 */
 .login-field {
   text-align: left;
   gap: 8px;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-medium);
   color: var(--hud-text);
 }
 .login-field input {
-  height: 52px;
+  height: 48px;
   padding: 0 16px;
   border-radius: 16px;
   border: 1px solid var(--hud-card-border);
-  background: #fff;
-  font-size: 17px;
-  font-weight: 600;
+  background: var(--m-card-bg);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
   color: var(--hud-text);
 }
 .login-field input:focus {
@@ -255,12 +256,12 @@
 }
 /* 主行动走琥珀 cta：一屏只有这一个。原来是蓝色（`--hud-pin`），那支蓝在新版里只属于图标。 */
 .login-submit {
-  height: 56px;
+  height: 48px;
   border-radius: 18px;
   background: linear-gradient(180deg, #ffa51f, #ff8a00);
   color: #fff;
-  font-size: 19px;
-  font-weight: 800;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
   box-shadow: 0 8px 20px rgba(255, 190, 90, 0.5);
 }
 .login-submit:disabled { opacity: 0.45; box-shadow: none; }

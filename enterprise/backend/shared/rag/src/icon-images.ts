@@ -1,5 +1,9 @@
 /**
- * 手册图标图片的定位（施工单 M78-01）：`车型串 + symbol_id` → 图片字节。
+ * 手册图标目录里那一条的定位（施工单 M78-01）：`车型串 + symbol_id` → 图片字节，与**原文说明**。
+ *
+ * 说明那一路是 2026-09-19 加的：观察卡上要显示「这盏灯是什么意思」，而那句话与图片同在
+ * `<目录名>-indicators.md` 里。**寄在这里而不是另起一个模块**，是因为难的部分是下面那座
+ * 「车型串 → 目录名」的桥，两路共用它与同一份缓存；另写一份迟早与这一份走散。
  *
  * # 为什么不能按字符串猜目录名
  *
@@ -17,6 +21,8 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { parseIconCatalog } from "./icon-catalog";
 
 export interface IconImageResolverOptions {
   /** 图标根目录，形如 `<仓库>/data/kb-src/icons`。 */
@@ -38,6 +44,14 @@ export interface IconImageResolver {
    * 表现是"明明有图却总说对不上"，比不核验更难查。
    */
   soleVehicle(): string | null;
+  /**
+   * 目录里这一条的「原文说明」（2026-09-19）；没有这一条、或这台机器上没有 `data/` 时返回 null。
+   *
+   * `vehicleModel` 传 `undefined` 时退到 `soleVehicle()`——与 `decideMatch` 那边拿不到车型串时
+   * 同一条前提。多款车却不知道是哪款时不猜：宁可端上少一行说明，也不要把 Model 3 的说明
+   * 挂到别的车的灯上。
+   */
+  meaning(vehicleModel: string | undefined, symbolId: string): string | null;
 }
 
 const VEHICLE_LINE = /^\s*vehicle:\s*(.+?)\s*$/m;
@@ -98,6 +112,35 @@ export function createIconImageResolver(opts: IconImageResolverOptions): IconIma
   resolver.soleVehicle = () => {
     const v = [...scan().keys()];
     return v.length === 1 ? v[0] : null;
+  };
+
+  /** 目录名 → `symbol_id` → 原文说明；解析过一次就缓存（解析失败也缓存成空表，别每次重试）。 */
+  const meanings = new Map<string, Map<string, string>>();
+  const meaningsOf = (dir: string): Map<string, string> => {
+    const hit = meanings.get(dir);
+    if (hit) return hit;
+    const table = new Map<string, string>();
+    try {
+      const md = readFile(join(opts.root, `${dir}-indicators.md`)).toString("utf8");
+      // 解析出的 `errors` 这里不管：图片那一路同样不管，目录的体检是 `kb:icons` 建索引时做的。
+      for (const e of parseIconCatalog(md).entries) {
+        // `deprecated` 的条目不进索引也不参与匹配，这里同样跳过——它的说明是起草时凭空补的。
+        if (e.descriptorSource === "deprecated") continue;
+        if (e.description) table.set(e.symbolId, e.description);
+      }
+    } catch {
+      // 读不到 / 解析不了都等同于"这台机器上没有说明"，与图片那一路同一条纪律：安静降级。
+    }
+    meanings.set(dir, table);
+    return table;
+  };
+
+  resolver.meaning = (vehicleModel, symbolId) => {
+    if (!SAFE_ID.test(symbolId)) return null;
+    const model = vehicleModel || resolver.soleVehicle();
+    if (!model) return null;
+    const dir = scan().get(model);
+    return dir ? meaningsOf(dir).get(symbolId) ?? null : null;
   };
   return resolver;
 }

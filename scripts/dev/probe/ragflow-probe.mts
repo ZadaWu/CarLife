@@ -17,7 +17,9 @@ import { readFileSync } from "node:fs";
 import {
   createRagClient,
   DatasetAccessError,
+  datasetKeysForAgent,
   fetchModelCoverage,
+  datasetIdsFromEnv,
 } from "../../../enterprise/backend/shared/rag/src/index";
 import { catalogModels } from "../../../contracts/src/index";
 
@@ -66,17 +68,14 @@ async function main(): Promise<void> {
   const client = createRagClient({
     baseUrl,
     apiKey,
-    datasetIds: {
-      "vehicle-manuals": get("RAGFLOW_DATASET_VEHICLE_MANUALS"),
-      "repair-kb": get("RAGFLOW_DATASET_REPAIR_KB"),
-      "car-catalog": get("RAGFLOW_DATASET_CAR_CATALOG"),
-    },
+    datasetIds: datasetIdsFromEnv(get),
   });
 
   for (const [ds, agent] of [
     ["vehicle-manuals", "ownership"],
     ["repair-kb", "service"],
     ["car-catalog", "buying"],
+    ["insurance-kb", "service"],
   ] as const) {
     // 查询本身失败要与"这个集是空的"分开——**没拿到 ≠ 没有**。
     // 写监视脚本时正好在这上面栽过：curl 出错拿到空串，
@@ -135,6 +134,27 @@ async function main(): Promise<void> {
     ok(e instanceof DatasetAccessError, "跨集隔离在调用层生效：ownership 查不到 repair-kb");
   }
 
+  // 第四集（ACR-040）：隔离对它同样生效，且**两个消费方都能查**——
+  // 一个集挂两个消费方是它独立成集的理由，漏了其中一个就等于把它变回单消费方。
+  try {
+    await client.retrieve({ dataset: "insurance-kb", query: "x", agent: "ownership" });
+    ok(false, "跨集访问竟然通过了——ownership 不该看到 insurance-kb");
+  } catch (e) {
+    ok(e instanceof DatasetAccessError, "跨集隔离在调用层生效：ownership 查不到 insurance-kb");
+  }
+  try {
+    // 未配 id 时这里抛的是"未配置"而不是 DatasetAccessError——两者都要与隔离失效区分开。
+    await client.retrieve({ dataset: "insurance-kb", query: "出险后多久内要报案", agent: "buying", topK: 3 });
+    ok(true, "buying 能查 insurance-kb（第二消费方接通）");
+  } catch (e) {
+    ok(
+      !(e instanceof DatasetAccessError),
+      e instanceof DatasetAccessError
+        ? "buying 查 insurance-kb 被隔离拦下——consumers 漏了 buying"
+        : `buying 查 insurance-kb 未通（非隔离问题）：${firstErrorLine(String(e))}`,
+    );
+  }
+
   // 车型限定（F-23-07）。跨集隔离挡的是"用车助手翻到维修知识库"，
   // 挡不住**同一个数据集里的另一款车**——vehicle-manuals 里同时躺着迈锐宝与
   // 三款特斯拉。不限定时 Model 3 车主会拿到迈锐宝手册的片段**并带着出处**，
@@ -183,7 +203,9 @@ async function main(): Promise<void> {
     ok(false, `车型限定检查失败：${firstErrorLine(String(e))}`);
   }
 
-  // 文件名不含任何已知车型的文档，**对所有限定车型的检索都是隐形的**。
+  // 限定车型检索时**谁也看不见**的文档。判据按数据集的作用域分叉（ACR-042）：
+  // per-model 集里"文件名不含任何目录车型"是隐形；shared 集（insurance-kb）里
+  // 不含车型的行业文档对所有车可见、**不是隐形**，含车型但那款车不在目录里的才是。
   //
   // 车型限定按文件名匹配（documentMatchesModel）。一份叫
   // `2017_车型手册与配置参数.md` 的迈锐宝手册，在"迈锐宝"限定下匹配不到，
@@ -197,11 +219,54 @@ async function main(): Promise<void> {
   ok(
     cov.invisible.length === 0,
     cov.invisible.length === 0
-      ? "每篇文档的文件名都能被目录里的某个车型匹配到"
-      : `${cov.invisible.length} 篇文档的文件名不含任何目录车型，限定车型时检索不到`,
+      ? "没有对限定车型检索隐形的文档（per-model 集按车型分区、shared 集的行业文档对所有车可见）"
+      : `${cov.invisible.length} 篇文档限定车型时谁也检索不到（per-model 集里不含目录车型，或 shared 集里点了目录外车型）`,
   );
   for (const n of cov.invisible) console.log(`  隐形：${n}`);
   for (const f of cov.failures) console.log(`  数据集读失败：${f.dataset} —— ${f.reason}`);
+
+  // ── 缺省检索范围与共享集的车型限定（ACR-042 / M101-02）────────────────
+  //
+  // 这两条钉住的是 M96 那个"接上了却查不到"的形态：数据集配好了、文档解析完了、
+  // 隔离也对，但**没有任何应答路径会去查它**。前一条自检查得到"缺省查不查得到条款"，
+  // 后一条查得到"带着车型去查共享集会不会被误判成没资料"。
+  try {
+    const hits = await client.retrieve({
+      datasets: datasetKeysForAgent("service"),
+      query: "出险后要保留哪些材料，报案有没有时限",
+      agent: "service",
+      topK: 5,
+    });
+    const fromInsurance = hits.filter((h) => h.source.dataset === "insurance-kb");
+    ok(
+      fromInsurance.length > 0,
+      fromInsurance.length > 0
+        ? `售后缺省范围命中 insurance-kb ${fromInsurance.length}/${hits.length} 条（首条：${fromInsurance[0]!.source.document}）`
+        : `售后缺省范围一条条款都没命中（共 ${hits.length} 条）——检查工具层缺省是不是又退回单集`,
+    );
+  } catch (e) {
+    ok(false, `售后缺省检索失败：${firstErrorLine(String(e))}`);
+  }
+
+  try {
+    const model = catalogModels()[0]!;
+    const hits = await client.retrieve({
+      datasets: ["insurance-kb"],
+      query: "新能源车险的示范条款包含哪些主险",
+      agent: "service",
+      vehicleModel: model,
+      topK: 5,
+    });
+    ok(
+      hits.length > 0,
+      hits.length > 0
+        ? `带车型（${model}）查共享集不抛且有命中 ${hits.length} 条——行业级条款对每辆车都可见`
+        : `带车型（${model}）查共享集零命中——行业文档本该对所有车可见，检查 scope 是不是漏声明`,
+    );
+  } catch (e) {
+    // 这里抛 NoDocumentsForModelError 正是 M96 那条红的形态，**必须点名**。
+    ok(false, `带车型查共享集抛错（共享集不该按车型筛出"没资料"）：${firstErrorLine(String(e))}`);
+  }
 
   // 关联关系直接打出来：这是"车型 ↔ 知识库"这件事的可复跑证据。
   console.log("\n车型 ↔ 知识库关联（由文件名实时算出）：");

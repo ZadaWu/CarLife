@@ -30,6 +30,9 @@ use tauri::{AppHandle, Emitter};
 /// 不再直接 `store` —— 置位与让路必须同边沿，分两处写迟早对不齐，
 /// 而对不齐的表现是音乐一直压着没恢复，且不报任何错。
 pub mod ducking;
+pub mod segment;
+pub mod stream;
+use crate::tts::stream as stream_mod;
 
 /// 合成端点的端上缓存（后台 TTS 引擎开关的端上一侧）。
 pub mod endpoint;
@@ -67,6 +70,33 @@ impl Playback {
                 let _ = child.kill();
                 let _ = child.wait();
             }
+        }
+    }
+
+    /// 往**同一个输出队列**里再排一段（只有 rodio 路径支持）。
+    ///
+    /// 分段播报必须走它，不能每段新开一个 `DeviceSink`：`is_finished()` 用的
+    /// `player.empty()` 只说明"所有 source 都送进混音了"，**设备缓冲里还有一截**。
+    /// 那时把 sink drop 掉，rodio 会打 `Dropping DeviceSink, audio playing through
+    /// this sink will stop` —— 尾巴被切掉。整段模式下只丢最后几十毫秒，没人听得出来；
+    /// 分成 N 段之后每段丢一次，听感就是"读不完就中断"（2026-09-13 实测）。
+    ///
+    /// 排进同一个队列还顺带解决了段间衔接：rodio 自己连续播，没有换设备的空档。
+    fn append_mp3(&mut self, audio: Vec<u8>) -> Result<(), String> {
+        match self {
+            Playback::Sink { player, .. } => {
+                let decoder = rodio::Decoder::new(std::io::Cursor::new(audio))
+                    .map_err(|e| format!("mp3 解码失败: {e}"))?;
+                // AEC 参考信号旁路与首段同一条纪律（M47-02）：开关关着时连包都不包。
+                if crate::voice::aec_bridge::enabled() {
+                    player.append(crate::voice::aec_bridge::RenderTap::new(decoder));
+                } else {
+                    player.append(decoder);
+                }
+                Ok(())
+            }
+            #[cfg(target_os = "macos")]
+            Playback::Proc(_) => Err("say 子进程不支持追加".into()),
         }
     }
 
@@ -169,6 +199,11 @@ pub struct TtsState {
      * 与 `speaking_text` / `last_spoken` 分开：那两个是回采判定用的、垫场与正文都写；
      * 这个只记提醒——「再说一遍」不该重播暖暖的对话回复。
      */
+    /// 流式播报（边收边播）的一轮状态（M77 走查追修第二步）。
+    ///
+    /// **默认关**：只有后台 `TTS_STREAM_SPEECH=on` 且 `events.rs` 判过开关时才用到它。
+    /// 关着的时候这个字段全程是空的，老路径一行没变。
+    pub stream: Arc<stream::StreamSpeech>,
     last_reminder_text: Mutex<Option<String>>,
     /**
      * 刚播完的那句原文 + 播完时刻（走查 2026-08-29 ④）。
@@ -523,6 +558,9 @@ pub fn stop(state: &TtsState) -> u64 {
     // 没在播就没有"正在播的那句"（M33-03）。留着的话，播完之后的第一段
     // 用户语音会拿一句早已结束的话去比对——挡掉的正是真正的打断。
     state.set_speaking_text(None);
+    // 流式播报的队列也要清：不清的话，打断之后消费任务还会把队列里剩下的句子
+    // 一句句念完——而车主刚刚才让它闭嘴。
+    state.stream.abandon();
     if let Some(mut playback) = state.current.lock().expect("tts state poisoned").take() {
         playback.halt();
     }
@@ -765,6 +803,604 @@ async fn await_filler_end(state: &Arc<TtsState>, cap_ms: u64) -> bool {
 /// 提出来是因为 markdown 剥离与降级路径必须**两条入口同源**——
 /// 本文件原注释已经写过这条教训：只在一条上剥的话，降级到 say 的那天
 /// 那些记号会悄悄回来。
+/// 流水线的一块：要么是合成好的音频，要么是"剩下的交给 say"。
+enum Chunk {
+    Audio(Vec<u8>),
+    Say(String),
+}
+
+/// 分段合成的流水线（M77 走查追修，2026-09-12）。
+///
+/// **只领先一段**：播放比合成慢 7 倍（见 `segment.rs`），领先再多也追不上瓶颈，
+/// 却会在打断时白烧掉已经合成的段——那是按字计费的。
+struct Pipeline {
+    /// 整段原文——回采比对的语料（见 `Source::echo_text`）。
+    full_text: String,
+    client: Option<std::sync::Arc<TtsClient>>,
+    segments: Vec<String>,
+    state: Arc<TtsState>,
+    generation: u64,
+    is_filler: bool,
+    engine_label: String,
+    /// 下一个**要取**的段号。
+    idx: usize,
+    pending: Option<tauri::async_runtime::JoinHandle<Result<Vec<u8>, String>>>,
+}
+
+impl Pipeline {
+    fn new(
+        client: Option<TtsClient>,
+        segments: Vec<String>,
+        state: Arc<TtsState>,
+        generation: u64,
+        is_filler: bool,
+        engine_label: String,
+        full_text: String,
+    ) -> Self {
+        let mut p = Self {
+            full_text,
+            client: client.map(std::sync::Arc::new),
+            segments,
+            state,
+            generation,
+            is_filler,
+            engine_label,
+            idx: 0,
+            pending: None,
+        };
+        p.pending = p.spawn_at(0);
+        p
+    }
+
+    /// 发起第 `i` 段的合成。越界或无客户端时返回 None。
+    fn spawn_at(&self, i: usize) -> Option<tauri::async_runtime::JoinHandle<Result<Vec<u8>, String>>> {
+        let client = self.client.clone()?;
+        let seg = self.segments.get(i)?.clone();
+        let state = Arc::clone(&self.state);
+        let generation = self.generation;
+        let is_filler = self.is_filler;
+        let engine = self.engine_label.clone();
+        let total = self.segments.len();
+        Some(tauri::async_runtime::spawn(async move {
+            // 打断即停：后面的段一个都不再合成。**这是计费路径**，
+            // 少发一次请求就是少花一段的钱。
+            if state.generation.load(Ordering::SeqCst) != generation {
+                return Err("已被打断，本段不再合成".to_string());
+            }
+            let bytes = client.synthesize(&seg).await.map_err(|e| e.to_string())?;
+            /*
+             * **每次计费合成都要留痕**（M27-03）。2026-08-26 的重复播报事故里，
+             * 成功路径零日志——一上午烧掉几十万字当量，事后只能拿消息表反推个下界。
+             *
+             * 分段之后带上「第几段/共几段」：打断时能看出实际合成了多少，
+             * 按整段记会高估。引擎名跟着字数一起打——这行是本地对账单，
+             * 而"这些字算不算钱"取决于当时连的是哪一档。
+             */
+            eprintln!(
+                "[tts] 合成 {} 字（{}，{}，第 {}/{} 段），{} bytes",
+                seg.chars().count(),
+                if is_filler { "垫场" } else { "正文" },
+                engine,
+                i + 1,
+                total,
+                bytes.len()
+            );
+            Ok(bytes)
+        }))
+    }
+
+    /// 取下一块。None = 没有更多了。
+    async fn next(&mut self) -> Option<Chunk> {
+        // 没有合成端点：整段交给 say，一次念完，不分段——本地合成没有那 14 秒。
+        if self.client.is_none() {
+            if self.idx > 0 {
+                return None;
+            }
+            self.idx = self.segments.len().max(1);
+            return Some(Chunk::Say(self.segments.join("")));
+        }
+        let handle = self.pending.take()?;
+        let cur = self.idx;
+        self.idx += 1;
+        // 领先一段：当前这块还没播，下一段已经在合成路上。
+        self.pending = self.spawn_at(self.idx);
+        let err = match handle.await {
+            Ok(Ok(bytes)) => return Some(Chunk::Audio(bytes)),
+            Ok(Err(e)) => e,
+            Err(join) => join.to_string(),
+        };
+        // 打断导致的失败不降级：那是用户要的安静，不是故障。
+        if self.state.generation.load(Ordering::SeqCst) != self.generation {
+            if let Some(h) = self.pending.take() {
+                h.abort();
+            }
+            return None;
+        }
+        Some(self.degrade(cur, &err))
+    }
+
+    /// 某一段合成失败：把**剩下的**交给 say 一次念完，不是只补这一段——
+    /// 逐段重试会让一句话半云半本地，音色在中间换人，比慢更难受。
+    fn degrade(&mut self, from: usize, err: &str) -> Chunk {
+        eprintln!(
+            "[tts] 第 {}/{} 段合成失败，剩余降级 say: {err}",
+            from + 1,
+            self.segments.len()
+        );
+        // 已经在路上的下一段不要了：它也是计费的。
+        if let Some(h) = self.pending.take() {
+            h.abort();
+        }
+        let rest = self.segments[from..].join("");
+        self.idx = self.segments.len();
+        Chunk::Say(rest)
+    }
+}
+
+/// macOS 的 say 降级；其它平台如实说没出声。
+fn say_fallback(text: &str, is_filler: bool) -> Result<Playback, String> {
+    #[cfg(target_os = "macos")]
+    {
+        // **say 路径此前一行日志都没有**，而云端路径有那条「合成 N 字」。
+        // 这个不对称的代价在 2026-08-27 兑现：`CARLIFE_TTS=say` 时
+        // "暖暖不出声"与"根本没走到播报"在日志上长得一模一样。
+        eprintln!(
+            "[tts] say 播报 {} 字（{}）",
+            text.chars().count(),
+            if is_filler { "垫场" } else { "正文" }
+        );
+        spawn_say(text).map_err(|e| format!("say 启动失败: {e}"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // iOS 没有 say（ACR-004）：文字仍在对话里，这里如实说没出声。
+        let _ = (text, is_filler);
+        Err("本平台无本地合成降级（云端合成不可用），本次不出声".to_string())
+    }
+}
+
+/// 流式消费任务的一次产出。
+enum StreamItem {
+    Audio(Vec<u8>),
+    /// 这一段合成失败，用 say 念它。**只降级这一段**——流式下"剩余"还没到齐，
+    /// 没有"把剩下的一起交给 say"这个选项。
+    SayFallback(String),
+    /// 没有更多了（输入已结束且队列空）。
+    End,
+}
+
+/// 流式播报的数据源（M77 走查追修第二步）。与 `Pipeline` 并列，喂给同一个播放循环。
+///
+/// 和整段模式的差别只有一处：下一段从**队列**里等，而不是从一个已知的数组里取。
+/// 等待本身也放在后台任务里——不然"领先一段"就退化成"播完才开始等下一段"，
+/// 模型吐得快时会断。
+struct StreamSource {
+    stream: Arc<stream::StreamSpeech>,
+    client: Option<std::sync::Arc<TtsClient>>,
+    state: Arc<TtsState>,
+    generation: u64,
+    engine_label: String,
+    pending: Option<tauri::async_runtime::JoinHandle<StreamItem>>,
+    taken: usize,
+}
+
+impl StreamSource {
+    fn new(
+        stream: Arc<stream::StreamSpeech>,
+        client: Option<TtsClient>,
+        state: Arc<TtsState>,
+        generation: u64,
+        engine_label: String,
+    ) -> Self {
+        let mut s = Self {
+            stream,
+            client: client.map(std::sync::Arc::new),
+            state,
+            generation,
+            engine_label,
+            pending: None,
+            taken: 0,
+        };
+        s.pending = Some(s.spawn_next());
+        s
+    }
+
+    /// 起一个后台任务：**等到有段可播，再合成它**。
+    fn spawn_next(&self) -> tauri::async_runtime::JoinHandle<StreamItem> {
+        let stream = Arc::clone(&self.stream);
+        let state = Arc::clone(&self.state);
+        let client = self.client.clone();
+        let generation = self.generation;
+        let engine = self.engine_label.clone();
+        let idx = self.taken;
+        tauri::async_runtime::spawn(async move {
+            let seg = loop {
+                // 打断即停：不再取、不再合成。**这是计费路径**。
+                if state.generation.load(Ordering::SeqCst) != generation {
+                    return StreamItem::End;
+                }
+                // **`next_speech_segment` 不是 `next_segment`**：记号要在送合成前剥掉。
+                // 流式这条路不经过 `play()`，剥的那一步只能在这里，理由见
+                // `stream::StreamSpeech::next_speech_segment`。
+                match stream.next_speech_segment() {
+                    stream_mod::Next::Seg(s) => break s,
+                    stream_mod::Next::Done => return StreamItem::End,
+                    // 还在等模型吐字。40 ms 一轮：比 120 ms 的播放轮询密，
+                    // 因为这一跳直接决定"模型说完一句后多久开口"。
+                    stream_mod::Next::Wait => tokio::time::sleep(Duration::from_millis(40)).await,
+                }
+            };
+            let Some(client) = client else {
+                return StreamItem::SayFallback(seg);
+            };
+            match client.synthesize(&seg).await {
+                Ok(bytes) => {
+                    // 与整段模式同一条对账纪律（M27-03）：字数 + 引擎 + 第几段。
+                    // 流式不知道总共几段，所以只记序号。
+                    eprintln!(
+                        "[tts] 合成 {} 字（正文流式，{}，第 {} 段），{} bytes",
+                        seg.chars().count(),
+                        engine,
+                        idx + 1,
+                        bytes.len()
+                    );
+                    StreamItem::Audio(bytes)
+                }
+                Err(e) => {
+                    eprintln!("[tts][stream] 第 {} 段合成失败，这一段降级 say: {e}", idx + 1);
+                    StreamItem::SayFallback(seg)
+                }
+            }
+        })
+    }
+
+    async fn next(&mut self) -> Option<Chunk> {
+        let handle = self.pending.take()?;
+        self.taken += 1;
+        // 领先一段：这一块还没播，下一段已经在"等 + 合成"的路上。
+        self.pending = Some(self.spawn_next());
+        match handle.await {
+            Ok(StreamItem::Audio(bytes)) => Some(Chunk::Audio(bytes)),
+            Ok(StreamItem::SayFallback(t)) => Some(Chunk::Say(t)),
+            Ok(StreamItem::End) | Err(_) => {
+                if let Some(h) = self.pending.take() {
+                    h.abort();
+                }
+                None
+            }
+        }
+    }
+}
+
+/// 播放循环的数据源。两种模式共用同一个循环——各写一份的话，
+/// 代际守卫、摘牌、回 idle 这些只会在其中一份里被改对。
+enum Source {
+    Whole(Pipeline),
+    Stream(StreamSource),
+}
+
+impl Source {
+    async fn next(&mut self) -> Option<Chunk> {
+        match self {
+            Source::Whole(p) => p.next().await,
+            Source::Stream(s) => s.next().await,
+        }
+    }
+
+    /// 回采比对的语料（M33-03）。
+    ///
+    /// 整段模式给固定全文；流式模式给"到目前为止已送播的全文"——
+    /// 都必须是**跨段的**：`is_echo` 找的是连续子串，而哨兵采到的一段
+    /// 常横跨两段边界，只给当前段就找不到，现象是"她自己把自己打断了"。
+    fn echo_text(&self) -> String {
+        match self {
+            Source::Whole(p) => p.full_text.clone(),
+            Source::Stream(s) => s.stream.spoken_so_far(),
+        }
+    }
+}
+
+/// 队列播空之后再等这么久才 drop 输出槽。
+///
+/// `player.empty()` 只说明所有 source 都送进混音了，**设备缓冲里还有一截**；
+/// 立刻 drop `DeviceSink` 会把它切掉（见 `Playback::append_mp3`）。
+/// 250 ms 覆盖 rodio 默认缓冲还有富余，代价只是"播完到回 idle"晚这么久。
+const TAIL_DRAIN_MS: u64 = 250;
+
+/// 等当前队列播空。返回 false = 被打断（调用方应立即退出）。
+///
+/// **不 take 句柄**：take 就是 drop，而这里只是"排空"，后面可能还要往同一个
+/// 队列里追加。真正的 take 留到整轮收尾，且要先等 `TAIL_DRAIN_MS`。
+async fn wait_drained(state: &Arc<TtsState>, generation: u64, is_filler: bool) -> bool {
+    loop {
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        if state.generation.load(Ordering::SeqCst) != generation {
+            if !is_filler {
+                state.body_active.store(false, Ordering::SeqCst);
+            }
+            return false;
+        }
+        let finished = {
+            let mut guard = state.current.lock().expect("tts state poisoned");
+            guard.as_mut().map(|p| p.is_finished()).unwrap_or(true)
+        };
+        if finished {
+            return true;
+        }
+    }
+}
+
+/// 播放循环：从数据源逐块取，排进**同一个**输出队列，直到没有更多。
+///
+/// 整段模式与流式模式共用它。**摘牌与回 idle 只在这里做一次**——
+/// 放进每块的循环里的话，中间每块播完都会回一次 idle，暖暖的形象会反复闪。
+async fn drive(
+    app: AppHandle,
+    state: Arc<TtsState>,
+    mut source: Source,
+    mut generation: u64,
+    is_filler: bool,
+    wait_for_filler: bool,
+) {
+    let mut started = false;
+    let gain = gain_for_percent(state.volume_percent());
+
+    while let Some(chunk) = source.next().await {
+        // 合成期间若已被打断（用户长按说话），放弃本次播放。
+        if state.generation.load(Ordering::SeqCst) != generation {
+            if !is_filler {
+                state.body_active.store(false, Ordering::SeqCst);
+            }
+            return;
+        }
+
+        if !started {
+            /*
+             * 衔接模式：等垫场自然说完，然后才轮到自己（M18-06 约束 2、3）。
+             *
+             * ⚠️ 等完必须**重取 generation**：下面的 stop() 会让它 +1，
+             * 仍拿旧值往下比对等于自己把自己判成"已被打断"，
+             * 现象是"选了衔接模式就没有正文"——而没人会往代际守卫上查。
+             */
+            if wait_for_filler {
+                await_filler_end(&state, FILLER_WAIT_CAP_MS).await;
+                /*
+                 * **排队垫场醒来后先看正文在不在**（iPad 走查修复，见 body_active）。
+                 *
+                 * 正文与排队垫场挂在同一个 await 上、同时醒来。不让位的话，
+                 * 两者各自 stop/replace，垫场后手就把刚起播的正文顶掉——
+                 * 正文没有重试，这一轮从此无声。
+                 */
+                if is_filler && state.body_active.load(Ordering::SeqCst) {
+                    state.filler_pending.store(false, Ordering::SeqCst);
+                    return;
+                }
+                state.filler_pending.store(false, Ordering::SeqCst);
+                generation = stop(&state);
+                state.speaking_filler.store(is_filler, Ordering::SeqCst);
+            }
+            // 出声即让哨兵进窄通道（M25-03 起是丢帧，M33-03 改成只听打断词）：
+            // 自己的声音不该被自己转写。垫场也算——它同样从扬声器出来。
+            crate::tts::ducking::set_tts_playing(true);
+            if !is_filler {
+                emit_state(&app, AssistantState::Speaking);
+            }
+            started = true;
+        }
+
+        // 回采语料每块都要更新：流式下它是"到目前为止播过的全文"，会一直长。
+        let echo = source.echo_text();
+        if !echo.is_empty() {
+            state.set_speaking_text(Some(&echo));
+        }
+
+        match chunk {
+            Chunk::Audio(bytes) => {
+                /*
+                 * 排进同一个队列，**不新建 sink**（见 `append_mp3` 的说明）。
+                 * 也因此不再"等这一段播完再取下一段"：rodio 自己会连着播，
+                 * 而取的节奏由合成速度天然限流（合成一段才有一段）。
+                 */
+                let mut guard = state.current.lock().expect("tts state poisoned");
+                // **持锁时再验一次代际**：验在锁外的话，验过之后、拿到锁之前
+                // 可能正好被 stop() 清掉，于是这一段会给已经打断的那一轮续命。
+                if state.generation.load(Ordering::SeqCst) != generation {
+                    if !is_filler {
+                        state.body_active.store(false, Ordering::SeqCst);
+                    }
+                    return;
+                }
+                let queued = match guard.as_mut() {
+                    Some(p) => p.append_mp3(bytes),
+                    None => start_mp3_playback(bytes, gain).map(|p| {
+                        *guard = Some(p);
+                    }),
+                };
+                drop(guard);
+                if let Err(e) = queued {
+                    eprintln!("[tts] 播放启动失败: {e}");
+                    break;
+                }
+            }
+            Chunk::Say(text) => {
+                /*
+                 * say 是子进程，进不了 rodio 队列：先把已排的放完，再让它接上，
+                 * 放完再摘牌——下一段音频得新开一个 sink。
+                 */
+                if !wait_drained(&state, generation, is_filler).await {
+                    return;
+                }
+                let proc = match say_fallback(&text, is_filler) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("[tts] 播放启动失败: {e}");
+                        break;
+                    }
+                };
+                /*
+                 * 占位时**必须把上一个停掉**（M27-02）：drop 一个 `Child` 不会杀进程，
+                 * 它会一路播到自然结束且再没有句柄能停它（"杀不掉的孤儿播放进程"）。
+                 */
+                if let Some(mut prev) = state
+                    .current
+                    .lock()
+                    .expect("tts state poisoned")
+                    .replace(proc)
+                {
+                    prev.halt();
+                }
+                if !wait_drained(&state, generation, is_filler).await {
+                    return;
+                }
+                state.current.lock().expect("tts state poisoned").take();
+            }
+        }
+    }
+
+    // 所有块都排完了，等队列自己播空。
+    if started && !wait_drained(&state, generation, is_filler).await {
+        return;
+    }
+
+    /*
+     * 队列空了，但**声音还没完**：设备缓冲里还有一截（见 `TAIL_DRAIN_MS`）。
+     * 等它排完再摘句柄，否则最后那一下会被切掉。
+     */
+    if started && state.generation.load(Ordering::SeqCst) == generation {
+        tokio::time::sleep(Duration::from_millis(TAIL_DRAIN_MS)).await;
+    }
+    {
+        let mut guard = state.current.lock().expect("tts state poisoned");
+        // 这一觉睡醒可能已经换了轮：那时句柄是新一轮的，不能摘。
+        if state.generation.load(Ordering::SeqCst) == generation {
+            guard.take();
+        }
+    }
+
+    /*
+     * 收尾：自然播完、或某一块播放启动失败。
+     *
+     * 摘牌与回 idle **只在这里做一次**——放进每块的循环里的话，
+     * 中间每块播完都会回一次 idle，暖暖的形象会在整段播报期间反复闪。
+     */
+    state.speaking_filler.store(false, Ordering::SeqCst);
+    // 正文自然播完，摘牌——垫场（下一轮的）从此恢复正常受理。
+    if !is_filler {
+        state.body_active.store(false, Ordering::SeqCst);
+    }
+    crate::tts::ducking::set_tts_playing(false);
+    if state.generation.load(Ordering::SeqCst) == generation && !is_filler && started {
+        emit_state(&app, AssistantState::Idle);
+        // 播报自然结束：开追问窗口（M25-03）。垫场结束不开——
+        // 垫场不是回复，拿它换免唤醒词的许可说不通。
+        crate::commands::voice::on_tts_finished(&app);
+    }
+}
+
+/// 取合成客户端与它的日志标签。两条入口（整段 / 流式）共用。
+async fn resolve_client() -> (Option<TtsClient>, String) {
+    // 端点以**服务端下发的为准**（后台可热切 mock ↔ 豆包 ↔ aliyun）。
+    let runtime_cfg = endpoint::effective().await;
+    /*
+     * 客户端构造（ACR-018 之后只剩一句）。
+     *
+     * 三档都打网关下发的那一个 URL，都带同一个凭证——设备 JWT。
+     * 端上没有任何 vendor 密钥。未登录时 token 是空串：请求会被网关 401 → 降级 say。
+     * 这里不塞占位值蒙混——那会把"没登录"伪装成"合成失败"。
+     */
+    let client = match &runtime_cfg {
+        Some(cfg) => {
+            let (_base, token) = crate::settings::gateway();
+            Some(TtsClient::for_runtime(cfg, token))
+        }
+        /*
+         * 网关问不到：直接走 say。
+         *
+         * ACR-017 删掉了"退回本地环境变量端点"的兜底——它拿的默认端点是
+         * **豆包**，一次网关抖动就把这台端接上计费引擎，且一声不响。
+         * 降级的方向永远是更省的那个：say 免费、恒可用（macOS）。
+         */
+        None => {
+            eprintln!("[tts] 网关问不到合成端点，本次降级 say（端上没有可回落的端点）");
+            None
+        }
+    };
+    let label = match &runtime_cfg {
+        Some(c) if c.billed => format!("{} **计费**", c.engine),
+        Some(c) => c.engine.clone(),
+        None => "本地配置".to_string(),
+    };
+    (client, label)
+}
+
+// ── 流式播报的三个入口（M77 走查追修第二步）────────────────────────
+//
+// 与 speak() 的关系：speak 是"这一整段，播"；下面三个是"这一轮，边来边播"。
+// 一轮里 begin 一次、push 若干次、finish 一次。**开关关着时这三个都不会被调到**
+// （判据在 events.rs），所以老路径一行没变。
+
+/// 一轮流式播报开始。
+///
+/// **幂等靠轮次归属，不靠"消费任务在不在跑"**：后者做闸时，上一轮的任务还没退
+/// 就会让这里直接返回——而 `stream_push` 照推不误，新一轮的句子于是进了旧队列，
+/// 两轮的话连着播；`begin` 没执行，归属还是旧的，turn_end 判定落到 `speak`，
+/// 整段又播一遍。实测听感就是"先说上一轮的结尾，再说这一轮的开头，中间夹着别的"
+/// （2026-09-13）。
+///
+/// 现在：同一轮重复调 → 直接返回；换轮 → `stop()` 推代际清队列，
+/// 旧的消费任务在下一次轮询看到代际变化自己退出，新的从干净的队列开始。
+pub fn stream_begin(app: &AppHandle, state: &Arc<TtsState>, turn_id: &str) {
+    if state.is_muted() || !enabled() {
+        return;
+    }
+    // 同一轮的后续 delta：已经在播了，什么都不用做。
+    if state.stream.owns(turn_id) {
+        return;
+    }
+    /*
+     * 衔接模式（M18-06）：正文要等还在说的垫场话说完。判据与 speak() 同一份。
+     */
+    let wait = matches!(state.preempt_mode(), FillerPreemptMode::AfterSentence)
+        && state.is_speaking_filler();
+    // 正文登场即挂牌（见 body_active 的说明）；生命周期各出口由 drive 收。
+    state.body_active.store(true, Ordering::SeqCst);
+    let generation = if !wait {
+        let g = stop(state);
+        state.speaking_filler.store(false, Ordering::SeqCst);
+        g
+    } else {
+        state.generation.load(Ordering::SeqCst)
+    };
+    // begin 清掉上一轮的残留并认领这一轮——**必须在 spawn 之前**，
+    // 否则紧跟着的第二条 delta 会看到旧归属，又起一个消费任务。
+    state.stream.begin(generation, turn_id);
+
+    let app = app.clone();
+    let state_for_task = Arc::clone(state);
+    let stream = Arc::clone(&state.stream);
+    tauri::async_runtime::spawn(async move {
+        let (client, label) = resolve_client().await;
+        let source = Source::Stream(StreamSource::new(
+            stream,
+            client,
+            Arc::clone(&state_for_task),
+            generation,
+            label,
+        ));
+        drive(app, state_for_task, source, generation, false, wait).await;
+    });
+}
+
+/// 喂一段增量文本。成段的部分会自动进队列；不是当前这一轮的一律丢弃。
+pub fn stream_push(state: &Arc<TtsState>, turn_id: &str, delta: &str) {
+    state.stream.push(turn_id, delta);
+}
+
+/// 这一轮的文字到齐了。`final_text` 是落库的那份正文，用来补差额。
+pub fn stream_finish(state: &Arc<TtsState>, turn_id: &str, final_text: Option<&str>) {
+    state.stream.finish(turn_id, final_text);
+}
+
 fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wait_for_filler: bool) {
     // 记号在这里剥，**两条路径（豆包/say）都吃干净的文本**。
     let text = strip_markdown_for_speech(text);
@@ -785,7 +1421,7 @@ fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wai
     }
     /*
      * 衔接模式（M18-06）下**不在这里 stop**——那正是要避免的那一刀。
-     * 改到 spawn 内、合成完成之后再停：合成本来就要 1 秒上下，
+     * 改到 spawn 内、首段合成完成之后再停：首段合成约 0.7 秒，
      * 多数情况下等待时间是 0。
      */
     // **代际必须取自 `stop()` 的返回值**（M27-02）。原来是 `stop(); load()` 两步，
@@ -805,208 +1441,31 @@ fn play(app: &AppHandle, state: &Arc<TtsState>, text: &str, is_filler: bool, wai
     let text = text.to_string();
 
     tauri::async_runtime::spawn(async move {
-        // CARLIFE_TTS=say 的发 HTTP 前短路已随 ACR-017 退休：它让后台引擎开关
-        // 对这台端整个失效（2026-09-01 实际踩到），而"本机免费"由 mock 档承担。
-        let audio = {
-            // 端点以**服务端下发的为准**（后台可热切 mock ↔ 豆包 ↔ aliyun）。
-            let runtime_cfg = endpoint::effective().await;
-            /*
-             * 客户端构造（ACR-018 之后只剩一句）。
-             *
-             * 三档都打网关下发的那一个 URL，都带同一个凭证——设备 JWT。
-             * 端上没有任何 vendor 密钥，所以也没有了"计费档没密钥就拒绝构造"
-             * 那条分支：密钥缺不缺是服务端的事，缺了它回一个 NDJSON 错误行，
-             * 端上照旧沿既有路径降级 say，且 message 里说得清是缺哪一把。
-             *
-             * 未登录时 token 是空串：请求会被网关 401 → 降级 say。
-             * 这里不塞占位值蒙混——那会把"没登录"伪装成"合成失败"。
-             */
-            let client = match &runtime_cfg {
-                Some(cfg) => {
-                    let (_base, token) = crate::settings::gateway();
-                    Some(TtsClient::for_runtime(cfg, token))
-                }
-                /*
-                 * 网关问不到：直接走 say（audio=None 的既有降级路径）。
-                 *
-                 * ACR-017 删掉了"退回本地环境变量端点"的兜底——它拿的默认端点是
-                 * **豆包**，一次网关抖动就把这台端接上计费引擎，且一声不响。
-                 * ACR-018 把那个默认端点本身也删了，端上再没有可回落的地址：
-                 * 问不到就是问不到。降级的方向永远是更省的那个：say 免费、
-                 * 恒可用（macOS）。
-                 */
-                None => {
-                    eprintln!("[tts] 网关问不到合成端点，本次降级 say（端上没有可回落的端点）");
-                    None
-                }
-            };
-            match client {
-                Some(client) => {
-                    match client.synthesize(&text).await {
-                    Ok(bytes) => {
-                        // **每次计费合成都要留痕**（M27-03）。2026-08-26 的重复播报事故里，
-                        // 成功路径零日志——一上午烧掉几十万字当量，事后只能拿消息表反推个
-                        // 下界，准确数字只有供应商控制台有。一行字数日志就是本地对账单：
-                        // grep '\[tts\] 合成' 再把字数加起来，就是这台机器欠供应商的量。
-                        // 引擎名跟着字数一起打：这行日志是**本地对账单**，
-                        // 而"这些字算不算钱"取决于当时连的是哪一档。
-                        // 只记字数不记引擎，事后对账要靠猜。
-                        eprintln!(
-                            "[tts] 合成 {} 字（{}，{}），{} bytes",
-                            text.chars().count(),
-                            if is_filler { "垫场" } else { "正文" },
-                            match &runtime_cfg {
-                                Some(c) if c.billed => format!("{} **计费**", c.engine),
-                                Some(c) => c.engine.clone(),
-                                None => "本地配置".to_string(),
-                            },
-                            bytes.len()
-                        );
-                        Some(bytes)
-                    }
-                    Err(e) => {
-                        eprintln!("[tts] 合成失败，降级 say: {e}");
-                        None
-                    }
-                    }
-                }
-                None => None,
-            }
-        };
-
-        // 合成期间若已被打断（用户长按说话），放弃本次播放。
-        if state.generation.load(Ordering::SeqCst) != generation {
+        /*
+         * 分段流水线（M77 走查追修，2026-09-12）。
+         *
+         * 此前是整段送去合成、合成完才起播：实测 723 ms 固定开销 + 30.3 ms 一个字，
+         * 484 字的行程方案要等 14.4 秒才出第一声。切开之后首段二十来字、
+         * 1.6 秒就能起播，后面的段在前一段播放期间合成。判据与切法见 `segment.rs`。
+         */
+        let segments = segment::split_for_speech(&text);
+        if segments.is_empty() {
             if !is_filler {
                 state.body_active.store(false, Ordering::SeqCst);
             }
             return;
         }
-
-        /*
-         * 衔接模式：等垫场自然说完，然后才轮到自己（M18-06 约束 2、3）。
-         *
-         * ⚠️ 等完必须**重取 `generation`**：下面的 `stop()` 会让它 +1，
-         * 仍拿旧值往下比对等于自己把自己判成"已被打断"，
-         * 现象是"选了衔接模式就没有正文"——而没人会往代际守卫上查。
-         */
-        let generation = if wait_for_filler {
-            await_filler_end(&state, FILLER_WAIT_CAP_MS).await;
-            /*
-             * **排队垫场醒来后先看正文在不在**（iPad 走查修复，见 body_active）。
-             *
-             * 正文与排队垫场挂在同一个 await 上、同时醒来。不让位的话，
-             * 两者各自 stop/replace，垫场后手就把刚起播的正文顶掉——
-             * 正文没有重试，这一轮从此无声。让位是零代价的：
-             * 垫场本来就是"回复没来时的填充"，回复都到了，它没有存在理由。
-             */
-            if is_filler && state.body_active.load(Ordering::SeqCst) {
-                state.filler_pending.store(false, Ordering::SeqCst);
-                return;
-            }
-            // 等完了，位置腾给自己：清掉"有一句在等"的标志再往下走，
-            // 否则这一句播起来之后新来的垫场会被永久丢弃。
-            state.filler_pending.store(false, Ordering::SeqCst);
-            let g = stop(&state);
-            state.speaking_filler.store(is_filler, Ordering::SeqCst);
-            g
-        } else {
-            generation
-        };
-
-        let playback = match audio {
-            Some(bytes) => start_mp3_playback(bytes, gain_for_percent(state.volume_percent())),
-            None => {
-                // **say 路径此前一行日志都没有**，而云端路径有上面那条「合成 N 字」。
-                // 这个不对称的代价在 2026-08-27 兑现：`CARLIFE_TTS=say` 时
-                // "暖暖不出声"与"根本没走到播报"在日志上长得一模一样，
-                // 只能靠临时插桩才分得开——查了半小时，全在排除本可以一眼看到的东西。
-                #[cfg(target_os = "macos")]
-                {
-                    eprintln!(
-                        "[tts] say 播报 {} 字（{}）",
-                        text.chars().count(),
-                        if is_filler { "垫场" } else { "正文" }
-                    );
-                    spawn_say(&text).map_err(|e| format!("say 启动失败: {e}"))
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    // iOS 没有 say（ACR-004）：文字仍在对话里，这里如实说没出声。
-                    Err("本平台无本地合成降级（云端合成不可用），本次不出声".to_string())
-                }
-            }
-        };
-        let playback = match playback {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("[tts] 播放启动失败: {e}");
-                crate::tts::ducking::set_tts_playing(false);
-                if !is_filler {
-                    state.body_active.store(false, Ordering::SeqCst);
-                    emit_state(&app, AssistantState::Idle);
-                }
-                return;
-            }
-        };
-
-        // 出声即让哨兵进窄通道（M25-03 起是丢帧，M33-03 改成只听打断词）：
-        // 自己的声音不该被自己转写。垫场也算——它同样从扬声器出来。
-        crate::tts::ducking::set_tts_playing(true);
-        // 回采判定要的那半边（M33-03）：此刻在播的是哪句话。
-        state.set_speaking_text(Some(&text));
-        if !is_filler {
-            emit_state(&app, AssistantState::Speaking);
-        }
-        /*
-         * 占位时**必须把上一个停掉**（M27-02）。
-         *
-         * `replace` 把旧句柄丢掉：对 say 子进程，drop 一个 `Child` **不会**杀进程
-         * ——它会一路播到自然结束，且从此没有任何句柄能停它（"杀不掉的孤儿
-         * 播放进程"）；对 rodio，drop 输出流虽然会停声，但显式 halt 让两种
-         * 句柄同一语义。代际守卫收紧之后正常路径已经到不了这里，但这一层是
-         * 兜底——**孤儿一旦产生就再也收不回来**，代价不对等。
-         */
-        if let Some(mut prev) = state
-            .current
-            .lock()
-            .expect("tts state poisoned")
-            .replace(playback)
-        {
-            prev.halt();
-        }
-
-        // 轮询播放句柄；自然结束且代际未变 → 回落 idle。
-        loop {
-            tokio::time::sleep(Duration::from_millis(120)).await;
-            if state.generation.load(Ordering::SeqCst) != generation {
-                if !is_filler {
-                    state.body_active.store(false, Ordering::SeqCst);
-                }
-                return; // 已被打断/替换
-            }
-            let mut guard = state.current.lock().expect("tts state poisoned");
-            let finished = match guard.as_mut() {
-                Some(p) => p.is_finished(),
-                None => true,
-            };
-            if finished {
-                guard.take();
-                drop(guard);
-                state.speaking_filler.store(false, Ordering::SeqCst);
-                // 正文自然播完，摘牌——垫场（下一轮的）从此恢复正常受理。
-                if !is_filler {
-                    state.body_active.store(false, Ordering::SeqCst);
-                }
-                crate::tts::ducking::set_tts_playing(false);
-                if state.generation.load(Ordering::SeqCst) == generation && !is_filler {
-                    emit_state(&app, AssistantState::Idle);
-                    // 播报自然结束：开追问窗口（M25-03）。垫场结束不开——
-                    // 垫场不是回复，拿它换免唤醒词的许可说不通。
-                    crate::commands::voice::on_tts_finished(&app);
-                }
-                return;
-            }
-        }
+        let (client, engine_label) = resolve_client().await;
+        let source = Source::Whole(Pipeline::new(
+            client,
+            segments,
+            Arc::clone(&state),
+            generation,
+            is_filler,
+            engine_label,
+            text,
+        ));
+        drive(app, state, source, generation, is_filler, wait_for_filler).await;
     });
 }
 

@@ -25,8 +25,9 @@
  */
 
 import { getAmapClient, type AmapPoi, type LngLat } from "./amap";
+import { recordEnergyStopCandidates } from "./energy-stop-candidates";
 import { defineExternalTool, ToolError, type ExternalTool } from "./external";
-import { haversineKm } from "./charging";
+import { haversineKm, pointAlongRoute } from "./charging";
 
 /** 高德 POI 类型码：加油站。 */
 const TYPECODE_REFUEL = "010100";
@@ -150,11 +151,9 @@ export function createRefuelTool(backend: RefuelBackend): ExternalTool<RefuelArg
       const stops: RefuelStop[] = [];
 
       for (const atKm of planned) {
-        let idx = 0;
-        for (let i = 1; i < cum.length; i += 1) {
-          if (Math.abs(cum[i] - atKm) < Math.abs(cum[idx] - atKm)) idx = i;
-        }
-        const pois = await backend.around(args.route[idx], args.radiusM ?? 5_000, ctx.signal);
+        // 取点位置按里程在取样点之间插值（交接文档缺陷 3），与 charging 同一处理。
+        const at = pointAlongRoute(args.route, cum, atKm);
+        const pois = await backend.around(at, args.radiusM ?? 5_000, ctx.signal);
         stops.push({
           atKm,
           candidates: pois.map((poi) => ({
@@ -169,11 +168,17 @@ export function createRefuelTool(backend: RefuelBackend): ExternalTool<RefuelArg
         });
       }
 
+      // 候选进按轮登记簿（与 `charging` 同一处理由）：燃油车的 energyStops 就是这里的加油站名。
+      recordEnergyStopCandidates(
+        ctx,
+        stops.flatMap((s) => s.candidates.map((c) => ({ name: c.name, lat: c.lat, lon: c.lon, kind: "refuel" as const }))),
+      );
+
       return { stops, fuelLevelUnknown: true, fuelNotice: FUEL_NOTICE };
     },
 
-    mock: () => ({
-      stops: [
+    mock: (_args, ctx) => {
+      const stops: RefuelStop[] = [
         {
           atKm: 100,
           candidates: [
@@ -188,10 +193,14 @@ export function createRefuelTool(backend: RefuelBackend): ExternalTool<RefuelArg
             },
           ],
         },
-      ],
-      fuelLevelUnknown: true,
-      fuelNotice: FUEL_NOTICE,
-    }),
+      ];
+      // mock 路径同样登记（理由见 charging.ts 的 mock）。
+      recordEnergyStopCandidates(
+        ctx,
+        stops.flatMap((s) => s.candidates.map((c) => ({ name: c.name, lat: c.lat, lon: c.lon, kind: "refuel" as const }))),
+      );
+      return { stops, fuelLevelUnknown: true, fuelNotice: FUEL_NOTICE };
+    },
   });
 }
 

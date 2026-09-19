@@ -130,4 +130,19 @@ describe("navPrompt", () => {
     const free = navPrompt(input({ maxLegMinutes: undefined, constraints: [], needs: [] }));
     assert.match(free, /不传 maxLegMinutes/);
   });
+
+  it("[F-18-08] 能源类型给了就写成已定输入并点名传给 map_route；没给就一个字都不提", () => {
+    const bev = navPrompt(input({ energy: "bev" }));
+    assert.match(bev, /能源类型：\*\*纯电\*\*/);
+    assert.match(bev, /energy 传 `bev`/);
+    assert.match(bev, /restStops\[\]\.charging/);
+
+    const icev = navPrompt(input({ energy: "icev" }));
+    assert.match(icev, /energy 传 `icev`/);
+
+    // 读不到时不写进提示词——一条编出来的能源类型比少一维排序依据糟得多
+    const none = navPrompt(input());
+    assert.doesNotMatch(none, /energy 传/);
+    assert.doesNotMatch(none, /能源类型/);
+  });
 });

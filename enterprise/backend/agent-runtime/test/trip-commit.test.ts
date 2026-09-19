@@ -30,6 +30,7 @@ import {
   mergeItinerary,
 } from "../src/graph/subgraphs/itinerary";
 import type { ChatStreamer } from "../src/llm";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 import type { BranchResult } from "../src/graph/fanout";
 
 // ── 判据表 ──────────────────────────────────────────────────
@@ -74,7 +75,7 @@ test("drive 分支的补能点穿过汇聚进 plan.energyStops", () => {
   const out = mergeItinerary(
     [
       ok("tour-task", { destination: "广州", days: [{ day: 1, theme: "亲子", spots: ["长隆"] }] }),
-      ok("drive-task", { legMinutes: [120, 90], stops: [], energyStops: ["泌冲充电站"] }),
+      ok("drive-task", { legs: legsFrom([120, 90], [], [1, 2]), energyStops: ["泌冲充电站"] }),
     ],
     { goal: "g", constraints: [], userText: "u", turnId: "t-1" },
     ["drive", "tour"],
@@ -253,8 +254,12 @@ test("弹窗明细逐日列出；表述与数据不矛盾（698743e 那课）", 
     updatedTurnId: "t",
   };
   const d = commitDisclosures(plan);
-  assert.match(d[0], /第1天 亲子：长隆；住 长隆酒店 约800\/晚（估算）/);
-  assert.match(d[1], /大交通：G253/);
+  // 首行是「从哪去哪、几天」（M77 走查追修，2026-09-12）；这份 plan 没有 origin，所以只写目的地。
+  assert.equal(d[0], "行程：广州，共 1 天");
+  // 逐日行与大交通行**按下标之外的方式断言**：再往这张清单前面加行时，
+  // 该红的是"某一行不见了"，而不是"下标挪了一位"。
+  assert.ok(d.some((l) => /第1天 亲子：长隆；住 长隆酒店 约800\/晚（估算）/.test(l)), "逐日行");
+  assert.ok(d.some((l) => /大交通：G253/.test(l)), "大交通行");
 
   assert.match(describeCommitted(plan), /已确认并保存/);
   assert.doesNotMatch(describeCommitted(plan), /没查到/, "确认表述不得夹带否定指令");

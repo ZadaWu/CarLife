@@ -1,0 +1,13 @@
+# 保留空白 Issue：上面三个模板覆盖不到的事（问一句、提个想法、报可访问性问题）
+# 不该因为没有合适的模板就没人提。
+blank_issues_enabled: true
+contact_links:
+  - name: 先查排障文档
+    url: https://github.com/ZadaWu/CarLife/blob/main/docs/troubleshooting.md
+    about: 安装、启动、测试、知识库、内容审核、部署的常见错误与处理办法。
+  - name: 逐步部署手册
+    url: https://github.com/ZadaWu/CarLife/blob/main/docs/step-by-step.md
+    about: 从零到三个端跑起来，每一步带命令、预期输出与出错去处。
+  - name: 贡献指南
+    url: https://github.com/ZadaWu/CarLife/blob/main/CONTRIBUTING.md
+    about: 本地起栈、跑门禁、提交规范，以及哪些目录是契约。

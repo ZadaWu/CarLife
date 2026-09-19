@@ -115,11 +115,11 @@ export const SAMPLE_ENVELOPES: EventEnvelope[] = [
     event: {
       type: "permission",
       interruptId: "int-1",
-      action: "calendar_write",
-      title: "写入你的日历",
+      action: "trip_plan_commit",
+      title: "确认这份行程",
       details: [{ label: "10月1日", value: "出发（深圳 → 黄山）" }],
-      scope: "google:primary",
-      // 写自己的日历不外发个人信息给第三方——空数组是它的正常形态（M15-04）。
+      scope: "trip:sess-demo-001",
+      // 落我们自己的库，不外发个人信息给第三方——空数组是它的正常形态（M15-04）。
       // 试驾预约那条链路才会非空（`describeDisclosure` 生成，手机号已掩码）。
       disclosure: [],
     },

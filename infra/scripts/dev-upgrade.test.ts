@@ -96,4 +96,11 @@ describe("合并后升级入口", () => {
     }
     assert.match(readiness, /WORKER_HEALTH_URL/);
   });
+
+  it("默认宿主启动集合包含 research-runtime，readiness 锁住它的 /health", () => {
+    // 2026-09-17：后台热配置里 RESEARCH_RUNTIME_URL 已填，进程不在默认集合里就是控制台上的一条红。
+    // 两处必须同时成立——只进集合不锁 readiness，"起了但挂了"没人知道；只锁不进集合，readiness 必红。
+    assert.match(devScript, /DEFAULT_TARGETS=.*research-runtime/);
+    assert.match(readiness, /research-runtime \/health/);
+  });
 });

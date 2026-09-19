@@ -23,7 +23,13 @@ import { defineExternalTool, ToolError, type ExternalTool } from "./external";
 
 export interface RagflowArgs {
   query: string;
-  /** 省略时取该 Agent 的默认数据集（多数 Agent 只有一个）。 */
+  /**
+   * **省略时查该 Agent 允许的全部数据集**（ACR-042）；给了且在白名单内则只查它。
+   *
+   * 曾经省略时取 `allowed[0]`，于是 `service` 永远只查 `repair-kb`、`buying` 永远只查
+   * `car-catalog`——M96 接进来的 `insurance-kb` 在线上一条都命中不了。
+   * 那不是配置问题：`consumers` 回答的是"谁可以查"，被当成了"会查哪个"。
+   */
   dataset?: DatasetKey;
   topK?: number;
   /**
@@ -34,10 +40,9 @@ export interface RagflowArgs {
 }
 
 export interface RagflowData {
-  dataset: DatasetKey;
+  /** 这一次实际查了哪几个集。**来源标注不在这一层**——它跟着每条 chunk 走（F-24-11 / ACR-042）。 */
+  datasets: DatasetKey[];
   chunks: RetrievedChunk[];
-  /** 数据来源标注（F-24-11）：`repair-kb` 是模拟数据，**不冒充真实厂商资料**。 */
-  provenance: "public" | "simulated";
 }
 
 let client: RagClient | undefined;
@@ -64,9 +69,11 @@ export const ragflowTool: ExternalTool<RagflowArgs, RagflowData> = defineExterna
     if (allowed.length === 0) {
       throw new ToolError("ragflow_retrieve", "invalid", `Agent ${agent} 没有可检索的数据集`, false);
     }
-    // 入参给了 dataset 也要落在该 Agent 的白名单内——否则忽略并用默认，
+    // 入参给了 dataset 也要落在该 Agent 的白名单内——否则忽略并按缺省来，
     // 而不是报错后让模型换个说法再试一次（那等于给它一次绕过的机会）。
-    const def = allowed.find((d) => d.key === args.dataset) ?? allowed[0];
+    // 缺省 = **全部允许集**：`consumers` 是"谁可以查"，不是"会查哪个"。
+    const picked = allowed.find((d) => d.key === args.dataset);
+    const datasets = picked ? [picked.key] : allowed.map((d) => d.key);
 
     if (!client) {
       throw new ToolError(
@@ -78,7 +85,7 @@ export const ragflowTool: ExternalTool<RagflowArgs, RagflowData> = defineExterna
     }
 
     const chunks = await client.retrieve({
-      dataset: def.key,
+      datasets,
       query: args.query,
       // **不在这里给默认值**。返回条数是检索侧的调参结论（`pnpm rag:eval` 定的
       // `DEFAULT_PAGE_SIZE`），写死在工具层等于让它悄悄失效——
@@ -87,7 +94,7 @@ export const ragflowTool: ExternalTool<RagflowArgs, RagflowData> = defineExterna
       agent,
       vehicleModel: args.vehicleModel,
     });
-    return { dataset: def.key, chunks, provenance: def.provenance };
+    return { datasets, chunks };
   },
   /**
    * mock 模式的固定数据。内容取自公开的电动车低温衰减常识，
@@ -95,17 +102,18 @@ export const ragflowTool: ExternalTool<RagflowArgs, RagflowData> = defineExterna
    * 但内容本身也不该看起来像真实厂商数据。
    */
   mock(args) {
+    const dataset = (args.dataset ?? "vehicle-manuals") as DatasetKey;
     return {
-      dataset: (args.dataset ?? "vehicle-manuals") as DatasetKey,
-      // mock 模式下的内容当然是模拟的——这里与数据集自身的 provenance 无关，
-      // 标的是「这一次调用返回的是假数据」。
-      provenance: "simulated",
+      datasets: [dataset],
       chunks: [
         {
           content:
             "锂离子动力电池在低温环境下内阻升高、可用容量下降，续航表现通常低于常温工况；" +
             "此外座舱制热会额外消耗电量。",
-          source: { document: "（模拟）车辆使用说明书", location: "电池与充电" },
+          source: { document: "（模拟）车辆使用说明书", location: "电池与充电", dataset },
+          // mock 模式下的内容当然是模拟的——这与数据集自身的 provenance 无关，
+          // 标的是「这一条返回的是假数据」（ACR-042 起标注跟着 chunk 走）。
+          provenance: "simulated",
           score: 0.9,
         },
       ],

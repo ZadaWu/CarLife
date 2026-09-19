@@ -77,13 +77,12 @@ describe("[F-57-01] 可见域归类", () => {
     }
   });
 
-  it("②③记忆、对话、行程计划、日历、按人画像 → 私有域", () => {
+  it("②③记忆、对话、行程计划、按人画像 → 私有域", () => {
     for (const k of [
       "episodic_memory",
       "preference_memory",
       "chat_history",
       "trip_plan",
-      "calendar_grant",
       "member_usage_profile",
     ]) {
       assert.equal(DOMAIN_OF[k], "private", k);

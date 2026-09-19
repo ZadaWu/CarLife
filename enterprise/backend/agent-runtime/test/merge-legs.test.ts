@@ -1,58 +1,55 @@
 /**
- * [F-62-01][AC-62-1][AC-62-2] 行车分段进快照（M77-01）。
+ * [F-62-01][AC-62-1][AC-62-2] 行车分段进快照（M77-01；ACR-047 改在段列表上）。
  *
- * 对齐规则是代码写死的：对不齐就缺省，不按比例摊天。这里把每一条规则打成边界。
+ * 段自描述之后 `buildLegs` 只做三件事：定 reason、标 pending、分钟取整。这里把每一条打成边界。
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildLegs, PENDING_STOP, solve } from "../src/graph/merge";
-
-const SKELETON = [
-  { day: 1, spots: [{ name: "徐州汉文化景区" }, { name: "水下兵马俑博物馆" }] },
-  { day: 2, spots: [{ name: "云龙湖旅游景区" }] },
-];
+import { leg } from "./helpers/drive-legs";
 
 describe("[F-62-01][AC-62-1] buildLegs", () => {
-  it("对齐：3 段 2 停 → 起止站、原因、天逐段对上", () => {
-    const legs = buildLegs(
-      { legMinutes: [90, 60, 45], stops: ["徐州汉文化景区", "云龙湖旅游景区"], energyStops: ["云龙湖旅游景区"] },
-      SKELETON,
-      "杭州",
-    );
-    assert.ok(legs);
+  it("逐段透传：起止站、天、方向；终点是补能站 → charge，服务区 → rest，过夜 → 不写 reason", () => {
+    const legs = buildLegs({
+      legs: [
+        leg(1, "outbound", "杭州", "徐州汉文化景区", 90, "rest"),
+        leg(2, "outbound", "徐州汉文化景区", "云龙湖旅游景区", 60, "charge"),
+        leg(2, "outbound", "云龙湖旅游景区", "徐州", 45, "overnight"),
+      ],
+      energyStops: ["云龙湖旅游景区"],
+    });
     assert.deepEqual(legs, [
-      { driveMinutes: 90, fromStop: "杭州", toStop: "徐州汉文化景区", reason: "rest", day: 1 },
-      { driveMinutes: 60, fromStop: "徐州汉文化景区", toStop: "云龙湖旅游景区", reason: "charge", day: 2 },
-      { driveMinutes: 45, fromStop: "云龙湖旅游景区" },
+      { driveMinutes: 90, direction: "outbound", day: 1, fromStop: "杭州", toStop: "徐州汉文化景区", reason: "rest" },
+      { driveMinutes: 60, direction: "outbound", day: 2, fromStop: "徐州汉文化景区", toStop: "云龙湖旅游景区", reason: "charge" },
+      { driveMinutes: 45, direction: "outbound", day: 2, fromStop: "云龙湖旅游景区", toStop: "徐州" },
     ]);
   });
 
-  it("含 PENDING_STOP：pending=true、reason=rest、day 缺省", () => {
-    const solved = solve({ legMinutes: [200], stops: [] }, { maxLegMinutes: 120 });
-    // 200 → 2 段各 100，补一个占位
-    const legs = buildLegs(solved.draft, SKELETON, "杭州");
-    assert.ok(legs);
+  it("终点名在 energyStops 里即使 kind 写的是 rest 也记 charge——补能点核对后的名单说了算", () => {
+    const legs = buildLegs({ legs: [leg(1, "outbound", "杭州", "某服务区充电站", 90, "rest")], energyStops: ["某服务区充电站"] })!;
+    assert.equal(legs[0]!.reason, "charge");
+  });
+
+  it("含 PENDING_STOP：pending=true、reason=rest、day 与方向照带", () => {
+    const solved = solve({ legs: [leg(2, "outbound", "杭州", "徐州", 200, "overnight")] }, { maxLegMinutes: 120 });
+    const legs = buildLegs(solved.draft)!;
     assert.equal(legs.length, 2);
     assert.equal(legs[0]!.toStop, PENDING_STOP);
     assert.equal(legs[0]!.pending, true);
     assert.equal(legs[0]!.reason, "rest");
-    assert.equal(legs[0]!.day, undefined);
+    assert.equal(legs[0]!.day, 2);
     assert.equal(legs[1]!.driveMinutes, 100);
+    assert.equal(legs[1]!.toStop, "徐州");
   });
 
-  it("对不齐（stops.length ≠ legs - 1）返回 undefined，不猜", () => {
-    assert.equal(buildLegs({ legMinutes: [90, 60], stops: [] }, SKELETON), undefined);
-    assert.equal(buildLegs({ legMinutes: [90], stops: ["A", "B"] }, SKELETON), undefined);
-    assert.equal(buildLegs({ legMinutes: [], stops: [] }, SKELETON), undefined);
+  it("空段列表返回 undefined，不编一段出来", () => {
+    assert.equal(buildLegs({ legs: [] }), undefined);
   });
 
-  it("站名对不上 skeleton 的 spot 时 day 缺省，其余字段照常", () => {
-    const legs = buildLegs({ legMinutes: [30, 30], stops: ["某服务区"] }, SKELETON, "杭州");
-    assert.ok(legs);
-    assert.equal(legs[0]!.day, undefined);
-    assert.equal(legs[0]!.toStop, "某服务区");
-    assert.equal(legs[0]!.reason, "rest");
+  it("分钟取整：146.66 → 147", () => {
+    const legs = buildLegs({ legs: [leg(1, "outbound", "a", "b", 146.66, "overnight")] })!;
+    assert.equal(legs[0]!.driveMinutes, 147);
   });
 });

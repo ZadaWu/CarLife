@@ -35,7 +35,7 @@
 import { runFanout, type BranchResult, type FanoutOptions } from "../fanout";
 import { mergeBranches, MISSING_SECTION_HEADER, PENDING_STOP, type MergeResult } from "../merge";
 import type { VehicleEnergyType } from "@carlife/memory";
-import { energyBranchPrompt, energyFact, energyFields, reconcileConstraints, type ReconciledConstraints } from "../energy";
+import { energyBranchPrompt, energyFact, energySubmitDirective, reconcileConstraints, type ReconciledConstraints } from "../energy";
 
 // 能源事实与约束校对已抽到 ../energy（M12-03，check:arch 的 crosstalk 不允许子图互相 import）。
 // 这里 re-export 保住既有调用方（supervisor / 测试）的导入路径，行为零变化。
@@ -72,7 +72,7 @@ function schemaHint(fields: string): string {
  * 但那句话不在 JSON 里，汇聚一律丢弃，应答节点只好自己重查一遍（见 `merge.ts` 的说明）。
  */
 const TRIP_FIELDS =
-  '{"legMinutes":[每段行车分钟数],"stops":["休息停靠点名称"],"findings":["车主问到、且你用工具查到的事实，一句话并带依据"]}';
+  '{"legs":[{"day":第几天,"direction":"outbound|return","from":"起点","to":{"kind":"rest|charge|overnight|spot|origin","name":"终点"},"minutes":分钟数}],"findings":["车主问到、且你用工具查到的事实，一句话并带依据"]}';
 
 /**
  * `findings` 的填写约束。**与字段清单分开写**，因为它是一条禁令而不是格式说明。
@@ -239,7 +239,7 @@ export async function runTripFanout(
         prompt: [
           energyBranchPrompt(input.energyType, input.goal),
           constraintText,
-          schemaHint(energyFields(input.energyType)),
+          energySubmitDirective(input.energyType),
         ].join("\n\n"),
       },
     ],
@@ -247,7 +247,8 @@ export async function runTripFanout(
   );
 
   // 求解也用校对后的约束：剔掉的那条若含"续航不低于 N%"，会让燃油车凭空多出一条违约项。
-  const merged = mergeBranches(branches, kept);
+  // 上限来自意图理解（ADR-012）；这条链路没接这一栏时按「没有上限」走，与从前抽不出来时同效。
+  const merged = mergeBranches(branches);
 
   /*
    * 把"问了却没答上"并进 missing。
@@ -290,16 +291,18 @@ export function describeMerged(m: MergeResult, energyType?: VehicleEnergyType): 
   // 实测（turn-eccbd8c3）：两条分支提示词都写着"燃油"，应答仍然让车主
   // "确认续航和沿途充电站，别开到一半没电"——3906 字的提示词里 3800 字是被污染的历史。
   lines.push(energyFact(energyType));
-  if (m.draft.legMinutes.length) {
+  if (m.draft.legs.length) {
     lines.push(
-      `行程已按硬约束拆成 ${m.draft.legMinutes.length} 段：${m.draft.legMinutes
-        .map((x) => `${Math.round(x)}分钟`)
+      `行程已按硬约束拆成 ${m.draft.legs.length} 段：${m.draft.legs
+        .map((x) => `${Math.round(x.minutes)}分钟`)
         .join(" / ")}`,
     );
   }
   // 占位与真名字必须分开说：前者是"这里要停但没名字"，混进列表就变成了一个假地名。
-  const named = m.draft.stops.filter((s) => s && s !== PENDING_STOP);
-  const pending = m.draft.stops.length - named.length;
+  // 只数中途停靠（rest / charge）；过夜与景点不是"停靠点"。
+  const stops = m.draft.legs.filter((l) => l.to.kind === "rest" || l.to.kind === "charge").map((l) => l.to.name);
+  const named = stops.filter((s) => s && s !== PENDING_STOP);
+  const pending = stops.length - named.length;
   if (named.length) lines.push(`沿途停靠点：${named.join(" / ")}`);
   if (pending > 0) {
     lines.push(

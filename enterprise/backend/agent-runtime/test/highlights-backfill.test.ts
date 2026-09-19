@@ -46,8 +46,15 @@ function highlights(destination: string): DestinationHighlights {
   };
 }
 
-/** 只记一次写入的假仓储。`current` 可在补算途中被换掉，用来演"算着算着行程变了"。 */
+/**
+ * 只记写入的假仓储。**按 planId 存多份**——补算写回前读的是"这一行"而不是"当前行程"
+ * （2026-09-18 排查：只放一份就测不出"改的不是最新那一程 → 结果被整份丢弃"）。
+ * `set` 可在补算途中换掉某一行，用来演"算着算着行程变了"；给 null 表示那一行被取消了。
+ */
 function fakeStore(current: { planId: string; sessionId: string; plan: TripPlanSnapshot } | null) {
+  const first = current;
+  const rows = new Map<string, { planId: string; sessionId: string; plan: TripPlanSnapshot }>();
+  if (current) rows.set(current.planId, current);
   const writes: TripPlanSnapshot[] = [];
   const store: HighlightsPlanStore & {
     writes: TripPlanSnapshot[];
@@ -55,10 +62,11 @@ function fakeStore(current: { planId: string; sessionId: string; plan: TripPlanS
   } = {
     writes,
     set: (v) => {
-      current = v;
+      if (v) rows.set(v.planId, v);
+      else if (first) rows.delete(first.planId);
     },
-    async currentForUser() {
-      return current;
+    async confirmedById(_userId, planId) {
+      return rows.get(planId) ?? null;
     },
     async update(_userId, _planId, _sessionId, p) {
       writes.push(p);
@@ -97,6 +105,44 @@ test("已结束的行程不补算——它连卡都不会上，不值得烧一�
   await backfill.idle();
 
   assert.equal(called, 0);
+  assert.equal(store.writes.length, 0);
+});
+
+test("改的不是最新那一程，推荐照样写得回去（2026-09-18 排查）", async () => {
+  /*
+   * 与沿途服务同一处、同一天修的（`route-services.ts`）：写回前原来读的是
+   * `currentForUser`（= 最新一条 confirmed），而车主能从列表里载入并变更任何一程
+   * （M72-05）。改的不是最新那一程时 `planId` 必然对不上，搜了十几秒的推荐被整份丢掉，
+   * 而 `update` 不改 `committedAt`，那一程永远排不回第一名。
+   * 所以这里**故意让库里还挂着另一程**。
+   */
+  const store = fakeStore({ planId: "p-older", sessionId: "s1", plan: plan() });
+  store.set({ planId: "p-newer", sessionId: "s2", plan: plan({ destination: "杭州西湖" }) });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => highlights("舟山普陀山"),
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p-older", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
+  assert.equal(store.writes.length, 1, "改的不是最新那一程，也要写得回去");
+  assert.equal(store.writes[0].destinationHighlights?.destination, "舟山普陀山");
+});
+
+test("那一行期间被取消了就不写回——取消掉的行程不该再被补算改写", async () => {
+  const store = fakeStore({ planId: "p1", sessionId: "s1", plan: plan() });
+  const backfill = createHighlightsBackfill(store, {
+    collect: async () => {
+      store.set(null); // 搜的这十几秒里车主把这一程取消了
+      return highlights("舟山普陀山");
+    },
+    today: () => TODAY,
+  });
+
+  backfill.schedule({ userId: "u1", planId: "p1", sessionId: "s1", plan: plan() });
+  await backfill.idle();
+
   assert.equal(store.writes.length, 0);
 });
 

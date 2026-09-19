@@ -11,9 +11,21 @@ from ..progress import make_epoch_callback
 from .common import pick_device, val_metrics
 
 
+#: 允许直接从架构 yaml 起训的基座（M80-13）。
+#: **Ultralytics 没有发布过 P2 的预训练权重**——网上说的 `yolov8s-p2.pt` 并不存在，
+#: 只有架构 yaml。所以这里的做法是：按 yaml 搭网络，再把同名非 P2 权重里形状对得上的层迁移进来
+#: （主干与颈部能对上，新增的步长 4 检测头是随机初始化的）。
+ARCH_BASES: dict[str, str] = {
+    "yolov8n-p2.yaml": "yolov8n.pt",
+    "yolov8s-p2.yaml": "yolov8s.pt",
+    "yolov8m-p2.yaml": "yolov8m.pt",
+}
+BUILTIN_BASES = ("yolo11n.pt", "yolo11s.pt", "yolo11m.pt")
+
+
 def resolve_base(paths: Paths, base: str) -> str:
-    """基座：内置 yolo11n/s（服务目录下已缓存或由 ultralytics 下载），或既有模型的 best.pt（继续训）。"""
-    if base in ("yolo11n.pt", "yolo11s.pt", "yolo11m.pt"):
+    """基座：内置 yolo11n/s、架构 yaml（见 ARCH_BASES）、或既有模型的 best.pt（继续训）。"""
+    if base in BUILTIN_BASES or base in ARCH_BASES:
         cached = SERVICE_DIR / base
         return str(cached) if cached.exists() else base
     w = paths.job_dir(base) / "weights" / "best.pt"
@@ -31,7 +43,12 @@ def run_train(paths: Paths, job_id: str, params: dict[str, Any]) -> dict[str, An
         raise FileNotFoundError(f"数据集不存在：{params['dataset']}")
     device = params.get("device") or pick_device()
 
-    model = YOLO(resolve_base(paths, str(params.get("base") or "yolo11n.pt")))
+    base = str(params.get("base") or "yolo11n.pt")
+    model = YOLO(resolve_base(paths, base))
+    if base in ARCH_BASES:
+        # 从 yaml 搭出来的网络是随机权重；把能对上的层从同规格的非 P2 预训练权重迁移过来。
+        # 迁移多少层由 ultralytics 自己按形状匹配决定，迁不动的（新的 P2 头）保持随机。
+        model = model.load(ARCH_BASES[base])
     model.add_callback("on_fit_epoch_end", make_epoch_callback(job_dir / "progress.jsonl"))
     t0 = time.perf_counter()
     model.train(
@@ -48,6 +65,10 @@ def run_train(paths: Paths, job_id: str, params: dict[str, Any]) -> dict[str, An
         deterministic=True,
         verbose=False,
         plots=True,
+        # 显式给了才覆盖 ultralytics 缺省；没给的键不进 kwargs，行为与改动前一致（M80-12）
+        **{k: float(params[k]) for k in
+           ("degrees", "perspective", "shear", "translate", "scale", "fliplr", "flipud", "hsv_v", "hsv_s")
+           if params.get(k) is not None},
     )
     train_s = time.perf_counter() - t0
     csv = job_dir / "results.csv"

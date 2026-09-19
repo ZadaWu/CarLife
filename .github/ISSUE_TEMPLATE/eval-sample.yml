@@ -1,0 +1,84 @@
+name: 评测样本
+description: 你说了一句话，助手答得不对——把这一轮提交上来
+title: "[评测] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        「答得不对」包括：路由到了错的业务面、该调工具却没调、该说不知道却编了一个
+        答案、有出处的问题答得没有出处、该拦的内容没拦。这类样本会被整理进
+        `evals/` 下的评测集，所以请按下面的字段写清「期望」——没有期望的样本无法判分。
+
+  - type: textarea
+    id: input
+    attributes:
+      label: 你说的原话
+      description: 原样照抄，包括错别字与口语——它们本身就是要测的输入。
+      placeholder: 下周末带父母去杭州自驾，顺路把保养做了
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的行为
+      description: 期望它回答什么、或者做什么（调哪个工具、问哪一句澄清、拒绝并说明原因）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际的回答
+      description: 原样贴回答全文。运营控制台的会话页能看到这一轮走了哪些节点、调了哪些工具，一并贴上更好。
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: face
+    attributes:
+      label: 你觉得这一轮该归谁
+      multiple: true
+      options:
+        - 购车顾问
+        - 用车助手
+        - 出行规划
+        - 座舱陪伴
+        - 售后服务
+        - 意图理解与路由
+        - 知识库检索与出处
+        - 记忆与个性化
+        - 照片 / 视频问诊
+        - 安全边界（该拦没拦、不该拦拦了）
+        - 说不准
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 运行档
+      description: Fake 档的回答是模板，不反映真实模型的质量；只有真实模型的样本才进评测集。
+      options:
+        - 填了真实 LLM 密钥
+        - 未填密钥（Fake 档）
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: 提交
+      description: "`git rev-parse --short HEAD`。同一句话在不同版本上的表现会变。"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 这段对话里没有真实的个人信息（姓名、手机号、车架号、车牌、住址），可以作为公开评测样本
+          required: true

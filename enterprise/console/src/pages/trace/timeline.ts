@@ -41,6 +41,9 @@ export interface TimelineLayout {
   durationMs: number;
 }
 
+/** 短于这个的空白不单独画——采集抖动，画出来是噪音（时间仍计在 selfMs / tail 里）。 */
+const GAP_MIN_MS = 200;
+
 /** 点事件在时间轴上没有宽度，给一个最小可见宽度，否则看不见。 */
 const POINT_WIDTH_PCT = 0.6;
 
@@ -52,6 +55,8 @@ const POINT_LABELS: Record<string, string> = {
   agent_session: "Agent 会话",
   merge: "汇聚",
   tool_call: "工具调用",
+  agent_output: "模型产出",
+  context: "上下文装载",
   guard: "安全裁决",
   resume: "恢复",
   cancel: "取消",
@@ -78,6 +83,8 @@ function toneOf(e: TraceEvent): Bar["tone"] {
   if (e.kind === "branch" && d.status && d.status !== "ok") return "danger";
   // **mock 数据要标出来**——罗启明会问"这个数是真的还是编的"。
   if (e.kind === "tool_call" && (d.source as { kind?: string })?.kind === "mock") return "warn";
+  // 模型产出（2026-09-15）：失败的那条要看得见；取消是掐流不是坏，按常态画。
+  if (e.kind === "agent_output" && d.status === "failed") return "danger";
   if (e.kind === "merge" && d.personalized === false) return "warn";
   // 体检（M77-03）：还有没修掉的 blocker 或预算耗尽 → 警示；全过是常态。
   if (e.kind === "audit" && ((typeof d.blockers === "number" && d.blockers > 0) || d.budgetExhausted === true)) return "warn";
@@ -315,6 +322,35 @@ function isTtft(name: string): boolean {
 }
 
 /** 合并区间后的总覆盖时长。 */
+/**
+ * 把 `[from,to)` 里没被任何区间盖住的那几段挑出来（见 `FlowGap`）。
+ *
+ * 短于 `minMs` 的不给——毫秒级的缝隙是采集抖动，画出来只会把图排满噪音，
+ * 而它们的时间仍然如实计在 `selfMs` 与 `tail` 里，不会凭空消失。
+ */
+function gapsIn(
+  from: number,
+  to: number,
+  covered: Array<{ s: number; e: number }>,
+  minMs: number,
+): Array<{ s: number; e: number }> {
+  /*
+   * **零宽事件不算覆盖**。`sidecar.filler` 之流是点事件（0ms），
+   * 不参与占用时间，却会在这里把一段连续的空白劈成两半——
+   * 实测 tour 分支收尾那 9.5 秒被两个 filler 切成 2853 / 5853 / 810 三行，
+   * 读起来像"想了三次"，而它其实是一口气在写那份三天 JSON。
+   */
+  const sorted = covered.filter((c) => c.e > c.s).sort((a, b) => a.s - b.s);
+  const out: Array<{ s: number; e: number }> = [];
+  let cursor = from;
+  for (const it of sorted) {
+    if (it.s > cursor && it.s - cursor >= minMs) out.push({ s: cursor, e: it.s });
+    cursor = Math.max(cursor, it.e);
+  }
+  if (to > cursor && to - cursor >= minMs) out.push({ s: cursor, e: to });
+  return out;
+}
+
 function unionMs(intervals: Array<{ s: number; e: number }>): number {
   if (intervals.length === 0) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
@@ -447,6 +483,17 @@ export interface FlowChild {
   offsetMs: number;
   /** 嵌套深度（阶段的直接子调用为 0）。缩进画出来才看得出谁在谁里面。 */
   depth: number;
+  /**
+   * 这一跳里**排我们自己的限速队**的那部分毫秒（服务端 `SpanData.waitMs`）。
+   *
+   * 为什么要和总时长分开画：真跑 turn-d3372ed7 的 fan-out 起跑 1.3 秒内
+   * 九个高德请求一起发出，闸门 350ms/桶 2，`tool.spot_search` 于是写着 4770ms。
+   * 那 4.77 秒里上游只算了一部分——**剩下的是在我们自己门口排队**，
+   * 而两者的处置相反：等上游只能等，排自己的队是并发策略，调得动。
+   *
+   * `undefined` 是"这一轮跑在埋点之前"，`0` 是"真的没排队"，两者不能混着画。
+   */
+  waitMs?: number;
 }
 
 /**
@@ -471,6 +518,47 @@ export interface FlowTail {
   kind: "llm" | "node";
 }
 
+/**
+ * 某一次调用内部**没有任何下级调用在跑**的一段（M77 走查追修）。
+ *
+ * # 为什么要把它画出来，而不是只在末尾记一个总数
+ *
+ * 真跑 turn-d3372ed7 的 `llm.tour-task` 是 19.96 秒，下级调用加起来只有 6.2 秒——
+ * 剩下 13.7 秒图上是**空白**，读起来像"什么都没发生"，而它恰恰是最大的一块，
+ * 且分成三段：首 token 前 1.8 秒、两轮之间 2.2 秒、**最后写那份三天 JSON 9.5 秒**。
+ * 末尾那两行 `tail` 给的是阶段这一层的**总账与细分**，但它不说这些时间**在哪**——
+ * 于是"这一轮慢在哪"这个问题，图回答不了。
+ *
+ * # 每一层都要算，不能只算阶段这一层
+ *
+ * 行程规划 fan-out 的形状是 `node.itineraryPlan ⊃ llm.*-task ⊃ tool.*`：
+ * 四条分支几乎铺满了节点，**阶段这一层一条空白都没有**，
+ * 而要找的那 13.7 秒全在 `llm.tour-task` 里面。只算阶段等于恰好避开了问题本身。
+ */
+export interface FlowGap {
+  /**
+   * 相对**所属阶段**起点的偏移（不是相对它所在的那次调用）——
+   * 与 `FlowChild.offsetMs` 同一基准，渲染层因此对两者用同一套定位算法。
+   */
+  offsetMs: number;
+  durationMs: number;
+  /** 是不是所在调用的最后一段——LLM 调用的收尾空白就是在出最终那段文本。 */
+  trailing: boolean;
+  /** 所在调用的种类：决定这一行该叫"模型在想"还是"编排自身"。 */
+  kind: "llm" | "node";
+  /** 与同层子调用一致的缩进深度。 */
+  depth: number;
+}
+
+/**
+ * 渲染顺序上的一行：一次子调用，或一段空白。
+ *
+ * `FlowStage.children` 说的是**内容**（谁调了谁），`rows` 说的是**怎么读**——
+ * 同一批 `FlowChild` 对象按前序排好，空白按时间插在它该在的位置上。
+ * 两者共享对象，不是两份数据。
+ */
+export type FlowRow = { child: FlowChild; gap?: undefined } | { gap: FlowGap; child?: undefined };
+
 export interface FlowStage {
   /** 原始 span 名（`node.answer` / `guard.input`）。 */
   name: string;
@@ -484,6 +572,13 @@ export interface FlowStage {
   children: FlowChild[];
   /** 阶段时长减去子调用**并集**。`tail` 是它的细分，两者不冲突。 */
   selfMs: number;
+  /**
+   * 子调用与空白按时间归并成的一列，**渲染直接照着它排**。
+   *
+   * 空白不能单列一段：它本来就长在子调用之间，拆出去列就又变回了脚注，
+   * 而"这 20 秒里有 13 秒没有任何工具在跑、其中 9.5 秒在结尾"正是要一眼看清的事。
+   */
+  rows: FlowRow[];
   tail: FlowTail;
   /** 被折叠掉的那次 LLM 调用的名字（见 `PASSTHROUGH_RATIO`）；没折叠时为 undefined。 */
   collapsedFrom?: string;
@@ -549,6 +644,8 @@ interface RawSpan {
   status: FlowStatus;
   detail?: string;
   agent?: string;
+  /** 见 `FlowChild.waitMs`。老轨迹没有这个字段 → undefined，**不是 0**。 */
+  waitMs?: number;
 }
 
 function readSpans(events: readonly TraceEvent[]): RawSpan[] {
@@ -566,6 +663,8 @@ function readSpans(events: readonly TraceEvent[]): RawSpan[] {
             : ("ok" as const),
       detail: typeof e.data.detail === "string" ? e.data.detail : undefined,
       agent: typeof e.data.agent === "string" ? e.data.agent : undefined,
+      // 只认有限的数：服务端写 0 表示"没排队"，字段缺失表示"这一轮跑在埋点之前"。
+      waitMs: Number.isFinite(e.data.waitMs) ? Number(e.data.waitMs) : undefined,
     }))
     .filter((s) => Number.isFinite(s.startedAt) && Number.isFinite(s.endedAt));
 }
@@ -750,42 +849,107 @@ export function buildFlow(events: readonly TraceEvent[]): TurnFlow {
       parentOf.set(c, parent);
     }
 
-    const ordered: Array<{ span: RawSpan; depth: number }> = [];
+    /*
+     * 前序遍历的同时把空白插进去（见 `FlowGap`）。
+     *
+     * 空白算的是**这一层**：父调用的区间减去它直接子调用的并集。
+     * 每层各算各的，`llm.tour-task` 里那 13.7 秒才找得到——
+     * 只算阶段那一层的话，fan-out 节点被四条分支铺满，一条空白都出不来。
+     */
+    const ordered: Array<{ span: RawSpan; depth: number } | { gap: FlowGap; depth: number }> = [];
     const walk = (parent: RawSpan | undefined, depth: number): void => {
       const siblings = inner
         .filter((c) => parentOf.get(c) === parent)
         // 兄弟之间仍按时间先后；同起点时长的在前。
         .sort((a, b) => a.startedAt - b.startedAt || b.endedAt - a.endedAt);
-      for (const c of siblings) {
-        ordered.push({ span: c, depth });
-        walk(c, depth + 1);
+      // 一个下级调用都没有的那次调用不画空白：整段都是空白等于没有信息，
+      // 却会给每个叶子（tool.*、guard.* 之流）凭空多出一条灰条。
+      if (siblings.length === 0) return;
+      const from = parent?.startedAt ?? stage.startedAt;
+      const to = parent?.endedAt ?? stage.endedAt;
+      const holes = gapsIn(
+        from,
+        to,
+        siblings.map((c) => ({ s: c.startedAt, e: c.endedAt })),
+        GAP_MIN_MS,
+      ).map((g) => ({
+        // 基准是阶段起点，与子调用同一套定位算法。
+        offsetMs: g.s - stage.startedAt,
+        durationMs: g.e - g.s,
+        trailing: g.e >= to,
+        /*
+         * 这一段该读成"模型在想"还是"编排在等"，取决于**包着它的那次调用**是谁。
+         * 阶段这一层用 `llm` 而不是阶段名：穿透层被折叠之后
+         * （`node.answer` ⊃ `llm.trip`），阶段名还写着 node，实际在跑的是那次模型调用——
+         * 与末尾 `tail.kind` 同一个判据，两处说法必须一致。
+         */
+        kind: parent
+          ? containerRank(parent.name) === 2
+            ? ("llm" as const)
+            : ("node" as const)
+          : llm
+            ? ("llm" as const)
+            : ("node" as const),
+        depth,
+      }));
+      // 归并：空白与子调用在时间上不重叠（空白就是从并集里挖出来的），比起点即可定序。
+      const merged: Array<{ at: number; span?: RawSpan; gap?: FlowGap }> = [
+        ...siblings.map((c) => ({ at: c.startedAt, span: c })),
+        ...holes.map((g) => ({ at: stage.startedAt + g.offsetMs, gap: g })),
+      ].sort((a, b) => a.at - b.at);
+      for (const m of merged) {
+        if (m.gap) {
+          ordered.push({ gap: m.gap, depth });
+          continue;
+        }
+        ordered.push({ span: m.span!, depth });
+        walk(m.span!, depth + 1);
       }
     };
     walk(undefined, 0);
 
-    const children: FlowChild[] = ordered.map(({ span: c, depth }) => ({
-      name: c.name,
-      durationMs: Math.max(0, c.endedAt - c.startedAt),
-      status: c.status,
-      detail: c.detail,
-      agent: c.agent,
-      offsetMs: c.startedAt - stage.startedAt,
-      // 深度取自树本身，缩进因此与"谁紧跟着谁"永远一致。
-      depth,
-      // **有交集且互不包含**才算并行——嵌套也有交集，但那不是并排在跑。
-      parallel: inner.some(
-        (o) =>
-          o !== c &&
-          c.startedAt < o.endedAt &&
-          o.startedAt < c.endedAt &&
-          !contains(o, c) &&
-          !contains(c, o),
-      ),
-    }));
+    const rows: FlowRow[] = [];
+    const children: FlowChild[] = [];
+    for (const row of ordered) {
+      if ("gap" in row) {
+        rows.push({ gap: row.gap });
+        continue;
+      }
+      const { span: c, depth } = row;
+      const child: FlowChild = {
+        name: c.name,
+        durationMs: Math.max(0, c.endedAt - c.startedAt),
+        status: c.status,
+        detail: c.detail,
+        agent: c.agent,
+        offsetMs: c.startedAt - stage.startedAt,
+        /*
+         * 夹到本跳时长以内：计量与计时是两处取的时间（闸门两侧 vs `invokeTool` 两端），
+         * 理论上前者恒小于后者，但两处时钟读数之间隔着几行代码——
+         * 让一条"等待"比它所在的条还长，画出来就是溢出边界的一截。
+         */
+        waitMs:
+          c.waitMs === undefined
+            ? undefined
+            : Math.min(Math.max(0, c.waitMs), Math.max(0, c.endedAt - c.startedAt)),
+        // 深度取自树本身，缩进因此与"谁紧跟着谁"永远一致。
+        depth,
+        // **有交集且互不包含**才算并行——嵌套也有交集，但那不是并排在跑。
+        parallel: inner.some(
+          (o) =>
+            o !== c &&
+            c.startedAt < o.endedAt &&
+            o.startedAt < c.endedAt &&
+            !contains(o, c) &&
+            !contains(c, o),
+        ),
+      };
+      children.push(child);
+      rows.push({ child });
+    }
 
     const childUnion = unionMs(inner.map((c) => ({ s: c.startedAt, e: c.endedAt })));
     const selfMs = Math.max(0, durationMs - childUnion);
-
     // 吐字时间**量出来**：调用总时长 − 首 token。没有 ttft 就如实给 null。
     const ttft = llm ? ttftOf.get(llm.name) : undefined;
     const textMs = llm && ttft !== undefined ? Math.max(0, (llm.endedAt - llm.startedAt) - ttft) : null;
@@ -798,6 +962,7 @@ export function buildFlow(events: readonly TraceEvent[]): TurnFlow {
       status: stage.status,
       detail: stage.detail,
       children,
+      rows,
       selfMs,
       collapsedFrom,
       tail: {

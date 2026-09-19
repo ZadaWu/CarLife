@@ -3,6 +3,12 @@ services:
     build:
       context: ..
       dockerfile: infra/images/Dockerfile.web
+      # 构建期变量，理由与边界见 Dockerfile.web 里 build 阶段那段注释。
+      # 值取自仓库根 `.env`（compose 默认读它；部署时 up.sh 在 $DEPLOY_APP_DIR 下跑，
+      # 那里就是根）。没配时传空串——控制台那一页会退回文字坐标，不会构建失败。
+      args:
+        VITE_AMAP_JS_KEY: ${VITE_AMAP_JS_KEY:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     ports:
       - "5173:80"
     depends_on:

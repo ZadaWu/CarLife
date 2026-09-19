@@ -4,10 +4,28 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 
+# ── 构建期可换 npm 源（缺省不换）
+#
+# 2026-09-19 那次部署整套镜像**零缓存命中**（`node:24-alpine` 是会移动的 tag，一动
+# 下游全失效），于是每个镜像都要从头装依赖——而从国内 ECS 直连 registry.npmjs.org
+# 实测 13.7 KB/s、40 秒连一份包元数据都传不完，构建就停在那里，`up` 一步都没走到。
+# 留这个口子与 apply 第①步给 Docker Hub 写 registry-mirrors 是同一个思路。
+#
+# **缺省为空 = 官方源**：本机开发与 CI 的行为一个字都不变，只有部署脚本显式传值才换。
+# 换源不放松完整性：这里走 `pnpm install --frozen-lockfile`，pnpm-lock.yaml 里逐包的
+# integrity 哈希照样校验，换个镜像站换不了包的内容。
+ARG NPM_REGISTRY=""
+# 两处都要设，少一个就还有一半流量走官方源：COREPACK_NPM_REGISTRY 管 corepack 自己
+# 下载 pnpm 那一步，npm config 写出的 ~/.npmrc 管 pnpm 解析依赖那一步。
+# 用 `:-` 兜默认值而不是直接赋空——COREPACK_NPM_REGISTRY 被设成空串会让 corepack 出错。
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org}
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY contracts/package.json contracts/
 COPY clients/shared/ui/package.json clients/shared/ui/
 COPY enterprise/backend/shared/rag/package.json enterprise/backend/shared/rag/
+COPY enterprise/backend/shared/research/package.json enterprise/backend/shared/research/
 COPY enterprise/backend/shared/memory/package.json enterprise/backend/shared/memory/
 COPY enterprise/backend/shared/guardrails/package.json enterprise/backend/shared/guardrails/
 COPY enterprise/backend/shared/tools/package.json enterprise/backend/shared/tools/
@@ -24,7 +42,24 @@ COPY clients/cockpit/package.json clients/cockpit/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
+# 控制台的缓存详情地图读 `import.meta.env.VITE_AMAP_JS_KEY`，那是**构建期**替换，
+# 不是运行期读取。而根 `.env` 进不来：`.dockerignore` 刻意把它挡在构建上下文外
+# （真值配置被打进镜像推上 registry，与 INC-0110 同族），`vite.config.ts` 的 `envDir`
+# 指到 /app 也只会指到一个没有 .env 的目录。所以只能经 build arg 送进来——
+# Vite 的 `loadEnv` 读完 .env 文件后还会把 `process.env` 里带 `VITE_` 前缀的变量并进
+# `import.meta.env`，且优先级高于 .env 文件（vite 6.4.3 dist 里那两个循环）。
+#
+# ⚠️ 这把 key 会烘进本阶段的镜像层与前端 bundle。它本来就是要发给浏览器的 Web 端 key，
+# 所以这是可接受的代价；但**只有这一个 `VITE_` 变量该走这条路**。别顺手把服务端 key
+# （`AMAP_SERVER_KEY` 那一族）也加进来：它们是 `storage: "db"` 的运行期配置，
+# 走这里等于把一把纯服务端密钥复制进镜像层，白白多开一个泄露面。
+ARG VITE_AMAP_JS_KEY=""
+ENV VITE_AMAP_JS_KEY=$VITE_AMAP_JS_KEY
 COPY contracts/ contracts/
+# 控制台的 research 页面从 `@carlife/research` 引 agent-note / capabilities /
+# red-team / types 四个子路径，而那个包是**按源码消费**的（exports 指向 ./src/*.ts），
+# 所以源码必须进来。漏了它 vite 会在 `Rollup failed to resolve import` 上直接失败。
+COPY enterprise/backend/shared/research/ enterprise/backend/shared/research/
 COPY enterprise/console/ enterprise/console/
 RUN pnpm --filter @carlife/web build
 

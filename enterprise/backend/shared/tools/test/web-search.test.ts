@@ -143,7 +143,8 @@ test("guide 三分支的工具表恰如声明——多给的工具没人知道�
     listForAgent(agent)
       .map((t) => t.name)
       .sort();
-  assert.deepEqual(names("guide-spots"), ["poi_search", "submit_guide_spots", "web_search"]);
+  // guide-spots 只搜景点：多类别的 poi_search 换成钉死景点的 spot_search（M77 走查追修，见 poi-search.ts 文件头）。
+  assert.deepEqual(names("guide-spots"), ["spot_search", "submit_guide_spots", "web_search"]);
   assert.deepEqual(names("guide-access"), ["poi_search", "submit_guide_access", "web_search"]);
   assert.deepEqual(names("guide-comfort"), ["submit_guide_comfort", "web_search"]);
 });

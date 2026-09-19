@@ -109,6 +109,39 @@ const nonEmpty = (label: string) => (v: string): string | null =>
 const httpUrl = (v: string): string | null =>
   /^https?:\/\/.+/.test(v) ? null : "必须是 http(s):// 开头的 URL";
 
+/**
+ * 高德 key 池最多几把——与 `@carlife/tools` 的 `AMAP_KEY_MAX` 同值。
+ *
+ * 不从那边 import：`@carlife/db` 不依赖 `@carlife/tools`（方向反了会成环）。两处各写一个 10，
+ * 由 `config-model.test.ts` 钉住相等；改一个数会当场红，不会像三处手抄那样静默少一条车道。
+ */
+export const AMAP_SERVER_KEY_MAX = 10;
+
+/**
+ * `AMAP_SERVER_KEY_2` … `AMAP_SERVER_KEY_10` 的注册表条目（M100-01）。
+ * 第一条 `AMAP_SERVER_KEY` 单独手写在下面——它是既有 `.env` 与后台配置页都依赖的那一条，措辞不动。
+ */
+function amapServerKeyDefs(): ConfigDef[] {
+  const out: ConfigDef[] = [];
+  for (let n = 2; n <= AMAP_SERVER_KEY_MAX; n += 1) {
+    out.push({
+      key: `AMAP_SERVER_KEY_${n}`,
+      class: "secret",
+      scope: "map",
+      storage: "db",
+      envFallback: `AMAP_SERVER_KEY_${n}`,
+      description:
+        `高德 **第 ${n} 个账号** 的 Web 服务 key（可选）。必须来自**另一个开发者账号**——` +
+        "同账号下的第二把 key 共用同一份 QPS 与日配额，配了反而更容易撞 10021。" +
+        "车道数即账号数，持续速率与搜索日配额都按账号数成倍；用量按 key 指纹记在台账里，`probe:amap` 与后台财务页可看",
+      howToObtain:
+        "另一个高德账号 → https://console.amap.com → 应用管理 → 添加 key，服务平台选「Web 服务」；" +
+        "该 key 的「数字签名」要**关闭**（我们不做 sig 签名，开着会一律返回 infocode=10008）",
+    });
+  }
+  return out;
+}
+
 export const CONFIG_REGISTRY: readonly ConfigDef[] = [
   // ── LLM（§0 / §5.1：Vercel AI SDK + DeepSeek）
   {
@@ -413,6 +446,26 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
       ["mock", "doubao", "aliyun"].includes(v) ? null : "只能是 mock / doubao / aliyun",
   },
   {
+    key: "TTS_STREAM_SPEECH",
+    class: "endpoint",
+    scope: "tts",
+    storage: "db",
+    envFallback: "TTS_STREAM_SPEECH",
+    // **默认关**：它改的是"什么时候开口"这条链路的形状，而听感好不好
+    // 只有真车上能判。默认开等于让每台端替我们做实验。
+    default: "off",
+    options: ["off", "on"],
+    description:
+      "边收边播（流式播报）。关=等这一轮文字全部返回，再分段合成播报；" +
+      "开=模型每吐出一句就送去合成，声音几乎跟着文字走。" +
+      "**开了之后首声约等于「模型说完第一句」的时间**，而不是「说完整段」——" +
+      "长回答上能省十几秒。代价是断句只能看已经到手的那半句，" +
+      "极少数情况下停顿位置不如整段切得自然；听着别扭就关掉，端上约 30s 内改口。" +
+      "两种模式的分段判据是同一份（clients/cockpit/src-tauri/src/tts/segment.rs），" +
+      "关掉不会退回「整段一次合成」那个 14 秒的老形态。",
+    validate: (v) => (["off", "on"].includes(v) ? null : "只能是 off / on"),
+  },
+  {
     key: "TTS_DAILY_CHAR_LIMIT",
     class: "endpoint",
     scope: "tts",
@@ -602,6 +655,43 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     options: ["on", "off"],
     readOnly: true,
     description: "手册图文索引开关（ACR-029）：on=用车 / 售后问诊多一路「手册图示」（文字轮按检索词、照片轮按 crop 向量召回手册里的图，命中的带锚定段与出处，top-1 图附给表述模型）；off=逐字节回到现状。需 DASHSCOPE_API_KEY 与 kb:figures 建过索引",
+  },
+  {
+    key: "CARLIFE_KB_FIGURES_STORE",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "CARLIFE_KB_FIGURES_STORE",
+    default: "pgvector",
+    options: ["pgvector", "qdrant"],
+    readOnly: true,
+    description:
+      "图文索引的存储后端（ACR-030）：pgvector=库内 manual_figures 表（缺省，与历史行为相同）｜qdrant=独立部署的 Qdrant。" +
+      "两档喂同一个 FigureStore 契约，召回算法与相似度门不变——M81-02 实测 20 题逐位一致、存储层 P50 从 209.8 ms 降到 59.2 ms。" +
+      "**Qdrant 连不上会自动退回 pgvector 并打告警**，不会让 runtime 起不来",
+  },
+  // 图文索引的 Qdrant 后端（ACR-030 / M81-01）。向量仍由我们自己算，Qdrant 只做存储与检索。
+  {
+    key: "QDRANT_URL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "QDRANT_URL",
+    default: "",
+    readOnly: true,
+    description:
+      "图文索引 Qdrant 服务地址（ACR-030）。空 = http://127.0.0.1:6333。" +
+      "**本机档没有鉴权且只绑 127.0.0.1**——指向任何非本机地址前必须先给它配 API key",
+  },
+  {
+    key: "QDRANT_API_KEY",
+    class: "secret",
+    scope: "runtime",
+    storage: "env-only",
+    envFallback: "QDRANT_API_KEY",
+    default: "",
+    readOnly: true,
+    description: "Qdrant 的 API key（ACR-030）。本机档为空（服务无鉴权）；非本机部署必填",
   },
   {
     key: "CARLIFE_KB_FIGURES_ROOT",
@@ -861,6 +951,16 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     envFallback: "RAGFLOW_DATASET_CAR_CATALOG",
     description: "车型参数库数据集 id（消费方：购车顾问）",
   },
+  {
+    key: "RAGFLOW_DATASET_INSURANCE_KB",
+    class: "endpoint",
+    scope: "rag",
+    storage: "db",
+    envFallback: "RAGFLOW_DATASET_INSURANCE_KB",
+    description:
+      "车险条款与理赔指引数据集 id（消费方：售后与购车顾问，ACR-040）。" +
+      "留空 = 未接入，只影响这一集的检索",
+  },
 
   // ── Mem0 记忆存储（§7 ②③⑥ / M7-01）。
   //
@@ -902,15 +1002,39 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     default: "carlife_memories",
     description: "向量集合名（pgvector 下即表名）。恢复演练脚本按它选表，改名要同步演练脚本",
   },
+  // embedding 一侧（M95-01）：缺省走 DashScope 的 OpenAI 兼容口 + text-embedding-v4。
+  // DeepSeek 没有 embeddings 接口，所以不能复用 LLM 那条线；本机 Ollama 仍可选（provider=ollama）。
+  {
+    key: "MEM0_EMBEDDING_PROVIDER",
+    class: "endpoint",
+    scope: "memory",
+    storage: "db",
+    envFallback: "MEM0_EMBEDDING_PROVIDER",
+    default: "openai",
+    description:
+      "embedding 供应商档：`openai` = 任何 OpenAI 兼容口（缺省填 DashScope，**记忆正文会出网到阿里云**，" +
+      "与护栏 / ASR / TTS 同一供应商）；`ollama` = 本机 Ollama，不出网、无 key，但每台机器要先装并拉模型",
+    validate: nonEmpty("供应商档"),
+  },
+  {
+    key: "MEM0_EMBEDDING_API_KEY",
+    class: "secret",
+    scope: "memory",
+    storage: "db",
+    envFallback: "MEM0_EMBEDDING_API_KEY",
+    description:
+      "embedding 端点凭证。**留空回落 DASHSCOPE_API_KEY**——单独一项是为了记忆的调用量与账单能与语音分开；" +
+      "provider=ollama 时不用。两把都缺时记忆读写降级为不可用，对话不受影响",
+  },
   {
     key: "MEM0_EMBEDDING_BASE_URL",
     class: "endpoint",
     scope: "memory",
     storage: "db",
     envFallback: "MEM0_EMBEDDING_BASE_URL",
-    default: "http://localhost:11434",
+    default: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     description:
-      "embedding 端点。默认指向本地 Ollama——**不出网、无 API key**。" +
+      "embedding 端点。缺省是 DashScope 的 OpenAI 兼容口；切本机 Ollama 时改成 http://localhost:11434。" +
       "DeepSeek 没有 embedding 接口，所以这条不能复用 LLM 的端点",
     validate: httpUrl,
   },
@@ -920,10 +1044,10 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     scope: "memory",
     storage: "db",
     envFallback: "MEM0_EMBEDDING_MODEL",
-    default: "nomic-embed-text",
+    default: "text-embedding-v4",
     description:
-      "embedding 模型名。**换模型必须同步改 MEM0_EMBEDDING_DIMS**——维度对不上时" +
-      "写入会失败或检索结果全错，且不一定报错",
+      "embedding 模型名（DashScope 缺省 text-embedding-v4；Ollama 档常用 nomic-embed-text）。" +
+      "**换模型必须同步改 MEM0_EMBEDDING_DIMS**——维度对不上时写入会失败或检索结果全错，且不一定报错",
   },
   {
     key: "MEM0_EMBEDDING_DIMS",
@@ -933,9 +1057,21 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
     envFallback: "MEM0_EMBEDDING_DIMS",
     default: "768",
     description:
-      "向量维度，必须与 embedding 模型一致（nomic-embed-text=768，bge-m3=1024）。" +
+      "向量维度，必须与 embedding 模型一致（text-embedding-v4 可选 64–2048 含 768；nomic-embed-text=768，bge-m3=1024）。" +
       "**已有数据的集合改维度需要重建并重新 embedding**，不是改个数字的事",
     validate: (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? null : "必须是正整数"),
+  },
+  {
+    key: "MEM0_TELEMETRY",
+    class: "endpoint",
+    scope: "memory",
+    storage: "db",
+    envFallback: "MEM0_TELEMETRY",
+    default: "false",
+    description:
+      "mem0ai 自带的 PostHog 遥测（M95-04）。开着时**每次记忆读写都 await 一次出网**加两跳 PG，" +
+      "实测把 2 ms 的列举拖到 300–850 ms；发的是方法名 / 集合名等用量元数据，不含记忆正文。缺省关，要开显式写 true",
+    validate: (v) => (v === "true" || v === "false" ? null : "只接受 true / false"),
   },
 
   // ── 内容审核（§8.2 / M6-03）。**接入面归系统管理员**，策略值归运营（FL-30 F-30-01 的三分边界）。
@@ -1113,6 +1249,33 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
       "留空则 weather 退回 Open-Meteo（无中文天气现象）、map_route 明确返回未接入",
     howToObtain: "https://console.amap.com → 应用管理 → 新建应用 → 添加 key，服务平台选「Web 服务」",
   },
+  // 第 2~10 个**账号**的 Web 服务 key（M100-01 起由 `amapServerKeyDefs` 生成，与 `@carlife/tools` 的
+  // `AMAP_KEY_MAX` 同源）。QPS 与日配额都是按账号算的（infocode 10021 的原文是「账号使用某个服务接口
+  // QPS 超出限制」，10044 是这把 key 今日用尽），所以同账号再加 key 没用，另一个账号才是另一份额度。
+  // 留空的位子允许跳过；全部留空即单账号，行为与从前逐字相同。
+  ...amapServerKeyDefs(),
+  // 各接口族的日预算（M100-01）：一把 key 某族到九成就不再接该族请求，改为往用量占比最低的那把发；
+  // 全部到顶时退回占比最低并 warn——预算是路由偏好，不是拒绝服务，10044 仍是最后一道。
+  {
+    key: "AMAP_DAILY_BUDGET",
+    class: "endpoint",
+    scope: "map",
+    storage: "db",
+    envFallback: "AMAP_DAILY_BUDGET",
+    default: "place=450",
+    description:
+      "高德各接口族的**每把 key 日预算**，格式 `place=450,direction=0`（0 或不写 = 不设限）。" +
+      "族名：place（POI 搜索）/ geocode / regeo / district / direction / transit / weather。" +
+      "缺省只给搜索 450——2026-09-15 实测三把 key 各约 450 次搜索后 10044。到九成即换 key，池子全到顶仍能发但会告警",
+    validate: (v) => {
+      const bad = v
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .filter((s) => !/^(place|geocode|regeo|district|direction|transit|weather|other)=\d+$/.test(s));
+      return bad.length === 0 ? null : `不合法的片段：${bad.join("、")}（应为 <族>=<非负整数>）`;
+    },
+  },
   {
     key: "AMAP_JS_KEY",
     class: "endpoint",
@@ -1134,6 +1297,120 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
       "JS API 安全密钥。**POC 期直填进前端（window._AMapSecurityConfig）是已知取舍**——" +
       "高德对生产环境的建议是用代理服务器中转，不把它发到浏览器。上线前须改代理形态",
     howToObtain: "与 AMAP_JS_KEY 同一个应用，key 列表里的「安全密钥」",
+  },
+
+  // ── 研究面（ARCH-001 / ACR-034，施工单 M82-01）
+  //
+  // 两个开关兜底（总览已定决策 4）：`RESEARCH_ENABLED` 决定 worker 挂不挂取数任务，
+  // `RESEARCH_RUNTIME_URL` 决定网关代不代理。**两者缺省时既有功能逐字节不变**——
+  // 这是本 Sprint 完成判定第 1 条，不是可选的保守做法。
+  //
+  // scope 用 runtime 而不是新开一个 `research`：控制台配置页的分组是硬编码的
+  // 五个 scope（`console/src/pages/config/index.tsx`），加一个会让这些项在页面上
+  // 凭空消失，而本单不许动 console。
+  {
+    key: "RESEARCH_ENABLED",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_ENABLED",
+    default: "off",
+    options: ["on", "off"],
+    description:
+      "研究面取数总开关。off（缺省）= worker 的调度表里不出现 research-acquire，" +
+      "一条证据都不采；on 才按小时窗切证据单元。改它不影响网关代理（那由 RESEARCH_RUNTIME_URL 决定）",
+  },
+  {
+    key: "RESEARCH_RUNTIME_URL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_RUNTIME_URL",
+    default: "",
+    description:
+      "研究服务地址（enterprise/backend/research-runtime，缺省 http://localhost:8800）。" +
+      "空 = 未启用，网关 /console/research/* 回 503 research_not_configured、五页显示「本部署没有研究面」；" +
+      "服务无鉴权且只绑 127.0.0.1，只填 localhost 或内网地址",
+    validate: (v: string) => (v.trim() === "" ? null : httpUrl(v)),
+  },
+  {
+    key: "RESEARCH_RUNTIME_PORT",
+    class: "endpoint",
+    scope: "runtime",
+    // env-only：服务要用它来 bind，那发生在能读配置库之前。
+    storage: "env-only",
+    envFallback: "RESEARCH_RUNTIME_PORT",
+    default: "8800",
+    readOnly: true,
+    description: "research-runtime 的监听端口（只绑 127.0.0.1）。8790–8799 已被占，本服务取 8800",
+  },
+  {
+    key: "RESEARCH_EMBEDDING_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_EMBEDDING_MODEL",
+    default: "text-embedding-v4",
+    description: "研究面嵌入模型（百炼，走 DASHSCOPE_API_KEY）。换模型必须同时改 RESEARCH_EMBEDDING_DIM",
+    validate: nonEmpty("模型名"),
+  },
+  {
+    key: "RESEARCH_EMBEDDING_DIM",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_EMBEDDING_DIM",
+    default: "1024",
+    description:
+      "嵌入维度。**改它要同时改迁移里的 vector(1024) 列，光改这里只会让写入报维度不符**。" +
+      "上限 2000——pgvector 的 ANN 索引建不了更高维（icon_embeddings 的 2560 就是因此没索引，ACR-030）",
+    validate: (v: string) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 64 || n > 2000) return "必须是 64–2000 的整数（pgvector ANN 索引上限 2000）";
+      return null;
+    },
+  },
+  {
+    key: "RESEARCH_MIN_CELL_VEHICLES",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_MIN_CELL_VEHICLES",
+    default: "10",
+    description:
+      "小单元抑制阈值（台车）。低于它的格与分群清空明细、只留原因——" +
+      "抑制的是「交叉一下就能认出是谁」，不是「统计不显著」，所以调低它是权利决定不是显示偏好",
+    validate: (v: string) => {
+      const n = Number(v);
+      return Number.isInteger(n) && n >= 1 ? null : "必须是 ≥ 1 的整数";
+    },
+  },
+  {
+    key: "RESEARCH_CODER_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_CODER_MODEL",
+    default: "deepseek-flash",
+    description:
+      "编码 Agent 的模型。**思考必须显式关**（v4 全系默认 thinking on，SDK 关不掉）——" +
+      "不关会出现「49 秒 18253 字一个字段没填」（M24 已踩）",
+    validate: nonEmpty("模型名"),
+  },
+  {
+    key: "RESEARCH_SYNTH_MODEL",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "RESEARCH_SYNTH_MODEL",
+    // `"deepseek"` **不是一个合法模型名**——供应商只认 deepseek-flash / deepseek-v4-pro，
+    // 传裸 "deepseek" 会回 400「The supported API model names are …」。
+    // 原值从 M82-04 起就是错的，一直没暴露：Namer / Synthesizer / Challenger 三个用它的
+    // Agent 在缺 DASHSCOPE_API_KEY 时根本不会被调到，于是这一档从来没有真的发过一次请求。
+    // 2026-09-13 key 到位、Namer 第一次真跑，第一个请求就 400。
+    default: "deepseek-v4-pro",
+    description: "综合与挑战 Agent 的模型（Synthesizer / Challenger / Namer）。比 Coder 慢但要写得出六栏洞察卡",
+    validate: nonEmpty("模型名"),
   },
 ];
 

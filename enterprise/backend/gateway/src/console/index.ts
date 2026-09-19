@@ -36,6 +36,7 @@ import type {
   UsageRepository,
   UserRepository,
   VehicleGrantRepository,
+  WorkingTaskStore,
 } from "@carlife/db";
 
 import type { RagClient } from "@carlife/rag";
@@ -59,6 +60,7 @@ import { createGuardPolicyRouter } from "./guard-policy";
 import { createConsoleCabinRouter, type ConsoleCabinDeps } from "./cabin";
 import { createEvalsRouter } from "./evals";
 import { createVisionTrainerRouter } from "./vision-trainer";
+import { createResearchRouter } from "./research";
 import { EvalsStore } from "./evals-store";
 import { createTripRouteRouter } from "./trip-route";
 import { createIdentityConsoleRouter } from "./identity";
@@ -97,10 +99,15 @@ export interface ConsoleDeps {
   messageAudio?: Pick<MessageAudioDeps, "store" | "quota"> & { repo: MessageAudioRepository };
   /** 客户座舱视图（M24-10）。可缺省：未接入时相关端点如实报 unconfigured/503。 */
   cabinView?: Omit<ConsoleCabinDeps, "audit">;
-  /** 行程路径优化对比（route_audit 的后台消费面）：审计记录 + 行程快照，只读。 */
+  /**
+   * 行程路径优化对比（route_audit 的后台消费面）：审计记录 + 行程快照 + 未落库草案，只读。
+   *
+   * `tasks` 可缺省——不注入时页面只有落库行程，「排了但没确认」的那些对话仍然一片空白。
+   */
   tripRoute: {
     audits: TripRouteAuditRepository;
     plans: TripPlanRepository;
+    tasks?: WorkingTaskStore;
   };
   /** 账号仓储（M48-02）：建账号与重置口令。端上鉴权用同一个仓储，见 `auth/`。 */
   users: UserRepository;
@@ -129,6 +136,12 @@ export interface ConsoleDeps {
    * 可缺省——不注入时路由整体不挂（只读部署形态）；注入了但 URL 为空，路由挂着回 503 `vision_trainer_not_configured`。
    */
   visionTrainer?: { config: Pick<ConfigStore, "get"> };
+  /**
+   * 研究面代理（ACR-034 / M82-07）。**总是注入**——URL 为空由路由回 503
+   * `research_not_configured`，页面据此显示「本部署没有研究面」。
+   * 不注入就不挂路由的话，那个 404 与「服务没起」分不开。
+   */
+  research?: { config: Pick<ConfigStore, "get"> };
 }
 
 export function createConsoleRouter(deps: ConsoleDeps): Router {
@@ -227,13 +240,23 @@ export function createConsoleRouter(deps: ConsoleDeps): Router {
   router.use(createUsersRouter(deps.users));
   // 用户体系浏览（M68-01）：账号 / 车辆与授权 / 终端设备，ops 与 admin 均可读。
   router.use(createIdentityConsoleRouter({ identity: deps.identity, chat: deps.chat, ...(deps.identityActions ?? {}) }));
-  router.use(createTripRouteRouter(deps.tripRoute.audits, deps.tripRoute.plans));
+  router.use(
+    createTripRouteRouter({
+      audits: deps.tripRoute.audits,
+      plans: deps.tripRoute.plans,
+      chat: deps.chat,
+      ...(deps.tripRoute.tasks ? { tasks: deps.tripRoute.tasks } : {}),
+    }),
+  );
   if (deps.evals) {
     router.use(createEvalsRouter({ store: new EvalsStore(deps.evals.root) }));
   } else {
     router.use("/console/evals", (_req, res) => {
       res.status(503).json({ error: "evals_unavailable" });
     });
+  }
+  if (deps.research) {
+    router.use(createResearchRouter({ config: deps.research.config }));
   }
   if (deps.visionTrainer) {
     router.use(createVisionTrainerRouter({ config: deps.visionTrainer.config }));

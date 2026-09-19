@@ -11,7 +11,8 @@
  *
  * ⚠️ 本文件有**两处** AssistantDock（行程地图模式与默认模式），与车机同一条注释：
  * 只改一处的表现是"进了行程视图暖暖就永远在休息"，而那一屏不报任何错。
- * 行程卡与日期条（M75-02）同一条纪律：tripsCard 与 dateBanner 两处都挂，三态只判一处。
+ * 行程入口与日期条（M75-02）同一条纪律：两处渲染点都要挂，三态只判一处。
+ * （2026-09-12：常驻周日历卡撤了，位置让给「我的行程」按钮 + 抽屉。）
  *
  * # 三态（M75-02，对齐车机 M73-02，竖屏自己的落位）
  *
@@ -35,7 +36,6 @@ import {
   PortraitTimeline,
   SPRITES,
   TipsCard,
-  TripCalendarCard,
   TripDateBanner,
   spriteFor,
   type HudTripMapProps,
@@ -85,6 +85,13 @@ export interface MobileHudProps {
    * 不给就不渲染那颗按钮。
    */
   onDepart?: () => void;
+  /**
+   * 要不要渲染暖暖与哨兵指示（施工单 M103-02）。默认 true（车机不传）。
+   * 2026-09-17 起本组件整个是「行程规划」二级页的内容，暖暖只在主页（`features/home`）——
+   * 二级页传 false。两处渲染点插的还是同一个 assistantNode / micNode，只在定义处判空，
+   * 与文件头"两处 AssistantDock"那条纪律同源：判一处、挂两处。
+   */
+  assistant?: boolean;
   /** 哨兵监听指示与麦克风总开关（M60-01，F-52-06 / F-02-08）。状态来自 Rust 快照，页面不推断。 */
   mic?: {
     state: ListenState;
@@ -126,6 +133,7 @@ export function MobileHud({
   mic,
   trips,
   reminders,
+  assistant = true,
 }: MobileHudProps) {
   const sprites = SPRITES[theme];
   const { trip, energy, tips, weather, assistantState, freshness, leg } = snapshot;
@@ -193,22 +201,32 @@ export function MobileHud({
   );
 
   /*
-   * 紧凑周日历卡（未选中态）与顶部日期条（选中态）：两个布局分支共用一份。
-   * 跟车时不渲染日期条——顶部那一行是下一站与 ETA（与车机同一条判据）。
+   * 「我的行程」（2026-09-12）：主页上**不再常驻周日历卡**，日历整张进抽屉，
+   * 这枚按钮是它唯一的入口（与原来紧凑卡右上角那枚「全部 N 程 ›」同一个动作）。
+   *
+   * 为什么撤掉常驻卡：它和车况条一起压在屏幕最下面那 200px 里，两张卡黏在一起
+   * （用户 2026-09-12）。日历是"要翻的东西"，翻它的时候人本来就会停下来看，
+   * 适合抽屉；主页上留一枚带程数的按钮就够回答"这周有没有安排"。
+   *
+   * 一程都没有时不渲染：一枚点开是空抽屉的按钮比没有按钮更让人找原因。
    */
-  const tripsCard = !trips || !hasTrips || selectedTrip ? null : (
-    <TripCalendarCard
-      compact
-      entries={trips.entries}
-      today={trips.today}
-      selectedPlanId={trips.selectedPlanId}
-      homeCity={home?.city}
-      weatherIcons={sprites.weather}
-      onSelect={trips.onSelect}
-      onOpenReview={trips.onOpenReview}
-      onOpenList={trips.onOpenList}
-    />
-  );
+  const tripsEntryNode =
+    !trips || !hasTrips ? null : (
+      <button
+        type="button"
+        className="hud-trips-entry"
+        onClick={trips.onOpenList}
+        aria-label={`我的行程，共 ${trips.entries.length} 程`}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="3" y="5" width="18" height="16" rx="3" />
+          <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>
+        <span>我的行程</span>
+        {/* 程数走琥珀底片：红色纪律里红只给「拥堵」与「读不到」，不给计数角标。 */}
+        <em className="hud-trips-entry__count">{trips.entries.length}</em>
+      </button>
+    );
   const dateBanner =
     trips && selectedTrip && !tripMap?.nav ? (
       <TripDateBanner entry={selectedTrip} today={trips.today} onClose={trips.onClearSelection} />
@@ -216,7 +234,7 @@ export function MobileHud({
   const stageClass = selectedTrip ? "hud-stage--trip-selected" : hasTrips ? "hud-stage--has-trips" : undefined;
 
   // 哨兵指示：两个布局分支共用一份，贴在暖暖身侧（落点见 hud.css 竖屏段的 `.hud-assistant-mic`）。
-  const micNode = mic ? (
+  const micNode = assistant === false ? null : mic ? (
     <MicIndicator
       size="cockpit"
       variant="icon"
@@ -234,19 +252,30 @@ export function MobileHud({
    * 暖暖右上那块空档——车机的钥匙挂板也是"落在暖暖头顶偏右的空档"）。
    * ⚠️ 与文件头那条"两处 AssistantDock"同一纪律：只加在一个分支的表现是"进了行程视图入口就没了"。
    */
-  const departNode = onDepart ? (
-    <button type="button" className="hud-depart-entry" onClick={onDepart} aria-label="开始行程">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11" />
-        <rect x="3" y="11" width="18" height="6" rx="2" />
-        <path d="M6 17v2M18 17v2M7 14h.1M17 14h.1" />
-      </svg>
-      <span>开始行程</span>
-    </button>
-  ) : null;
+  const departNode =
+    onDepart || tripsEntryNode ? (
+      /*
+       * 两枚入口同一行：「我的行程」在左（次要，白底描边）、「开始行程」在右（主行动，实心橙）。
+       * 一屏只有一个实心橙——底导那枚药丸是导航态，不算主行动。
+       * 整行与下面的车况条、再下面的暖暖是同一摞，落点见 app.css 的 `.hud-home-actions`。
+       */
+      <div className="hud-home-actions">
+        {tripsEntryNode}
+        {onDepart && (
+          <button type="button" className="hud-depart-entry" onClick={onDepart} aria-label="开始行程">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11" />
+              <rect x="3" y="11" width="18" height="6" rx="2" />
+              <path d="M6 17v2M18 17v2M7 14h.1M17 14h.1" />
+            </svg>
+            <span>开始行程</span>
+          </button>
+        )}
+      </div>
+    ) : null;
 
   // 手机端点助手 = 进对话层（与车机的"单击打断"是刻意不同的取舍，见 M65-01 表第 27 项）。
-  const assistantNode = (
+  const assistantNode = assistant === false ? null : (
     <AssistantDock
       sprite={sprites.assistant}
       workingSprite={sprites.assistantWorking}
@@ -309,7 +338,6 @@ export function MobileHud({
           </div>
         )}
         {windowCard}
-        {tripsCard}
         {dateBanner}
         <EnergyCapsule summary={energy} leg={leg} stale={freshness.stale} updatedAt={freshness.updatedAt} />
         {assistantNode}
@@ -360,7 +388,6 @@ export function MobileHud({
       />
 
       {windowCard}
-      {tripsCard}
       {dateBanner}
 
       <EnergyCapsule summary={energy} leg={leg} stale={freshness.stale} updatedAt={freshness.updatedAt} />

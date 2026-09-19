@@ -19,8 +19,33 @@
  *
  * 剩余能量三支照 `EnergyCapsule` 的分法：电车 / 油车 / 读不到，各画各的，读不到就写「读不到」。
  * Brief §4：这条上不得出现 VIN、维修档案或任何车辆控制入口。
+ *
+ * # 连不上服务时，状态落在**每一格自己**身上，不挂一枚全局徽标
+ *
+ * 原来的做法是右端浮一句「数据更新中」+ 把所有数值压到 0.7 透明度（2026-09-11 前）。
+ * 用户走查：mock 服务没连上时那句话是错的——它不是"正在更新"，是**根本没连上**；
+ * 而各格照旧显示「暂无」，于是"这项没有数据"与"整条链路断了"长得一模一样。
+ *
+ * 现在：连不上时每一格在**值的位置**写「服务暂不可用」。三条理由——
+ *  1. 它说的就是这一格现在为什么没数，不用去右端找一枚小字徽标；
+ *  2. 「暂无」（服务在，这项没数据）与「服务暂不可用」（服务不在）从此分得开；
+ *  3. 徽标浮在右端会与「开始行程」抢位，而那枚按钮是这条上唯一的主行动。
+ *
+ * ⚠️ 代价是**上一次的有效值不再留在屏幕上**（原来是留着 + 压暗）。这是用户定的取舍：
+ * 一个不知多久以前的数字带着"当前值"的长相，比明说连不上更糟。
+ *
+ * 「我的座驾」那一格不吃这个开关：它的读数走车辆信号那一路（`summary.live`），
+ * 自己就有「读不到」态与原因。两路各报各的，才叫"各自对应的状态"。
  */
 import type { EnergySummary, TripLeg } from "@carlife/shared";
+
+/*
+ * 文案与格式化住在没有素材依赖的 `metric-text.ts`（那边的文件头写着为什么）。
+ * 这里原样再导出一次，既有的 `import { durationLabel } from "@carlife/ui"` 不用改。
+ */
+import { METRIC_EMPTY, METRIC_UNAVAILABLE, durationLabel } from "./metric-text";
+
+export { METRIC_EMPTY, METRIC_UNAVAILABLE, durationLabel };
 
 /*
  * 素材全部从设计定稿切出（`scripts/assets/extract-statusbar-assets.py`，源图是
@@ -38,7 +63,10 @@ import startButton from "../assets-hud/statusbar/start-button.png";
 
 export interface StatusBarProps {
   summary: EnergySummary;
-  /** 数据是否正在更新（弱网降级：保留最近有效值 + 标记，不空白）。 */
+  /**
+   * 拉不到数据（`freshness.stale`：上一跳没连上网关 / 服务没起）。
+   * 为 true 时四格指标的值位改写「服务暂不可用」，**不再浮一句「数据更新中」**（见文件头）。
+   */
   stale?: boolean;
   /** 我的座驾：车型名与形象图。形象缺省时用定稿切出的白色 SUV 当版式占位（车型名那时不写）。 */
   vehicle?: { model?: string; art?: string };
@@ -57,42 +85,49 @@ export interface StatusBarProps {
 /** 低电/低油的告警阈值，与 `EnergyCapsule` 同值。 */
 const LOW_PERCENT = 20;
 
-/** 「4 h 30 min」/「45 min」。 */
-export function durationLabel(min: number): string {
-  const m = Math.max(0, Math.round(min));
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h === 0) return `${r} min`;
-  return r === 0 ? `${h} h` : `${h} h ${r} min`;
-}
-
 export function StatusBar({ summary, leg, stale, vehicle, onStart, startDisabled }: StatusBarProps) {
   const road = leg?.road;
+  /* 连不上时四格一律走这一态；连得上才谈"这一格有没有数据"。 */
+  const down = stale === true;
   return (
     <section className={`hud-statusbar${stale ? " is-stale" : ""}`} aria-label="出行状态栏" aria-readonly="true">
       <Vehicle summary={summary} vehicle={vehicle} />
 
       <span className="hud-statusbar__sep" aria-hidden="true" />
 
-      <Metric icon={iconDistance} caption="预计里程" value={leg ? String(leg.distanceKm) : undefined} unit="km" />
+      <Metric
+        icon={iconDistance}
+        caption="预计里程"
+        down={down}
+        value={leg ? String(leg.distanceKm) : undefined}
+        unit="km"
+      />
 
       <span className="hud-statusbar__sep" aria-hidden="true" />
 
       <Metric
         icon={iconDuration}
         caption="预计用时"
+        down={down}
         value={leg ? durationLabel(leg.durationMin) : undefined}
       />
 
       <span className="hud-statusbar__sep" aria-hidden="true" />
 
-      <Metric icon={iconEnergy} caption="预计电量消耗" value={String(summary.requiredPercent)} unit="%" />
+      <Metric
+        icon={iconEnergy}
+        caption="预计电量消耗"
+        down={down}
+        value={String(summary.requiredPercent)}
+        unit="%"
+      />
 
       <span className="hud-statusbar__sep" aria-hidden="true" />
 
       <Metric
         icon={iconRoad}
         caption="道路情况"
+        down={down}
         value={
           road ? (
             <>
@@ -104,8 +139,6 @@ export function StatusBar({ summary, leg, stale, vehicle, onStart, startDisabled
           ) : undefined
         }
       />
-
-      {stale && <span className="hud-statusbar__stale">数据更新中</span>}
 
       {onStart && (
         <button
@@ -123,14 +156,12 @@ export function StatusBar({ summary, leg, stale, vehicle, onStart, startDisabled
   );
 }
 
-/** 没有数据时那一格的值。**不是省略号也不是「--」**：那两个符号读者得自己猜是什么意思。 */
-export const METRIC_EMPTY = "暂无";
-
 function Metric({
   icon,
   caption,
   value,
   unit,
+  down,
 }: {
   /** 定稿切出的图标（PNG 地址）。 */
   icon: string;
@@ -138,17 +169,27 @@ function Metric({
   /** `undefined` = 这项现在没有数据，格位照留、值写「暂无」（见文件头）。 */
   value?: React.ReactNode;
   unit?: string;
+  /** 连不上服务：值位改写「服务暂不可用」，**压过 `value`**——那时手上的值已经不知是多久以前的。 */
+  down?: boolean;
 }) {
-  const empty = value === undefined;
+  const empty = !down && value === undefined;
   return (
-    <div className={`hud-statusbar__metric${empty ? " is-empty" : ""}`}>
+    <div className={`hud-statusbar__metric${empty ? " is-empty" : ""}${down ? " is-down" : ""}`}>
       {/* 图标一并压暗：只把数字变灰、图标照旧鲜亮，那一格看起来像"没加载出来"而不是"没有". */}
       <span className="hud-statusbar__glyph" aria-hidden="true">
         <img src={icon} alt="" draggable={false} />
       </span>
       <span className="hud-statusbar__text">
         <span className="hud-statusbar__caption">{caption}</span>
-        {empty ? (
+        {down ? (
+          /*
+           * `--down` 只改这一句话的字号（它有六个字，按 30 基准 px 排会顶到隔壁格），
+           * **不碰 `.hud-statusbar__value` 本身**——正常数值的字号是定稿定的，不能被一个错误态带走。
+           */
+          <span className="hud-statusbar__value hud-statusbar__value--none hud-statusbar__value--down">
+            {METRIC_UNAVAILABLE}
+          </span>
+        ) : empty ? (
           <span className="hud-statusbar__value hud-statusbar__value--none">{METRIC_EMPTY}</span>
         ) : (
           <span className="hud-statusbar__value">

@@ -26,11 +26,26 @@ import {
 } from "../src/moderation/aliyun-guard";
 
 describe("RPC 签名", () => {
-  it("百分号编码不是 encodeURIComponent —— 三处差异每一处都会导致验签失败", () => {
+  it("百分号编码不是 encodeURIComponent —— 每一处差异都会导致验签失败", () => {
     const q = canonicalQuery({ a: "x y", b: "*", c: "~" });
     assert.match(q, /a=x%20y/, "空格要编成 %20 而不是 +");
     assert.match(q, /b=%2A/, "星号要编码");
     assert.match(q, /c=~/, "波浪号不编码");
+  });
+
+  it("`!'()` 四个字符也必须编码 —— 漏掉它们就是那八轮莫名其妙的撤回", () => {
+    // encodeURIComponent 原样放过 ! ' ( ) *，而规范只放过 A-Za-z0-9-_.~。
+    // 触发它不需要什么特殊输入：高德 POI 名里的半角括号就够了。
+    const q = canonicalQuery({ v: "如家精选酒店(上海外滩)!'" });
+    assert.match(q, /%28/, "左括号要编码");
+    assert.match(q, /%29/, "右括号要编码");
+    assert.match(q, /%21/, "叹号要编码");
+    assert.match(q, /%27/, "单引号要编码");
+    assert.ok(!/[()!']/.test(q), `编码后不该还剩裸字符：${q}`);
+  });
+
+  it("非 ASCII 按 UTF-8 逐字节编码", () => {
+    assert.equal(canonicalQuery({ a: "中" }), "a=%E4%B8%AD");
   });
 
   it("参数按**编码前**的键名排序", () => {

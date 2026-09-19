@@ -15,6 +15,12 @@
  *
  * 检测失败 → `frame.unreadable = true` 的空观察；某个 crop 描述失败 → 该项用检测结果
  * 兜底成 unknown 描述子并记 note。一张图坏了不能让整轮对话失败（与 `runDualPath` 单路失败同一纪律）。
+ *
+ * # 先按 EXIF 转正，检测与裁剪才在同一个坐标系里
+ *
+ * 手机竖拍的 JPEG 存的是横躺的像素 + 一枚 Orientation 标签。端侧检测器（ultralytics）读原始字节时**按标签转正后**出框，
+ * 而 sharp 不看标签、按存储像素裁——两边差 90°，裁下来送去描述的是屏幕上不相干的一块。2026-09-16 在门店实拍
+ * （Orientation=6）上量到：同一版权重被当成 0/6，转正后是 6/6。所以进来先 `uprightByExif`，之后所有坐标都指转正后的图。
  */
 
 import sharp from "sharp";
@@ -22,7 +28,8 @@ import sharp from "sharp";
 import { dominantColor } from "./color";
 import { violatesForbidden } from "./forbidden";
 import type { VisionProvider } from "./provider";
-import { PhotoObservationSchema, type BBox, type Descriptor, type ObservedItem, type PhotoObservation } from "./schema";
+import { PhotoObservationSchema, clientDetectionsToResult, type BBox, type ClientDetections, type Descriptor, type ObservedItem, type PhotoObservation } from "./schema";
+import { mergeAdjacentSameClass } from "./merge-boxes";
 
 export interface ObserveOptions {
   /** crop 外扩比例（相对框的宽高），缺省 0.5。 */
@@ -53,6 +60,17 @@ export interface PixelRect {
   top: number;
   width: number;
   height: number;
+}
+
+/**
+ * 按 EXIF Orientation 把像素转正并去掉标签；没有标签（或 =1）时原样返回，不多一次编解码。
+ * 之后 sharp 与任何看 EXIF 的读图库（ultralytics / PIL.ImageOps.exif_transpose / 云端视觉模型）看到的是同一帧。
+ */
+export async function uprightByExif(image: Buffer): Promise<Buffer> {
+  const meta = await sharp(image).metadata();
+  if (!meta.orientation || meta.orientation === 1) return image;
+  // 无参 rotate() = 按 EXIF 自动转正并清除 Orientation；输出沿用输入格式
+  return sharp(image).rotate().toBuffer();
 }
 
 /** 0–1000 归一化框 → 像素矩形，外扩后贴边裁剪，至少 1×1。 */
@@ -121,6 +139,7 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
   let height = 0;
   try {
     // 不是图片（或坏文件）也走 unreadable，不抛——与检测失败同一条纪律。
+    image = await uprightByExif(image);
     const meta = await sharp(image).metadata();
     width = meta.width ?? 0;
     height = meta.height ?? 0;
@@ -134,10 +153,37 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
   } catch (e) {
     return unreadable(`检测失败：${(e as Error).message}`);
   }
+  /*
+   * 第一遍零框 → 换一家再定位一次（`provider.detectFallback`，2026-09-19 用户走查）。
+   *
+   * 走查那张是微信裁过的近景（440×548，四盏灯占画幅 9~10%）。同一块屏的全景照
+   * （evals 的 tesla-01）在同样参数下稳出 5 框、置信 0.82~0.94；裁紧之后逐级塌到 0.21~0.30，
+   * 全部落在 conf 0.3 闸门之下 → 零框。放大救不回来（2x/3x 实测仍是 0 框），
+   * 因为差的不是分辨率是尺度分布——那是检测器的训练集该补的，不是这一层能修的。
+   *
+   * 这一层能做的是：别让"这一家没看见"等于"这张照片里什么都没有"。
+   * 失败只记 note，绝不把整张图降级成 unreadable——兜底失败时我们回到零框，不比原来更糟。
+   */
+  if (detect.items.length === 0 && provider.detectFallback) {
+    try {
+      const again = await provider.detectFallback(image);
+      if (again.items.length > 0) {
+        notes.push(`第一遍（${provider.models.detect}）零框，改用兜底定位，出 ${again.items.length} 项`);
+        detect = again;
+      } else {
+        notes.push("第一遍与兜底定位都没框到符号");
+      }
+    } catch (e) {
+      notes.push(`兜底定位失败：${(e as Error).message}`);
+    }
+  }
   const detectMs = Date.now() - t0;
+  // 模型自检（数出来的项数 = 列出来的项数）要在合并**之前**核对：它核的是模型自己的账，合并是我们改的。
   if (detect.frame.item_count !== detect.items.length) {
     notes.push(`item_count=${detect.frame.item_count} 与 items 长度 ${detect.items.length} 不一致（模型自检没过）`);
   }
+  // 同一符号被检测器劈成两半的先合回去（`merge-boxes.ts` 文件头），再进第二遍描述。
+  detect = { ...detect, items: mergeAdjacentSameClass(detect.items, notes) };
   const detected = detect.items.slice(0, maxItems);
   if (detect.items.length > maxItems) notes.push(`检测出 ${detect.items.length} 项，只描述前 ${maxItems} 项`);
 
@@ -174,6 +220,30 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
       notes.push(`bbox [${it.bbox}] 第一遍描述子不全且未重描（describePass=${describePass}），缺项按 unknown`);
     }
 
+    /*
+     * 类别以检测器为准（M80-15）：第一遍看的是整张屏幕，第二遍只看一块放大 3 倍的 crop——
+     * 2026-09-17 实拍里驻车灯 ⊐D⊏ 被第二遍写成「字母 DOE」的 readout，下游因此跳过了目录匹配。
+     *
+     * 2026-09-18 补上另一半：**形状类字段也不能用第二遍的**。第二遍既然说"这是文字"，
+     * 它的 shape / text / elements 描述的就是那次误读（「letter_only · 含字 DE」），
+     * 不是符号本身；这份描述子进检索的文本路，指向的当然不是任何指示灯（turn-2db10f67）。
+     * 回落到第一遍整图那份——整图看得见整个符号；第一遍没给（端上框只有类别和框）就按未知
+     * 并标 undeterminable，让下游只靠 crop 的图像路去对，别拿"含字 D"去比。
+     * 颜色与点亮状态仍用第二遍的：这两项不因"读成了字"而错，且颜色最终由像素定。
+     */
+    if (desc.category !== it.category) {
+      const fallback = firstComplete ? first : unknownDescriptor(it.category);
+      notes.push(`bbox [${it.bbox}] 第二遍把类别写成 ${desc.category}，以第一遍的 ${it.category} 为准；形状与文字${firstComplete ? "回落到第一遍整图的描述子" : "按未知，只靠图像路匹配"}`);
+      desc = {
+        ...desc,
+        shape: fallback.shape,
+        text: fallback.text,
+        elements: fallback.elements,
+        literal: fallback.literal,
+        undeterminable: firstComplete ? desc.undeterminable : dedupe([...desc.undeterminable, "shape", "text", "elements_detail"] as Descriptor["undeterminable"]),
+      };
+    }
+
     let literal = desc.literal;
     let undeterminable = [...desc.undeterminable];
     if (violatesForbidden(literal)) {
@@ -189,6 +259,8 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
 
     return {
       ...desc,
+      category: it.category,
+      ...(it.symbolHint ? { symbolHint: it.symbolHint } : {}),
       literal,
       undeterminable,
       bbox: it.bbox,
@@ -217,6 +289,7 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
 
 /** 按归一化框裁下一块（外扩 padding），PNG 缓冲——评测 --match 与成对核验用。 */
 export async function extractCrop(image: Buffer, bbox: BBox, padding = 0.5): Promise<Buffer> {
+  image = await uprightByExif(image);
   const meta = await sharp(image).metadata();
   const region = cropRegion(bbox, meta.width ?? 0, meta.height ?? 0, padding);
   return sharp(image).extract(region).png().toBuffer();
@@ -227,6 +300,7 @@ export async function extractCrop(image: Buffer, bbox: BBox, padding = 0.5): Pro
  * 不引入第二个图像库。
  */
 export async function renderBoxes(image: Buffer, boxes: ReadonlyArray<{ bbox: BBox; label?: string }>): Promise<Buffer> {
+  image = await uprightByExif(image);
   const meta = await sharp(image).metadata();
   const W = meta.width ?? 0;
   const H = meta.height ?? 0;
@@ -243,4 +317,31 @@ export async function renderBoxes(image: Buffer, boxes: ReadonlyArray<{ bbox: BB
     .join("");
   const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
   return sharp(image).composite([{ input: Buffer.from(svg), top: 0, left: 0 }]).png().toBuffer();
+}
+
+/**
+ * 端上已经框好了（ACR-045）：把 provider 的第一遍换成「直接用端上的框」，第二遍（描述）、成对核验、读警报页照旧。
+ * 不向任何检测器要框——8799 挂了、qwen 没配都不影响；`models.detect` 记 `client`，trace 里能看出这一轮的框从哪来。
+ *
+ * **端上框到了就以它为准；端上零框才往下问**（`detectFallback`，2026-09-19）。
+ * 「不再向任何检测器要框」这条约定针对的是端上**有**框的情形——端上说"这里有四个符号"，
+ * 服务端不该改它。端上一个都没框到时那条约定无话可说，而照片里可能正亮着四盏灯：
+ * 端侧与服务端跑的是同一族权重，同一张近景照上会同样地漏（见 `observePhoto` 里那段）。
+ */
+export function withClientDetections(provider: VisionProvider, det: ClientDetections): VisionProvider {
+  const result = clientDetectionsToResult(det);
+  return {
+    name: `client+${provider.name}`,
+    models: { detect: "client", describe: provider.models.describe },
+    detect: async () => result,
+    // 端上零框时的那一级一级往下问：服务端检测器 → 它自己的兜底（云端定位）。
+    detectFallback: async (image: Buffer) => {
+      const server = await provider.detect(image);
+      if (server.items.length > 0 || !provider.detectFallback) return server;
+      return provider.detectFallback(image);
+    },
+    describe: (crop, ctx) => provider.describe(crop, ctx),
+    verifyPair: (a, b) => provider.verifyPair(a, b),
+    ...(provider.readAlerts ? { readAlerts: (image: Buffer) => provider.readAlerts!(image) } : {}),
+  };
 }

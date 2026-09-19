@@ -18,6 +18,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import { isValidVin } from "../../../enterprise/backend/shared/memory/src/vehicle-store";
+import { buildTrips } from "./demo-seed";
 
 // 不 import demo-seed.ts：它拉 `@carlife/db`，而 infra/ 不是 workspace 成员，
 // `test:infra` 会直接 MODULE_NOT_FOUND。这里读源文件抽字面量，
@@ -98,5 +99,48 @@ describe("demo:seed 不覆盖用户录进去的里程", () => {
 
   it("里程确实被从 `...rest` 里摘了出来（不是靠 update 覆盖顺序碰巧生效）", () => {
     assert.match(body(), /const \{[^}]*odometerKm[^}]*\.\.\.rest\s*\}\s*=\s*v/);
+  });
+});
+
+/**
+ * 长途行程的落点不能取决于播种那天是周几。
+ *
+ * 这份预置数据里**只有长途那一段带 `observedRangeKm`**，而它是 ⑥ 实测满电续航唯一的来源。
+ * 原条件把长途钉在 `d % 14 < 2` 上——相差 14 天就是同一个星期几，于是七天里有五天播种
+ * 会一条长途都生成不出来。表现不是报错：`trips` 照样有 89 条，只是 `observedRangeKm` 全空，
+ * 行程规划于是说"这辆车没有可用的实测续航数据，请出发前看仪表自己安排补能"。
+ * 2026-09-02（周三）播的那一份就是这样，而当时没有任何用例碰得到 `buildTrips`。
+ */
+describe("预置流水：实测续航不依赖播种日是周几", () => {
+  // 周日~周六各播一次。取 2026-09-06 起的连续七天，覆盖全部七个星期几。
+  const days = [...Array(7)].map((_, i) => new Date(2026, 8, 6 + i, 12, 0, 0).getTime());
+
+  it("七个星期几播种，每一份都有带实测续航的长途行程", () => {
+    for (const now of days) {
+      const withRange = buildTrips(now).filter((t) => t.observedRangeKm !== undefined);
+      assert.ok(
+        withRange.length >= 3,
+        `${new Date(now).toDateString()} 播种只得到 ${withRange.length} 条实测续航行程——` +
+          "长途的落点又和星期几绑上了",
+      );
+    }
+  });
+
+  it("长途一律落在周六，且隔周一次（不是靠多生成几条凑数）", () => {
+    for (const now of days) {
+      const longs = buildTrips(now).filter((t) => t.observedRangeKm !== undefined);
+      for (const t of longs) {
+        assert.equal(new Date(t.startedAt).getDay(), 6, "长途应当在周六");
+      }
+      // 45 天里最多四个隔周窗口。
+      assert.ok(longs.length <= 4, `隔周一次最多 4 条，实得 ${longs.length}`);
+    }
+  });
+
+  it("实测续航的取值落在正常衰减区间（418~452），不是 0 也不是编出来的整数档", () => {
+    for (const t of buildTrips(days[0]!)) {
+      if (t.observedRangeKm === undefined) continue;
+      assert.ok(t.observedRangeKm >= 418 && t.observedRangeKm <= 452, `越界：${t.observedRangeKm}`);
+    }
   });
 });

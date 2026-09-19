@@ -11,13 +11,15 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@carlife/research": "workspace:*",
     "@carlife/shared": "workspace:*",
     "@number-flow/react": "^0.6.2",
     "@paper-design/shaders-react": "0.0.80",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.2",
-    "reactflow": "^11.11.4"
+    "reactflow": "^11.11.4",
+    "recharts": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

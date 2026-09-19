@@ -3,7 +3,7 @@
  *
  * 用法：
  *   corepack pnpm kb:upload <数据集> <文件路径...>
- *   数据集 ∈ vehicle-manuals | repair-kb | car-catalog
+ *   数据集 ∈ vehicle-manuals | repair-kb | car-catalog | insurance-kb
  *
  * 例：
  *   corepack pnpm kb:upload vehicle-manuals "data/manuals/某某车主手册.pdf"
@@ -18,12 +18,13 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { createRagClient, type DatasetKey } from "../../../enterprise/backend/shared/rag/src/index";
+import { createRagClient, type DatasetKey, datasetIdsFromEnv } from "../../../enterprise/backend/shared/rag/src/index";
 
 const DATASETS: Record<DatasetKey, string> = {
   "vehicle-manuals": "ownership",
   "repair-kb": "service",
   "car-catalog": "buying",
+  "insurance-kb": "service",
 };
 
 function env(k: string): string {
@@ -59,11 +60,7 @@ async function main(): Promise<void> {
   const client = createRagClient({
     baseUrl: env("RAGFLOW_BASE_URL"),
     apiKey: env("RAGFLOW_API_KEY"),
-    datasetIds: {
-      "vehicle-manuals": env("RAGFLOW_DATASET_VEHICLE_MANUALS"),
-      "repair-kb": env("RAGFLOW_DATASET_REPAIR_KB"),
-      "car-catalog": env("RAGFLOW_DATASET_CAR_CATALOG"),
-    },
+    datasetIds: datasetIdsFromEnv(env),
     // 上传大 PDF 比检索慢得多，单独放宽。
     timeoutMs: 120_000,
   });

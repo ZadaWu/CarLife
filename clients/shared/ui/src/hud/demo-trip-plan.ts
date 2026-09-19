@@ -7,9 +7,10 @@
  * 高德类目的实际输出手工固化（沙面岛按街区语义给 old_town）。**整份行程是演示数据**：
  * 名称带「演示」字样进不了正式链路，只在 devbar 手动开启时生效。
  */
+import { tripServicesKey } from "@carlife/shared";
 import type { TripPlanSnapshot } from "@carlife/shared";
 
-export const DEMO_TRIP_PLAN: TripPlanSnapshot = {
+const DEMO_PLAN_BASE: TripPlanSnapshot = {
   status: "confirmed",
   destination: "广州（演示）",
   startDate: undefined,
@@ -82,6 +83,68 @@ export const DEMO_TRIP_PLAN: TripPlanSnapshot = {
   leg: { distanceKm: 36, durationMin: 270, road: { label: "城区", status: "畅通" }, computedAt: "2026-09-09T11:26:00+08:00" },
   updatedTurnId: "demo",
 };
+
+/**
+ * 沿途服务（M93-05）：四格的计数 + 上图用的点位明细。
+ *
+ * 真实链路要行程确认后由 runtime 在后台打几十次高德再写回快照，浏览器走查里一样都没有——
+ * 这是那一排开关（点一下把这一类画到地图上）能被走查的唯一路径，与 `DEMO_TRIP_PLAN`
+ * 本身同因。坐标摆在当天停靠点周边 0.5~1 公里（真实半径是 3 公里），名字一律带「演示」。
+ *
+ * **第 3 天刻意只有计数、没有 `pois`**：那就是 M93-04 之前落库的老快照的形状，
+ * 端上要把格子置灰并说清"这一天没有存下点位"。留着它，这条分支才走得到。
+ */
+const DEMO_SERVICES: NonNullable<TripPlanSnapshot["services"]> = {
+  computedAt: "2026-09-09T12:00:00.000Z",
+  radiusM: 3000,
+  skeletonKey: tripServicesKey(DEMO_PLAN_BASE),
+  days: [
+    {
+      day: 1,
+      charging: 6,
+      food: 12,
+      restroom: 4,
+      parking: 9,
+      serviceAreas: ["黄埔服务区（演示）"],
+      pois: {
+        charging: [
+          { name: "广州塔地库充电站（演示）", lat: 23.1012, lon: 113.3298 },
+          { name: "海心沙东侧充电站（演示）", lat: 23.1188, lon: 113.3142 },
+        ],
+        food: [
+          { name: "珠江畔茶餐厅（演示）", lat: 23.1021, lon: 113.3172 },
+          { name: "海心沙湖畔咖啡（演示）", lat: 23.1164, lon: 113.3241 },
+          { name: "临江大道烧腊（演示）", lat: 23.1096, lon: 113.3352 },
+        ],
+        restroom: [{ name: "广州塔游客中心公厕（演示）", lat: 23.1004, lon: 113.3196 }],
+        parking: [
+          { name: "广州塔地面停车场（演示）", lat: 23.1038, lon: 113.3331 },
+          { name: "海心沙北门停车场（演示）", lat: 23.1193, lon: 113.3228 },
+        ],
+      },
+    },
+    {
+      day: 2,
+      charging: 3,
+      food: 8,
+      restroom: 2,
+      parking: 5,
+      pois: {
+        charging: [{ name: "陈家祠地铁站充电站（演示）", lat: 23.1308, lon: 113.2512 }],
+        food: [
+          { name: "沙面岛西餐厅（演示）", lat: 23.1031, lon: 113.2352 },
+          { name: "荔湾老字号面家（演示）", lat: 23.1216, lon: 113.2551 },
+        ],
+        restroom: [{ name: "沙面公园公厕（演示）", lat: 23.1118, lon: 113.2366 }],
+        parking: [{ name: "陈家祠停车场（演示）", lat: 23.1295, lon: 113.2412 }],
+      },
+    },
+    // 老快照的形状：有计数、没明细 → 四格都点不动。
+    { day: 3, charging: 4, food: 15, restroom: 6, parking: 11 },
+  ],
+};
+
+export const DEMO_TRIP_PLAN: TripPlanSnapshot = { ...DEMO_PLAN_BASE, services: DEMO_SERVICES };
 
 /**
  * 跟车演示（M31-03）：给演示行程挂上 `nav`。

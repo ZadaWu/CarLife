@@ -36,7 +36,7 @@ describe("ACL：提交通道按分支一对一", () => {
       submit_hotels: "hotel",
       submit_tour_days: "tour",
       submit_transit: "transit",
-      submit_drive_draft: "drive",
+      submit_drive_plan: "drive",
     };
     for (const agent of ["hotel", "drive", "tour", "transit", "trip", "supervisor", "cabin"] as const) {
       const names = new Set(listForAgent(agent).map((t) => t.name));
@@ -112,7 +112,8 @@ describe("submit_hotels 工具端到端", () => {
   it("turnId 反解失败时如实报错，不静默吞下", async () => {
     await assert.rejects(
       submitHotelsTool.call({ hotels: [] }, { sessionId: "s1", agent: "hotel" }),
-      /归属到当前轮次/,
+      // M98-02 起退回文案明说「再交一次也是同样结果」，断言跟着措辞走。
+      /归属不到当前轮次/,
     );
   });
 

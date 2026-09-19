@@ -57,8 +57,10 @@ export const SHARED_CHANNELS = ["messages", "intent", "route", "risk", "companio
  * 购车读 `testDrivePlan`（「约刚才比的那款」的跨 Agent 上下文）所以它在购车的表里；座舱什么都不读。
  */
 const LANE_CHANNELS: Record<WorkNode, readonly ChannelKey[]> = {
-  itineraryPlan: ["tripPlan", "pendingCancel"],
-  ownershipDual: ["consultation", "repairBookingPlan"],
+  itineraryPlan: ["tripPlan", "pendingCancel", "tripClarify"],
+  // `claimFacts`：售后预取读它来沿用上一轮说过的估损与事故类型（M101-04）。
+  // **漏登记不报错**——投影时给默认值 undefined，表现就是跨轮失忆，与改造前一模一样。
+  ownershipDual: ["consultation", "repairBookingPlan", "claimFacts"],
   buyingCatalog: ["buyingPlan", "costPlan", "trimPlan", "loanPlan", "insurancePlan", "testDrivePlan"],
   testDriveFlow: ["testDrivePlan"],
   cabinCompanion: [],

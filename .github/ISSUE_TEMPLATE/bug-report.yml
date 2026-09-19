@@ -1,0 +1,96 @@
+name: 运行缺陷
+description: 系统跑起来了，但某个功能的行为不对
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        装不上、起不来请用「部署失败」模板；模型回答得不对请用「评测样本」模板。
+        先在[排障](https://github.com/ZadaWu/CarLife/blob/main/docs/troubleshooting.md)
+        里搜一遍现象，那里记了常见错误的根因。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象
+      description: 你看到了什么、期望看到什么。一句话说清就够。
+      placeholder: |
+        期望：问「这车续航掉得快正常吗」时回答里带这辆车自己的用车数据。
+        实际：回答只有通用原理，没有提到任何本车数据。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从服务起好之后开始写，带上你实际敲的命令与说的话。
+      placeholder: |
+        1. corepack pnpm dev:restart all
+        2. 打开车机端，长按说话说「…」
+        3. 观察 HUD 与回答
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: 出现在哪一侧
+      multiple: true
+      options:
+        - 车机端（cockpit）
+        - 手机端（mobile）
+        - 运营控制台（console）
+        - 接入网关（gateway）
+        - Agent 编排（agent-runtime）
+        - 单 Agent 运行时（pi-agents）
+        - 定时任务（worker）
+        - 说不准 / 其它
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 运行档
+      description: 没填密钥时 LLM 走确定性 Fake 模型，行为与真实模型不同。
+      options:
+        - 未填任何付费密钥（Fake / Mock 档）
+        - 填了 LLM 密钥
+        - 填了 LLM + 高德密钥
+        - 填了更多外部服务的密钥
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与报错
+      description: |
+        服务端日志用 `corepack pnpm dev:logs <目标>`，端侧看 WebView 控制台。
+        贴关键片段就行，**先确认里面没有密钥、真实手机号或其它个人信息**。
+      render: text
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: 缺一项都可能让复现走偏。
+      value: |
+        - 操作系统与芯片：
+        - 提交（`git rev-parse --short HEAD`）：
+        - Node（`node -v`）：
+        - Rust（`rustc -V`）：
+        - Docker（`docker compose version`）：
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 搜过已有 Issue，没有重复的
+          required: true
+        - label: 贴出的日志、截图、配置里不含密钥或真实个人信息
+          required: true

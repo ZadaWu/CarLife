@@ -5,11 +5,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DATASETS, datasetsForAgent } from "../src/datasets";
+import { DATASETS, datasetFor, datasetsForAgent, datasetKeysForAgent, datasetIdsFromEnv } from "../src/datasets";
 import {
   createRagClient,
   DatasetAccessError,
+  NoDocumentsForModelError,
   documentMatchesModel,
+  documentIdsFor,
   chunkMethodFor,
   suspiciousChunks,
   longestUnterminatedRun,
@@ -25,12 +27,51 @@ import {
 import { prepareMarkdownForChunking, splitLongText, estimateTokens, tableToText } from "../src/chunk-prep";
 import { cleanMineruMarkdown } from "../src/mineru";
 
-describe("三数据集隔离（AC-24-8）", () => {
+describe("四数据集隔离（AC-24-8 / ACR-040）", () => {
   it("按 §6 划分，各有明确消费方", () => {
-    assert.equal(DATASETS.length, 3);
+    assert.equal(DATASETS.length, 4);
     assert.deepEqual(datasetsForAgent("ownership").map((d) => d.key), ["vehicle-manuals"]);
-    assert.deepEqual(datasetsForAgent("service").map((d) => d.key), ["repair-kb"]);
-    assert.deepEqual(datasetsForAgent("buying").map((d) => d.key), ["car-catalog"]);
+    assert.deepEqual(datasetsForAgent("service").map((d) => d.key), ["repair-kb", "insurance-kb"]);
+    assert.deepEqual(datasetsForAgent("buying").map((d) => d.key), ["car-catalog", "insurance-kb"]);
+  });
+
+  it("**consumers 是权限清单，缺省查全部**（ACR-042）——数组顺序不再有语义", () => {
+    // 曾经的约定是"第一项是默认集"，而 ragflow.ts 缺省就取第一项：M96 把 insurance-kb
+    // 追加在末尾，于是 service 永远只查 repair-kb，新集在线上一条都命中不了。
+    // 现在缺省查该 Agent 的全部允许集，key 投影就是那个范围。
+    assert.deepEqual(datasetKeysForAgent("service"), ["repair-kb", "insurance-kb"]);
+    assert.deepEqual(datasetKeysForAgent("buying"), ["car-catalog", "insurance-kb"]);
+    assert.deepEqual(datasetKeysForAgent("ownership"), ["vehicle-manuals"]);
+  });
+
+  it("**每个集都必须显式声明作用域**（ACR-042）——只有 insurance-kb 是 shared", () => {
+    // 漏声明的后果不报错：车型过滤要么该生效不生效（拿到别的车的资料），
+    // 要么不该生效却生效（行业条款对每辆车都"没资料"）。
+    for (const d of DATASETS) {
+      assert.ok(d.scope === "per-model" || d.scope === "shared", `${d.key} 没声明 scope`);
+    }
+    assert.deepEqual(
+      DATASETS.filter((d) => d.scope === "shared").map((d) => d.key),
+      ["insurance-kb"],
+    );
+  });
+
+  it("**datasetIds 从 envKey 派生，一个集都不会漏**（2026-09-16 用户实报的后台 500）", () => {
+    // 这张表曾被手抄 12 份，加 insurance-kb 时漏了 4 份。漏抄不报错，只让那一个集消失：
+    // 网关那份漏了 → 后台知识库页点「车险条款与理赔指引」是 `加载失败：ragflow_error`；
+    // 评测那份漏了 → 6 道保险题每题打一行失败就滑过去、命中率照算（TD-56）。
+    const ids = datasetIdsFromEnv((k) => `id-of-${k}`);
+    assert.deepEqual(Object.keys(ids).sort(), DATASETS.map((d) => d.key).sort());
+    assert.equal(ids["insurance-kb"], "id-of-RAGFLOW_DATASET_INSURANCE_KB");
+    // 少配一个集不该让另外三个也用不了：缺的给空串，由 client 在真正用到它时才报。
+    const partial = datasetIdsFromEnv((k) => (k === "RAGFLOW_DATASET_INSURANCE_KB" ? undefined : "x"));
+    assert.equal(partial["insurance-kb"], "");
+    assert.equal(partial["repair-kb"], "x");
+  });
+
+  it("**跨集隔离对新集同样生效**：用车助手看不到 insurance-kb", () => {
+    assert.ok(!datasetsForAgent("ownership").some((d) => d.key === "insurance-kb"));
+    assert.equal(datasetFor("insurance-kb").envKey, "RAGFLOW_DATASET_INSURANCE_KB");
   });
 
   it("**跨集检索在调用层被拒**，不靠 prompt 约束", async () => {
@@ -138,7 +179,12 @@ describe("检索测试（苏未判定「传成功了」的真正标准）", () =
 
   it("命中带出处与摘要，能直接判断切得对不对", () => {
     const r = summarizeRetrievalTest("保养周期", [
-      { content: "每 1 万公里更换机油".repeat(20), source: { document: "手册.pdf", location: "第 12 页" }, score: 0.88 },
+      {
+        content: "每 1 万公里更换机油".repeat(20),
+        source: { document: "手册.pdf", location: "第 12 页", dataset: "repair-kb" },
+        score: 0.88,
+        provenance: "public",
+      },
     ]);
     assert.equal(r.empty, false);
     assert.equal(r.hits[0].document, "手册.pdf");
@@ -646,5 +692,147 @@ describe("摊平后的表格不是碎片（tableDataRowCount 的回退分支）"
         .filter((f) => f.why.includes("拦腰截断")).length,
       0,
     );
+  });
+});
+
+describe("作用域决定谁看得见哪些文档（ACR-042 / M101-01）", () => {
+  const perModel = datasetFor("repair-kb");
+  const shared = datasetFor("insurance-kb");
+  const models = ["Model 3", "Model Y", "迈锐宝"];
+  const doc = (name: string) => ({ documentId: name, name, status: "succeeded" as const });
+
+  it("per-model 集：只给这辆车的文档，一篇都没有就抛——**不退回全库**", () => {
+    const docs = [doc("Model3_保养.md"), doc("ModelY_保养.md"), doc("迈锐宝保修及保养手册.md")];
+    assert.deepEqual(documentIdsFor(perModel, docs, "Model 3", models), ["Model3_保养.md"]);
+    assert.throws(
+      () => documentIdsFor(perModel, docs, "Cybertruck", models),
+      (e: unknown) => e instanceof NoDocumentsForModelError,
+    );
+  });
+
+  it("shared 集：**不含任何目录车型的行业文档对所有车可见**", () => {
+    // M96 的那条红就是拿 per-model 的判据去量这三篇：文件名里没有车型，
+    // 于是对每一辆车都"零匹配"，而它们本来就该对每一辆车都可见。
+    const docs = [
+      doc("[整理]行业_通用_理赔流程_2026_车险出险流程与材料时限.md"),
+      doc("[整理]行业_通用_权益_2026_车主权益的来源与失效规则.md"),
+      doc("中保协_行业示范_新能源商业险_2021-12_示范条款（试行）.md"),
+    ];
+    assert.equal(documentIdsFor(shared, docs, "Model Y", models).length, 3);
+    assert.equal(documentIdsFor(shared, docs, "迈锐宝", models).length, 3);
+  });
+
+  it("shared 集：**含车型的文档只对那款车可见**，别的车看不到它但照样看得到行业文档", () => {
+    const docs = [
+      doc("[整理]行业_通用_理赔流程_2026_车险出险流程与材料时限.md"),
+      doc("[整理]特斯拉_通用_通用_2026_Model3_ModelY_车主出险注意事项.md"),
+    ];
+    assert.equal(documentIdsFor(shared, docs, "Model Y", models).length, 2);
+    assert.deepEqual(documentIdsFor(shared, docs, "迈锐宝", models), [
+      "[整理]行业_通用_理赔流程_2026_车险出险流程与材料时限.md",
+    ]);
+  });
+
+  it("shared 集零可见不是错误——这辆车没有专属内容而已", () => {
+    const docs = [doc("[整理]特斯拉_通用_通用_2026_Model3_ModelY_车主出险注意事项.md")];
+    assert.deepEqual(documentIdsFor(shared, docs, "迈锐宝", models), []);
+  });
+});
+
+describe("一次调用跨多集（ACR-042 / M101-01）", () => {
+  /** 把请求体录下来——多集这件事只有在请求体里才看得见。 */
+  const recording = (chunks: unknown[]) => {
+    const orig = globalThis.fetch;
+    const bodies: Record<string, unknown>[] = [];
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body ?? "{}")));
+      return new Response(JSON.stringify({ data: { chunks } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return { bodies, restore: () => { globalThis.fetch = orig; } };
+  };
+
+  const ids = { "repair-kb": "d-repair", "insurance-kb": "d-ins" };
+
+  it("两个集一次打出去：dataset_ids 两项，不是发两次再合并", async () => {
+    const rec = recording([
+      { content: "报案时限 48 小时", document_keyword: "理赔流程.md", similarity: 0.8, dataset_id: "d-ins" },
+      { content: "机油每 1 万公里", document_keyword: "保养.md", similarity: 0.7, dataset_id: "d-repair" },
+    ]);
+    try {
+      const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+      const r = await client.retrieve({
+        datasets: ["repair-kb", "insurance-kb"],
+        query: "出险要什么材料",
+        agent: "service",
+      });
+      assert.equal(rec.bodies.length, 1);
+      assert.deepEqual(rec.bodies[0].dataset_ids, ["d-repair", "d-ins"]);
+      assert.deepEqual(r.map((c) => c.source.dataset), ["insurance-kb", "repair-kb"]);
+    } finally {
+      rec.restore();
+    }
+  });
+
+  it("**每条 chunk 自己带集名与来源标注**——调用级一个标签会张冠李戴", async () => {
+    const rec = recording([
+      { content: "条款原文", document_keyword: "示范条款.md", similarity: 0.9, dataset_id: "d-ins" },
+    ]);
+    try {
+      const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+      const r = await client.retrieve({ datasets: ["repair-kb", "insurance-kb"], query: "q", agent: "service" });
+      assert.equal(r[0].source.dataset, "insurance-kb");
+      assert.equal(r[0].provenance, datasetFor("insurance-kb").provenance);
+    } finally {
+      rec.restore();
+    }
+  });
+
+  it("多集里认不回数据集的 chunk 被丢弃——**不猜**", async () => {
+    const rec = recording([
+      { content: "来路不明", document_keyword: "x.md", similarity: 0.9 },
+      { content: "认得回来", document_keyword: "y.md", similarity: 0.8, dataset_id: "d-ins" },
+    ]);
+    try {
+      const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+      const r = await client.retrieve({ datasets: ["repair-kb", "insurance-kb"], query: "q", agent: "service" });
+      assert.deepEqual(r.map((c) => c.content), ["认得回来"]);
+    } finally {
+      rec.restore();
+    }
+  });
+
+  it("**单集调用的请求体与改动前逐字相同**——多集不能顺手改坏既有那条路", async () => {
+    const rec = recording([
+      { content: "机油", document_keyword: "保养.md", similarity: 0.7 },
+    ]);
+    try {
+      const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+      const r = await client.retrieve({ dataset: "repair-kb", query: "保养周期", agent: "service" });
+      assert.deepEqual(rec.bodies[0], {
+        dataset_ids: ["d-repair"],
+        question: "保养周期",
+        page_size: 8,
+        top_k: 1024,
+        similarity_threshold: 0.3,
+        vector_similarity_weight: 0.5,
+      });
+      // 单集时 chunk 不带 dataset_id 也认得出来：只有一个候选。
+      assert.equal(r[0].source.dataset, "repair-kb");
+    } finally {
+      rec.restore();
+    }
+  });
+
+  it("多集里混进一个没权限的集 → 整次拒绝，不悄悄剔掉再查剩下的", async () => {
+    const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+    await assert.rejects(
+      () => client.retrieve({ datasets: ["repair-kb", "vehicle-manuals"], query: "q", agent: "service" }),
+      (e: unknown) => e instanceof DatasetAccessError,
+    );
+  });
+
+  it("dataset 与 datasets 都不给 → 明确报错，不静默查全部", async () => {
+    const client = createRagClient({ baseUrl: "http://x", apiKey: "k", datasetIds: ids });
+    await assert.rejects(() => client.retrieve({ query: "q", agent: "service" }));
   });
 });

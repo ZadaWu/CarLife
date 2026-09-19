@@ -32,7 +32,7 @@ JSON 放不了注释，理由记在这里。**改这三个值之前先读完这�
 | 键 | 值 | 为什么 |
 |---|---|---|
 | `defaultProvider` | `deepseek` | —— |
-| `defaultModel` | `deepseek-v4-flash` | 见下「为什么必须钉」 |
+| `defaultModel` | `deepseek-flash` | 见下「为什么必须钉」与「2026-09-15：改钉正式名」 |
 | `defaultThinkingLevel` | `high` | 见下「思考档位：实测过 off，退回来了」 |
 
 ### 为什么必须钉模型
@@ -43,12 +43,25 @@ JSON 放不了注释，理由记在这里。**改这三个值之前先读完这�
 
 | 模型 | 输入 $/M | 输出 $/M | reasoning |
 |---|---|---|---|
-| `deepseek-v4-flash` | 0.14 | 0.28 | ✅ |
+| `deepseek-flash`（旧名 `deepseek-v4-flash`） | 0.14 | 0.28 | ✅ |
 | `deepseek-v4-pro` | 0.435 | 0.87 | ✅ |
 
 而 models-store 是**用户全局的、不进版本控制**的文件。不钉的话，
 同一份代码在两台机器上跑的可能是两个模型、两种价钱、两种延迟，
 而任何延迟对照实验都因此不可比。
+
+### 2026-09-15：改钉正式名 `deepseek-flash`，并把它补进 pi 的目录
+
+`deepseek-v4-flash` 这个名字 9/10 起被 DeepSeek 服务端别名到 V4.1 Flash：请求它、响应里 `model=deepseek-flash`，
+`/models` 只剩 `deepseek-flash` 与 `deepseek-v4-pro`。四条腿的输出量因此同时塌了 10~30 倍而代码零改动
+（`内部文档` §1）。所以 `defaultModel` 与
+`contracts` 的 `DEFAULT_DEEPSEEK_MODEL` 一起改写正式名——**这一步不改行为**（本来跑的就是它），改的是"我们知道自己在跑什么"。
+
+**但 pi 0.84.1 自带目录里没有 `deepseek-flash`**（`pi --list-models deepseek` 只列 `deepseek-v4-flash` / `deepseek-v4-pro`）。
+所以 `.pi/agent/models.json` 用 `providers.deepseek.models` 把它并进来（合并语义：内置的保留、新 id 追加），
+字段逐项抄自 pi-ai 的内置 `deepseek-v4-flash` 定义（价格、1M 上下文、384K 输出、`thinkingFormat: deepseek`），
+只多一处 `low: "low"`（见下「中间档」）。`.pi/agent/` 整个目录仍 gitignore，只有这一个文件入库——
+缺了它 pi 找不到模型，而症状离根因很远（ACP 会话建不起来）。
 
 ### 思考档位：实测过 `off`，退回来了
 

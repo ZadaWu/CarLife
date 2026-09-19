@@ -829,7 +829,7 @@ model TraceEvent {
   sessionId String   @map("session_id")
   turnId    String?  @map("turn_id")
   /// turn_start | intent | risk | route | agent_session | branch | merge |
-  /// tool_call | guard | interrupt | resume | cancel | turn_end
+  /// tool_call | guard | interrupt | resume | cancel | turn_end | span | prompt | agent_output | context
   kind      String
   /// 事件发生时刻（Unix 毫秒）。用 BigInt 与 messages.ts 保持一致
   at        BigInt
@@ -1238,3 +1238,614 @@ model ManualFigure {
   @@index([doc, kind])
   @@map("manual_figures")
 }
+
+// ════════════════════════════════════════════════════════════════════
+// 研究面（ARCH-001 / ACR-034，施工单 M82-01）
+//
+// 15 张 `research_*` 表 = 证据脊柱 SRC→EV→CD→TH→IN→OH→DS 落成表。
+//
+// # 与既有 35 张表零耦合
+//
+// 没有一条外键指向研究面之外：既有表一列不改（工单红线），而且研究面被整体
+// 删掉时不该拖走任何车主数据。反过来也一样——`research_evidence_units.message_id`
+// 是**引用不是外键**，消息被清理后证据单元留着（它已经不含原文，只剩脱敏派生文本
+// 与指纹），否则一次历史清理会把研究结论的分母悄悄改小。
+//
+// # 原文不复制
+//
+// 全表唯一的自由文本列是 `research_evidence_units.text_redacted`，写入前必须
+// 经 `guardrails/output/pii.ts` 脱敏；仓储层 `units.upsertMany` 有结构性守卫，
+// 命中 PII 直接抛 `research_pii_leak` 而**不是**静默脱敏——静默脱敏会让
+// "写入方忘了脱敏"这件事永远不被发现。
+//
+// # 跨用户聚合，因此不在 agent-runtime 里
+//
+// 这些表的读取一律无用户键（ARCH-001）。读它们的仓储只注入 worker 与
+// research-runtime 两个进程，纪律见 `db/src/repositories/research.ts` 文件头。
+// ════════════════════════════════════════════════════════════════════
+
+/// 研究合同（方法本体 §02 八字段）：这次研究要回答什么、拿什么当证据、什么时候算数。
+/// 一个合同一行；镜头快照、洞察、机会都挂在它下面。
+///
+/// **先有合同再有分析**不是流程洁癖：没有事先声明的行动规则（`actionRule`），
+/// 事后总能从任何一张图里读出一个支持既定结论的方向。
+model ResearchContract {
+  id    String @id @default(cuid())
+  title String
+  /// 这次研究要支持哪个决策。写不出来的，就不该开始。
+  decision String
+  /// 目标总体（想推广到谁）与实际观察到的总体（真到手的是谁）。
+  /// 两者的差就是"我们的车主即车主"这个同构错误的大小（analysis.md §5）。
+  populationTarget   String @map("population_target")
+  populationObserved Json   @map("population_observed")
+  /// 分析对象：主题 / 场景 / 分群。
+  object String
+  /// 时间跨度的口径说明。
+  horizon String
+  /// 证据门槛：到什么程度才算"有证据"。
+  evidenceBar String @map("evidence_bar")
+  /// 排除规则（哪些账号 / 哪些来源不进这次分析）。
+  exclusions Json
+  /// 新鲜度要求：多久以前的证据不再算数。
+  freshness String
+  /// **事先声明的行动规则**：出现什么结果就做什么。事后再写等于没写。
+  actionRule String @map("action_rule")
+
+  windowFrom BigInt @map("window_from")
+  windowTo   BigInt @map("window_to")
+  /// 这个合同锁定在哪一版 codebook 上。跨版本的数字不能连成一条线。
+  codebookVersion String @map("codebook_version")
+
+  /// draft | active | closed
+  status    String
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  snapshots ResearchLensSnapshot[]
+  insights  ResearchInsight[]
+
+  @@index([status, createdAt])
+  @@map("research_contracts")
+}
+
+/// 来源护照的**可查询副本**（总览已定决策 6）。
+///
+/// ⚠️ 判断一律读代码常量 `@carlife/research` 的 `SOURCE_PASSPORTS`，不读这张表。
+/// 表由 seed 从常量写入，只为了"能在 SQL 里 join 一下看看"。
+/// 改这张表的行**不改变任何行为**——这正是要的：权利边界不该有一个不留痕的热改入口。
+model ResearchSource {
+  /// 表名 / 逻辑来源名，与 `research_evidence_units.source_id` 同一个字符串。
+  id String @id
+  /// carlife | owner | third-party
+  control String
+  /// 采集的授权基础，一句话。
+  basis String
+
+  /// 六项权限，取值 yes | no | aggregate-only | replay-audited
+  access  String
+  collect String
+  store   String
+  analyze String
+  share   String
+  display String
+
+  /// 研究面自己的保留期；null = 跟随主表
+  retentionDays Int? @map("retention_days")
+  /// first-party | simulated。**simulated 的不构成市场证据**
+  provenance String
+  notes      String @default("")
+
+  syncedAt DateTime @default(now()) @map("synced_at")
+
+  @@index([provenance])
+  @@map("research_sources")
+}
+
+/// 证据单元：话语（一轮）与行为（一趟）同表。
+///
+/// 同表而不是两张表，是因为下游几乎所有操作都要"这个窗里的全部证据"——
+/// 分表会让每个查询都带一次 UNION，而两者的差异只有 `features` / `text_redacted`
+/// 二选一这一处。
+model ResearchEvidenceUnit {
+  id String @id @default(cuid())
+  /// 可空：取数先落单元，合同后挂。
+  contractId String? @map("contract_id")
+  /// utterance | behavior
+  kind     String
+  /// 来源护照 id。取不到护照 = 不可采，写入方负责拦。
+  sourceId String @map("source_id")
+
+  userId String  @map("user_id")
+  vin    String?
+
+  sessionId String? @map("session_id")
+  turnId    String? @map("turn_id")
+  /// 原始记录**引用**，不是外键（见本节文件头）。
+  messageId String? @map("message_id")
+  tripId    String? @map("trip_id")
+
+  /// 事件时刻，Unix 毫秒。与 `messages.ts` 同口径
+  occurredAt BigInt @map("occurred_at")
+
+  /// **全表唯一的自由文本列**，且必须已脱敏。行为单元为 null
+  textRedacted String? @map("text_redacted")
+  /// 行为单元的特征（BehaviorFeatures）。话语单元为 null
+  features Json?
+  /// 话语单元的上下文（UtteranceContext）：路由、工具、打断、拦截、追问标记
+  context Json
+
+  /// sha256(kind + 原始记录引用)。跨窗重叠靠它挡——没有它，
+  /// 同一句话会在证据矩阵里被算两遍，分子悄悄变大而分母不变
+  fingerprint String
+  /// internal-redacted | replay-audited | none
+  displayLevel String @map("display_level")
+  /// discovery | evidence | behavior | failure | diagnostics | gap | boundary | outcome | reach
+  role String
+
+  /// 车主撤回授权后置位。**不删行**：删了会让历史快照的分母对不上，
+  /// 而快照是已经发出去的结论。置位后不再进任何新的分析
+  withdrawnAt DateTime? @map("withdrawn_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  codings    ResearchCoding[]
+  embeddings ResearchEmbedding[]
+  linksAsUtterance ResearchLink[] @relation("link_utterance")
+  linksAsBehavior  ResearchLink[] @relation("link_behavior")
+
+  @@unique([fingerprint])
+  @@index([kind, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([vin, occurredAt])
+  @@index([contractId, occurredAt])
+  @@map("research_evidence_units")
+}
+
+/// 话语 ↔ 行为的**确定性**关联。
+///
+/// 只做 session→user→vin→trips 这条键链上的确定关联，不做"时间上差不多"的猜测：
+/// 猜出来的关联会让"他说冬天掉电快"与"那天真的掉得快"看起来互相印证，
+/// 而三角验证正是置信 C 里的一项——用猜测喂它等于自己给自己发证书。
+model ResearchLink {
+  id               String @id @default(cuid())
+  utteranceUnitId  String @map("utterance_unit_id")
+  behaviorUnitId   String @map("behavior_unit_id")
+  /// 目前只有 deterministic 一种取值。留列是为了将来出现别的关联方式时，
+  /// 旧行不会被误读成新方式算出来的
+  linkability String @default("deterministic")
+  /// 走的哪条键链，如 `session→user→vin→trips`
+  basis      String
+  /// 关联窗口（天）。话说完 N 天内的行程才算相关
+  windowDays Int      @map("window_days")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  utterance ResearchEvidenceUnit @relation("link_utterance", fields: [utteranceUnitId], references: [id], onDelete: Cascade)
+  behavior  ResearchEvidenceUnit @relation("link_behavior", fields: [behaviorUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([utteranceUnitId, behaviorUnitId])
+  @@index([behaviorUnitId])
+  @@map("research_links")
+}
+
+/// codebook：编码用的码表。真相源是 `research-runtime/codebooks/*.yaml`（仓内版本化），
+/// 这张表是载入后的副本 + 锁版状态。
+///
+/// **锁版后只增不改**（总览已定决策 12）：改一个码的定义，等于让锁版前后的
+/// 所有数字换了含义，而图上看不出任何区别。新增概念进下一版。
+model ResearchCodebook {
+  /// 版本号即主键，如 `v0.1`
+  version String @id
+  /// YAML 内容的 sha256。同版本不同 hash = 有人改了锁过的码表
+  hash String
+  /// 锁版时刻。null = 还能改，measurement 门判 fail
+  lockedAt DateTime? @map("locked_at")
+  /// 全部轴与码（需求 / 痛点 / 场景 / 情绪 + 强度…）
+  axes     Json
+  filePath String   @map("file_path")
+  /// 复编码一致率（M82-10 追加）。`{ humanPercent, humanAlpha, modelPercent, modelAlpha, n, at }`。
+  /// **null 时 measurement 门 degraded**——没量过的编码不能当可信口径用。
+  /// 唯一写入方是 `eval:research-coding` 的 runner。
+  agreement Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([lockedAt])
+  @@map("research_codebooks")
+}
+
+/// 一条编码 = 一行。多标签就是多行。
+///
+/// 每行带 codebook 版本、编码者、prompt hash 三样，缺一就不可复核：
+/// "为什么上周这条打的是 A 这周是 B" 只能靠这三样回答。
+model ResearchCoding {
+  id     String @id @default(cuid())
+  unitId String @map("unit_id")
+  codebookVersion String @map("codebook_version")
+
+  axis String
+  code String
+  /// 模型自报的把握（0–1）。只用于排序与"要不要人工复核"，**不进置信 C**
+  confidence Float
+  rationale  String
+  /// 模型认为次可能的码。一致率低的轴往往是这一列在打架
+  competingCode String? @map("competing_code")
+  /// 模型明说拿不准。这些是 gold set 的第一批候选
+  uncertain Boolean @default(false)
+
+  /// 模型名（`deepseek-flash`）或 `human:<用户 id>`
+  coder String
+  /// 提示词的 sha256。提示词改了而版本没改时，唯一能看出来的地方
+  promptHash String   @map("prompt_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  unit ResearchEvidenceUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId, codebookVersion])
+  @@index([axis, code])
+  @@index([coder, createdAt])
+  @@map("research_codings")
+}
+
+/// 主题：一组说的是同一件事的证据单元。
+///
+/// `counterUnitIds` 是这张表存在的理由之一：**主题必须保留反例成员**。
+/// 只存支持成员的主题，在任何一张图上都看起来证据充分。
+model ResearchTheme {
+  id              String @id @default(cuid())
+  codebookVersion String @map("codebook_version")
+  /// 这一簇挂在哪个需求码下。**聚类是在码内做的**，所以它是主题的自然键之一。
+  ///
+  /// 可空只为兼容本列之前写下的行：那时码只出现在 id 里
+  /// （`theme-<版本>-<码>-<序号>`），而码与版本号都带连字符，切不出唯一解。
+  /// 切错不报错，只会让洞察卡挂到别的码上，所以**不做字符串回填**——
+  /// 下一次 run 会按确定性 id 覆盖同一行并写上真值；在那之前读取侧当"码未知"跳过。
+  needPainCode String? @map("need_pain_code")
+  name         String
+  definition   String
+  /// 纳入判据与排除判据。没有 exclude 的主题会慢慢吸走整个语料
+  include String
+  exclude String
+
+  memberUnitIds  String[] @map("member_unit_ids")
+  counterUnitIds String[] @map("counter_unit_ids")
+
+  centroidEmbeddingId String? @map("centroid_embedding_id")
+  /// draft | active | deprecated
+  status String @default("draft")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  embeddings ResearchEmbedding[]
+  insights   ResearchInsight[]
+
+  @@index([codebookVersion, status])
+  // 「这一格 → 哪几个主题」是证据矩阵每条能力的第一步，一律按码查。
+  @@index([codebookVersion, needPainCode])
+  @@map("research_themes")
+}
+
+/// 行为分群。**按行为聚，不按人口属性聚**——后者聚出来的是"我们已经知道的分类"。
+model ResearchSegment {
+  id     String @id @default(cuid())
+  name   String
+  /// behavior-kmeans
+  method String
+  /// 聚类用到的特征与其取值范围
+  features Json
+
+  memberVins String[] @map("member_vins")
+  size       Int
+  /// 外部效度：这个群在别的指标上是否也不一样。空 = 还没验
+  externalValidation Json? @map("external_validation")
+
+  /// draft | validated | suppressed
+  status String @default("draft")
+  /// 这个群覆盖多少台车。低于 RESEARCH_MIN_CELL_VEHICLES 时整群抑制
+  minCell Int @map("min_cell")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("research_segments")
+}
+
+/// 向量。`embedding` 是 Prisma 的 Unsupported 类型，读写全走 $queryRawUnsafe，
+/// 与 `icon-embedding.ts` / `manual-figure.ts` 同形态。
+///
+/// ⚠️ 维度取 1024（`text-embedding-v4` 支持 64–2048 可选维度）而不是 2560：
+/// pgvector 的 HNSW 索引上限是 2000 维，2560 建不了（ACR-030 踩过）。
+/// 迁移里手写 `CREATE INDEX … USING hnsw (embedding vector_cosine_ops)`。
+model ResearchEmbedding {
+  id String @id @default(cuid())
+  /// 单元向量与主题质心向量同表，二选一
+  unitId  String? @map("unit_id")
+  themeId String? @map("theme_id")
+
+  model     String
+  dim       Int
+  embedding Unsupported("vector(1024)")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  unit  ResearchEvidenceUnit? @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  theme ResearchTheme?        @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, model])
+  @@unique([themeId, model])
+  @@index([model])
+  @@map("research_embeddings")
+}
+
+/// 镜头快照：一个合同 × 一个窗 × 一个镜头 × 一版 codebook × 一份输入 = 一行。
+///
+/// `inputsHash` 是可复现性的抓手（Sprint 完成判定 5）：同 hash 必须逐字节同内容。
+/// 它进唯一约束，所以"同样的输入算两次"拿到的是同一行而不是两行。
+model ResearchLensSnapshot {
+  id         String @id @default(cuid())
+  contractId String @map("contract_id")
+  /// evidence-matrix | importance-performance | emotion-job-map | segment-atlas | trend-signal
+  lens String
+
+  windowFrom      BigInt @map("window_from")
+  windowTo        BigInt @map("window_to")
+  codebookVersion String @map("codebook_version")
+  inputsHash      String @map("inputs_hash")
+
+  /// 顶栏那三个数（Population）
+  population Json
+  /// 四道门的裁决（Gates）。**门的结果与数据同生共死**：
+  /// 快照存下来时门是什么状态，读的时候就该看到什么状态
+  gates Json
+  /// 每个镜头形状不同，类型在 @carlife/research 的 LensDataOf
+  data Json
+
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  contract ResearchContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, lens, windowFrom, windowTo, codebookVersion, inputsHash])
+  @@index([lens, computedAt])
+  @@map("research_lens_snapshots")
+}
+
+/// 洞察卡：六栏 + 等级 + 置信 + "升级还缺什么"。
+///
+/// `upgradeNeeds` 比 `confidence` 有用得多——"要到 Candidate 还缺什么"
+/// 是能派活的，"当前置信 0.62"不是（analysis.md §5）。
+model ResearchInsight {
+  id         String @id @default(cuid())
+  contractId String @map("contract_id")
+  themeId    String @map("theme_id")
+
+  /// signal | candidate | validated。**默认 signal**（analysis.md §5）
+  level String @default("signal")
+  /// InsightCard 六栏：claim / explanation / evidence / meaning / boundary / updateCondition
+  card Json
+  /// ConfidenceBreakdown：五个因子 + c + lowest + suggestion
+  confidence Json
+  /// 升到下一级还缺什么，逐条
+  upgradeNeeds String[] @map("upgrade_needs")
+
+  /// **这张卡基于哪份快照写成**（G5，施工单 M85-06）。
+  ///
+  /// 取值是写卡那一刻 `research_lens_snapshots.inputs_hash` 的**原样副本**，
+  /// 不是这张卡内容的 hash——两者都叫 hash，混了之后比对永远相等
+  /// （内容没变当然相等），守不住任何东西。
+  ///
+  /// 它防的是：快照重算之后，基于旧口径写的卡片会断言当前数字**不支持**的事，
+  /// **而它看起来完全正常**——六栏齐全、置信有数、出处能点开。
+  /// 界面按 `inputs_hash != 当前快照` 打「口径已变」徽章并禁用升级申请。
+  ///
+  /// 可空，且 **null 必须显示成「口径未知」而不是「口径一致」**：
+  /// M85-06 之前写下的行（实测 21 行）拿不回当时的快照 hash——
+  /// 那些卡与哪份快照同源是**真的不知道**，回填一个当前值等于给它们盖了个假章。
+  inputsHash String? @map("inputs_hash")
+
+  owner    String
+  reviewAt DateTime? @map("review_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contract      ResearchContract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  theme         ResearchTheme         @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  opportunities ResearchOpportunity[]
+  challenges    ResearchChallenge[]
+
+  @@index([contractId, level])
+  @@index([themeId])
+  /// G5 的比对是按合同查的：「这个合同下有哪些卡不是基于当前快照写的」。
+  @@index([contractId, inputsHash])
+  @@map("research_insights")
+}
+
+/// 机会候选。**ODS 只排序，不写回任何计划文件**（analysis.md §4）。
+model ResearchOpportunity {
+  id        String @id @default(cuid())
+  insightId String @map("insight_id")
+
+  /// OpportunityHypothesis 九栏
+  hypothesis Json
+  /// OdsResult：八个分量 + score + profileVersion
+  ods Json
+  /// 权重档版本。改权重必须改它，否则昨天的 72 分与今天的 72 分不是同一个东西
+  profileVersion String @map("profile_version")
+
+  /// prompt | kb | tool | aftersales | catalog。
+  /// **aftersales 是唯一直接连收入也因此风险最高的一条**：它从聚合研究落到
+  /// 对个体的差异化触达，必须走人工逐条放行 + 可申诉（总览已定决策 10）
+  outlet String
+  status String @default("candidate")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  insight ResearchInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@index([outlet, status])
+  @@index([insightId])
+  @@map("research_opportunities")
+}
+
+/// Challenger 的产物：反例、替代解释、敏感性分析。
+///
+/// 这张表存在的意义是**让"我们可能错了"变成一条可以被查询的记录**。
+/// 没有它，反驳只活在某次讨论里，下一个季度同一个结论会原样再来一遍。
+model ResearchChallenge {
+  id        String @id @default(cuid())
+  insightId String @map("insight_id")
+  /// counter-evidence | alternative-explanation | sensitivity
+  ///
+  /// 取值直接来自 `challenger.ts` 的 `challengeSchema`，**没有"追问"这一类**：
+  /// 追问产出的仍是这三类里的一条，判据在 `payload.angle`（见下）。
+  kind String
+  /// `{ summary, steps }`；**追问产生的那些另有 `angle`**——
+  /// 它就是「这一条是 C7 追问出来的」的唯一判据（施工单 M85-07）。
+  /// 追问轮数按它数（同一张卡最多 3 次），所以别把它当可选装饰字段清理掉。
+  payload Json
+  /// 与结论矛盾的证据单元
+  contradictedUnitIds String[] @map("contradicted_unit_ids")
+  /// holds | weakened | refuted | inconclusive
+  ///
+  /// **四态，不是三态**。`inconclusive` 是"工具步数用满还没查清楚"——
+  /// 把它并进 holds 等于把「没查完」说成「查过了没问题」。
+  /// 这一行曾经漏写它（M85-07 订正），而按三态渲染的界面遇到第四态
+  /// 会掉进默认分支：不报错，只显示成别的东西。
+  verdict String
+  /// 模型名
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  insight ResearchInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@index([insightId, kind])
+  @@map("research_challenges")
+}
+
+/// 人工决定。**只追加**——能改的决定记录证明不了任何事。
+///
+/// 售后放行与申诉在同一张表：一次放行与随后的申诉是同一条线上的两个事件，
+/// 分表会让"这条触达后来被投诉了"需要 join 才看得见。
+model ResearchDecision {
+  id String @id @default(cuid())
+  /// codebook-lock | promote | decision-record | aftersales-approve | aftersales-appeal
+  /// | code-proposal-raised | code-proposal-decided
+  ///
+  /// 后两个是 C8「从兜底桶提码」的一对（施工单 M85-08），形状与
+  /// aftersales-approve / -appeal 同：一件事的两个事件，靠 subjectId（提案 id）串起来。
+  /// **两条的 decided_by 都是真值**——`raised` 记的是决定把这件事提上议程的研究员，
+  /// `decided` 记的是决定采纳/驳回的人。给 `raised` 填 system 或模型名会让这一列的语义
+  /// 从「谁决定的」变成「谁生成的」，而 G2 那条治理链正是按它查的。
+  ///
+  /// ⚠️ **采纳一条提案不改 codebook。** 开新版本是一个单独的人工动作，走 codebook-lock。
+  kind String
+  /// 决定针对谁：codebook 版本 / insight id / opportunity id / 码提案 id
+  subjectId String   @map("subject_id")
+  decidedBy String   @map("decided_by")
+  decidedAt DateTime @default(now()) @map("decided_at")
+  rationale String
+  payload   Json
+
+  @@index([kind, decidedAt])
+  @@index([subjectId])
+  @@map("research_decisions")
+}
+
+/// "我们自己的变更"。趋势图上任何一个拐点，先问是不是这里发生了事。
+///
+/// 由 `@carlife/research` 的 `deriveSystemEvents` 从 `config_item_revisions` /
+/// `guard_setting_revisions` / `job_runs` 派生，加上手工发布标记。
+/// **密钥类只落"变更过"，不落值**——这张表会显示在控制台上。
+model ResearchSystemEvent {
+  id String @id @default(cuid())
+  /// config-change | guard-policy-change | kb-sync | deploy | codebook-lock
+  kind String
+  /// 事件时刻，Unix 毫秒
+  at  BigInt
+  key String?
+  /// 一句话，直接上时间轴标记的 tooltip
+  summary String
+  /// 回到原始记录的引用：`config_item_revisions:<id>` 这种形状。
+  /// 同时是幂等键——同一条原始变更派生两次不会有两行
+  sourceRef String   @map("source_ref")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceRef])
+  @@index([at])
+  @@index([kind, at])
+  @@map("research_system_events")
+}
+
+/// ①Working 里**跨轮的那一半**：一件正在办的事（施工单 M84-02，ACR-036，架构文档 §4.9）。
+///
+/// # 为什么键是 `userId × kind` 而不是 sessionId
+///
+/// 今天行程草案、待澄清的取消这些跨轮状态挂在 LangGraph 的 thread 上，而 thread 绑死
+/// sessionId（`turn-runner.ts` 的 `threadId = ${sessionId}#${nowMs}`）；端上 30 分钟空闲
+/// 就换会话、按「退下」也换。于是"跨轮存活"的实际寿命是 30 分钟：昨晚在手机上排的三天行程，
+/// 今天在车上说「把第二天换成室内的」，编排层手里什么都没有，只能当成一次全新规划。
+/// 按人存就不会。
+///
+/// # 与 `sessions.working_thread_id` 的分工
+///
+/// 那两列存"这个会话对应哪个图 thread"（`working-thread.ts`），管的是**本轮的**图状态与
+/// 检查点，本 Sprint 一字不动。这张表管的是**跨轮的业务状态**，两者不重叠。
+///
+/// # 为什么 `draft` 整块存 JSON 不拆列
+///
+/// 形状的真相源在 `@carlife/shared` 的 `TaskState`（行程那一种就是 `TripPlanSnapshot`）。
+/// 拆成列等于在这里再写一份形状，而两份形状必然漂移——`trip_plans.plan` 也是同一取向。
+/// 查询维度只有 `userId × kind × 活跃`，用不着拆。
+model WorkingTask {
+  id     String @id @default(cuid())
+  /// 归属。**读路径一律带它**（ADR-011）：
+  /// 不带用户键的读只许写在 `repositories/research.ts`，这张表是车主面的数据。
+  /// 不建外键到 `users`：与 `trip_plans` 同一取向，本 Sprint 不改归属模型。
+  userId String @map("user_id")
+  /// trip | test-drive | repair-booking | buying | consultation（`TaskKind`）
+  kind   String
+  /// drafting | awaiting_confirm | committed | dirty | done | cancelled | expired（`TaskStatus`）
+  status String
+
+  /// 眼前这一版。行程那一种是 `TripPlanSnapshot`。
+  draft Json
+  /// 落库那一份的 id（行程 = `trip_plans.id`）。空 = 从没落过库。
+  baseRef     String? @map("base_ref")
+  /// 第几次落库。与 `version` 不是一回事：那个每个事件都 +1，这个只在确认时 +1。
+  baseVersion Int?    @map("base_version")
+  /// 那一次落库的时刻。**必须单独存一列**：M84-02 最初想用 `touchedAt` 顶替它，
+  /// 而确认之后再问一句（`task.question.asked`）就会把 `touchedAt` 推到现在，
+  /// 回读出来的 `base.committedAt` 于是比真实落库时刻晚——往返用例当场红。
+  baseCommittedAt DateTime? @map("base_committed_at")
+  /// 挂着的那个问题（`TaskPending`）。一轮用完即清。
+  pending     Json?
+  /// 上一次动作（`TaskLastAction`），给排查与"这一轮到底做没做成"用。
+  lastAction  Json?   @map("last_action")
+  /// 这份草案是照哪些硬约束排的。
+  constraints String[] @default([])
+
+  /// 乐观并发的版本号，由 `@carlife/shared` 的 `reduceTask` 递增。
+  /// 写入一律 `updateMany({ where: { id, version } })` 并看 `count`——
+  /// 用单条 `update` 的话版本冲突会抛 P2025，与"行不存在"无法区分。
+  version Int
+
+  openedAt  DateTime @map("opened_at")
+  touchedAt DateTime @map("touched_at")
+  /// 空闲过期时刻，每次触碰顺延；时长表在 `@carlife/shared` 的 `TASK_TTL_MS`。
+  /// **懒过期**：装载时才判（本 Sprint 无 worker 清扫，归 ACR-037），所以这里可能躺着
+  /// 一批已经过期但还没被置位的行——`[expiresAt]` 索引是留给那个清扫任务的。
+  expiresAt DateTime @map("expires_at")
+  /// 终结时刻。非空 = 不再活跃；**活跃唯一性由应用层保证**，不做部分唯一索引：
+  /// 懒过期是"装载时才判"，旧行被关掉与新行被开出来之间必然有一个瞬间两行并存。
+  closedAt  DateTime? @map("closed_at")
+
+  /// 触碰过它的会话。只为排障（"这份是在哪几段对话里改出来的"），不参与判定。
+  sessionIds String[] @default([]) @map("session_ids")
+
+  /// 主路径：这个人这种任务里还活着的那一份
+  @@index([userId, kind, closedAt])
+  /// 留给 ACR-037 的定时清扫
+  @@index([expiresAt])
+  @@map("working_tasks")
+}
+

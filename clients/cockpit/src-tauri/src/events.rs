@@ -18,7 +18,7 @@ use carlife_core::fanout::{
     EVENT_DIALOG_FILLER,
     EVENT_DIALOG_MESSAGE, EVENT_DIALOG_PERMISSION, EVENT_NET_CONNECTION,
 };
-use carlife_net::{SseClient, SseSignal};
+use carlife_net::{SseClient, SseSignal, UserSseSignal};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -53,6 +53,12 @@ pub struct StreamState {
      * 照样会到。有界保留最近 `CANCELLED_KEEP` 条——补发窗口不会更长，
      * 无界的话它就是一个只增不减的集合。
      */
+    /// 账号级事件流的停止位（ACR-032）。
+    ///
+    /// **与 `active_stop` 分开**：会话流每换一次会话就被替换，而这条流与"谁在用车"
+    /// 同寿。共用一个停止位的话，每次新建会话都会顺手把账号通道也掐掉，
+    /// 而现象是"同步时灵时不灵"——最难查的那一种。
+    user_stop: Mutex<Option<Arc<AtomicBool>>>,
     cancelled_turns: Mutex<VecDeque<String>>,
     /// 因为属于已打断的轮而被整条丢弃的事件数。取消到收口之间总会漏进来几条，
     /// 这个数不为 0 是正常的；**恒为 0 才说明过滤压根没生效**。
@@ -71,6 +77,7 @@ impl StreamState {
             cache_errors: AtomicU64::new(0),
             filler_preempted: AtomicU64::new(0),
             current: Mutex::new(None),
+            user_stop: Mutex::new(None),
             cancelled_turns: Mutex::new(VecDeque::new()),
             dropped_cancelled: AtomicU64::new(0),
         }
@@ -121,6 +128,19 @@ impl StreamState {
     pub fn replace_stream(&self) -> Arc<AtomicBool> {
         let stop = Arc::new(AtomicBool::new(false));
         let mut guard = self.active_stop.lock().expect("stream state poisoned");
+        if let Some(prev) = guard.replace(Arc::clone(&stop)) {
+            prev.store(true, Ordering::Relaxed);
+        }
+        stop
+    }
+
+    /// 换一条账号级事件流，旧的置停（ACR-032）。
+    ///
+    /// 上车声明换了人就要换这条流：它订阅的键是**人**，而服务端按连接建立时的
+    /// 那个人订阅。不换的话，换人之后收到的还是上一个人的会话变动。
+    pub fn replace_user_stream(&self) -> Arc<AtomicBool> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut guard = self.user_stop.lock().expect("stream state poisoned");
         if let Some(prev) = guard.replace(Arc::clone(&stop)) {
             prev.store(true, Ordering::Relaxed);
         }
@@ -209,6 +229,15 @@ fn end_of_turn(event: &carlife_core::contract::SessionEvent) -> Option<&str> {
     }
 }
 
+/// 这条事件是不是撤回（F-26-06）。
+///
+/// 抽成函数是为了能单测：真正的判据写在 `handle_envelope` 里时，
+/// 验它就得造一个 `AppHandle`，于是实际上没人验。
+fn is_retract(event: &carlife_core::contract::SessionEvent) -> bool {
+    use carlife_core::contract::{SessionEvent, SessionUpdate};
+    matches!(event, SessionEvent::Update(SessionUpdate::Retract(_)))
+}
+
 /// 处理一个封套：投影 + 双写 + emit。真实 SSE 与 mock 共用（M2-04 约束 3）。
 ///
 /// TTS 收口（M2-05）：助手消息产生且播报可用时，`turn_end` 投影出的
@@ -254,6 +283,18 @@ pub fn handle_envelope(
         eprintln!("[cockpit] message cache write failed (回源可修复): {err}");
     }
 
+    /*
+     * 这一条是不是撤回（F-26-06）。
+     *
+     * 撤回撤的是**内容本身**，不是"屏幕上的那段字"。边收边播接上之后
+     * （M77 走查追修第二步），正文在撤回到达时多半已经有几句进了播放队列，
+     * 而那条路上没有任何一步会因为撤回停下来：`stream_finish` 只"补差额"，
+     * 替换文案比正文短、又不是它的前缀，于是一个字都不补——队列照播，
+     * **被审核拦下的原文被完整念完**，屏幕上却写着"这条回答我收回了"。
+     * 2026-09-19 车机端实测就是这个样子（用户：语音回答是另外一个）。
+     */
+    let is_retract = is_retract(&env.event);
+
     let assistant_reply = actions.iter().find_map(|a| match a {
         BridgeAction::MessageAppended(m)
             if matches!(m.role, carlife_core::contract::ChatRole::Assistant) =>
@@ -295,6 +336,32 @@ pub fn handle_envelope(
         }
     }
 
+    /*
+     * 边收边播（M77 走查追修第二步，2026-09-12）。**后台开关关着时这一段整个不执行**，
+     * 老路径一行没变。
+     *
+     * 每条 delta 一到就喂进流式队列，成句即送去合成——首声于是约等于
+     * "模型说完第一句"，而不是"说完整段再花 14 秒合成"。
+     *
+     * 敢拿 delta 去播，是因为它**已经是脱敏后的文本**（runtime 那侧
+     * `createStreamRedactor()` 逐片 push），且网关把 delta 累加成 assistantText
+     * 落库——播出去的与存下来的一字不差。
+     */
+    if crate::tts::endpoint::stream_speech_cached() {
+        if let (Some(turn), Some(tts)) = (
+            turn_id_of(&env.event),
+            app.try_state::<std::sync::Arc<crate::tts::TtsState>>(),
+        ) {
+            for action in &actions {
+                if let BridgeAction::Delta(d) = action {
+                    // 幂等：一轮只起一个消费任务（内部抢闸）。
+                    crate::tts::stream_begin(app, &tts, turn);
+                    crate::tts::stream_push(&tts, turn, &d.text);
+                }
+            }
+        }
+    }
+
     for action in &actions {
         if will_speak {
             if let BridgeAction::AssistantState(carlife_core::contract::AssistantState::Idle) =
@@ -306,14 +373,106 @@ pub fn handle_envelope(
         emit_action(app, action, &state.unknown_events);
     }
 
-    if let (Some(text), true) = (assistant_reply, will_speak) {
+    if let Some(text) = assistant_reply {
         if let Some(tts) = app.try_state::<std::sync::Arc<crate::tts::TtsState>>() {
-            crate::tts::speak(app, &tts, &text);
+            let turn = turn_id_of(&env.event);
+            /*
+             * 撤回先掐声再说话。
+             *
+             * `stop()` 一次做完三件事：推代际让在播的那段自己退出、`stream.abandon()`
+             * 清掉队列与半句尾巴、halt 当前播放。**无条件调**——播报开关关着、
+             * 静音着的时候它也没有副作用，而漏掉的那条路径恰恰是最坏的那条。
+             *
+             * 停完才播替换文案：不播的话，车主听到正文被从中间掐断、然后一片安静，
+             * 只有低头看屏幕才知道发生了什么——而他在开车。
+             */
+            if is_retract {
+                let _ = crate::tts::stop(&tts);
+                if will_speak {
+                    crate::tts::speak(app, &tts, &text);
+                }
+                return;
+            }
+            /*
+             * 这一轮是不是已经在流式播了（M77 走查追修第二步）。
+             *
+             * **按 turnId 判，不按"消费任务还在不在"判**：回答短的时候，
+             * 消费任务可能在 turn_end 之前就播完退出了，那时若按 running 判，
+             * 这里会再整段播一遍，车主听到两遍。
+             *
+             * 判完**不清归属**：下一轮的 turnId 本来就不同，`owns` 自然为假，
+             * 而 `begin` 会覆盖它。清了反而多一个险处——同一轮若有迟到的 delta，
+             * 会被当成新一轮，把正在播的自己 stop 掉。
+             */
+            match turn {
+                Some(t) if tts.stream.owns(t) => {
+                    // 把最后那半句送出去并收尾。**不再调 speak**——那会是第二遍。
+                    crate::tts::stream_finish(&tts, t, Some(&text));
+                }
+                _ if will_speak => crate::tts::speak(app, &tts, &text),
+                _ => {}
+            }
         }
     }
 }
 
 /// 启动真实 SSE 消费循环（后台 task；替换旧流）。
+/// 账号级事件推给 WebView 的事件名（ACR-032）。
+///
+/// **与 `contracts` 的 `ACCOUNT_EVENTS.sessionsChanged` 是同一个字面量**，
+/// 改一处必须改另一处（`clients/cockpit/test/account-events.test.ts` 钉住）。
+/// 它**不在 `BRIDGE_EVENTS`** 里——那一组是对话桥，这条来自另一条流，理由见常量旁的注释。
+///
+/// 载荷刻意只有 `reason`：通道的语义是「整拉」，端上拿到它只做一件事——
+/// 重新 `GET /v1/sessions`。带上会话摘要会诱导前端去做增量合并，
+/// 而那正是乱序与漏更新的来源。
+pub const EVENT_SESSIONS_CHANGED: &str = "session:list-changed";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionsChangedPayload {
+    pub reason: String,
+}
+
+/// 账号级事件流（ACR-032）：连上 `/v1/events`，收到就让前端重拉会话列表。
+///
+/// 与 `spawn_session_stream` 各跑各的、各有各的停止位——会话流每换一次会话被替换，
+/// 这条与"谁在用车"同寿。
+pub fn spawn_user_events_stream(app: AppHandle, state: Arc<StreamState>, base_url: String) {
+    let stop = state.replace_user_stream();
+    tauri::async_runtime::spawn(async move {
+        // token 现取，理由同会话流（M54-09）：这条流比 access token 活得久。
+        let client = SseClient::new_with_token_source(base_url, || crate::settings::gateway().1);
+        client
+            .run_user_events(&stop, |signal| match signal {
+                UserSseSignal::Envelope(env) => {
+                    let carlife_core::contract::UserEvent::SessionsChanged(changed) = env.event;
+                    let _ = app.emit(
+                        EVENT_SESSIONS_CHANGED,
+                        SessionsChangedPayload { reason: format!("{:?}", changed.reason) },
+                    );
+                }
+                UserSseSignal::Unauthorized => {
+                    // 不动 EVENT_NET_CONNECTION：那条指示的是**对话**通不通，
+                    // 而账号通道断了只是列表不会自动刷新，对话一切照常。
+                    // 混在一起会让界面在对话好好的时候显示"离线"。
+                    eprintln!("[sse] 账号事件流被网关拒绝（凭证过期或失效），已停止重连");
+                }
+                UserSseSignal::NoActiveUser => {
+                    // 正常态：车机开机、还没人上车。上车声明落地后前端会重起这条流。
+                    eprintln!("[sse] 账号事件流：还没人声明在用车，等上车声明（长间隔重试）");
+                }
+                UserSseSignal::Disabled => {
+                    eprintln!("[sse] 账号事件流被服务端关闭（ACCOUNT_EVENTS_ENABLED=false），按长间隔重试");
+                }
+                UserSseSignal::Connected | UserSseSignal::Disconnected { .. } => {}
+                UserSseSignal::Unparseable => {
+                    state.unknown_events.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+            .await;
+    });
+}
+
 pub fn spawn_session_stream(
     app: AppHandle,
     state: Arc<StreamState>,
@@ -431,6 +590,26 @@ mod tests {
             Some(("sess-1".into(), "t2".into())),
             "清错的话，紧接着的打断会退化成只停播"
         );
+    }
+
+    #[test]
+    fn 只有撤回才掐声_收口与增量不掐() {
+        use carlife_core::contract::UpdateRetract;
+        let retract = SessionEvent::Update(SessionUpdate::Retract(UpdateRetract {
+            turn_id: "t1".into(),
+            replacement: "这条回答我先收回了".into(),
+            reason: "审核不可用".into(),
+        }));
+        assert!(is_retract(&retract));
+        // turn_end 走的是"补差额"那条路：它掐声的话，每一轮正常回答
+        // 都会在收口那一刻被截断——最后半句永远听不到。
+        assert!(!is_retract(&SessionEvent::Update(SessionUpdate::TurnEnd(
+            UpdateTurnEnd {
+                turn_id: "t1".into(),
+                message_id: "m1".into(),
+            }
+        ))));
+        assert!(!is_retract(&delta("t1")));
     }
 
     #[test]

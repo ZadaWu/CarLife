@@ -20,7 +20,7 @@ import { randomUUID } from "node:crypto";
 import { Router, json, raw } from "express";
 import type { Response } from "express";
 
-import type { AudioMeta, MessageSource } from "@carlife/shared";
+import type { AudioMeta, MessageSource, SessionsChangedReason } from "@carlife/shared";
 import { MAX_CAPTURE_DURATION_MS, SESSION_EXPIRED, DEFAULT_SESSION_IDLE_MIN } from "@carlife/shared";
 import type { ChatRepository } from "@carlife/db";
 
@@ -31,7 +31,9 @@ import { HitlRelay } from "../hitl";
 import { runtimeUrl } from "./turn-service";
 import type { AttachmentRepository } from "@carlife/db";
 import type { ObjectStore } from "../upload/storage";
-import { parseAttachmentRefs, resolveTurnAttachments, type TurnAttachmentPayload } from "./attachments";
+import { type ClientDetectionsPayload, parseAttachmentRefs, resolveTurnAttachments, type TurnAttachmentPayload } from "./attachments";
+import { accountEventsEnabled } from "../stream";
+import type { UserBus } from "../stream/user-bus";
 import { TurnService } from "./turn-service";
 import { createVideoDeriver } from "../media/derive";
 import type { FfmpegPaths } from "@carlife/tools";
@@ -204,6 +206,11 @@ export function createHttpRouter(
    * 转写走与语音分支同一个 ASR provider 与同一道日用量闸门（视频的声音也是钱）。
    */
   media?: { ffmpeg: FfmpegPaths },
+  /**
+   * 账号级事件通道（ACR-031）。不注入即不发——既有测试构造这个路由时不传它，
+   * 行为与接通道之前一字不差。
+   */
+  userBus?: UserBus,
 ): Router {
   const router = Router();
   // HITL 中转（M5-03）。此前这个类写好了却**没有任何代码调它**——
@@ -220,12 +227,25 @@ export function createHttpRouter(
       return ((await r.json()) as { resumed?: boolean }).resumed === true;
     },
   });
+  /**
+   * 会话列表变了就吱一声（ACR-031）。
+   *
+   * 开关判在**每次调用**而不是构造时：置 `false` 之后不必重建路由就不再发，
+   * 与文档里写的"不用发版的回滚手段"对得上。
+   */
+  const notifySessionsChanged = userBus
+    ? (userId: string, reason: SessionsChangedReason, sessionId: string): void => {
+        if (!accountEventsEnabled()) return;
+        userBus.publish(userId, { kind: "sessions_changed", reason, sessionId });
+      }
+    : undefined;
   const turns = new TurnService(
     repo,
     bus,
     hitl,
     ttsEngineAtSend,
     media ? createVideoDeriver({ paths: media.ffmpeg, asr, asrGate, onAsrUsage: (u) => onAsrUsage?.(u) }) : undefined,
+    notifySessionsChanged,
   );
   mkdirSync(AUDIO_DIR, { recursive: true });
 
@@ -329,6 +349,7 @@ export function createHttpRouter(
        */
       let fillerEnabled: boolean | undefined;
       let attachmentHandles: string[] = [];
+      let attachmentDetections: Record<string, ClientDetectionsPayload> | undefined;
 
       if (Buffer.isBuffer(req.body)) {
         // 音频路径：raw body + X-Audio-Meta
@@ -418,6 +439,7 @@ export function createHttpRouter(
           return;
         }
         attachmentHandles = refs.handles;
+        attachmentDetections = refs.detections;
       }
 
       /*
@@ -439,6 +461,7 @@ export function createHttpRouter(
           userId: sessionOwner ?? undefined,
           repo: attachments.repo,
           store: attachments.store,
+          detections: attachmentDetections,
         });
         if (!resolved.ok) {
           res.status(resolved.error === "attachment_not_found" ? 404 : 400).json({ error: resolved.error, handle: resolved.handle });
@@ -653,6 +676,17 @@ export function createHttpRouter(
       res.status(404).json({ error: "session_not_found" });
       return;
     }
+    /*
+     * 列表里那条要变成「已结束」（ACR-031）。归属取**会话的**而不是 `req.userId`：
+     * 车机上关会话的请求里没有人，用调用者会把车机那一路漏掉。
+     * 不 await：关会话的回执不该等一条通知。
+     */
+    void repo
+      .sessionUserId(sessionId)
+      .then((owner) => {
+        if (owner) notifySessionsChanged?.(owner, "closed", sessionId);
+      })
+      .catch(() => {});
     // 幂等：连点两次第二次也是 200，且 `closedAt` 是第一次那个值。
     res.status(200).json({ ok: true, sessionId, closedAt: closedAt.getTime() });
   });

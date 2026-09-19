@@ -17,6 +17,7 @@
     "@agentclientprotocol/sdk": "~0.26.0",
     "@ai-sdk/deepseek": "^0.1.0",
     "@ai-sdk/openai-compatible": "^0.1.0",
+    "@carlife/acp": "workspace:*",
     "@carlife/db": "workspace:*",
     "@carlife/guardrails": "workspace:*",
     "@carlife/memory": "workspace:*",

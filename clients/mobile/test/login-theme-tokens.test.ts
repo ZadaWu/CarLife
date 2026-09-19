@@ -35,12 +35,24 @@ const FILES = ROOTS.flatMap((r) => walk(r));
 const STYLES = FILES.filter((f) => f.endsWith(".css"));
 
 /**
+ * ⚠️ **注释里的 token 既不算定义、也不算引用**，扫描前一律剥掉。
+ *
+ * 这两份样式表的注释里到处写着 `var(--x)`——解释某个落点为什么按它算、
+ * 某条规则为什么被删。2026-09-12 删掉只有一处在用的 `--nav-clearance` 时，
+ * 留在注释里的那句「曾经有一条 `var(--nav-clearance)`」让这条守卫红了：
+ * 它守的成了注释的措辞，而不是样式表的真实引用。
+ */
+function stripComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+/**
  * 全部定义源：CSS 声明 + JS 侧的 `setProperty("--x", …)`。
  * 少算后者会把运行时注入的变量（如贴边夹持的 --clamp-x）全部误报成缺失。
  */
 const DEFINED: ReadonlySet<string> = new Set(
   FILES.filter((f) => /\.(css|tsx?|)$/.test(f)).flatMap((f) => {
-    const t = readFileSync(f, "utf8");
+    const t = stripComments(readFileSync(f, "utf8"));
     return [
       ...Array.from(t.matchAll(/(--[\w-]+)\s*:/g), (m) => m[1]),
       ...Array.from(t.matchAll(/["'](--[\w-]+)["']/g), (m) => m[1]),
@@ -49,7 +61,7 @@ const DEFINED: ReadonlySet<string> = new Set(
 );
 
 function referenced(css: string): string[] {
-  return [...new Set(Array.from(css.matchAll(/var\(\s*(--[\w-]+)/g), (m) => m[1]))];
+  return [...new Set(Array.from(stripComments(css).matchAll(/var\(\s*(--[\w-]+)/g), (m) => m[1]))];
 }
 
 describe("[F-07-03] CSS 变量都有定义", () => {

@@ -5,7 +5,7 @@
  * Supervisor/多 Agent 落地时在此扩展为配置表，不在业务代码里写模型分支。
  *
  * 模型选择：
- *  - `DEEPSEEK_API_KEY` 就绪 → DeepSeek（`@ai-sdk/deepseek`，deepseek-v4-flash）
+ *  - `DEEPSEEK_API_KEY` 就绪 → DeepSeek（`@ai-sdk/deepseek`，缺省 `deepseek-flash`）
  *  - 未配置或 `CARLIFE_LLM=fake` → 确定性 Fake 模型（离线开发/测试；
  *    回复会引用历史轮次内容，用于断言 ①Working 上下文确实传给了模型）
  */
@@ -18,105 +18,41 @@ import type { ConfigStore } from "@carlife/db";
 import { DEFAULT_DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_VISION_MODEL, resolveDeepSeekModel, resolveDeepSeekVisionModel } from "@carlife/shared";
 
 import { recordPrompt } from "../trace/span";
+// 关键信息标注规则：与 ACP 那条应答路径共用同一份（见该文件的文件头）。
+import { HIGHLIGHT_PROMPT } from "./answer-format";
 
-/** 附在用户消息上的一张图（M80-02）：照片或视频帧序图。`label` 是给模型看的"这是哪一张"。 */
-export interface ChatImagePart {
-  mimeType: string;
-  base64: string;
-  label?: string;
-}
+// 本文件自己也要用它们（`hasImages` / `toCoreMessages` / 两个 streamer）。
+import {
+  messageText,
+  type ChatStreamer,
+  type ChatStreamHooks,
+  type ChatTurnMessage,
+  type LlmUsageSample,
+} from "@carlife/acp";
 
-export interface ChatTurnMessage {
-  role: "user" | "assistant";
-  content: string;
-  /**
-   * 本条用户消息附的图片（M80-02，ACR-027）。**只在它自己那一轮出现**——图状态里的历史消息不带，
-   * 带的是下面的 `attachmentNote`。有图片的请求走视觉档（见 `createDeepSeekStreamer`）。
-   */
-  images?: ChatImagePart[];
-  /** 历史轮的一句话（"本条附了 2 张照片"），拼在正文后面发给模型；没有字节。 */
-  attachmentNote?: string;
-}
-
-/** 发给模型的正文：正文 + 附件备注。两条直连 / ACP 路径都用它，别各拼一份。 */
-export function messageText(m: Pick<ChatTurnMessage, "content" | "attachmentNote">): string {
-  return m.attachmentNote ? `${m.content}\n${m.attachmentNote}` : m.content;
-}
+/*
+ * 这一组类型与 `messageText` 已上移进 `@carlife/acp`（施工单 M85-09 步 3，ACR-035）。
+ *
+ * 它们描述的是**调用方与实现方之间的契约**，不是 DeepSeek 的东西——
+ * 同一组类型有两个实现（直连 AI SDK / 经 ACP 发 session/prompt），明天还要有用研面的第三个。
+ * 留在这里的话，用研面要用它就得 import 车主面，而那正是 ADR-011 禁止的事。
+ *
+ * **原样 re-export，导出面一字不差**：本单的红线是调用点逐字不动
+ * （行为零变化要靠回归证明，见 `acp-client/think.ts` 的文件头）。
+ */
+export {
+  messageText,
+  type ChatImagePart,
+  type ChatStreamer,
+  type ChatStreamHooks,
+  type ChatTurnMessage,
+  type LlmUsageSample,
+} from "@carlife/acp";
 
 /** 这一次请求里有没有图片——**按请求判，不按会话钉**（M80-02）。 */
 export function hasImages(messages: readonly ChatTurnMessage[]): boolean {
   return messages.some((m) => (m.images?.length ?? 0) > 0);
 }
-
-/**
- * 一次 LLM 调用的用量（施工单 M3-06，F-36-07）。
- *
- * `sessionId` / `turnId` / `agent` 由图状态注入，**必须一路传到这里**——
- * 否则成本只能统计到 provider 级，"谁把 DeepSeek 跑成这个量"永远回答不了。
- */
-export interface LlmUsageSample {
-  provider: string;
-  model: string;
-  /**
-   * 这次调用是**哪个 Agent** 发的（`drive-task` / `ownership-task` / …）。
-   *
-   * 此前没有这个字段，`turn-runner` 一律写死 `supervisor`——那句注释停在
-   * "当前单节点图"，而图早就 fan-out 成多 Agent 了。后果是用量页按 Agent 维度
-   * 只有三行，十几个子 Agent 各花了多少钱**根本看不到**。
-   * 给不出时由落库侧回落 supervisor（主链路那一跳确实是它）。
-   */
-  agent?: string;
-  promptTokens: number;
-  completionTokens: number;
-  /**
-   * 输入 token 里命中上下文缓存的部分（DeepSeek 的 `prompt_cache_hit_tokens`）。
-   * **只有直连 DeepSeek 这条路给得出**：pi-acp 是按字符估的、Fake 没有这回事，
-   * 它们不传——不传与 0 不是一回事，见 `llm_usage` 的 schema 注释。
-   */
-  cacheHitTokens?: number;
-  /** 未命中、因而写进缓存的输入 token（`prompt_cache_miss_tokens`）。 */
-  cacheMissTokens?: number;
-  durationMs: number;
-  status: "ok" | "failed";
-}
-
-export interface ChatStreamHooks {
-  /** 流结束时回调一次；实现方必须保证它不抛错、不阻塞 token 流。 */
-  onUsage?: (sample: LlmUsageSample) => void;
-  /**
-   * 图 thread id（= CarLife 会话维度，`turn-runner` 生成）。
-   *
-   * ACP 实现用它把一轮对话映射到某个 (会话 × Agent) 的独立 ACP 会话（M4-01）；
-   * 直连 LLM 的实现忽略它。放在 hooks 而不是改 `ChatStreamer` 签名，
-   * 是为了让 `graph/supervisor.ts` 的替换只动一行。
-   */
-  threadId?: string;
-  /**
-   * 本次调用归属哪个 Agent。ACP 实现据此选择**独立的 ACP 会话**
-   * （§11 时序：意图理解发给 Supervisor，应答发给路由到的子 Agent，是两次独立 prompt）；
-   * 直连 LLM 的实现用它选模型档位（F-33-05）。
-   */
-  agent?: string;
-  /**
-   * 取消信号（施工单 TD-08 追加，FL-14 F-14-04）。
-   *
-   * # 为什么必须是主动信号，而不是"退出循环"
-   *
-   * 调用方放弃时（分支超时、用户取消），光靠 `break` 退出 `for await` 是不够的——
-   * **流静默时根本拿不到下一个 chunk，永远走不到那个 break**。
-   * 实测抓到过：fan-out 分支 60s 判超时后，底层调用又静默挂了 60s 才被
-   * pi 侧的 `PROMPT_TIMEOUT_MS`（当时 120s）收走，这 60 秒里 token 照烧。
-   *
-   * ACP 实现据此发 `session/cancel` 并立刻结束流；直连实现据此中止请求。
-   */
-  signal?: AbortSignal;
-}
-
-/** 统一的流式聊天接口：输入全量上下文消息，产出 token 片段流。 */
-export type ChatStreamer = (
-  messages: ChatTurnMessage[],
-  hooks?: ChatStreamHooks,
-) => AsyncIterable<string>;
 
 const SYSTEM_PROMPT = [
   "你叫暖暖，是 CarLife 车载 AI 助手，正在与驾车场景的车主对话。",
@@ -165,6 +101,13 @@ export const NARRATOR_SYSTEM = [
   "「帮我改一下时间」「下周三行不行」「多少钱」这类话没说改哪一项、指哪件事、问什么的价格。",
   "求解结果里就算有一份行程草案，也**不要把草案复述一遍当回答**，更不要报车次或价格——",
   "先反问一个缺口：「您是想把出发日期改到哪天，还是改某一天的安排？」一轮只问一个。",
+  "",
+  /*
+   * 关键信息标注（2026-09-18 用户定调「回答对关键的信息需要高亮」）。
+   * 与 ACP 那条路共用同一份规则——接的是同一个判据「这段话给车主直接读」，
+   * 那边的接线点在 `acp-client/agent-prompt.ts` 的 `loadAgentPrompt`。
+   */
+  HIGHLIGHT_PROMPT,
 ].join("\n");
 
 /**
@@ -246,6 +189,14 @@ function createDeepSeekStreamer(
     let servedModelName: string | undefined;
     let cacheHitTokens: number | undefined;
     let cacheMissTokens: number | undefined;
+    /*
+     * 系统提示词 = 固定人设 + 本线程的锚定块（M84-03）。
+     *
+     * 拼在这里而不是建 streamer 时：人设按配置版本缓存、一个 streamer 服务很多人，
+     * 而锚定块是按线程的。两段之间空一行，**顺序固定**——system 是前缀缓存的第 0 个 token 起，
+     * 换个顺序就等于换一份缓存。
+     */
+    const effectiveSystem = hooks?.systemSuffix ? `${system}\n\n${hooks.systemSuffix}` : system;
     // 直连这条也要记提示词（TD-08）。**两条路径都记**，否则切到 direct 模式时
     // 轨迹里会突然没有提示词，而那看起来像"埋点坏了"。
     // 拼法与实际请求一致：system 在前，其后是全量消息。
@@ -256,7 +207,7 @@ function createDeepSeekStreamer(
       // 表述路径换了人设（`NARRATOR_SYSTEM`）之后还记默认值的话，
       // 轨迹与真实请求就各说各话，而"模型为什么这么答"恰恰只能从这里看。
       [
-        `[system]\n${system}`,
+        `[system]\n${effectiveSystem}`,
         ...messages.map((m) => `[${m.role}]\n${messageText(m)}${m.images?.length ? `\n[images ×${m.images.length}: ${m.images.map((i) => i.label ?? i.mimeType).join(" | ")}]` : ""}`),
       ].join("\n\n"),
     );
@@ -270,7 +221,7 @@ function createDeepSeekStreamer(
       // 切到 direct 模式时僵尸调用会悄悄回来，而那时没人会想到是这里。
       const result = streamText({
         model,
-        system,
+        system: effectiveSystem,
         messages: toCoreMessages(messages),
         ...(temperature !== undefined ? { temperature } : {}),
         ...(hooks?.signal ? { abortSignal: hooks.signal } : {}),

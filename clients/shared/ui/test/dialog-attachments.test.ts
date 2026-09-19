@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { TURN_ATTACHMENT_LIMITS, type AttachmentRef, type ChatMessage } from "@carlife/shared";
 
-import { DialogScreen, attachmentLabel, checkPendingAdd, durationHint, formatBytes, kindOfFile, kindOfMime, readyHandles, type DialogScreenProps, type PendingAttachment } from "../src/dialog";
+import { DialogScreen, attachmentLabel, checkPendingAdd, detectSummary, durationHint, formatBytes, kindOfFile, kindOfMime, onDeviceVisionEnabled, readyDetections, readyHandles, MAX_DETECTIONS_PER_PHOTO, type DialogScreenProps, type PendingAttachment } from "../src/dialog";
 
 const pending = (kind: "image" | "video", status: PendingAttachment["status"] = "ready", i = 0): PendingAttachment => ({
   id: `p${kind}${i}`,
@@ -107,5 +107,77 @@ describe("DialogScreen：附件的呈现与入口", () => {
     const loadOnly = render({ onSendText: send, attachments: { load: async () => new Blob() } });
     assert.ok(!loadOnly.includes("attachment-picker"));
     assert.ok(!loadOnly.includes("添加照片或视频"));
+  });
+});
+
+describe("端上框灯（ACR-044）", () => {
+  it("摘要：跑着 / 失败 / 没框到 / 框到几盏——只报事实，不下结论", () => {
+    assert.equal(detectSummary(undefined), null);
+    assert.equal(detectSummary({ status: "running" }), "端上找灯中…");
+    assert.match(detectSummary({ status: "failed", error: "boom" }) ?? "", /失败：boom/);
+    assert.equal(detectSummary({ status: "done", result: { width: 1, height: 1, detections: [], infer_ms: 12 } }), "端上没框到指示灯（12 ms）");
+    const s = detectSummary({ status: "done", result: { width: 1, height: 1, infer_ms: 210, detections: [{ bbox: [1, 2, 3, 4], class_id: 11, name: "low_beam", conf: 0.843 }] } }) ?? "";
+    assert.match(s, /框到 1 盏（210 ms）：low_beam 84%/);
+    assert.doesNotMatch(s, /故障|请立即|联系/);
+  });
+  it("开关缺省关（没有 localStorage 也不炸）", () => {
+    assert.equal(onDeviceVisionEnabled(), false);
+  });
+  it("开关不在输入条里（M104 起搬去设置页）；也没有任何自测入口（车机不选文件，FL-06）", () => {
+    const base: DialogScreenProps = { messages: [], streaming: null, connection: "open", onSendText: async () => {} } as unknown as DialogScreenProps;
+    const load = async () => new Blob();
+    const detect = async () => ({ width: 1, height: 1, detections: [], infer_ms: 1 });
+    const without = renderToStaticMarkup(createElement(DialogScreen, { ...base, attachments: { load } }));
+    assert.doesNotMatch(without, /on-device-vision-toggle|端上框灯/);
+    /*
+     * 给了 detect 也不在输入条里出现：定稿的输入条只有「相机 + 输入框 + 发送」三件，
+     * 那枚开关占掉近 90pt 宽、把输入框挤成一条缝；而且它要在**选照片之前**定
+     * （`onPickFiles` 里现读），放这一行既不好看也不好用。开关在手机端设置页，
+     * 由 `clients/mobile/test/settings-vision-toggle.test.ts` 守。
+     */
+    const withDetect = renderToStaticMarkup(createElement(DialogScreen, { ...base, attachments: { load, detect } }));
+    assert.doesNotMatch(withDetect, /on-device-vision-toggle|端上框灯/);
+    assert.doesNotMatch(withDetect, /detect-picker|自测/);
+  });
+});
+
+describe("readyDetections：端上的框随消息上行（ACR-046）", () => {
+  const det = (status: "running" | "done" | "failed", detections: Array<{ bbox: [number, number, number, number]; name: string; conf: number }> = []) =>
+    ({ status, ...(status === "done" ? { result: { width: 3024, height: 4032, infer_ms: 312, detections: detections.map((d) => ({ ...d, class_id: 0 })) } } : {}) }) as PendingAttachment["detect"];
+  const box = { bbox: [111, 197, 189, 222] as [number, number, number, number], name: "parking_lights", conf: 0.97 };
+
+  it("检测完成的照片按句柄带上；形状对齐服务端（inferMs、没有 class_id）", () => {
+    const r = readyDetections([{ ...pending("image"), detect: det("done", [box]) }]);
+    assert.deepEqual(r, { himage0: { width: 3024, height: 4032, inferMs: 312, items: [box] } });
+  });
+
+  it("检测在跑 / 失败 / 没开（没有 detect）/ 视频 / 还没传好 → 不带；一张都没有 → undefined", () => {
+    assert.equal(readyDetections([{ ...pending("image"), detect: det("running") }]), undefined);
+    assert.equal(readyDetections([{ ...pending("image"), detect: det("failed") }]), undefined);
+    assert.equal(readyDetections([pending("image")]), undefined);
+    assert.equal(readyDetections([{ ...pending("video"), detect: det("done", [box]) }]), undefined);
+    assert.equal(readyDetections([{ ...pending("image", "uploading"), detect: det("done", [box]) }]), undefined);
+  });
+
+  it("没框到也照带空 items（服务端说未识别到，不回落云端）", () => {
+    assert.deepEqual(readyDetections([{ ...pending("image"), detect: det("done", []) }])?.himage0.items, []);
+  });
+
+  it("按服务端约束整理：丢退化框、名字截 64、置信夹 0–1、按置信取前 24", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ ...box, conf: i / 100 }));
+    const r = readyDetections([{ ...pending("image"), detect: det("done", [...many, { ...box, bbox: [5, 5, 5, 9] }, { ...box, name: "x".repeat(80), conf: 1.2 }]) }])!;
+    const items = r.himage0.items;
+    assert.equal(items.length, MAX_DETECTIONS_PER_PHOTO);
+    assert.equal(items[0].conf, 1, "超 1 夹到 1，且排第一");
+    assert.equal(items[0].name.length, 64);
+    assert.ok(items.every((d) => d.bbox[2] > d.bbox[0] && d.bbox[3] > d.bbox[1]), "退化框被丢");
+    assert.equal(items[items.length - 1].conf, 0.07, "取置信最高的 24 条");
+  });
+
+  it("DialogScreen 的 onSendText 类型接受第三个参数（编译期）", () => {
+    const f: NonNullable<DialogScreenProps["onSendText"]> = async (_c, _a, d) => {
+      void d?.himage0?.items;
+    };
+    assert.equal(typeof f, "function");
   });
 });

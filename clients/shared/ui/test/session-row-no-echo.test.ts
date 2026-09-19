@@ -16,6 +16,13 @@ import { describe, it } from "node:test";
 
 import { sessionRowText, type SessionBrief } from "../src/dialog/SessionList";
 
+/*
+ * 期望值「今天 00:02」是按东八区写的——那四个字正是 iPad 实拍的形态，改成"按本机时区现算"会让
+ * 用例失去字面对照的价值。`whenLabel` 用本机时区显示是对的（车主看的是当地时间），所以由用例把运行
+ * 环境对齐到期望值，而不是反过来。`node --test` 每个文件一个子进程，这一行只影响本文件（M99-03，TD-53）。
+ */
+process.env.TZ = "Asia/Shanghai";
+
 const NOW = new Date("2026-09-11T00:30:00+08:00").getTime();
 
 function brief(over: Partial<SessionBrief>): SessionBrief {

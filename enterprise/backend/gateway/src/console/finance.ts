@@ -35,6 +35,13 @@ import { Router } from "express";
 import type { Response } from "express";
 
 import type { UsageRepository } from "@carlife/db";
+import {
+  amapBudgetFromEnv,
+  buildAmapPoolSnapshot,
+  createRedisAmapLedger,
+  resolveAmapKeys,
+  type AmapUsageLedger,
+} from "@carlife/tools";
 
 import { requireRole, type ConsoleRequest } from "../auth/console";
 import { defaultStateFile, emptyState, loadState, saveState, type FinanceState } from "./finance-state";
@@ -208,6 +215,18 @@ export function createFinanceRouter(deps: FinanceRouterDeps = {}): Router {
     saveHistory(historyFile, history);
   }
 
+  /**
+   * 高德台账的连接**惰性建一次**：财务页每 60 秒才刷一次，开页就连是白连；
+   * 每次 `providerDeps()` 都连则是每刷一次漏一个连接。与配额/配对的 Redis 客户端不共用（M100-03 红线 3）。
+   */
+  let amapLedger: AmapUsageLedger | undefined | null = null;
+  function amapLedgerOnce(): AmapUsageLedger | undefined {
+    if (amapLedger !== null) return amapLedger;
+    const url = process.env.REDIS_URL?.trim();
+    amapLedger = url ? createRedisAmapLedger(url) : undefined;
+    return amapLedger;
+  }
+
   function providerDeps(): ProviderDeps {
     return {
       // 全局 fetch 惰性取：模块级取会把测试注入的桩固化掉，也踩 env-timing 那条不变量的同类坑。
@@ -218,6 +237,14 @@ export function createFinanceRouter(deps: FinanceRouterDeps = {}): Router {
       },
       timeoutMs: timeoutMs(),
       now: () => new Date(now()),
+      // 池子状态只读台账，一次上游请求都不发（M100-03 约束 1）。
+      amapPool: () =>
+        buildAmapPoolSnapshot(
+          resolveAmapKeys((k) => process.env[k], () => {}),
+          amapLedgerOnce(),
+          amapBudgetFromEnv(process.env.AMAP_DAILY_BUDGET, () => {}),
+          now(),
+        ),
     };
   }
 

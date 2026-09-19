@@ -18,6 +18,7 @@ import { dirname, resolve } from "node:path";
 import { modelSpecFor, trailingUserRunStart } from "../src/acp-client/connection";
 import { thinkingLevelFor } from "../src/acp-client/agent-prompt";
 import { PENDING_STOP, mergeBranches, solve, type TripDraft } from "../src/graph/merge";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 import { describeMerged, reconcileConstraints, runTripFanout } from "../src/graph/subgraphs/trip";
 import type { ChatStreamer } from "../src/llm";
 import type { ChatTurnMessage } from "../src/llm";
@@ -64,15 +65,15 @@ describe("本轮用户输入的边界（缺陷一：说了当没听见）", () =
 
 describe("汇聚结果的表述（缺陷二：给不出服务区）", () => {
   it("**停靠点必须出现在给应答模型的文字里**——这是它唯一的来源", () => {
-    const m = solve({ legMinutes: [90, 120], stops: ["阳澄湖服务区"] } as TripDraft, {});
+    const m = solve({ legs: legsFrom([90, 120], ["阳澄湖服务区"]) } as TripDraft, {});
     const text = describeMerged(m);
     assert.ok(text.includes("阳澄湖服务区"), `停靠点被丢了：\n${text}`);
   });
 
   it("占位符不得冒充地名——车主听到「待定停靠点」比听到「给不了」更糟", () => {
     // maxLegMinutes=120 会把 300 分钟拆成 3 段，补 2 个占位。
-    const m = solve({ legMinutes: [300], stops: [] } as TripDraft, { maxLegMinutes: 120 });
-    assert.ok(m.draft.stops.includes(PENDING_STOP), "前提：solve 确实补了占位");
+    const m = solve({ legs: legsFrom([300]) } as TripDraft, { maxLegMinutes: 120 });
+    assert.ok(m.draft.legs.some((l) => l.to.name === PENDING_STOP), "前提：solve 确实补了占位");
 
     const text = describeMerged(m);
     assert.ok(!text.includes(PENDING_STOP), `占位符原样漏给了模型：\n${text}`);
@@ -81,7 +82,7 @@ describe("汇聚结果的表述（缺陷二：给不出服务区）", () => {
   });
 
   it("真名字与占位混在一起时，两者都要说清楚", () => {
-    const m = solve({ legMinutes: [300], stops: ["阳澄湖服务区"] } as TripDraft, { maxLegMinutes: 120 });
+    const m = solve({ legs: legsFrom([300, 60], ["阳澄湖服务区"]) } as TripDraft, { maxLegMinutes: 120 });
     const text = describeMerged(m);
     assert.ok(text.includes("阳澄湖服务区"));
     assert.ok(!text.includes(PENDING_STOP));
@@ -90,31 +91,31 @@ describe("汇聚结果的表述（缺陷二：给不出服务区）", () => {
 
 describe("能源事实要覆盖到应答节点（缺陷四：分支干净了，应答仍在讲充电）", () => {
   it("**求解结果里必须写明这是什么车**——应答模型不参与分支，只看得到这段", () => {
-    const m = solve({ legMinutes: [90], stops: [] } as TripDraft, {});
+    const m = solve({ legs: legsFrom([90]) } as TripDraft, {});
     const text = describeMerged(m, "icev");
     assert.ok(text.includes("燃油"), `应答节点拿不到能源类型：\n${text}`);
     assert.ok(/不要按电车规划充电停靠/.test(text), "燃油车要明确否掉充电规划");
   });
 
   it("能源类型未知时，交给应答的也是「不要假设」而不是沉默", () => {
-    const m = solve({ legMinutes: [90], stops: [] } as TripDraft, {});
+    const m = solve({ legs: legsFrom([90]) } as TripDraft, {});
     assert.ok(describeMerged(m).includes("不要假设"));
   });
 
   it("补能点按能源类型换词——给燃油车说「充电点」和给电车说「加油点」是同一类错", () => {
-    const draft = { legMinutes: [90], stops: [], energyStops: ["阳澄湖服务区加油站"] };
+    const draft = { legs: legsFrom([90]), energyStops: ["阳澄湖服务区加油站"] };
     const m = solve(draft as TripDraft, {});
     assert.ok(describeMerged(m, "icev").includes("建议加油点"));
     assert.ok(describeMerged(m, "bev").includes("建议充电点"));
   });
 
-  it("**补能点不得并进 stops**——那个数组与 legMinutes 的间隔一一对应", () => {
+  it("**补能点不并进段列表**——它是「路过哪儿能补能」，段是「开多久该歇一次」", () => {
     const m = solve(
-      { legMinutes: [300], stops: [], energyStops: ["某加油站"] } as TripDraft,
+      { legs: legsFrom([300]), energyStops: ["某加油站"] } as TripDraft,
       { maxLegMinutes: 120 },
     );
-    // 拆成 3 段 → 2 个休息停靠占位；补能点独立，不参与这个计数。
-    assert.equal(m.draft.stops.length, m.draft.legMinutes.length - 1);
+    // 拆成 3 段 → 2 个休息占位；补能点独立，不参与这个计数。
+    assert.equal(m.draft.legs.filter((l) => l.to.name === PENDING_STOP).length, 2);
     assert.deepEqual(m.draft.energyStops, ["某加油站"]);
   });
 });
@@ -156,7 +157,7 @@ describe("硬约束与车辆档案的校对（缺陷三：矛盾提示词）", (
     const seen: Record<string, string> = {};
     const streamer: ChatStreamer = async function* (messages, hooks) {
       seen[hooks?.agent ?? "?"] = messages[messages.length - 1]?.content ?? "";
-      yield '{"legMinutes":[60]}';
+      yield driveText(legsFrom([60]));
     };
 
     const out = await runTripFanout(streamer, {
@@ -198,24 +199,30 @@ describe("分支字段清单按任务分（缺陷五：补能评估被要求交�
 
   it("**补能评估分支不得被要求交 legMinutes**——那是行程规划的活，它答不了只能空转", async () => {
     const seen = await promptsFor("icev");
-    assert.ok(seen["trip-task"].includes("legMinutes"), "行程分支仍要分段时长");
+    assert.ok(seen["trip-task"].includes("legs"), "行程分支仍要分段");
     assert.ok(
-      !seen["ownership-task"].includes("legMinutes"),
+      !seen["ownership-task"].includes('"legs"'),
       `补能分支还在被要求交行车分段：\n${seen["ownership-task"]}`,
     );
   });
 
-  it("燃油车的补能分支要加油点，且结构上没有百分比字段可填", async () => {
+  it("燃油车的补能分支既没有百分比字段，也不再要加油点——它没有路线，refuel 只能靠编坐标", async () => {
+    // 沿途服务数据源交接：与纯电档同一处理，加油站归自驾分支（它有 map_route 与 refuel）。
     const p = (await promptsFor("icev"))["ownership-task"];
-    assert.ok(p.includes("energyStops"));
-    assert.ok(p.includes("加油点"));
+    assert.ok(!p.includes("energyStops"), `燃油档不该再要 energyStops：\n${p}`);
+    assert.ok(!p.includes("建议加油点名称"));
+    assert.ok(p.includes("沿途加油站不归你"));
     assert.ok(!p.includes("rangeMarginPct"), `燃油车不该有续航余量字段：\n${p}`);
   });
 
-  it("纯电车的补能分支才要 rangeMarginPct 与充电点", async () => {
+  it("纯电车的补能分支只要 rangeMarginPct——充电点位置归自驾分支，它手里没有路线也没有 charging", async () => {
+    // 沿途服务数据源交接（待执行事项 2）：ownership 的工具表里有 vehicle_profile / usage_profile / refuel，
+    // 没有 charging 与 map_route。被要求「指出需要充电的位置」时它只能编站名。
     const p = (await promptsFor("bev"))["ownership-task"];
     assert.ok(p.includes("rangeMarginPct"));
-    assert.ok(p.includes("充电点"));
+    assert.ok(!p.includes("energyStops"), `纯电档不该再要 energyStops：\n${p}`);
+    assert.ok(!p.includes("建议充电点名称"));
+    assert.ok(p.includes("沿途充电站不归你"), "要明说不归它，否则模型照旧在正文里给站名");
   });
 
   it("**能源类型未知时不给任何补能字段**——给了字段就等于允许它猜", async () => {
@@ -227,7 +234,7 @@ describe("分支字段清单按任务分（缺陷五：补能评估被要求交�
   it("energyStops 能从分支返回的 JSON 里解析出来并汇聚", () => {
     const m = mergeBranches(
       [
-        { agent: "trip-task", status: "ok", text: '{"legMinutes":[90],"stops":[]}' },
+        { agent: "trip-task", status: "ok", text: driveText(legsFrom([90])) },
         { agent: "ownership-task", status: "ok", text: '{"energyStops":["中国石化阳澄湖站"]}' },
       ],
       [],
@@ -251,11 +258,11 @@ describe("思考档位按会话用途分（缺陷六：没人看的思考也在�
   });
 
   it("模型 id 只来自 .pi/settings.json，不在别处再写一遍", () => {
-    assert.equal(modelSpecFor(PI_AGENTS_DIR, "off"), "deepseek/deepseek-v4-flash:off");
+    assert.equal(modelSpecFor(PI_AGENTS_DIR, "off"), "deepseek/deepseek-flash:off");
   });
 
   it("low 档位原样拼进 --model（pi 侧由 .pi/agent/models.json 解除 low 的 null 标记）", () => {
-    assert.equal(modelSpecFor(PI_AGENTS_DIR, "low"), "deepseek/deepseek-v4-flash:low");
+    assert.equal(modelSpecFor(PI_AGENTS_DIR, "low"), "deepseek/deepseek-flash:low");
   });
 
   it("**没指定档位时不加 --model**——降级到原行为，不是降级到未知行为", () => {

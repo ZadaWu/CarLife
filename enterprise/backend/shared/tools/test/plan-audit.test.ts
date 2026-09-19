@@ -39,9 +39,10 @@ describe("[F-58-02][F-58-03][F-58-04][F-58-05][F-58-12][F-58-13][AC-58-1][AC-58-
     assert.ok(r.findings.every((f) => !["meal", "energy", "constraint"].includes(f.item)));
     assert.ok(r.passed >= 5);
   });
-  it("registry：空 ACL、不对外暴露；invokeTool 走 mock 与 real 同一份逻辑", async () => {
+  it("registry：ACL 只有 trip-review（M86-05 起）、不对外暴露；invokeTool 走 mock 与 real 同一份逻辑", async () => {
     const reg = getTool("plan_audit")!;
-    assert.deepEqual(reg.agents, []);
+    // 四条腿与 supervisor 仍拿不到：它是校验不是求解；裁决会话（trip-review）是唯一例外——事实是它判断的输入。
+    assert.deepEqual(reg.agents, ["trip-review"]);
     assert.equal(reg.mcpExposable, false);
     for (const a of ["trip", "drive", "tour", "ownership", "supervisor"] as const) {
       assert.ok(!listForAgent(a).some((t) => t.name === "plan_audit"), `${a} 的清单里不该有 plan_audit`);
@@ -61,6 +62,17 @@ describe("[F-58-02][F-58-03][F-58-04][F-58-05][F-58-12][F-58-13][AC-58-1][AC-58-
     assert.deepEqual(byItem(r, "hotel").map((f) => [f.level, f.day]), [["blocker", 2]]);
     assert.ok(hasBlocker(r));
     assert.equal(byItem(auditPlan(BASE), "hotel").length, 0, "最后一天没酒店不算问题");
+  });
+  it("最后一天挂了酒店 → 报一条 hotel，等级与「缺住宿」同一档（M93-02）", () => {
+    // 3 天行程排 3 晚（真跑 turn-86ce2093）。此前只查"少了"不查"多了"，这一项照样满分。
+    const sk = structuredClone(SKELETON);
+    sk[2]!.hotel = { name: "开元名都" };
+    const r = auditPlan({ ...BASE, skeleton: sk });
+    assert.deepEqual(byItem(r, "hotel").map((f) => [f.level, f.day, f.basis]), [
+      ["blocker", 3, "第 3 天是返程日，不该有住宿"],
+    ]);
+    // 同一个方向的两侧共用一个 passed 计数：多了也不许算过。
+    assert.ok(r.passed < auditPlan(BASE).passed);
   });
   it("「当天回」约束 → 不验住宿", () => {
     const sk = structuredClone(SKELETON);
@@ -135,6 +147,21 @@ describe("[F-58-02][F-58-03][F-58-04][F-58-05][F-58-12][F-58-13][AC-58-1][AC-58-
 });
 
 describe("[F-58-02][F-58-03][F-58-04][F-58-05][F-58-12][F-58-13][AC-58-1][AC-58-2][AC-58-3][AC-58-7][AC-58-8] return", () => {
+  it("[M77 走查追修] 连分段都没有时说「缺分段数据」，不说「最后一段没有终点站」", () => {
+    const r = auditPlan({
+      skeleton: [{ day: 1, spots: [{ name: "云龙湖" }] }],
+      destination: "徐州",
+      origin: "上海",
+      limits: { legSafeMaxMin: 180, dailyMaxMin: 540 },
+      constraints: [],
+    });
+    const ret = r.findings.find((f) => f.item === "return");
+    assert.equal(ret?.missing, "分段数据", "与 leg / daily / stop 三条同一个根因，就该是同一句话");
+    // 四条"验不了"口径必须一致，否则读的人以为撞上了四个毛病
+    const missings = r.findings.filter((f) => f.level === "unverifiable").map((f) => f.missing);
+    assert.deepEqual(new Set(missings), new Set(["分段数据"]));
+  });
+
   it("normalizePlace：徐州市 / 徐州 / 徐 州 同一处", () => {
     assert.equal(normalizePlace("徐州市"), normalizePlace("徐 州"));
   });

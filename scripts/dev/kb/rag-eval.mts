@@ -30,7 +30,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { createRagClient, type RetrievalTuning } from "../../../enterprise/backend/shared/rag/src/index";
+import { createRagClient, type RetrievalTuning, datasetIdsFromEnv } from "../../../enterprise/backend/shared/rag/src/index";
 import { DEFAULT_DEEPSEEK_MODEL } from "../../../contracts/src/constants/index";
 import { QUESTIONS, type EvalQuestion } from "./rag-eval-questions.mts";
 
@@ -161,11 +161,7 @@ async function main(): Promise<void> {
   const client = createRagClient({
     baseUrl: env("RAGFLOW_BASE_URL"),
     apiKey: env("RAGFLOW_API_KEY"),
-    datasetIds: {
-      "vehicle-manuals": env("RAGFLOW_DATASET_VEHICLE_MANUALS"),
-      "repair-kb": env("RAGFLOW_DATASET_REPAIR_KB"),
-      "car-catalog": env("RAGFLOW_DATASET_CAR_CATALOG"),
-    },
+    datasetIds: datasetIdsFromEnv(env),
     timeoutMs: 60_000,
   });
 

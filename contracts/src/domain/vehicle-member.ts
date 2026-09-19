@@ -68,6 +68,14 @@ export interface MemberNeedDef {
   key: MemberNeed;
   label: string;
   hint: string;
+  /**
+   * 这条需求带来的单段连续行车上限（分钟），有才给（ADR-012）。
+   *
+   * 从前只写在 `hint` 的中文句子里，由求解器拿正则从**我们自己写的那句话**里解析出来。
+   * 那是最没必要的一种解析：把「90 分钟」改写成「一个半小时」就悄悄失效，且零报错。
+   * 数字本来就在我们手上，直接摆出来。`hint` 仍然保留整句——它是给模型读的。
+   */
+  maxLegMinutes?: number;
 }
 
 export const MEMBER_NEEDS: readonly MemberNeedDef[] = [
@@ -75,6 +83,7 @@ export const MEMBER_NEEDS: readonly MemberNeedDef[] = [
     key: "motion_sickness",
     label: "晕车",
     hint: "同行者晕车：单段连续行驶不超过 90 分钟，弯道多的路段更早安排休息",
+    maxLegMinutes: 90,
   },
   {
     key: "restroom",

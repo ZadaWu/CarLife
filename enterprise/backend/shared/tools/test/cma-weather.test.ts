@@ -358,24 +358,34 @@ describe("预报窗口：4 天 → 7 天", () => {
     assert.ok((seg.sources ?? []).includes("cma:forecast"));
   });
 
-  it("第 9 天两个源都覆盖不到 —— 明确报错，且错误信息说清两个窗口各是几天", async () => {
+  it("第 9 天两个源都覆盖不到 —— **正常返回空档段**，说清两个窗口各是几天（M77 走查追修）", async () => {
     setAmapClient(createAmapClient({ key: "k", fetchImpl: stubAmap() }));
     setCmaClient(createCmaClient({ fetchImpl: stubCma().impl }));
-    await assert.rejects(
-      () => weatherTool.call({ points: [SZ], date: plusDays(8) }, ctx),
-      (e: unknown) =>
-        e instanceof ToolError &&
-        e.category === "invalid" &&
-        e.message.includes("高德预报覆盖今天起 4 天") &&
-        e.message.includes("中国气象局覆盖 7 天"),
-    );
+    const r = await weatherTool.call({ points: [SZ], date: plusDays(8) }, ctx);
+    const why = (r.data[0]?.unavailable ?? []).join("");
+    assert.match(why, /高德覆盖今天起 4 天/);
+    assert.match(why, /中国气象局覆盖 7 天/);
+    assert.match(why, /不要据此推测那天的天气/);
+    assert.equal(r.data[0]?.tempMaxC, null);
   });
 
-  it("没接气象局时，窗口仍是高德的 4 天，错误信息如实说「未接入」", async () => {
+  it("没接气象局时，窗口仍是高德的 4 天，说明里如实写「未接入」", async () => {
     setAmapClient(createAmapClient({ key: "k", fetchImpl: stubAmap() }));
-    await assert.rejects(
-      () => weatherTool.call({ points: [SZ], date: plusDays(5) }, ctx),
-      (e: unknown) => e instanceof ToolError && e.message.includes("中国气象局未接入"),
-    );
+    const r = await weatherTool.call({ points: [SZ], date: plusDays(5) }, ctx);
+    assert.match((r.data[0]?.unavailable ?? []).join(""), /中国气象局未接入/);
+  });
+
+  it("**一次问多天时，窗口内的那几天照给**——不再被最远那天一起废掉", async () => {
+    // 从前窗口按 Math.max(offsets) 判：问 [明天, 第 10 天] 会把明天那条好数据一起抛掉，
+    // 与本文件 259 行那条纪律（"抛错会把好的那几天一起废掉"）自相矛盾。
+    setAmapClient(createAmapClient({ key: "k", fetchImpl: stubAmap() }));
+    setCmaClient(createCmaClient({ fetchImpl: stubCma().impl }));
+    const r = await weatherTool.call({ points: [SZ], dates: [plusDays(1), plusDays(20)] }, ctx);
+    assert.equal(r.data.length, 2);
+    const near = r.data.find((s) => s.date === plusDays(1))!;
+    const far = r.data.find((s) => s.date === plusDays(20))!;
+    assert.ok(near.tempMaxC !== null, "近的那天要有真数据");
+    assert.equal(far.tempMaxC, null);
+    assert.match((far.unavailable ?? []).join(""), /超出预报窗口/);
   });
 });

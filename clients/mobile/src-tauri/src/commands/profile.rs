@@ -7,11 +7,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use std::sync::Arc;
-
-use carlife_core::contract::AssistantState;
-use carlife_core::fanout::EVENT_ASSISTANT_STATE;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager};
 
 fn prefs_path(app: &AppHandle) -> Option<PathBuf> {
     let dir = app.path().app_data_dir().ok()?;
@@ -41,37 +37,6 @@ fn write_bool(app: &AppHandle, key: &str, value: bool) -> bool {
     // 回滚成旧值会让用户看到"点了没反应"，比"重启后没保持住"更糟。
     let _ = fs::write(&path, json.to_string());
     value
-}
-
-/// 播报开关的持久化值。`setup::init` 用它给托管的 `TtsState` 定初值——之后真相源是那份状态。
-pub(crate) fn broadcast_enabled_pref(app: &AppHandle) -> bool {
-    read_bool(app, "broadcastEnabled", false)
-}
-
-/// 语音播报总开关（对齐 F-02-12）。手机端默认**关**——
-/// 车机是免手场景所以默认开，手机常在公共场合，默认出声是打扰。
-///
-/// 真相源是托管的 `carlife_tts::TtsState`（M65-04）。此前这里只读写偏好文件，
-/// 而全仓没有第二个读者——开关能拨、能存、永远无效；真机上用户拨开它暖暖照旧沉默。
-#[tauri::command]
-pub fn get_broadcast_enabled(state: State<'_, Arc<carlife_tts::TtsState>>) -> bool {
-    !state.is_muted()
-}
-
-/// 设置播报开关；**立即生效**并持久化。关闭时停掉正在进行的播报并回 idle——
-/// "关了还在说"是最刺耳的那种 bug（车机 prefs.rs 同一取向）。
-#[tauri::command]
-pub fn set_broadcast_enabled(
-    app: AppHandle,
-    state: State<'_, Arc<carlife_tts::TtsState>>,
-    enabled: bool,
-) -> bool {
-    state.set_muted(!enabled);
-    if !enabled && state.is_playing() {
-        carlife_tts::stop(&state);
-        let _ = app.emit(EVENT_ASSISTANT_STATE, AssistantState::Idle);
-    }
-    write_bool(&app, "broadcastEnabled", enabled)
 }
 
 // ── 哨兵监听（语音唤醒）总开关，M60-01 ─────────────────────────
@@ -389,6 +354,16 @@ pub async fn fetch_buying(session_id: String) -> Result<String, String> {
     let (base_url, token) = gateway_env();
     carlife_net::GatewayClient::new(base_url, token)
         .fetch_buying(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 拍照问诊报告（`GET /v1/session/:id/diagnosis`，M104-02）。与 `fetch_buying` 同形：JSON 原样透传。
+#[tauri::command]
+pub async fn fetch_diagnosis(session_id: String) -> Result<String, String> {
+    let (base_url, token) = gateway_env();
+    carlife_net::GatewayClient::new(base_url, token)
+        .fetch_diagnosis(&session_id)
         .await
         .map_err(|e| e.to_string())
 }

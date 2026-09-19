@@ -21,6 +21,7 @@ import {
   createTripPlanRepository,
   createTripPlanReviewRepository,
   createTripRouteAuditRepository,
+  createWorkingTaskStore,
   createVehicleMemberRepository,
   createUserRepository,
   createIdentityConsoleRepository,
@@ -48,12 +49,14 @@ import { requestLog } from "./middleware";
 import { createAsrProvider, createConfiguredAsrProvider, type AsrProvider } from "./asr";
 import { createDailyQuota } from "./quota/daily-quota";
 import { SessionBus } from "./stream/session-bus";
+import { UserBus } from "./stream/user-bus";
 import { createStreamRouter } from "./stream";
 import { createHttpRouter } from "./http";
 import { createTripPlanRouter } from "./http/trip-plan";
 import { createGuideRouter } from "./http/guide";
 import { createGuideJobsRouter } from "./http/guide-jobs";
 import { createBuyingRouter } from "./http/buying";
+import { createDiagnosisRouter } from "./http/diagnosis";
 import { createVehicleRouter } from "./http/vehicle";
 import { createVehicleMemberRouter } from "./http/vehicle-member";
 import { createVehicleCabinRouter } from "./http/vehicle-cabin";
@@ -77,7 +80,7 @@ import { createConsoleRouter } from "./console";
 import { audioObjectKey } from "./console/message-audio";
 import { createObjectStore, createUploadRouter } from "./upload";
 import { ffmpegPathsFromEnv, ffmpegVersion } from "@carlife/tools";
-import { createRagClient, type RagClient } from "@carlife/rag";
+import { createRagClient, datasetIdsFromEnv, type RagClient } from "@carlife/rag";
 
 /*
  * 默认端口与 `.env.example`、`dev.sh`、文档、cockpit 的 vite proxy 全部一致取 **8790**。
@@ -112,14 +115,15 @@ export function createGatewayApp(): Express {
       ? createRagClient({
           baseUrl: ragBase,
           apiKey: ragKey,
-          datasetIds: {
-            "vehicle-manuals": process.env.RAGFLOW_DATASET_VEHICLE_MANUALS ?? "",
-            "repair-kb": process.env.RAGFLOW_DATASET_REPAIR_KB ?? "",
-            "car-catalog": process.env.RAGFLOW_DATASET_CAR_CATALOG ?? "",
-          },
+          // 从 `DATASETS` 的 `envKey` 派生，**不手抄**（2026-09-16）：这里曾漏了
+          // `insurance-kb`，后台知识库页点开「车险条款与理赔指引」就是
+          // `加载失败：ragflow_error`，而另外三个集一切正常。
+          datasetIds: datasetIdsFromEnv(),
         })
       : undefined;
   const bus = new SessionBus();
+  // 账号级事件通道（ACR-031）：按人订阅，只下发「会话列表变了」。
+  const userBus = new UserBus();
   // 按配置版本缓存的工厂：改配置后下一次转写自动用新值，**不重启**（M3-02 约束 2）。
   const asr = createConfiguredAsrProvider(config);
 
@@ -264,11 +268,15 @@ export function createGatewayApp(): Express {
       tripRoute: {
         audits: createTripRouteAuditRepository(prisma),
         plans: createTripPlanRepository(prisma),
+        // 未落库的草案（turn-ced8b400）：「排了但没确认」是最常见的收场，不带上它后台看不到产物。
+        tasks: createWorkingTaskStore(prisma),
       },
       // 评测台（M67-02）：仓库根缺省从本文件反推（gateway/src → 根）；Docker 形态下目录不在，路由自己回 503。
       evals: { root: process.env.CARLIFE_EVALS_ROOT ?? new URL("../../../..", import.meta.url).pathname.replace(/\/$/, "") },
       // 检测器训练服务（ACR-026）：URL 在配置注册表 VISION_TRAINER_URL，空 = 未启用
       visionTrainer: { config },
+      // 研究面（ACR-034）：总是注入，URL 空由路由回 503 分型。
+      research: { config },
       users: userRepo,
       // 用户体系（M68-01 只读 / M68-02 治理动作）：只读仓储只在后台注入，端上路由拿不到它；
       // 撤销走与端上同一份 deviceRepo / grantRepo 的软删。
@@ -412,6 +420,8 @@ export function createGatewayApp(): Express {
   // 购车候选与成本只读（M15-05）：手机端购车页入口。代理到 runtime 读检查点——
   // 候选没有落库（本 Sprint 无 schema 变更），它只活在①Working 里。
   app.use(createBuyingRouter(repo));
+  // 拍照问诊报告只读（M104-02），与 buying 同形。
+  app.use(createDiagnosisRouter(repo));
   /*
    * ④车辆档案（M14-04）：档案 tab 数据面 + 建档向导地基。
    *
@@ -577,7 +587,7 @@ export function createGatewayApp(): Express {
       preferences: mem0Ready ? createMem0PreferenceReader() : undefined,
     }),
   );
-  app.use(createStreamRouter(repo, bus));
+  app.use(createStreamRouter(repo, bus, userBus));
   app.use(
     createHttpRouter(repo, bus, asr, (sample) => {
       // ASR（豆包 omni）计价：音频输入按 ASR_PRICE_INPUT_PER_1K，输出按 OUTPUT。
@@ -658,6 +668,8 @@ export function createGatewayApp(): Express {
       objectStore ? { repo: attachmentRepo, store: objectStore } : undefined,
       // 视频派生（M80-01）：路径一律注入；二进制不可用时派生自己折成空产物 + note（见 tools/media）。
       { ffmpeg: ffmpegPaths },
+      // 账号级事件通道（ACR-031）：与上面 createStreamRouter 收到的是同一个实例。
+      userBus,
     ),
   );
   return app;

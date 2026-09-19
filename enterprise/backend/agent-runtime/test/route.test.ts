@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { listForAgent } from "@carlife/tools";
+import { listForAgent, TOOL_REGISTRY } from "@carlife/tools";
 import { summarizeAction } from "../src/tools-endpoint";
 import { canonicalAgent } from "../src/acp-client/agent-prompt";
 import { branchFor, decideRoute, guardRouteForPhoto } from "../src/graph/route";
@@ -228,6 +228,25 @@ describe("车险与用车成本判到购车（M21-07 续做，M21-05 发现）",
   }
 });
 
+describe("出险与理赔判到售后（M96-03）：「保险」按问法分家", () => {
+  /*
+   * buying 那条认的是测算语义（多少 / 怎么算 / 包含），这条认的是出险语义
+   * （走不走 / 划算 / 报案 / 材料 / 权益）。两条正则互斥，上面那组 buying 用例一条不动。
+   * 「走保险明年会涨多少」两边各 6 分打平，靠 service 优先级更靠前赢——那是有意的：
+   * 已经出了险的人问涨价，是售后不是买保险。
+   */
+  for (const q of [
+    "这个划痕走保险划算吗，大概两千块",
+    "出险了要准备什么材料",
+    "报案有没有时限",
+    "我的保险送几次救援",
+    "我这车有什么权益",
+    "走保险明年会涨多少",
+  ]) {
+    it(`「${q}」→ service`, () => expectRoute(q, "service"));
+  }
+});
+
 describe("配置信号不许误伤用车与售后（M21-07 的红线）", () => {
   /*
    * 新信号要求**比较语义与配置词共现**，就是为了不碰这几句。
@@ -391,8 +410,9 @@ describe("context 不参与「够不够格」，只参与「选哪一个」（�
  *
  * 这一组守的是一条**实测缺陷的回归**：2026-08-12 会话 sess-330b45e7-b9e，
  * 「帮我约这个周六上午去深圳南山特斯拉中心试驾 Model Y」被判给 trip
- * （"去某地" 6 分，优先级赢），模型改调 calendar 写了条日历，
+ * （"去某地" 6 分，优先级赢），模型改调当时的 calendar 工具写了条日历，
  * 然后回答"试驾已经帮您约好了"——既违反 AC-15-8，又是没做却说做了。
+ * （calendar 已随 FL-31 下线；这条路由回归与它无关，守的是判给谁。）
  */
 describe("试驾路由（M19-03）", () => {
   const route = (t: string) =>
@@ -431,7 +451,7 @@ describe("试驾路由（M19-03）", () => {
 });
 
 describe("试驾 Agent 的工具表（M19-03）", () => {
-  it("四件套 + 联系方式两件套，且**没有 calendar**（AC-15-8 负向验收）", () => {
+  it("四件套 + 联系方式两件套（AC-15-8 负向验收：白名单式断言）", () => {
     const names = listForAgent("test-drive").map((t) => t.name);
     // 白名单式断言：新工具进来时**必须有人改这一行**。
     // 写成"包含四件套"就悄悄放过了任何多给出去的工具。
@@ -444,7 +464,6 @@ describe("试驾 Agent 的工具表（M19-03）", () => {
       "dealer_stores",
       "test_drive_book",
     ]);
-    assert.equal(names.includes("calendar"), false, "试驾流程不得调 calendar——重复写日历是多余的授权动作");
   });
 
   it("Agent 名不以 -task/-intent/-voice 结尾——否则 loadAgentPrompt 会找错文件", () => {
@@ -496,9 +515,8 @@ describe("补录的确认弹窗就是复述（M26-04）", () => {
 });
 
 describe("④⑥ 消费方的工具表（M26-02）", () => {
-  it("ownership：M26-02 加 data_freshness，M26-06 加 energy_gap / refuel_log，M41-03 加 repair_history", () => {
+  it("ownership：M26-02 加 data_freshness，M26-06 加 energy_gap / refuel_log，M41-03 加 repair_history，接车机能量遥测后加 vehicle_energy，ACR-047 加 submit_range_assessment", () => {
     assert.deepEqual(listForAgent("ownership").map((t) => t.name).sort(), [
-      "calendar",
       "data_freshness",
       "energy_gap",
       "ragflow_retrieve",
@@ -507,16 +525,22 @@ describe("④⑥ 消费方的工具表（M26-02）", () => {
       "refuel_log",
       // M41-03：4S 系统侧的维修史（F-20-05 工况关联的另半边；本地留档在 vehicle_profile）
       "repair_history",
+      "submit_range_assessment",
       "usage_profile",
+      // 车机此刻报的电量/油量与仪表剩余续航——与 usage_profile 的"长期实测满量程"是两个数据源
+      "vehicle_energy",
       "vehicle_member",
       "vehicle_profile",
       "vehicle_profile_write",
     ]);
   });
 
-  it("service：M41-03 加四个维修/保险工具，M44-02 加维修站与进厂时段查询", () => {
+  it("service：M41-03 加四个维修/保险工具，M44-02 加维修站与进厂时段查询，M96-02 加理赔两工具", () => {
     assert.deepEqual(listForAgent("service").map((t) => t.name).sort(), [
       "appointment",
+      // M96-02：走不走保险的净收益（赔付侧自取报价单或车主估损，涨价侧假系统算）、出险材料与时限词条
+      "claim_advisor",
+      "claim_checklist",
       "contact_lookup",
       "contact_update",
       "data_freshness",
@@ -537,7 +561,6 @@ describe("④⑥ 消费方的工具表（M26-02）", () => {
 
   it("trip：M26-02 加 data_freshness，M26-06 加 energy_gap / refuel_log，M31-01 加 trip_plan_nav，M32-01 加 destination_highlights", () => {
     assert.deepEqual(listForAgent("trip").map((t) => t.name).sort(), [
-      "calendar",
       "charging",
       "data_freshness",
       // M32-01：目的地的美食榜 / 打卡点 / 拍照建议（经模型内置联网搜索）
@@ -550,6 +573,8 @@ describe("④⑥ 消费方的工具表（M26-02）", () => {
       "refuel_log",
       // 路径顺序体检（本次）：单日多点出行的顺序也要能体检
       "route_audit",
+      // M86-02：多天行程的 Plan 层以 trip 身份在编排层搜景点（planCollect），不是让应答会话自己搜
+      "spot_search",
       "trip_plan_cancel",
       "trip_plan_commit",
       "trip_plan_list",
@@ -601,16 +626,66 @@ describe("④⑥ 消费方的工具表（M26-02）", () => {
     }
   });
 
-  it("drive（行车分支）：M26-06 加 energy_gap / refuel_log；M30-04 加 submit_drive_draft", () => {
+  /*
+   * 另外三条腿的白名单（M77 走查追修）。drive 早就有这条断言，hotel / tour / transit 一直没有——
+   * 于是"悄悄多给一个工具"在这三条腿上没有任何人会报错。hotel 手里那个
+   * `preference_recall` 就是这么待了很久：它查的住宿偏好在 `PREFERENCE_DOMAINS` 里
+   * 根本没有对应领域（只有 charging/commute/driving/cabin/trip/service），
+   * 两天 26 次调用全部返回同两条无关偏好、零次改变选择，却每次付约 1.36 秒外加一轮往返。
+   */
+  it("hotel（住宿分支）：只搜酒店、只交酒店——M77 走查追修摘 preference_recall", () => {
+    assert.deepEqual(listForAgent("hotel").map((t) => t.name).sort(), [
+      // 钉死酒店类别的搜索实例（多类别的 poi_search 不给它，见 poi-search.ts 文件头）。
+      "hotel_search",
+      "submit_hotels",
+    ]);
+  });
+
+  it("tour（逐天分支）：只搜景点 + 天气；顺序体检从 M86-06 起归编排层（Plan 层 1b + orderAudit），tour 不再自调", () => {
+    assert.deepEqual(listForAgent("tour").map((t) => t.name).sort(), [
+      "spot_search",
+      "submit_tour_days",
+      "weather",
+    ]);
+  });
+
+  it("tour-plan（Plan 层 1c 语义裁决，M86-03）：只交骨架，不搜、不体检、不查天气", () => {
+    assert.deepEqual(listForAgent("tour-plan").map((t) => t.name).sort(), ["submit_tour_days"]);
+  });
+
+  it("trip-review（装配体检裁决，M86-05）：看事实 + 机械改动 + 两个提交通道，不搜、不查天气", () => {
+    assert.deepEqual(listForAgent("trip-review").map((t) => t.name).sort(), [
+      "itinerary_assemble",
+      "plan_audit",
+      "plan_edit",
+      "route_audit",
+      "submit_repairs",
+      "submit_verdict",
+    ]);
+  });
+
+  it("transit（大交通分支）：查真实班次，别的不归它", () => {
+    assert.deepEqual(listForAgent("transit").map((t) => t.name).sort(), [
+      "submit_transit",
+      "transit_route",
+    ]);
+  });
+
+  it("preference_recall 只给 cabin / trip——住宿偏好在 PREFERENCE_DOMAINS 里存不进去，给了 hotel 也查不到", () => {
+    const reg = TOOL_REGISTRY.find((t) => t.name === "preference_recall")!;
+    assert.deepEqual([...reg.agents].sort(), ["cabin", "trip"]);
+  });
+
+  it("drive（行车分支）：M26-06 加 energy_gap / refuel_log；M30-04 加提交通道（ACR-047 换成 submit_drive_plan）；M77 走查追修摘 pretrip_items", () => {
     assert.deepEqual(listForAgent("drive").map((t) => t.name).sort(), [
       "charging",
       "energy_gap",
       "map_route",
-      "pretrip_items",
+      // pretrip_items 摘除：它挂在确认那一跳、由编排层自己调，留在这儿只会让分支白走一轮。
       "refuel",
       "refuel_log",
       // M30-04：结论提交通道——只有 drive 有它，别的分支各有各的 submit_*。
-      "submit_drive_draft",
+      "submit_drive_plan",
       "transit_route",
       "weather",
     ]);
@@ -731,3 +806,4 @@ describe("[F-20-03][AC-20-1] 警报页的路由守卫（M80-10）", () => {
     assert.equal(guardRouteForPhoto({ agent: "general", reason: "x" }, photo({ readable: false, alerts: 3 }), false).agent, "general");
   });
 });
+

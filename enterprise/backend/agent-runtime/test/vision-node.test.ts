@@ -123,6 +123,29 @@ describe("[F-20-08][AC-20-6] 【图片观察】段与补拍指引", () => {
     assert.ok(code.some((h) => h === "右侧没拍到，请补一张"));
   });
 
+  /*
+   * turn-2f9f1a98（2026-09-19 用户走查）：图解得开、端侧检测器不判画质、零项所以也没有低置信项
+   * —— 三条既有判据全不触发，车主一条指引都拿不到。
+   * 方向是**往远拍**，与低置信那条的「离近一点」相反：检测器漏的正是裁得太紧的近景。
+   */
+  it("一个符号都没框到 ⇒ 也要给一条指引，且方向是退后拍全", () => {
+    const none = retakeHintsFor({ unreadable: false, frame: { cut_off_sides: [], cutOffSource: "none", quality: {} }, items: [] });
+    assert.equal(none.length, 1);
+    assert.ok(none[0].includes("退后"), none[0]);
+    // 有项的那张不该被这一条污染 —— 它走的是「离近一点」那条。
+    assert.ok(!retakeHintsFor(base).some((h) => h.includes("退后")));
+  });
+
+  it("四边都标了没拍全 ⇒ 合成一句「裁得太紧」，不逐边念", () => {
+    // 「左、右、上、下侧可能没拍全」是一句没法执行的话；它其实在说的就是裁得太紧。
+    const all = retakeHintsFor({ unreadable: false, frame: { cut_off_sides: ["left", "right", "top", "bottom"], cutOffSource: "model", quality: {} }, items: [] });
+    assert.ok(all.some((h) => h.includes("裁得比较紧")), all.join("|"));
+    assert.ok(!all.some((h) => h.includes("左、右")), all.join("|"));
+    // 三边以内照旧逐边说 —— 那时候「哪边」是有用的信息。
+    const three = retakeHintsFor({ unreadable: false, frame: { cut_off_sides: ["left", "right", "top"], cutOffSource: "code", quality: {} }, items: [] });
+    assert.ok(three.some((h) => h === "左、右、上侧没拍到，请补一张"), three.join("|"));
+  });
+
   it("段落：匹配项带名称/类别/级别/出处并标未核验；未匹配项写「未能与手册对上」与疑似；末尾是应答指令", () => {
     const section = photoSection({ ...base, retakeHints: retakeHintsFor(base) });
     assert.ok(section.startsWith(PHOTO_SECTION_HEADER));
@@ -299,5 +322,80 @@ describe("[F-20-03][AC-20-1] 手册图示召回进观察状态（ACR-029）", ()
     setVisionDeps({ provider, matchIcon: matcherSeatbeltOnly });
     const r = await observeAttachmentsNode({ photoInput } as never);
     assert.equal(r.photoObservation!.figures, undefined);
+  });
+});
+
+describe("[F-20-03][AC-20-1] 端侧检测器的类别名进链路（M80-15）", () => {
+  const detectorStub = {
+    name: "stub-yolo",
+    models: { detect: "yolo", describe: "stub" },
+    detect: async () => ({
+      frame: { quality: { blur: false, dark: false, glare: false, partial: false, occluded: false }, cut_off_sides: [], item_count: 1 },
+      items: [{ category: "warning_light" as const, bbox: [111, 197, 189, 222] as [number, number, number, number], confidence: 0.97, symbolHint: "parking_lights" }],
+    }),
+    describe: async () => ({ category: "warning_light" as const, shape: "lamp" as const, color: "green" as const, state: "lit" as const, text: [], elements: ["straight_lines" as const], literal: "", confidence: 0.8, quality: { blur: false, glare: false, partial: false }, undeterminable: [] }),
+    verifyPair: async () => "unsure" as const,
+  };
+  /** 目录没对上、但匹配器把检测器的名字解析成了语义（生产里 index.ts 的 matchIcon 就这么做）。 */
+  const matcherUsesHint: IconMatcher = async ({ symbolHint }) => ({
+    matched: false,
+    reason: "below_delta",
+    top: symbolHint ? { symbolId: symbolHint, name: "驻车灯已开", class: "status", severity: "info", manualAnchor: "Model 3 车主手册 › 指示灯 › 驻车灯" } : undefined,
+    topSource: symbolHint ? "detector" : undefined,
+    sim: 0.45,
+  });
+
+  it("匹配失败 + 检测器有名字 → suspected 来自 detector，措辞是「端侧检测器认为像」，且名字进检索词", async () => {
+    const { observePhoto } = await import("@carlife/tools");
+    const obs = await observePhoto(PHOTO, detectorStub as never);
+    const st = await buildPhotoObservation("att", PHOTO, obs, matcherUsesHint);
+    const it = st.items[0];
+    assert.equal(it.match, null);
+    assert.equal(it.symbolHint, "parking_lights");
+    assert.deepEqual(it.suspected, { name: "驻车灯已开", symbolId: "parking_lights", source: "detector" });
+    const text = photoSection(st);
+    assert.ok(text.includes("端侧检测器认为像「驻车灯已开」") && text.includes("疑似"), text);
+    assert.ok(!text.includes("最接近的是"), "detector 来源不用目录召回那句措辞");
+    assert.ok(photoRetrievalTerms(st).includes("驻车灯已开"));
+  });
+
+  it("目录对上了 → 检测器的名字不参与，suspected 为空", async () => {
+    const { observePhoto } = await import("@carlife/tools");
+    const obs = await observePhoto(PHOTO, detectorStub as never);
+    const matched: IconMatcher = async () => ({ matched: true, verified: true, semantics: { symbolId: "low_beam", name: "近光灯已开", class: "status", severity: "info", manualAnchor: null }, sim: 0.8, margin: 0.2, evidence: "e" });
+    const st = await buildPhotoObservation("att", PHOTO, obs, matched);
+    assert.equal(st.items[0].match?.name, "近光灯已开");
+    assert.equal(st.items[0].suspected, undefined);
+    assert.ok(!photoRetrievalTerms(st).includes("驻车灯已开"));
+  });
+});
+
+describe("[F-20-03][AC-20-1] 观察节点吃端上的框（ACR-045）", () => {
+  it("photoInput 带 detections → 第一遍用端上的框、不调 provider.detect；trace model.detect=client；名字进 symbolHint", async () => {
+    let detectCalls = 0;
+    const p = {
+      ...provider,
+      detect: async (img: Buffer) => { detectCalls += 1; return provider.detect(img); },
+    };
+    setVisionDeps({ provider: p as never, matchIcon: undefined });
+    const det = { width: 2000, height: 1333, items: [{ bbox: [558, 366, 596, 395] as [number, number, number, number], name: "low_beam", conf: 0.9 }] };
+    const traces: Array<{ kind: string; data: Record<string, unknown> }> = [];
+    const r = await observeAttachmentsNode({ photoInput: [{ ...photoInput[0], detections: det }] } as never, { configurable: { onTrace: (e: { kind: string; data: Record<string, unknown> }) => traces.push(e) } });
+    const obs = r.photoObservation!;
+    assert.equal(detectCalls, 0, "端上有框就不向检测器要");
+    assert.equal(obs.model.detect, "client");
+    assert.equal(obs.items.length, 1);
+    assert.equal(obs.items[0].symbolHint, "low_beam");
+    const tr = traces.find((t) => t.kind === "vision")!;
+    assert.equal((tr.data.model as { detect: string }).detect, "client");
+  });
+
+  it("photoInput 不带 detections → 走原来的检测器（老端上零差异）", async () => {
+    let detectCalls = 0;
+    const p = { ...provider, detect: async (img: Buffer) => { detectCalls += 1; return provider.detect(img); } };
+    setVisionDeps({ provider: p as never, matchIcon: undefined });
+    const r = await observeAttachmentsNode({ photoInput } as never);
+    assert.equal(detectCalls, 1);
+    assert.equal(r.photoObservation!.items.length, 8);
   });
 });

@@ -227,22 +227,35 @@ export function AssistantDock({
         )}
 
         <span className={`hud-assistant__wave${wave ? " is-active" : ""}`} aria-hidden="true">
-          <svg className="hud-assistant__wave-icon" viewBox="0 0 34 24" aria-hidden="true" focusable="false">
-            {/* 音波：中间高两侧低的对称波形（定稿的语音标识）。
-                竖杠数量与高度差是它读起来像"声音"而不像"信号格"的原因，
-                改动时保持对称、保持圆头。 */}
+          {/* 音波：中间高两侧低的对称波形（定稿的语音标识）。
+              竖杠数量与高度差是它读起来像"声音"而不像"信号格"的原因，
+              改动时保持对称、保持圆头。
+
+              # 为什么是 5 个 <span> 而不是一张 SVG 里的 5 个 <rect>
+
+              竖杠是**逐根**缩放的，这种动画 WebKit 不会给 SVG 子元素单独的
+              合成层：每一帧都要把整张 SVG 重新栅格化并连带整页重绘。
+              这枚 34×24 的小图标因此能把 iPad 模拟器的渲染栈从 4% 顶到 87%
+              （2026-09-13 性能排查；同一段动画换成 HTML 元素后落回 30% 上下，
+              而 30% 是模拟器跑任何 60fps 动画的地板）。桌面端是原生通路，
+              同一处只有个位数百分点——**别拿桌面端的读数判断这里改坏没改坏**。
+
+              坐标全部按原 viewBox（34 × 24）折成百分比，所以三处断点里改
+              `.hud-assistant__wave-icon` 的宽高仍然照旧生效。 */}
+          <span className="hud-assistant__wave-icon" aria-hidden="true">
             {WAVE_BARS.map(([x, h], i) => (
-              <rect
+              <span
                 key={x}
-                x={x}
-                y={12 - h / 2}
-                width="3"
-                height={h}
-                rx="1.5"
-                style={{ animationDelay: `${i * 0.09}s` }}
+                className="hud-assistant__wave-bar"
+                style={{
+                  left: `${(x / 34) * 100}%`,
+                  top: `${((12 - h / 2) / 24) * 100}%`,
+                  height: `${(h / 24) * 100}%`,
+                  animationDelay: `${i * 0.09}s`,
+                }}
               />
             ))}
-          </svg>
+          </span>
         </span>
       </div>
     </div>

@@ -8,10 +8,13 @@
 
 use crate::state::Playback;
 
-pub fn start_mp3_playback(audio: Vec<u8>) -> Result<Playback, String> {
+/// `gain` 是 0.0~1.0 的增益（[`crate::state::gain_for_percent`] 算出来的）。
+pub fn start_mp3_playback(audio: Vec<u8>, gain: f32) -> Result<Playback, String> {
     let device = rodio::DeviceSinkBuilder::open_default_sink()
         .map_err(|e| format!("打开音频输出失败: {e}"))?;
     let player = rodio::Player::connect_new(device.mixer());
+    // 音量在 append 之前设：先出第一帧再压下去，每句开头都会有一小截原始响度。
+    player.set_volume(gain);
     let decoder = rodio::Decoder::new(std::io::Cursor::new(audio))
         .map_err(|e| format!("mp3 解码失败: {e}"))?;
     player.append(decoder);

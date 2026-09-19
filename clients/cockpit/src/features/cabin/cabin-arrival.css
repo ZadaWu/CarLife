@@ -37,26 +37,68 @@
   transform: translateX(-50%) translateY(calc(-3 * var(--hud-unit)));
 }
 
+/* 外壳只负责尺寸与投影：投影留在这一层，两张 SVG 才共用同一片轮廓阴影
+   （分别加各自的 drop-shadow 会让挂板的影子压在钥匙上）。 */
 .cabin-arrival-trigger__key {
+  position: relative;
   display: block;
   width: calc(126 * var(--hud-unit));
   height: calc(145 * var(--hud-unit));
-  overflow: visible;
   filter: drop-shadow(0 calc(7 * var(--hud-unit)) calc(14 * var(--hud-unit)) rgba(16, 44, 82, 0.34));
 }
 
-/* 只有钥匙圈以下摆动，车尾挂板钉死——整块一起晃会像挂板要掉。 */
-.cabin-arrival-trigger__swing {
-  /* 旋转心 = 这一组自身包围盒的顶边中点，也就是挂钩下缘；
-     用 fill-box 而不是默认的 view-box，改 viewBox 时不必回来重算坐标。 */
-  transform-box: fill-box;
-  transform-origin: 50% 0;
-  animation: cabin-key-swing 3.8s ease-in-out infinite;
+/* 钥匙层与挂板层同 viewBox 叠放，坐标因此与拆分前完全一致。
+   挂板层写在后面，挂钩才压得住钥匙圈。 */
+.cabin-arrival-trigger__layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
+/* 只有钥匙圈以下摆动，车尾挂板钉死——整块一起晃会像挂板要掉。
+ *
+ * # 摆动必须落在 <svg> 元素上，不能落在里面的 <g> 上
+ *
+ * WebKit 不给 SVG 子元素单独的合成层：写在 <g> 上时，每一帧都要把整张
+ * SVG 重新栅格化并连带触发整页重绘。这枚 126×145 的小挂件因此能把
+ * iPad 模拟器的渲染栈从 4% 顶到 86%（2026-09-13 性能排查的差分数据：
+ * 同样的 60fps 节奏，搬到 <svg> 元素上后是 34%，全关是 4%）。
+ * 桌面端因为是原生 Metal 通路，同一处只有个位数百分点——**别拿桌面端的
+ * 读数判断这里改坏没改坏**。
+ *
+ * 代价是旋转心要自己换算：原来 fill-box + 50% 0 指的是钥匙组包围盒的
+ * 顶边中点（viewBox 75, 83.5）；搬到整张画布上就是 75/150 与 83.5/172。
+ * 改 viewBox 或钥匙坐标时这两个数要跟着改。 */
+.cabin-arrival-trigger__swing {
+  transform-box: border-box;
+  transform-origin: 50% 48.55%;
+  will-change: transform;
+}
+
+/*
+ * # 待机不摆：每 20 秒摆一轮，不是一直摆
+ *
+ * 落到合成层之后每一帧仍然要提交给显示管线——iPad 模拟器上那是 28% CPU 的
+ * 地板，跟画什么无关（实测：canvas 2D 85.2%、WebGL 88.5%、合成层 transform
+ * 32.1%、不动 4.4%）。**唯一还能省的量是帧数**，而 CSS 关键帧给不了这个：
+ * 把关键帧后 80% 摊平并不会让它停止提交。所以由 JS 加减 `is-swinging`
+ * （`CabinArrivalDemo` 的 `SWING_PERIOD_MS`），一轮 `animationend` 就摘掉。
+ *
+ * 关键帧因此必须**从 0deg 起、回 0deg 止**：原来是 `0%,100% { rotate(-6deg) }`，
+ * 那在常驻循环下看不出问题，一旦有起停就会在 0deg 与 -6deg 之间跳一下。
+ */
+.cabin-arrival-trigger__swing.is-swinging {
+  animation: cabin-key-swing 3.8s ease-in-out 1;
+}
+
+/* 指上去/键盘聚焦时才是常驻的快摆。车机是触屏没有 hover，这条实际只对
+   桌面走查与键盘导航生效——待机态的 affordance 由造型和那一轮间歇摆动担着。 */
 .cabin-arrival-trigger:hover .cabin-arrival-trigger__swing,
 .cabin-arrival-trigger:focus-visible .cabin-arrival-trigger__swing {
-  animation-duration: 1.1s;
+  animation: cabin-key-swing 1.1s ease-in-out infinite;
 }
 
 /* 车尾挂板：配色对齐 HUD 琥珀系而不是参考图的法拉利红——
@@ -95,7 +137,7 @@
 
 .cabin-car__plate-text {
   fill: #35507a;
-  font-size: 15px;
+  font-size: calc(15 * var(--hud-unit));
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -148,9 +190,11 @@
   stroke-linejoin: round;
 }
 
+/* 起止都在 0deg（静止位）——见 `.cabin-arrival-trigger__swing.is-swinging` 的说明。 */
 @keyframes cabin-key-swing {
-  0%, 100% { transform: rotate(-6deg); }
-  50% { transform: rotate(6deg); }
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(6deg); }
+  75% { transform: rotate(-6deg); }
 }
 
 /* 幕布拉开时后台演员退场：HUD 常驻的暖暖（AssistantDock）只是被压暗的话，
@@ -184,7 +228,7 @@
   background:
     radial-gradient(ellipse at 49% 51%, rgba(9, 39, 74, 0.38) 0%, rgba(6, 24, 45, 0.82) 62%, rgba(4, 14, 28, 0.94) 100%),
     rgba(4, 17, 33, 0.72);
-  backdrop-filter: blur(3px) saturate(0.82);
+  backdrop-filter: blur(calc(3 * var(--hud-unit))) saturate(0.82);
 }
 
 /* 这几层都是绝对定位的舞台元素。0831 删 __beam 时用正则误伤过这条分组规则：
@@ -214,7 +258,7 @@
 .cabin-arrival__orbit--outer {
   width: min(77vw, calc(1230 * var(--hud-unit)));
   height: min(58vw, calc(700 * var(--hud-unit)));
-  box-shadow: 0 0 50px rgba(111, 184, 255, 0.08);
+  box-shadow: 0 0 calc(50 * var(--hud-unit)) rgba(111, 184, 255, 0.08);
 }
 
 .cabin-arrival__orbit--inner {
@@ -228,13 +272,13 @@
   --orb-color: var(--cabin-cyan);
   position: absolute;
   display: grid;
-  width: clamp(56px, 7.8vw, 118px);
-  height: clamp(56px, 7.8vw, 118px);
+  width: clamp(calc(56 * var(--hud-unit)), 7.8vw, calc(118 * var(--hud-unit)));
+  height: clamp(calc(56 * var(--hud-unit)), 7.8vw, calc(118 * var(--hud-unit)));
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--orb-color) 88%, white);
   border-radius: 50%;
   background: radial-gradient(circle at 45% 35%, color-mix(in srgb, var(--orb-color) 23%, #162e51), rgba(8, 28, 53, 0.88) 70%);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--orb-color) 58%, transparent), inset 0 0 22px color-mix(in srgb, var(--orb-color) 14%, transparent);
+  box-shadow: 0 0 calc(22 * var(--hud-unit)) color-mix(in srgb, var(--orb-color) 58%, transparent), inset 0 0 calc(22 * var(--hud-unit)) color-mix(in srgb, var(--orb-color) 14%, transparent);
   opacity: 0.92;
 }
 
@@ -272,19 +316,18 @@
   min-width: min(40vw, calc(330 * var(--hud-unit)));
   text-align: center;
   transform: translateX(-50%);
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.46);
+  text-shadow: 0 calc(2 * var(--hud-unit)) calc(14 * var(--hud-unit)) rgba(0, 0, 0, 0.46);
 }
 
 .cabin-arrival__headline span {
+  font: var(--hud-type-caption);
   color: #a9c8ee;
-  font-size: calc(15 * var(--hud-unit));
   letter-spacing: 0.16em;
 }
 
 .cabin-arrival__headline strong {
+  font: var(--hud-type-headline);
   color: #fff;
-  font-size: calc(28 * var(--hud-unit));
-  line-height: 1.2;
 }
 
 /* 地平线那道细高光，与片子里的一致 */
@@ -296,7 +339,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 22px 25px rgba(0, 0, 0, 0.43));
+  filter: drop-shadow(0 calc(22 * var(--hud-unit)) calc(25 * var(--hud-unit)) rgba(0, 0, 0, 0.43));
 }
 
 /* --closed / --open 的可见性交替由 WAAPI 驱动；--open 初始必须藏着，
@@ -314,7 +357,7 @@
   height: 13%;
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(72, 213, 255, 0.75), rgba(255, 174, 73, 0.32) 38%, transparent 72%);
-  filter: blur(12px);
+  filter: blur(calc(12 * var(--hud-unit)));
   opacity: 0;
 }
 
@@ -344,7 +387,7 @@
   opacity: 0;
   transform: translateY(12%) scale(0.72);
   transform-origin: 50% 100%;
-  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.28));
+  filter: drop-shadow(0 calc(4 * var(--hud-unit)) calc(7 * var(--hud-unit)) rgba(0, 0, 0, 0.28));
 }
 
 .cabin-arrival__nuannuan {
@@ -354,7 +397,7 @@
   width: min(18vw, calc(250 * var(--hud-unit)));
   height: auto;
   transform-origin: 50% 100%;
-  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 calc(20 * var(--hud-unit)) calc(28 * var(--hud-unit)) rgba(0, 0, 0, 0.32));
 }
 
 .cabin-arrival__nuannuan--reach {
@@ -382,7 +425,7 @@
   width: auto;
   transform: translateX(-50%);
   opacity: 0;
-  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 calc(20 * var(--hud-unit)) calc(28 * var(--hud-unit)) rgba(0, 0, 0, 0.32));
 }
 
 /* 车身状态图（大灯/车尾）：与 --open 同一条规矩，初始藏着等 WAAPI 接管。 */
@@ -415,10 +458,10 @@
 
 .cabin-arrival__beam {
   z-index: 1;
-  height: 2px;
+  height: calc(2 * var(--hud-unit));
   border-radius: 999px;
   background: linear-gradient(90deg, transparent, var(--cabin-amber) 14%, #fff 48%, var(--cabin-cyan) 82%, transparent);
-  box-shadow: 0 0 12px var(--cabin-cyan);
+  box-shadow: 0 0 calc(12 * var(--hud-unit)) var(--cabin-cyan);
   opacity: 0;
   transform-origin: 0 50%;
 }
@@ -433,6 +476,8 @@
 }
 
 .cabin-arrival__actions button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   display: grid;
   min-width: calc(42 * var(--hud-unit));
   height: calc(42 * var(--hud-unit));
@@ -442,8 +487,6 @@
   background: rgba(7, 30, 58, 0.72);
   color: #eff7ff;
   cursor: pointer;
-  font: inherit;
-  font-size: calc(17 * var(--hud-unit));
   transition: background 160ms ease, transform 160ms ease;
 }
 
@@ -451,17 +494,17 @@
 .cabin-arrival__actions button:focus-visible {
   background: rgba(25, 68, 113, 0.93);
   outline: none;
-  transform: translateY(-2px);
+  transform: translateY(-calc(2 * var(--hud-unit)));
 }
 
 .cabin-arrival__replay {
+  font: var(--hud-type-caption) !important;
   padding: 0 calc(14 * var(--hud-unit));
   border-radius: 999px !important;
-  font-size: calc(15 * var(--hud-unit)) !important;
 }
 
 @keyframes cabin-overlay-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes cabin-orbit-breathe { 50% { box-shadow: 0 0 30px rgba(255, 185, 88, 0.2); opacity: 0.72; } }
+@keyframes cabin-orbit-breathe { 50% { box-shadow: 0 0 calc(30 * var(--hud-unit)) rgba(255, 185, 88, 0.2); opacity: 0.72; } }
 @media (prefers-reduced-motion: reduce) {
   /* 时序层的"跳过动画"由 JS 处理（matchMedia → 直接出卡）；这里只管纯装饰。 */
   .cabin-arrival-trigger__swing { animation: none !important; }
@@ -470,7 +513,7 @@
 
 @media (max-width: 900px), (max-height: 620px) {
   .cabin-arrival__headline { top: calc(14 * var(--hud-unit)); }
-  .cabin-arrival__headline strong { font-size: calc(24 * var(--hud-unit)); }
+  .cabin-arrival__headline strong { font: var(--hud-type-title); }
   .cabin-arrival__orb { transform: scale(0.76); }
   .cabin-arrival__orb--seat { left: 13%; }
   .cabin-arrival__orb--media { left: 13%; }
@@ -505,7 +548,7 @@
 }
 
 @keyframes cabin-status-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(calc(6 * var(--hud-unit))); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -513,7 +556,7 @@
 .cabin-arrival__speedline {
   position: absolute;
   z-index: 1;
-  height: 3px;
+  height: calc(3 * var(--hud-unit));
   width: 17vw;
   border-radius: 999px;
   background: linear-gradient(90deg, transparent, rgba(157, 218, 255, 0.85), transparent);
@@ -620,5 +663,5 @@
     rgba(120, 200, 255, 0.2) 40%,
     transparent 72%
   );
-  filter: blur(7px);
+  filter: blur(calc(7 * var(--hud-unit)));
 }

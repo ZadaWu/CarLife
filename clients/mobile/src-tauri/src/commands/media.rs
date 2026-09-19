@@ -8,8 +8,8 @@
 //! # 与 cockpit 的差异
 //!
 //! cockpit 在长按开始时会先停 TTS 播报（播报中打断 → speaking 让位 listening）。
-//! 手机端**当前没有本地 TTS**，故无此步；补 TTS 时要连这条一起加，
-//! 否则会出现"一边播报一边录音"，录进去的是助手自己的声音。
+//! 手机端**没有本地 TTS**（M65-04 接过、2026-09-17 撤掉，见 events.rs 文件头），故无此步；
+//! 要再接播报时要连这条一起加，否则会出现"一边播报一边录音"，录进去的是助手自己的声音。
 
 use std::sync::Mutex;
 
@@ -135,12 +135,6 @@ pub async fn start_push_to_talk(app: AppHandle, state: State<'_, VoiceState>) ->
     }
 
     ensure_mic_permission(&app).await?;
-
-    // 用户开口即打断播报（M65-04；车机同样在长按起点停）。不停的话暖暖还在说，
-    // 用户说的话与她的声音一起进麦克风。状态由长按流程自己接管，这里不发 idle。
-    if let Some(tts) = app.try_state::<std::sync::Arc<carlife_tts::TtsState>>() {
-        carlife_tts::stop(&tts);
-    }
 
     /*
      * 哨兵让出麦克风（M60-01）。

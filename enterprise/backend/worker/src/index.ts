@@ -29,7 +29,7 @@
 import { hostname } from "node:os";
 
 import cron from "node-cron";
-import { getPrisma, createJobRepository } from "@carlife/db";
+import { getPrisma, createJobRepository, createConfigStore, createResearchRepository } from "@carlife/db";
 
 import { getFailureState, runJob, type JobDefinition, type RunOptions } from "./job-runner";
 import {
@@ -45,6 +45,7 @@ import { kbSyncJob } from "./kb-sync";
 import { vehicleReminderJob } from "./vehicle-reminder";
 import { sessionSweeperJob } from "./session-sweeper";
 import { tripPlanReviewJob } from "./trip-plan-review";
+import { createResearchAcquireJob } from "./research-acquire";
 
 /** 本实例标识，进租约表用于诊断"是谁占着"。 */
 const HOLDER = `${hostname()}:${process.pid}`;
@@ -81,8 +82,20 @@ const SCHEDULE: Record<string, string> = {
    * 与 8 点的保养提醒岔开。窗口 24 h、漏跑只补一个窗口（补三天前的核查没有意义）。
    */
   "trip-plan-review": "10 6 * * *",
+  /*
+   * 研究面取数（M82-02）：整点后 40 分——与聚合（5）、会话收口（15）、
+   * 知识库（20）都岔开。它读的是上一小时已经落全的 messages / trips，
+   * 排在最后是因为它是唯一会**读别的任务刚写过的表**的那个。
+   */
+  "research-acquire": "40 * * * *",
 };
 
+/**
+ * 六个常驻任务。**研究面那个不在这里**——它带开关，见 `buildJobs()`。
+ *
+ * 仍然导出这个常量是为了既有测试与 `--once` 的可选任务清单；
+ * 调度用的是 `buildJobs()` 的返回值，两者的差就是研究面那一个。
+ */
 const JOBS: JobDefinition[] = [
   usageAggregationJob,
   kbSyncJob,
@@ -91,6 +104,63 @@ const JOBS: JobDefinition[] = [
   sessionSweeperJob,
   tripPlanReviewJob,
 ];
+
+/**
+ * 装配研究面取数任务（M82-02）。
+ *
+ * 三种情况都返回 null 并给出**一句能直接照着修的话**，而不是抛：
+ * 研究面不该拖垮其余六个任务（同 kb-sync 缺 RAGFLOW 配置的既有纪律）。
+ *
+ * `RESEARCH_ENABLED` 缺省 off——**这是"既有功能逐字节不变"的实现处**
+ * （Sprint 完成判定第 1 条）：off 时不建 PgBoss 实例、不碰 pgboss schema、
+ * 调度表里没有这一行。
+ */
+async function buildResearchAcquireJob(): Promise<JobDefinition | null> {
+  const enabled = (await createConfigStore(getPrisma()).get("RESEARCH_ENABLED"))?.trim() === "on";
+  if (!enabled) {
+    console.log("[worker] research-acquire 未启用（RESEARCH_ENABLED=off）");
+    return null;
+  }
+
+  const dbUrl = process.env.DATABASE_URL?.trim();
+  if (!dbUrl) {
+    console.warn("[worker] research-acquire 未启用：RESEARCH_ENABLED=on 但缺 DATABASE_URL");
+    return null;
+  }
+
+  try {
+    // 动态 import：开关关着时 pg-boss 一行都不加载（同 agent-runtime 的 guide-queue 纪律）。
+    // 具名导出，不是 default（pg-boss 12 的形状，与 agent-runtime/src/index.ts 同）。
+    const { PgBoss } = await import("pg-boss");
+    const boss = new PgBoss(dbUrl);
+    boss.on("error", (err: unknown) => console.warn("[research-acquire] pg-boss 报错", err));
+    await boss.start();
+    await boss.createQueue(RESEARCH_CODE_QUEUE);
+
+    const repo = createResearchRepository(getPrisma());
+    return createResearchAcquireJob({
+      repo,
+      // 只 send 不 work：消费在 research-runtime（工单红线）。
+      send: async (queue, payload) => {
+        await boss.send(queue, payload as object);
+      },
+    });
+  } catch (err) {
+    console.warn(
+      `[worker] research-acquire 未启用：装配失败（${err instanceof Error ? err.message : String(err)}）`,
+    );
+    return null;
+  }
+}
+
+/** 编码队列名。与 research-runtime 的消费端同一个字符串，改一处要改两处。 */
+export const RESEARCH_CODE_QUEUE = "research.code";
+
+/** 本次进程要调度哪些任务 = 六个常驻 + 开着的研究面取数。 */
+export async function buildJobs(): Promise<JobDefinition[]> {
+  const research = await buildResearchAcquireJob();
+  return research ? [...JOBS, research] : [...JOBS];
+}
 
 export function buildRunOptions(): RunOptions {
   const repo = createJobRepository(getPrisma());
@@ -194,12 +264,13 @@ export async function tick(
   }
 }
 
-export function start(): void {
+export async function start(): Promise<void> {
   const opts = buildRunOptions();
   const state = createSchedulerState(HOLDER, Date.now());
   const scheduled: string[] = [];
 
-  for (const def of JOBS) {
+  // await：研究面那个要读配置、连 pg-boss 才知道挂不挂得上（M82-02）。
+  for (const def of await buildJobs()) {
     const expr = SCHEDULE[def.name];
     if (!expr) {
       state.skipped.push(`${def.name}（无 cron 表达式）`);
@@ -241,9 +312,11 @@ export function start(): void {
 
 /** 一次性手动执行（运维/演练）：`tsx src/index.ts --once <job>`。 */
 export async function runOnce(name: string): Promise<void> {
-  const def = JOBS.find((j) => j.name === name);
+  // 走 buildJobs 而不是 JOBS：`--once research-acquire` 要能跑（开着的话）。
+  const jobs = await buildJobs();
+  const def = jobs.find((j) => j.name === name);
   if (!def) {
-    console.error(`[worker] 未知任务：${name}。可选：${JOBS.map((j) => j.name).join(" / ")}`);
+    console.error(`[worker] 未知任务：${name}。可选：${jobs.map((j) => j.name).join(" / ")}`);
     process.exitCode = 1;
     return;
   }
@@ -256,7 +329,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*?(?=
   if (onceIndex >= 0) {
     void runOnce(process.argv[onceIndex + 1] ?? "").then(() => process.exit(process.exitCode ?? 0));
   } else {
-    start();
+    // start() 现在是 async（研究面装配要读配置）。起不来要出声，
+    // 否则表现是"进程活着但一个任务都没挂"，而那正是最难发现的一种。
+    void start().catch((err) => {
+      console.error("[worker] 调度启动失败", err);
+      process.exitCode = 1;
+    });
   }
 }
 

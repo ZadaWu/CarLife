@@ -39,13 +39,11 @@ pub fn run() {
     ));
 
     let builder = tauri::Builder::default()
+        .manage(commands::vision::VisionState::default())
         .manage(commands::media::VoiceState::default())
         // 哨兵状态（M60-01）：长按说话要靠它让出麦克风，所以必须与 `VoiceState`
         // 同层 manage，而不是等第一次 `sentinel_start` 才存在。
         .manage(commands::voice::SentinelState::default())
-        // 播报状态（M65-04）。这里先按共享核的默认（静音）托管，setup 里再用偏好文件的
-        // `broadcastEnabled` 覆盖——builder 阶段拿不到 AppHandle 读不了偏好。
-        .manage(Arc::new(carlife_tts::TtsState::default()))
         .manage(Arc::clone(&telemetry));
 
     // 系统定位（iOS / Android）。**WebView 的 navigator.geolocation 在这里是死路**：
@@ -67,6 +65,8 @@ pub fn run() {
         // 能开哪些 URL 由 capabilities/default.json 的 opener 权限白名单钉死——仍然不暴露任何车辆控制能力。
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            // 端侧指示灯检测（ACR-044）：字节进、框出，不出端。
+            commands::vision::vision_detect,
             // 鉴权（M48-02）：返回值里没有 token，WebView 只知道"登录了没、是谁"。
             commands::auth::auth_login,
             commands::auth::auth_status,
@@ -79,6 +79,7 @@ pub fn run() {
             commands::attachments::upload_attachment,
             commands::attachments::fetch_attachment,
             commands::chat::start_session_stream,
+            commands::chat::start_user_events_stream,
             commands::chat::start_mock_stream,
             commands::chat::refresh_history,
             commands::chat::read_cached_messages,
@@ -101,8 +102,8 @@ pub fn run() {
             commands::location::record_location_fix,
             commands::location::get_map_viewport,
             commands::location::set_map_viewport,
-            commands::profile::get_broadcast_enabled,
-            commands::profile::set_broadcast_enabled,
+            // 日历账号绑定（M92-01，FL-31）。设置页「日历」那一组；
+            // 车机端刻意没有——行车态不呈现任何凭证输入界面（FL-31 铁律）。
             // 哨兵监听总开关（M60-01）：设置页的「语音唤醒」。
             commands::profile::get_sentinel_enabled,
             commands::profile::set_sentinel_enabled,
@@ -115,6 +116,7 @@ pub fn run() {
             commands::profile::fetch_member_usage,
             commands::profile::fetch_preferences,
             commands::profile::fetch_buying,
+            commands::profile::fetch_diagnosis,
             commands::profile::create_vehicle,
             commands::profile::set_default_vehicle,
             commands::profile::list_members,

@@ -23,7 +23,7 @@
  */
 
 import type { IconClass, IconSeverity } from "./icon-catalog";
-import type { Candidate } from "./icon-index";
+import type { Candidate, IconStoreRow } from "./icon-index";
 
 export const DEFAULT_TAU = 0.3;
 /** 相似度边际：top-1 与 top-2 的最高相似度之差。0.03 是单张上的初值（清晰可分的 0.14，同形的 0.00–0.01）。 */
@@ -78,7 +78,14 @@ export interface IconSemantics {
 
 export type MatchResult =
   | { matched: true; verified: boolean; semantics: IconSemantics; sim: number; margin: number; evidence: string }
-  | { matched: false; reason: string; top?: IconSemantics; sim?: number };
+  | {
+      matched: false;
+      reason: string;
+      top?: IconSemantics;
+      sim?: number;
+      /** `top` 是谁给的：目录召回的第一名，还是端侧检测器的类别名（M80-15）。缺省 catalog。 */
+      topSource?: "catalog" | "detector";
+    };
 
 export interface MatchDeps {
   /** 成对核验；没有就只能给 verified=false 的匹配 */
@@ -87,17 +94,19 @@ export interface MatchDeps {
   iconImage?: (symbolId: string) => Buffer | null;
 }
 
-const semanticsOf = (c: Candidate): IconSemantics => {
-  const d = (c.row.descriptor ?? {}) as Partial<IconSemantics> & { name?: string };
+/** 索引里一行的语义（名称 / 类别 / 级别 / 锚点都在 descriptor 里）。 */
+export const semanticsOfRow = (row: Pick<IconStoreRow, "symbolId" | "descriptor" | "manualAnchor">): IconSemantics => {
+  const d = (row.descriptor ?? {}) as Partial<IconSemantics> & { name?: string };
   return {
-    symbolId: c.symbolId,
-    name: d.name ?? c.symbolId,
+    symbolId: row.symbolId,
+    name: d.name ?? row.symbolId,
     class: (d.class ?? "status") as IconClass,
     severity: (d.severity ?? "info") as IconSeverity,
-    manualAnchor: c.row.manualAnchor,
+    manualAnchor: row.manualAnchor,
     descriptorSource: d.descriptorSource,
   };
 };
+const semanticsOf = (c: Candidate): IconSemantics => semanticsOfRow({ ...c.row, symbolId: c.symbolId });
 
 /** 闸门 → 核验 → 语义。crop 为空时跳过核验（只有描述子的文本路），结果必然 verified=false。 */
 export async function decideMatch(candidates: readonly Candidate[], crop: Buffer | null, deps: MatchDeps, opts: GateOptions = {}): Promise<MatchResult> {

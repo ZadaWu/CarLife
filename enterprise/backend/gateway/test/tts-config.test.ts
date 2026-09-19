@@ -107,7 +107,7 @@ describe("GET /v1/tts/config", () => {
     // 字段白名单固定：多出来的字段就是下一个泄漏口
     assert.deepEqual(
       Object.keys(body(r.text)).sort(),
-      ["billed", "engine", "keyRequired", "refreshMs", "resourceId", "speaker", "url"],
+      ["billed", "engine", "keyRequired", "refreshMs", "resourceId", "speaker", "streamSpeech", "url"],
     );
   });
 
@@ -138,5 +138,34 @@ describe("GET /v1/tts/config", () => {
     assert.equal(r.status, 503);
     // 关键：不能顺手回一份"默认配置"——那份默认是**豆包**
     assert.equal(r.text.includes("openspeech.bytedance.com"), false);
+  });
+});
+
+describe("边收边播开关下发（M77 走查追修第二步）", () => {
+  it("默认关：没配过 TTS_STREAM_SPEECH 时下发 false", async () => {
+    const r = await get(appWith(storeOf({ TTS_ENGINE: "mock" })), "/v1/tts/config");
+    assert.equal(r.status, 200);
+    const body = JSON.parse(r.text) as { streamSpeech: boolean };
+    assert.equal(body.streamSpeech, false, "默认必须是关——它改的是播报形状，不该由缺省值替车主决定");
+  });
+
+  it("只有恰好是 on 才开：其它值（含 true/1/ON）一律当关", async () => {
+    for (const v of ["on"]) {
+      const r = await get(appWith(storeOf({ TTS_ENGINE: "mock", TTS_STREAM_SPEECH: v })), "/v1/tts/config");
+      assert.equal((JSON.parse(r.text) as { streamSpeech: boolean }).streamSpeech, true, `${v} 该开`);
+    }
+    // 拼错的值不该被"宽容"成开——宽容的代价是没人知道它其实开着
+    for (const v of ["off", "true", "1", "ON", "yes", ""]) {
+      const r = await get(appWith(storeOf({ TTS_ENGINE: "mock", TTS_STREAM_SPEECH: v })), "/v1/tts/config");
+      assert.equal((JSON.parse(r.text) as { streamSpeech: boolean }).streamSpeech, false, `${JSON.stringify(v)} 不该开`);
+    }
+  });
+
+  it("开关不影响这条线的老纪律：响应里仍然没有任何密钥", async () => {
+    const r = await get(
+      appWith(storeOf({ TTS_ENGINE: "doubao", TTS_STREAM_SPEECH: "on", BYTEDANCE_TTS_API_KEY: "sk-绝不能出现" })),
+      "/v1/tts/config",
+    );
+    assert.doesNotMatch(r.text, /sk-|API_KEY|绝不能出现/i);
   });
 });

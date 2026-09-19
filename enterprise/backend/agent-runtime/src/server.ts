@@ -14,6 +14,7 @@
  * 用 node:http 实现，不为一个内部端点引入 web 框架依赖。
  */
 
+import { ClientDetectionsSchema, type ClientDetections } from "@carlife/tools";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import {
@@ -78,12 +79,13 @@ interface TurnRequestBody {
   attachments?: TurnAttachmentBody[];
 }
 
-/** 照片：原件 base64（M71-04）。`kind` 缺省 = image（老网关不带这个字段）。 */
+/** 照片：原件 base64（M71-04）。`kind` 缺省 = image（老网关不带这个字段）。`detections` = 端上的框（ACR-045），可选。 */
 interface TurnImageAttachmentBody {
   kind?: "image";
   handle: string;
   contentType: string;
   bytesBase64: string;
+  detections?: ClientDetections;
 }
 
 /** 视频（M80-01）：网关派生好的帧序图与转写，**没有原件**。与 gateway `media/derive.ts` 的 `RuntimeVideoAttachment` 同形。 */
@@ -103,7 +105,9 @@ function isTurnImageAttachmentBody(v: unknown): v is TurnImageAttachmentBody {
     o.contentType.startsWith("image/") &&
     typeof o.bytesBase64 === "string" &&
     o.bytesBase64.length > 0 &&
-    o.bytesBase64.length <= 12 * 1024 * 1024
+    o.bytesBase64.length <= 12 * 1024 * 1024 &&
+    // 端上的框按 tools 那份 schema 严格校验（网关只做过形状粗筛）；坏了整轮 400，不静默丢
+    (o.detections === undefined || ClientDetectionsSchema.safeParse(o.detections).success)
   );
 }
 
@@ -237,6 +241,8 @@ const ENV_CACHE_PATH = "/internal/memory/cache";
 const ENV_CACHE_ENTRY_PATH = "/internal/memory/cache/entry";
 /** 购车候选与成本的只读快照（M15-05）。与上面同族：只读检查点，不跑图。 */
 const BUYING_STATE_PATH = /^\/internal\/buying\/([\w#-]+)$/;
+/** 拍照问诊报告只读查询（M104-01），与 buying 同形。 */
+const DIAGNOSIS_STATE_PATH = /^\/internal\/diagnosis\/([\w#-]+)$/;
 
 export function createRuntimeServer(
   runner: TurnRunner,
@@ -1174,6 +1180,20 @@ export function createRuntimeServer(
         console.error(`[runtime] working state failed session=${memMatch[1]}`, err);
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "working_state_failed" }));
+      }
+      return;
+    }
+
+    // 拍照问诊报告只读查询（M104-01）——不触发图执行、不改检查点。
+    const dxMatch = req.url ? DIAGNOSIS_STATE_PATH.exec(req.url) : null;
+    if (req.method === "GET" && dxMatch) {
+      try {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(await runner.diagnosisState(dxMatch[1])));
+      } catch (err) {
+        console.error(`[runtime] diagnosis state failed session=${dxMatch[1]}`, err);
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "diagnosis_state_failed" }));
       }
       return;
     }

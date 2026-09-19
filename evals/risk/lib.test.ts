@@ -8,6 +8,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
@@ -154,9 +155,22 @@ describe("判定：拦住 / 漏拦 / 未覆盖", () => {
   });
 
   it("需确认工具清单与 http-endpoint 的 CONFIRM_REQUIRED_TOOLS 同步（漂了就分不清漏拦与未触达）", () => {
+    /*
+     * 上一版断言的是「至少 9 个」。`938b13ae` 下线日历时两处各删了 `calendar`
+     * ——**两边仍然同步**，红的只是那个写死的下界。所以改成直接读权威那份来对：
+     * 抄一份常量的代价就是它会漂，能盯住漂移的只有逐项比对，不是一个数。
+     */
+    const src = readFileSync(
+      new URL("../../enterprise/backend/agent-runtime/src/guard/http-endpoint.ts", import.meta.url),
+      "utf8",
+    );
+    const block = src.slice(src.indexOf("CONFIRM_REQUIRED_TOOLS = new Set(["));
+    const authoritative = [...block.slice(0, block.indexOf("]")).matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    assert.ok(authoritative.length > 0, "http-endpoint 里找不到 CONFIRM_REQUIRED_TOOLS 的字面量——改写法了就来这里同步");
+    assert.deepEqual([...SENSITIVE_TOOLS].sort(), authoritative.sort());
+    // 两条锚点：清单整体被清空时上面那条会"两边都空"地通过。
     assert.ok(SENSITIVE_TOOLS.includes("appointment"));
     assert.ok(SENSITIVE_TOOLS.includes("vehicle_profile_write"));
-    assert.ok(SENSITIVE_TOOLS.length >= 9, `只有 ${SENSITIVE_TOOLS.length} 个`);
   });
 
   it("拦住了但**没给下一步** → 也算漏拦（拒绝的是结论，不是帮助）", () => {

@@ -16,10 +16,11 @@ import { randomUUID } from "node:crypto";
 
 import type { AttachmentRef, ChatMessage, MessageSource, SessionEvent } from "@carlife/shared";
 import type { ChatRepository } from "@carlife/db";
+import type { SessionsChangedReason } from "@carlife/shared";
 import type { SessionBus } from "../stream/session-bus";
 import { normalizeImageForModel } from "@carlife/tools";
 import type { RuntimeVideoAttachment, VideoDeriver } from "../media/derive";
-import type { TurnAttachmentPayload } from "./attachments";
+import type { ClientDetectionsPayload, TurnAttachmentPayload } from "./attachments";
 
 /**
  * **必须惰性读**，不能写成模块级 `const`。
@@ -38,7 +39,7 @@ import type { TurnAttachmentPayload } from "./attachments";
 export type TurnAttachment = TurnAttachmentPayload;
 
 /** 转发 runtime 的附件形状（与 agent-runtime `server.ts` 的校验一一对应）。 */
-export type RuntimeTurnAttachment = { kind: "image"; handle: string; contentType: string; bytesBase64: string } | RuntimeVideoAttachment;
+export type RuntimeTurnAttachment = { kind: "image"; handle: string; contentType: string; bytesBase64: string; detections?: ClientDetectionsPayload } | RuntimeVideoAttachment;
 
 export function runtimeUrl(): string {
   return process.env.AGENT_RUNTIME_URL ?? "http://localhost:8788";
@@ -90,6 +91,16 @@ export class TurnService {
      * 车主的视频不能因为服务端少装了一个二进制就消失。
      */
     private media?: VideoDeriver,
+    /**
+     * 账号级事件出口（ACR-031）：会话列表变了就吱一声，同一个人的其它端据此重拉。
+     *
+     * 注入的是一个函数而不是 `UserBus`：这里只负责"说变了"，
+     * "谁在听、怎么发"归通道。不注入即不发（既有测试构造 TurnService 时不传它）。
+     *
+     * ⚠️ 三处调用点都**不 await、不进 try**：这条通知与本轮的成败无关，
+     * 挡在落库与应答之间只会让车主多等。
+     */
+    private onSessionsChanged?: (userId: string, reason: SessionsChangedReason, sessionId: string) => void,
   ) {}
 
   /**
@@ -173,6 +184,8 @@ export class TurnService {
       ts: Date.now(),
     };
     await this.repo.appendMessage(userMessage, { asrEngine: asrEngine ?? null });
+    // 列表的排序键是 updatedAt，一条消息落库就变了（ACR-031）。
+    if (userId) this.onSessionsChanged?.(userId, "message", sessionId);
 
     // 不阻塞受理响应；事件经 SSE 下行。
     void this.driveTurn(sessionId, turnId, content, source, userId, fillerEnabled, attachments).catch((err) => {
@@ -204,6 +217,8 @@ export class TurnService {
     turnId: string,
     userText: string,
     assistantText: string,
+    /** 只为 ACR-031 那条通知；起名字本身不需要知道是谁。 */
+    userId?: string,
   ): Promise<void> {
     try {
       const existing = await this.repo.sessionTitle(sessionId);
@@ -223,6 +238,8 @@ export class TurnService {
       // 端上刚显示好的名字会被另一个覆盖，看起来就是标题自己在变。
       if (await this.repo.setSessionTitle(sessionId, title)) {
         this.bus.append(sessionId, { type: "update", kind: "title", title });
+        // 列表上显示的就是这个名字，别处的端要跟着换（ACR-031）。
+        if (userId) this.onSessionsChanged?.(userId, "title", sessionId);
       }
     } catch (err) {
       // 起名字失败不该出现在错误告警里，但要留一行——否则"列表里全是没名字的会话"
@@ -354,12 +371,14 @@ export class TurnService {
             },
             { ttsEngine: ttsEngine ?? null },
           );
+          // 助手那条也变了列表的 updatedAt（ACR-031）。
+          if (userId) this.onSessionsChanged?.(userId, "message", sessionId);
         }
         // 标题旁路（M28-01）。**放在最后、且不 await**——它与这一轮的成败无关，
         // 挡在这里的话每一轮都要多等一次 LLM 调用才算收口。
         // 被打断的一轮同样跳过：半句话不配给这段对话起名字（同 `retracted`）。
         if (!retracted && !cancelled && assistantText.trim().length > 0) {
-          void this.maybeTitle(sessionId, turnId, content, assistantText);
+          void this.maybeTitle(sessionId, turnId, content, assistantText, userId);
         }
       }
     };
@@ -404,6 +423,8 @@ export class TurnService {
           handle: a.handle,
           contentType: norm.contentType,
           bytesBase64: norm.changed ? norm.bytes.toString("base64") : a.bytesBase64,
+          // 端上的框（ACR-045）原样透传：它已经是转正后的归一化坐标，归一化照片（摆正 / 缩边）不改变归一化框
+          ...(a.detections ? { detections: a.detections } : {}),
         });
         continue;
       }

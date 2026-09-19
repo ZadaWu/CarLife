@@ -399,7 +399,7 @@ async function main(): Promise<void> {
           metricsVersion: METRICS_VERSION,
           total: all.length,
           selected: selected.length,
-          model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+          model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
           command: replayCommand("eval:scenarios", args),
           // 总分 / 满分（score.ts）：控制台任务页与列表直接读它，不在网关里再算一遍
           score: scenarioScore(`核心场景 · ${REAL ? "real" : "fake"} 档`, outcomes),
@@ -644,7 +644,7 @@ async function main(): Promise<void> {
       runMeta({
         name: "核心场景评估（eval:scenarios）",
         tier: REAL ? "real（真实 LLM）" : "fake（确定性、零成本、离线可复现）",
-        model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+        model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
         total: all.length,
         selected: selected.length,
         at,
@@ -677,7 +677,7 @@ async function main(): Promise<void> {
           // M55-01：抽样口径的载体——汇总报告靠 selected/total 分辨"部分运行"（旧产物无此字段视为全量）。
           total: all.length,
           selected: selected.length,
-          model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+          model: REAL ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
           command: replayCommand("eval:scenarios", args),
           // 总分 / 满分（score.ts）：控制台任务页与列表直接读它，不在网关里再算一遍
           score: scenarioScore(`核心场景 · ${REAL ? "real" : "fake"} 档`, outcomes),

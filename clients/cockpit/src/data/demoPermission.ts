@@ -33,6 +33,10 @@ export const DEMO_PERMISSION: PermissionRequest = {
   scope: "trip",
   details: [
     { label: "动作", value: "确认多天行程并保存：广州 4天" },
+    // 行程首行（M77 走查追修，2026-09-12）：从哪去哪、几天。此前这张演示清单直接从「第1天」开始，
+    // 于是「出发地根本没被记下来」这件事在走查里看不出来——体检那条「缺出发地」
+    // 反而是唯一的线索，而它长得像体检自己的毛病。
+    { label: "行程", value: "上海 → 广州，共 4 天，2026-10-01 出发" },
     {
       label: "第1天 番禺乐园日",
       value:
@@ -69,7 +73,7 @@ export const DEMO_PERMISSION: PermissionRequest = {
       label: "体检·请你看",
       value: "[第3天] 第 3 段约 2 小时 40 分，超过单段上限 2 小时；沿线没找到满足门槛的停靠点，修了 3 轮没解决",
     },
-    { label: "体检·验不了", value: "返程闭环：缺出发地" },
+    { label: "体检·验不了", value: "返程闭环：缺返程段（草案的最后一段没有终点站）" },
   ],
   disclosure: [],
 };

@@ -13,6 +13,7 @@
  * 只来自手册图标目录（ACR-025），而 2026-09-09 实测它在真实照片上框对了两个灯、名字却全叫错
  * （把驻车灯叫 `regen_limited`、把安全带叫 `airbag_warning`）。带出去只会误导下游。
  * 所有框统一记 `category: "warning_light"`——这个检测器只训过警示灯。
+ * 类别名以 `symbolHint` 带下去（M80-15）：它不是结论，观察节点只在目录匹配失败时拿它说「疑似」。
  *
  * # 它不知道的事
  *
@@ -33,7 +34,7 @@ export interface YoloDetectOptions {
   baseURL: string;
   /** 训练任务 id（`GET /models` 里的 `id`），如 `train-20260909-141540-e8c0`。 */
   model: string;
-  /** 置信阈值，缺省 0.25——与 M79 负样本筛选和 detector-localize 评测同一个数。 */
+  /** 置信阈值，缺省 0.3——G 版权重（M80-15）在 12 张没见过的照片上 0.25 与 0.3 认对同为 26/35、多报 15 → 13；M79 的负样本筛选仍用 0.25。 */
   conf?: number;
   /**
    * 推理边长，缺省 960 = **训练尺寸**。2026-09-10 实测同一个模型同一张图：1280 时驻车灯置信 0.28、21 张负样本误报 13 框；
@@ -73,7 +74,7 @@ export function toNormalizedBBox(xyxy: readonly number[], width: number, height:
 export function createYoloDetectProvider(opts: YoloDetectOptions): VisionProvider {
   const baseURL = opts.baseURL.replace(/\/$/, "");
   const doFetch = opts.fetch ?? fetch;
-  const conf = opts.conf ?? 0.25;
+  const conf = opts.conf ?? 0.3;
   const imgsz = opts.imgsz ?? 960;
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const label = `yolo:${opts.model}`;
@@ -100,8 +101,10 @@ export function createYoloDetectProvider(opts: YoloDetectOptions): VisionProvide
     const items = (json.detections ?? [])
       .map((d) => {
         const bbox = toNormalizedBBox(d.xyxy, width, height);
-        // 类别名故意不带：名称只能来自手册图标目录（文件头）。
-        return bbox ? { category: "warning_light" as const, bbox, confidence: Math.max(0, Math.min(1, d.conf)) } : null;
+        // 类别名只作 symbolHint（候选），名称结论仍只能来自手册图标目录（文件头）。
+        if (!bbox) return null;
+        const hint = typeof d.name === "string" && d.name.trim() ? d.name.trim() : undefined;
+        return { category: "warning_light" as const, bbox, confidence: Math.max(0, Math.min(1, d.conf)), ...(hint ? { symbolHint: hint } : {}) };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     return DetectResultSchema.parse({ frame: { quality: {}, cut_off_sides: [], item_count: items.length }, items });

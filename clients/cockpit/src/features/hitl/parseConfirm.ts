@@ -19,15 +19,32 @@ import { parseAuditDetails, stripAuditDetails, type AuditSummary, type Permissio
 const ACTION_LABEL = "动作";
 /** 大交通行的 label，由 `commitDisclosures` 固定写入。 */
 const TRANSIT_LABEL = "大交通";
+/** 行程首行的 label（M77 走查追修，2026-09-12）：`上海 → 广州，共 4 天`。同样由 `commitDisclosures` 固定写入。 */
+const ROUTE_LABEL = "行程";
 
 /** `第3天 荔湾人文日` —— 逐日明细的 label 形状。 */
 const DAY_LABEL_RE = /^第\s*(\d+)\s*天\s*(.*)$/;
-/** 源文本里的估算标记，形如 `（估算）`。 */
-const ESTIMATE_RE = /[（(]\s*估算\s*[)）]/;
+/**
+ * 源文本里的估算标记，形如 `（估算）`——**也认括号里还带着话的那种**
+ * `（估算，国庆为全年最贵档期，以预订平台实际价格为准）`（M93-03）。
+ *
+ * 只认光秃秃四个字的那版实测过：真跑那句 36 字的免责剥不掉，于是「估」角标不亮、
+ * 整串被当成价格。归一已经搬到汇聚层，这里放宽只是为了**历史数据也能看**——
+ * 库里那些没归一过的快照仍然会被打开。
+ */
+const ESTIMATE_RE = /[（(]\s*估算[^）)]*[)）]/;
 /** 住宿段：`；住 广州柏悦酒店 约900-1600/晚`。 */
 const STAY_SPLIT_RE = /[;；]\s*住\s*/;
 /** 行尾价格：`约280-450/晚` / `¥900-1600/晚`。 */
 const PRICE_TAIL_RE = /(?:^|\s)((?:约|[¥￥])[^\s]*\d[^\s]*)$/;
+/**
+ * 价格最长几个字（M93-03）。超过就**不认它是价格**，整串留在名字里。
+ *
+ * 价格那一列是 `flex` 行里不让步的一侧；一个 36 字的"价格"会把酒店名压到 0 宽，
+ * 表现是名字一个字一行竖着排。宁可名字长一点，也不要出现一个撑爆版式的价格。
+ * 16 个字装得下 `约2000-3500/晚`（12 字）这类真实区间，装不下一句免责。
+ */
+const PRICE_MAX_CHARS = 16;
 /** 免责小字：`具体航班/车次以购票平台为准`。 */
 const NOTE_TAIL_RE = /[，,]?\s*((?:具体|实际)[^；;，,]*为准)\s*$/;
 
@@ -72,6 +89,13 @@ export interface ConfirmView {
   subject?: string;
   days: PlanDay[];
   transit?: TransitBlock;
+  /**
+   * 「从哪去哪、几天」的原文（M77 走查追修，2026-09-12）。
+   *
+   * **不再往下拆**：出发地与目的地的地名里带箭头、顿号、括号门店名的情况都有，
+   * 拆开重拼只会在某个地名上翻车，而这一行的用途只是给人读一眼。
+   */
+  route?: string;
   /** 未能结构化的明细，原样逐行显示。 */
   rows: PermissionDetail[];
   /** 体检摘要（M77-04）：由 `体检·` 前缀的行解出；没有体检行就没有，弹窗不画体检区。 */
@@ -87,7 +111,7 @@ function stripEstimate(text: string): { text: string; estimated: boolean } {
 function parseStay(raw: string): PlanStay {
   const { text, estimated } = stripEstimate(raw);
   const m = text.match(PRICE_TAIL_RE);
-  if (!m) return { name: text, estimated };
+  if (!m || m[1]!.length > PRICE_MAX_CHARS) return { name: text, estimated };
   return { name: text.slice(0, m.index).trim(), price: m[1], estimated };
 }
 
@@ -165,6 +189,7 @@ export function parseConfirm(details: PermissionDetail[], fallbackTitle: string)
   const days: PlanDay[] = [];
   const rows: PermissionDetail[] = [];
   let transit: TransitBlock | undefined;
+  let route: string | undefined;
   let action: { title: string; subject?: string } | undefined;
 
   // 体检行先抽走（M77-04）：它们的 label 以「体检·」开头，不会被 DAY_LABEL_RE 认成天序行，
@@ -178,6 +203,10 @@ export function parseConfirm(details: PermissionDetail[], fallbackTitle: string)
     }
     if (label === TRANSIT_LABEL) {
       transit = parseTransit(d.value);
+      continue;
+    }
+    if (label === ROUTE_LABEL) {
+      route = d.value.trim();
       continue;
     }
     const day = label.match(DAY_LABEL_RE);
@@ -202,6 +231,7 @@ export function parseConfirm(details: PermissionDetail[], fallbackTitle: string)
     subject: action?.subject,
     days: marked,
     transit,
+    ...(route ? { route } : {}),
     rows,
     ...(audit ? { audit } : {}),
   };

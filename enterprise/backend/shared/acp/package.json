@@ -1,0 +1,22 @@
+{
+  "name": "@carlife/acp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "comment:deps": "依赖**只有 ACP SDK**（ACR-035）。底座认识协议，不认识业务：引 @carlife/tools 会让用研面间接引到车主面的工具表，那正是本包存在的理由。check:arch 的 acp-substrate-pure 守这一条。",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "~0.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

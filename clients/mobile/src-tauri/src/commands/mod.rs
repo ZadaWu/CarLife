@@ -7,3 +7,5 @@ pub mod media;
 pub mod netdiag;
 pub mod profile;
 pub mod voice;
+// 端侧指示灯检测（ACR-044）。
+pub mod vision;

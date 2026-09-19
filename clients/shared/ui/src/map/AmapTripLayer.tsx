@@ -36,7 +36,28 @@ import {
   type StopSchedule,
 } from "./trip-route";
 import { createSimulatedNavSource, etaToNextStop, type NavLeg } from "./nav-position";
-import { TRIP_MARKER_GUIDED_CLASS, tripMarkerHtml } from "./trip-marker";
+import {
+  indexesOfDay,
+  markerDays,
+  TRIP_MARKER_CLASS,
+  TRIP_MARKER_DIM_CLASS,
+  TRIP_MARKER_GUIDED_CLASS,
+  tripMarkerHtml,
+} from "./trip-marker";
+import {
+  serviceMarkerHtml,
+  SERVICE_MARKER_CLASS,
+  SERVICE_NAME_GAP,
+  SERVICE_NAME_HIDDEN_CLASS,
+  SERVICE_NAME_MAX,
+  SERVICE_NAME_OFFSET,
+  SERVICE_NAME_ON_CLASS,
+  SERVICE_NAME_UP_CLASS,
+  SERVICE_NAME_ZOOM,
+  type ServiceMarkerCategory,
+} from "./service-marker";
+import { avoidXWithDrawer } from "./fit-avoid";
+import { placeLabels, type LabelBox } from "./label-declutter";
 
 export interface TripMapStop {
   name: string;
@@ -110,6 +131,36 @@ export interface AmapTripLayerProps {
    * 对不上就不标（不标不猜）。
    */
   guidedSpots?: string[];
+  /**
+   * 抽屉里选中的那一天（M83 走查追修）。给了它，**别的天**的胶囊、圆点与路线退成灰色半透明；
+   * 选中的那天保持原样。缺省 = 都不淡出（与从前逐字一致）。
+   *
+   * 换一天还会**把镜头框到那一天的落点上**（2026-09-16 走查：只淡出不动镜头的话，
+   * 第 2 天那一片仍然只有指甲盖大小）；关抽屉（缺省）回到全程视野。
+   *
+   * 它**不进重建依赖**：换一天只翻 class、调折线不透明度、拿已经在图上的圆点
+   * 重框一次视野，不碰覆盖物——重建等于把 7 段路径规划与跟车动画全部重做
+   *（M19-05 那个坑）。
+   */
+  focusDay?: number;
+  /**
+   * 要画在图上的沿途服务点（M93-05）。**由调用方按选中天与选中类目算好再传进来**
+   * （`selectedServicePois`，在 `hud/trip-detail.ts` 里，纯函数可测），
+   * 这里只负责把给它的点画出来。
+   *
+   * 它走**自己的 ref 与自己的 effect**，与 `overlaysRef` 那一层物理隔离：
+   * 切换类目是用户会连点好几下的动作，进了重建依赖就是每点一下把 7 段路径规划、
+   * 取景与跟车动画全部重做（M19-05 那个坑，`focusDay` 也是为此才只翻 class）。
+   */
+  servicePois?: readonly ServiceLayerPoi[];
+}
+
+/** 一个要画的服务点：坐标 + 类目（类目决定图标与颜色）。 */
+export interface ServiceLayerPoi {
+  category: ServiceMarkerCategory;
+  name: string;
+  lat: number;
+  lon: number;
 }
 
 /** 跟车进度：顶栏与播报的全部原料。 */
@@ -155,8 +206,40 @@ const FIT_AVOID_PORTRAIT = [200, 360, 30, 30];
 const FOCUS_ZOOM = 16;
 const FOCUS_MS = 520;
 
+/**
+ * 按天框视野时的最大缩放级别（2026-09-16 走查两轮）。
+ *
+ * 不封顶的话，那天的点挨得近时 `setFitView` 会怼到最大级——屏幕上只剩脚下几条路，
+ * "这一天在哪一带"反而看不出来。第一轮定的 15 级用户实测仍嫌太近
+ *（「缩放不要放那么大」），退到 13：约一个新城片区的尺度，能同时看见
+ * 那天的点和它们周边的地理参照（湖、海岸线、主干道）。
+ * 点胶囊聚焦是 `FOCUS_ZOOM` 16——那是看一个点，这是看一天，本来就该差好几档。
+ */
+const DAY_FIT_MAX_ZOOM = 13;
+
 /** 单边避让不得超过该方向尺寸的这个比例——兜住任何未来的窗口尺寸。 */
 const AVOID_MAX_RATIO = 0.4;
+/**
+ * 横向的夹持要松一档（0.55）：行程详情抽屉本身就占掉约四成宽，
+ * 拿 0.4 去夹等于把"让开抽屉"这件事直接抹掉——实测 1600 宽下想让 648、被夹回 640，
+ * 胶囊仍压在抽屉边上。留到 0.55 是因为再多，左边能用的地方就不够摆一天的点了。
+ */
+const AVOID_MAX_RATIO_X = 0.55;
+
+/**
+ * 抽屉开着时，**左右各**多让的一截（CSS 像素）。
+ *
+ * 两件事同时办：
+ *
+ * 1. 给名字胶囊留伸展余地。胶囊（实测 213×50）挂在落点上、还被 `SPREAD_X` 往外推，
+ *    落点贴着让线时胶囊会伸进抽屉底下——实测右伸约 109 px。
+ * 2. 把缩放再拉远一档（走查：「缩放不要放那么大」）——可用区越窄，
+ *    同一批点塞进去所需的缩放就越小。
+ *
+ * **必须左右同时加**，而且右让量要按 `抽屉占宽 + 左让量` 配。
+ * 只加右边的话，多让的每一像素都会把内容往左推半像素——那是第二版偏心的来由。
+ */
+const DRAWER_FIT_GAP = 80;
 
 function fitAvoidFor(width: number, height: number): number[] {
   const [t0, b0, l, r] = height > width ? FIT_AVOID_PORTRAIT : FIT_AVOID_LANDSCAPE;
@@ -169,9 +252,116 @@ function fitAvoidFor(width: number, height: number): number[] {
   // 顶部多让一截：胶囊长在落点上方，还会被 SPREAD_Y 往上推，只让开顶栏本身仍会顶到它。
   const t = Math.max(t0, chrome.top + 150);
   const b = Math.max(b0, chrome.bottom + 40);
+  /*
+   * 抽屉开着时右侧要让得更多（2026-09-16 走查）：常数 520 让的是提示卡，
+   * 而行程详情抽屉比它宽、还盖在它上面。不让开的话切到某一天，
+   * 那天的点正好落在抽屉底下——镜头动了，用户还是看不见它。
+   *
+   * 让多少有个**唯一正确的配法**，不是越多越靠左（走查第三轮：「感觉歪着」）——
+   * 那条算术连同它的由来在 `avoidXWithDrawer` 的注释里，改之前先读那一段。
+   */
+  const [l2, r2] = avoidXWithDrawer(drawerWidth(width), l, r, DRAWER_FIT_GAP);
   const capY = height * AVOID_MAX_RATIO;
-  const capX = width * AVOID_MAX_RATIO;
-  return [Math.min(t, capY), Math.min(b, capY), Math.min(l, capX), Math.min(r, capX)];
+  const capX = width * AVOID_MAX_RATIO_X;
+  return [Math.min(t, capY), Math.min(b, capY), Math.min(l2, capX), Math.min(r2, capX)];
+}
+
+/**
+ * 行程详情抽屉（`.hud-tripdetail`）从视口右缘吃掉多少 CSS 像素——**只算它自己**，
+ * 余量由调用方按上面那条配法加，混在一起算就再也说不清偏心是谁造成的。
+ *
+ * 与 `chromeInsets` 同一手法：量真实元素而不是抄 CSS 里的 620——那个宽度写的是
+ * `--hud-unit` 的倍数，随窗口缩放。抽屉没开、或手机端根本不挂它 → 0，
+ * 行为与从前逐字一致。
+ */
+function drawerWidth(width: number): number {
+  if (typeof document === "undefined" || width <= 0) return 0;
+  const el = document.querySelector(".hud-tripdetail");
+  if (!el) return 0;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0) return 0;
+  // 抽屉是 position: fixed，rect 就是视口坐标（同 chromeInsets 的前提）。
+  return Math.max(0, width - rect.left);
+}
+
+/** `DOMRect` 只取判定用得上的四条边（结构化之后才好逐条验算）。 */
+function box(r: DOMRect): LabelBox {
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+}
+
+/**
+ * 把这一屏的服务点名字重新摆一遍：压在一起的、露在可见区外的、超过名额的，**只藏名字**
+ * （图标留在图上）。判定本体在 `label-declutter.ts`，这里只负责量和挂类名。
+ *
+ * 每次都先把上一轮的消隐全撤掉再量——留着的话量到的是 `display:none` 那块的零尺寸盒子，
+ * 于是被藏过一次的名字再也回不来：用户推近一档、点位明明已经散开，屏幕上还是那几个名字。
+ */
+function declutterServiceNames(host: HTMLElement): void {
+  const marks = Array.from(host.querySelectorAll<HTMLElement>(`.${SERVICE_MARKER_CLASS}`));
+  for (const mark of marks) {
+    mark.classList.remove(SERVICE_NAME_HIDDEN_CLASS);
+    mark.classList.remove(SERVICE_NAME_UP_CLASS);
+  }
+  if (marks.length === 0) return;
+  const view = host.getBoundingClientRect();
+  /*
+   * 可见区右边界要减掉抽屉：被抽屉盖住的那半屏里，名字摆得再整齐用户也看不见，
+   * 却会把 12 个名额吃掉——取景那边的 `avoidXWithDrawer` 是同一个道理。
+   */
+  const drawerLeft = window.innerWidth - drawerWidth(window.innerWidth);
+  const bounds: LabelBox = {
+    left: view.left,
+    top: view.top,
+    right: Math.min(view.right, drawerLeft),
+    bottom: view.bottom,
+  };
+  const icons = marks.map((mark): LabelBox => box(mark.getBoundingClientRect()));
+  /*
+   * 行程胶囊：名字要绕开它。服务点的**图标**可以盖在胶囊上（M93-05 有意为之），
+   * 但文字盖文字是另一回事——两行字叠在一起，两行都读不成。
+   */
+  const blockers = Array.from(host.querySelectorAll<HTMLElement>(`.${TRIP_MARKER_CLASS}`)).map((el) =>
+    box(el.getBoundingClientRect()),
+  );
+  /*
+   * 两个候选位。只量得到 DOM 里当前那一边（下方），上方那块是**算**出来的：
+   * 同宽同高，贴着图标上沿。再去翻一次类名重量一遍要多一次强制重排，
+   * 而这套量本来就跑在用户连推缩放的路径上。
+   */
+  const cands = marks.map((mark, i) => {
+    const el = mark.querySelector<HTMLElement>(`.${SERVICE_MARKER_CLASS}__name`);
+    if (!el) return { below: null, above: null };
+    const below = box(el.getBoundingClientRect());
+    const icon = icons[i];
+    const h = below.bottom - below.top;
+    const above =
+      icon && h > 0
+        ? {
+            left: below.left,
+            right: below.right,
+            top: icon.top - SERVICE_NAME_OFFSET - h,
+            bottom: icon.top - SERVICE_NAME_OFFSET,
+          }
+        : null;
+    return { below, above };
+  });
+  const slots = placeLabels(
+    { cands, icons, blockers, bounds },
+    { gap: SERVICE_NAME_GAP, max: SERVICE_NAME_MAX },
+  );
+  let shown = 0;
+  slots.forEach((slot, i) => {
+    const mark = marks[i];
+    if (!mark) return;
+    if (slot === null) {
+      mark.classList.add(SERVICE_NAME_HIDDEN_CLASS);
+      return;
+    }
+    shown += 1;
+    if (slot === "above") mark.classList.add(SERVICE_NAME_UP_CLASS);
+  });
+  // 走查时"这家店的名字怎么不见了"第一个要问的就是它：摆上去几块 / 一共几个点。
+  host.dataset.svcnames = `${shown}/${marks.length}`;
 }
 
 /**
@@ -359,10 +549,11 @@ function markerHtml(
   gen = 0,
   entering = false,
   guided = false,
+  dim = false,
 ): string {
   // 品类贴纸（M13-07）：与生活环同一套卡通图，地图标记与环上观感一致。
   const sticker = POI_STICKERS[stop.poiKind ?? ""] ?? POI_STICKERS[KIND_FALLBACK[stop.kind]];
-  return tripMarkerHtml(stop, { seq, showDayBadge, time, index, gen, entering, guided, sticker });
+  return tripMarkerHtml(stop, { seq, showDayBadge, time, index, gen, entering, guided, sticker, dim });
 }
 
 /**
@@ -431,6 +622,13 @@ function setDomOpacity(host: HTMLElement | null, gen: number, v: number): void {
 const lineBaseOpacity = new WeakMap<object, number>();
 
 /**
+ * 非选中天的折线淡到原来的几成（M83 走查追修）。
+ * 0.25 是"还看得出有条路、但一眼不会被它带走"的档：再低在灰白底图上基本消失，
+ * 而"消失"与"这一天没有路线"是两个意思。
+ */
+const ROUTE_DIM_FACTOR = 0.25;
+
+/**
  * 折线的不透明度补间。折线画在 GL canvas 上，**吃不到 CSS transition**，
  * 只能自己按帧插值。`from`/`to` 是相对各层基准不透明度的系数（0=全透明，1=原样）。
  * 返回取消函数——重跑或卸载时必须调，否则它会去改已经被移除的折线。
@@ -470,10 +668,14 @@ export function AmapTripLayer({
   onFallback,
   onStopClick,
   guidedSpots,
+  focusDay,
+  servicePois = [],
 }: AmapTripLayerProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<AMapInstance | null>(null);
   const overlaysRef = useRef<unknown[]>([]);
+  /** 沿途服务点的覆盖物（M93-05）——**与 overlaysRef 分开存**，见 servicePois 的说明。 */
+  const serviceOverlaysRef = useRef<unknown[]>([]);
   /** 贴边夹持那一帧；切天/卸载时必须取消，否则它会去改已经被 remove 的覆盖物。 */
   const rafRef = useRef<number | undefined>(undefined);
   const [ready, setReady] = useState(false);
@@ -499,6 +701,12 @@ export function AmapTripLayer({
   const [userMoved, setUserMoved] = useState(false);
   /** 当前这一代的落点圆点，按钮要拿它重新框视野。 */
   const dotsRef = useRef<unknown[]>([]);
+  /**
+   * 与 `dotsRef.current` **逐条对齐**的「这个落点属于哪几天」（同 `routeLineDaysRef` 的手法）。
+   * 按天框视野要从圆点里挑出那一天的子集，而覆盖物对象本身问不出天。
+   * 连住酒店跨两天，两天都该把它框进去。
+   */
+  const dotDaysRef = useRef<number[][]>([]);
   /** 交叉淡出的收尾定时器；切天/卸载时要清，否则它会去 remove 已销毁的覆盖物。 */
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** 淡出定时器要删的那一代覆盖物（M34-03）：提前打断淡出时必须删**它**，不是当前代。 */
@@ -507,6 +715,20 @@ export function AmapTripLayer({
   const genRef = useRef(0);
   /** 当前路线折线（与 overlaysRef 分开存：异步换真实道路时它会被整组替换）。 */
   const routeLinesRef = useRef<unknown[]>([]);
+  /** 与 `routeLinesRef` 逐条对齐的「这条线属于第几天」（M83 走查追修）。 */
+  const routeLineDaysRef = useRef<number[]>([]);
+  /*
+   * 焦点天走 ref（M83 走查追修）：它**不能进重建依赖**（切一天重做一次路径规划），
+   * 但标记出生时要带对初值——标记是异步上图的（实测晚 4 秒），
+   * 那时淡出 effect 的依赖一个都没变，只靠它补不上。
+   */
+  const focusDayRef = useRef<number | undefined>(undefined);
+  focusDayRef.current = focusDay;
+  /** 这枚标记该不该淡出（建标记与切天两处共用一份判断）。 */
+  const isDimmed = (days: number[]): boolean => {
+    const f = focusDayRef.current;
+    return f !== undefined && !days.includes(f);
+  };
   /** 所有在跑的淡入淡出帧循环，重跑/卸载时统一取消。 */
   const cancelsRef = useRef<Array<() => void>>([]);
 
@@ -557,6 +779,11 @@ export function AmapTripLayer({
         .map((s) => `${s.name}|${s.day}|${s.kind}|${s.poiKind ?? ""}|${s.lat ?? ""}|${s.lon ?? ""}`)
         .join(";"),
     [stops],
+  );
+  /** 服务点的指纹（同 stopsKey 的理由）：调用方每轮都传新数组，按内容比才不会白重画。 */
+  const servicePoisKey = useMemo(
+    () => servicePois.map((p) => `${p.category}|${p.name}|${p.lat}|${p.lon}`).join(";"),
+    [servicePois],
   );
 
   // ── 地图实例：只随主题重建 ──
@@ -638,6 +865,7 @@ export function AmapTripLayer({
       fadePendingRef.current = []; // 地图实例整个销毁，挂账的旧代一并作废
       overlaysRef.current = [];
       dotsRef.current = [];
+      dotDaysRef.current = [];
       mapRef.current?.destroy();
       mapRef.current = null;
       setReady(false);
@@ -645,19 +873,27 @@ export function AmapTripLayer({
   }, [theme]);
 
   /**
-   * 框住全部落点。**唯一**会动镜头的地方——自动调用与按钮都走它。
+   * 框住给定的一组覆盖物。**唯一**会动镜头的地方——全程、按天、按钮都走它。
    *
    * `programmatic` 在调用期间置位，把随之而来的 zoomend/moveend 与用户操作区分开；
    * `immediately=true` 是同步完成，所以下一帧解除就够。
+   *
+   * 返回**有没有真的框**：一个都没有时调用方要能分辨（按天取景那一路靠它决定
+   * 要不要把镜头判给用户——没框成却判了，用户就白白失去自动取景）。
    */
-  const fitToStops = useCallback(() => {
+  const fitOverlays = useCallback((list: unknown[], maxZoom?: number): boolean => {
     const map = mapRef.current;
-    const dots = dotsRef.current;
-    if (!map || dots.length === 0) return;
+    if (!map || list.length === 0) return false;
     const host = hostRef.current;
     const avoid = fitAvoidFor(host?.clientWidth ?? 0, host?.clientHeight ?? 0);
     programmaticRef.current = true;
-    (map.setFitView as ((...a: unknown[]) => void) | undefined)?.call(map, dots, true, avoid);
+    (map.setFitView as ((...a: unknown[]) => void) | undefined)?.call(
+      map,
+      list,
+      true,
+      avoid,
+      maxZoom,
+    );
     /*
      * 解除隔离用定时器，**不能用 rAF**：窗口不可见时 rAF 是完全暂停的，
      * 那样这个标记会一直挂着 true，之后用户的每一次拖动都被当成"程序自己动的"
@@ -667,7 +903,13 @@ export function AmapTripLayer({
     setTimeout(() => {
       programmaticRef.current = false;
     }, 0);
+    return true;
   }, []);
+
+  /** 框住全部落点（全程视野）。 */
+  const fitToStops = useCallback(() => {
+    fitOverlays(dotsRef.current);
+  }, [fitOverlays]);
 
   /**
    * 点击地点胶囊 → 推近并把它摆到屏幕中央，看清周边环境。
@@ -754,6 +996,7 @@ export function AmapTripLayer({
       overlaysRef.current = [];
       routeLinesRef.current = [];
       dotsRef.current = [];
+      dotDaysRef.current = [];
       return;
     }
 
@@ -781,20 +1024,26 @@ export function AmapTripLayer({
      * 不等规划就先出图：车机弱网下规划可能要几秒甚至失败，
      * 那期间空着一张没有路线的地图，比先给一条粗略的线糟。
      */
-    const makeRouteLines = (p: Array<[number, number]>, opacityFactor = 1): unknown[] =>
+    const makeRouteLines = (
+      p: Array<[number, number]>,
+      opacityFactor = 1,
+      segDay?: number,
+    ): unknown[] =>
       p.length >= 2 && PolylineCtor
         ? ROUTE_LAYERS.map((l) => {
+            // 焦点天之外的段生下来就是淡的（M83 走查追修）；基准写进 WeakMap，淡入补间读的就是它。
+            const base = l.opacity * (segDay !== undefined && isDimmed([segDay]) ? ROUTE_DIM_FACTOR : 1);
             const line = new PolylineCtor({
               path: p,
               strokeColor: l.color,
               strokeWeight: l.weight,
-              strokeOpacity: l.opacity * opacityFactor,
+              strokeOpacity: base * opacityFactor,
               lineJoin: "round",
               lineCap: "round",
               showDir: l.showDir,
               zIndex: l.zIndex,
             });
-            lineBaseOpacity.set(line as object, l.opacity);
+            lineBaseOpacity.set(line as object, base);
             return line;
           })
         : [];
@@ -820,7 +1069,13 @@ export function AmapTripLayer({
           })
         : [];
     // 建成全透明，随这一代一起淡入。逐段建线（M34-03），跨天之间没有线。
-    let routeLines = daySegs.flatMap((seg) => makeRouteLines(seg, 0));
+    /*
+     * 每条折线属于哪一天（M83 走查追修）。`makeRouteLines` 一段出 `ROUTE_LAYERS.length` 条线，
+     * 所以这里按段展开、逐条记天——淡出时要按天调不透明度，而折线吃不到 CSS。
+     */
+    const daySegDays = splitByDay(located).map((seg) => seg[0]?.day ?? 0);
+    let routeLines = daySegs.flatMap((seg, i) => makeRouteLines(seg, 0, daySegDays[i]));
+    routeLineDaysRef.current = daySegDays.flatMap((d) => ROUTE_LAYERS.map(() => d));
     overlays.push(...routeLines);
     // 真实坐标上的落点圆点：胶囊要向外偏移，位置真相由它承担（见 SPREAD_PX 注释）。
     const dots: unknown[] = located.map(
@@ -828,8 +1083,10 @@ export function AmapTripLayer({
         new MarkerCtor({
           position: [s.lon, s.lat],
           content:
-            `<i class="hud-tripmark__dot hud-tripmark__dot--${s.kind}"` +
-            ` data-gen="${gen}" style="opacity:0"></i>`,
+            `<i class="hud-tripmark__dot hud-tripmark__dot--${s.kind}` +
+            `${isDimmed(s.days?.length ? s.days : [s.day]) ? " hud-tripmark__dot--dim" : ""}"` +
+            ` data-gen="${gen}" data-days="${s.days?.length ? s.days.join(",") : s.day}"` +
+            ` style="opacity:0"></i>`,
           anchor: "center",
           zIndex: 90,
         }),
@@ -852,6 +1109,7 @@ export function AmapTripLayer({
           gen,
           true,
           guidedRef.current.has(s.name),
+          isDimmed(s.days?.length ? s.days : [s.day]),
         ),
         anchor: "bottom-center",
         // Pixel 缺失（SDK 裁剪）时退化成不偏移——散不开总比不上图强。
@@ -906,6 +1164,8 @@ export function AmapTripLayer({
     // 视野框**真实落点**（dots）而不是偏移后的胶囊：胶囊带外推量，
     // 拿它算视野等于每次都多留一圈白边，越缩越小。含线会被 showDir 的箭头撑歪，也不用。
     dotsRef.current = dots;
+    // 逐条对齐（同 routeLineDaysRef）：按天取景要从这批圆点里挑出那一天的。
+    dotDaysRef.current = located.map(markerDays);
 
     /*
      * 镜头：**用户动过就彻底不碰**（M19-05）——但否决权只对着同一份行程成立。
@@ -1237,6 +1497,12 @@ export function AmapTripLayer({
               gen,
               false,
               guidedRef.current.has(stop.name),
+              /*
+               * 淡出态也要跟着重发（M83 走查追修）：这一路把整段 content 换掉，
+               * 不带上它就等于把刚标好的淡出类冲掉——现象是"打开抽屉时别的天没淡，
+               * 过几秒补完时刻才淡"，而补时刻是异步的，看起来就像随机。
+               */
+              isDimmed(stop.days?.length ? stop.days : [stop.day]),
             ),
           );
         });
@@ -1281,6 +1547,204 @@ export function AmapTripLayer({
     // mapEpoch 进依赖：地图重建后 host 里是全新一批 DOM，重建那一路已按 ref 标过，
     // 这里再走一遍只是幂等兜底。
   }, [guidedSet, mapEpoch]);
+
+  /*
+   * 按天淡出（M83 走查追修）：抽屉里选了某一天，别的天退成灰色半透明。
+   *
+   * 与导览角标同一条纪律——**只翻 class、只调折线不透明度，不碰覆盖物**。
+   * 重建一次等于把 7 段路径规划、取景与跟车动画全部重做（M19-05 那个坑），
+   * 而切天是用户会连点好几下的动作。
+   *
+   * 折线吃不到 CSS（画在 GL canvas 上），所以改的是它在 `lineBaseOpacity` 里的基准：
+   * 淡入补间读的就是这个基准（`setLinesOpacity`），改完两边自然一致。
+   */
+  useEffect(() => {
+    const host = hostRef.current;
+    if (host) {
+      // 两代胶囊过渡期间都在图上，一起翻——按 data-days 找，不按 data-gen。
+      host.querySelectorAll<HTMLElement>(".hud-tripmark[data-days]").forEach((el) => {
+        const days = (el.dataset.days ?? "").split(",").map(Number);
+        el.classList.toggle(TRIP_MARKER_DIM_CLASS, focusDay !== undefined && !days.includes(focusDay));
+      });
+      // 圆点一起淡：只淡胶囊会剩下一串"没有胶囊的点"。
+      host.querySelectorAll<HTMLElement>(".hud-tripmark__dot[data-days]").forEach((el) => {
+        const days = (el.dataset.days ?? "").split(",").map(Number);
+        el.classList.toggle("hud-tripmark__dot--dim", focusDay !== undefined && !days.includes(focusDay));
+      });
+    }
+    const lines = routeLinesRef.current;
+    const lineDays = routeLineDaysRef.current;
+    lines.forEach((line, i) => {
+      const layer = ROUTE_LAYERS[i % ROUTE_LAYERS.length];
+      const day = lineDays[i];
+      const dim = focusDay !== undefined && day !== undefined && day !== focusDay;
+      const base = layer.opacity * (dim ? ROUTE_DIM_FACTOR : 1);
+      lineBaseOpacity.set(line as object, base);
+      /*
+       * 直接落到这个不透明度：切天发生在稳态（淡入早已跑完，系数 = 1）。
+       * 若正好有一段补间在飞，它下一帧读的也是新基准，结果一致。
+       */
+      (line as { setOptions?: (o: Record<string, unknown>) => void }).setOptions?.({ strokeOpacity: base });
+    });
+    // mapEpoch 进依赖：地图重建后是全新一批 DOM 与折线，重建那一路按初值标过，这里幂等兜底。
+  }, [focusDay, mapEpoch, stopsKey]);
+
+  /*
+   * ── 切天 → 镜头跟着挪到那一天（2026-09-16 走查）────────────────
+   *
+   * 走查原话：「切换天时，地图的焦点没有切换」。此前 `focusDay` 只做淡出——
+   * 别的天灰掉了，但镜头还框着全程，第 2 天那一片仍然只有指甲盖大小。
+   *
+   * 三条纪律：
+   *
+   * 1. **只在真的切了天时动镜头**（`fitDayRef` 存上一次取过景的那一天）。
+   *    effect 的依赖不止 `focusDay`，重建/就绪也会让它重跑——那时候抢镜头，
+   *    就成了 M19-05 骂过的"过一会儿自己动一下"。
+   * 2. **不重建覆盖物**：只读 `dotsRef` 的子集去 `setFitView`，
+   *    7 段路径规划、跟车动画、服务点图层一律不碰（同淡出那条纪律）。
+   * 3. **取完景把镜头判给用户**（`userMoved`），与点胶囊聚焦一视同仁：
+   *    切天是用户自己发起的取景，「回到全程」按钮随之出现当退路。
+   *    不判的话，下一次 stops 内容变化会把他刚切过去的那天又框回全程。
+   *
+   * 关抽屉（`focusDay` → undefined）反过来：镜头交还程序并框一次全程——
+   * 淡出已经恢复成全程的样子，视野还钉在某一天是自相矛盾的。
+   */
+  const fitDayRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!ready) return;
+    if (fitDayRef.current === focusDay) return;
+    fitDayRef.current = focusDay;
+    if (focusDay === undefined) {
+      userMovedRef.current = false;
+      setUserMoved(false);
+      fitToStops();
+      return;
+    }
+    const dots = dotsRef.current;
+    const ofDay = indexesOfDay(dotDaysRef.current, focusDay)
+      .map((i) => dots[i])
+      .filter((d) => d !== undefined);
+    // 那天一个带坐标的落点都没有（全天缺坐标，或标记还没上图）：不动镜头。
+    // 猜一个位置框过去，比不动更糟——真实性红线同「坐标缺失的停靠点不标注」。
+    if (!fitOverlays(ofDay, DAY_FIT_MAX_ZOOM)) return;
+    userMovedRef.current = true;
+    setUserMoved(true);
+  }, [focusDay, ready, fitToStops, fitOverlays]);
+
+  /*
+   * ── 沿途服务点图层（M93-05）：独立的一层，与行程标注互不相干 ──
+   *
+   * 依赖只有 `[servicePoisKey, mapEpoch]`：切换类目 / 切天时**只增删这一层的标记**，
+   * `overlaysRef`、`routeLinesRef`、取景与 7 段路径规划一律不碰。
+   * 这一条是本图层存在的全部理由——把服务点塞进上面那个大 effect 的话，
+   * 用户每点一下「餐饮」，整条路线连同路径规划都要重算一遍（M19-05 那个坑）。
+   *
+   * 传空数组 = 全部收起来（抽屉一关、或那一天没有点位）。
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    const AMap = typeof window !== "undefined" ? window.AMap : undefined;
+    if (!map || !AMap) return;
+    type MapFn = (...args: unknown[]) => void;
+    const prev = serviceOverlaysRef.current;
+    if (prev.length > 0) (map.remove as MapFn | undefined)?.call(map, prev);
+    serviceOverlaysRef.current = [];
+    if (servicePois.length === 0) return;
+    const MarkerCtor = AMap.Marker as new (opts: Record<string, unknown>) => unknown;
+    if (!MarkerCtor) return;
+    const marks = servicePois.map(
+      (p) =>
+        new MarkerCtor({
+          position: [p.lon, p.lat],
+          content: serviceMarkerHtml(p, p.category),
+          anchor: "center",
+          /*
+           * 不接事件。内容元素自己是 `pointer-events:none`，但**高德给每个 Marker 套的
+           * `.amap-marker` 外壳不是**——盖在胶囊上之后，点击会落在外壳上，
+           * 表现是"胶囊某几处点不动"。`clickable: false` 关的就是那层外壳。
+           */
+          clickable: false,
+          /*
+           * 盖在行程胶囊（100+）之上，压在流动粒子（200）与车（260）之下。
+           *
+           * 起初写的是 50（"它们是背景信息，不该挡住主标记"）——**浏览器实测直接证伪**：
+           * 全程视野下胶囊是一整枚带名字与时段的白色药丸，几百米内的服务点全被它盖住，
+           * `elementFromPoint` 取到的是 `hud-tripmark__meta`，一个点都看不见。
+           * 车主点「餐饮」是在问"这附近有什么"，屏幕上什么都不变就等于这个开关没接上。
+           *
+           * 盖上去不抢动作：这一层 `pointer-events:none`、不可点、没有气泡，
+           * 胶囊的点击与跟随一字未动；关掉那一类，行程标注立刻回到唯一前景。
+           */
+          zIndex: 150,
+        }),
+    );
+    (map.add as MapFn | undefined)?.call(map, marks);
+    serviceOverlaysRef.current = marks;
+    return () => {
+      const m = mapRef.current;
+      if (m && serviceOverlaysRef.current.length > 0) {
+        (m.remove as MapFn | undefined)?.call(m, serviceOverlaysRef.current);
+      }
+      serviceOverlaysRef.current = [];
+    };
+    // servicePoisKey：调用方多半传的是新数组字面量，按内容比而不是按引用比。
+    // mapEpoch：地图重建后旧标记随地图一起没了，这里要重新画一遍。
+  }, [servicePoisKey, mapEpoch]);
+
+  /*
+   * 服务点的名字**跟着缩放露出来**（2026-09-16 走查第四轮：
+   * 「放大后没有展示出信息，不知道店名或者地点名称」）。
+   *
+   * 只在容器上翻一个 class，名字标签本身随标记一起建、由 CSS 显隐——
+   * 与导览角标、按天淡出同一条纪律：**不重建覆盖物**。缩放是用户会连着推好几下的
+   * 动作，进重建依赖就是每推一下把 7 段路径规划重做一遍（M19-05 那个坑）。
+   *
+   * 门槛在 `SERVICE_NAME_ZOOM`：全程视野下一天四类最多 80 个点，名字全放出来是一片
+   * 糊字；推近到看得清街道时屏幕上通常只剩几个点，那时名字才开始有用。
+   *
+   * 过了门槛还要再摆一道（走查第五轮：「很多沿途服务的地点集中在一个区域」）——
+   * 一条商业街上十几家餐饮挨着，名字全放出来互相压着，每块只露半行。
+   * `declutterServiceNames` 按碰撞挤掉压上的那些，只藏名字不藏图标。
+   *
+   * 平移也要重摆（`moveend`）：可见区换了一片，谁压谁就变了。
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const host = hostRef.current;
+    let raf = 0;
+    const sync = () => {
+      const z = (map.getZoom as (() => number) | undefined)?.call(map);
+      if (!host || typeof z !== "number") return;
+      const on = z >= SERVICE_NAME_ZOOM;
+      host.classList.toggle(SERVICE_NAME_ON_CLASS, on);
+      // 当前缩放写进 data：走查时"名字怎么还不出来"第一个要问的就是它，
+      // 而地图实例在闭包里，DevTools 够不着。
+      host.dataset.zoom = String(Math.round(z * 10) / 10);
+      if (!on) return;
+      /*
+       * 隔一帧再量：这一刻 AMap 刚把标记挪到新位置、CSS 也才翻过来，
+       * 同步量到的是上一帧的坐标，挤掉的会是错的那几块。
+       */
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => declutterServiceNames(host));
+    };
+    sync();
+    const ev = map as unknown as {
+      on?: (t: string, h: () => void) => void;
+      off?: (t: string, h: () => void) => void;
+    };
+    ev.on?.("zoomend", sync);
+    ev.on?.("moveend", sync);
+    return () => {
+      cancelAnimationFrame(raf);
+      ev.off?.("zoomend", sync);
+      ev.off?.("moveend", sync);
+    };
+    // mapEpoch：地图重建后是一个全新实例，监听要重挂、class 要按新实例的缩放重算。
+    // servicePoisKey：换了类目/换了天就是另一批点，得按新的那批重摆一次
+    //   （这一层只读 DOM 挂类名，**不碰覆盖物**——服务点的增删仍只在上面那个 effect 里）。
+  }, [mapEpoch, servicePoisKey]);
 
   return (
     <>

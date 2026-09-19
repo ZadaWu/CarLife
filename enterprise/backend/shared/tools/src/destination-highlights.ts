@@ -37,7 +37,8 @@
  */
 
 import { defineExternalTool, ToolError, type ExternalTool } from "./external";
-import { ENV_TTL, envCacheKey, withEnvCache } from "./env-cache";
+import { ENV_TTL, envCacheKey, readNegative, withEnvCache, writeNegative } from "./env-cache";
+import { getAmapClient, type AmapClient } from "./amap";
 import {
   callAnthropicWebSearch,
   getWebSearch,
@@ -306,6 +307,110 @@ function callWebSearch(
 
 // ────────────────────────────── 工具壳 ──────────────────────────────
 
+/** 目的地字符串里的分隔符——模型会拼「南通 张家港」「张家港（经南通）」「南通如东—张家港」。 */
+const PLACE_SPLIT = /[\s、，,／/（）()]|经|→|至|到|—|--/;
+
+/**
+ * 把模型随手拼的目的地拆成候选地名（M77 走查追修）。
+ *
+ * 无分隔符的连写（「南通如东」= 市名 + 区名）单独处理：整串认不出来时，
+ * 从前面切 2~3 个字再试一次，剩下的部分当第二个地名。只试这两刀，
+ * 再多就是在猜——认不出来的退回原串当键，那是现在的行为，不会更糟。
+ */
+export function splitPlaces(raw: string): string[] {
+  const parts = raw
+    .split(PLACE_SPLIT)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 2);
+  return parts.length > 0 ? [...new Set(parts)] : [];
+}
+
+/**
+ * 目的地 → 城市级缓存键的组成部分（M77 走查追修）。
+ *
+ * # 为什么非归一不可
+ *
+ * 缓存键原来直接用模型传的字符串。而同一趟「上海 → 南通 → 张家港」的行程里，
+ * 它一天之内传过六种写法：`南通`、`南通如东`、`南通 张家港`、`张家港（经南通）`、
+ * `南通如东—张家港`、`张家港`。六个键、六次真搜，每次 4~7 秒，
+ * 唯一一次 13 毫秒的命中是它碰巧把上一次的字符串一字不差又传了一遍。
+ * 机制没坏，是键太细。
+ *
+ * # 归到 adcode，不归到字符串
+ *
+ * 用高德的行政区编码当键：`resolveRegion` 认得出「南通」与「如东」是 320600 与 320623。
+ * **不做前缀 / 模糊匹配**——那会把「张家港（经南通）」错命中成南通那一份，
+ * 而一个错的命中比一次 miss 糟得多，它不报错（ADR-008 的同一条取向）。
+ *
+ * # 不归到地级市
+ *
+ * 张家港属苏州，归到苏州就会拿苏州市区的吃喝去答张家港。行政区认到哪一级就用哪一级，
+ * 只求把不同**写法**归一，不求把不同**地方**合并。
+ *
+ * 认不出来就返回空数组，调用方退回用原串当键。
+ *
+ * # 它治得了什么，治不了什么（2026-09-13 真跑两轮的实测）
+ *
+ * **治得了写法差异**：`张家港（经南通）` 与 `南通 张家港` 归一后是同一个键。
+ * 配合日期归周，三天行程里为不同日期查同一批城市也只搜一次。
+ *
+ * **治不了范围差异**：实测第一轮模型传 `张家港`、第二轮传 `南通 张家港 如东`，
+ * 归一后一个是 `320582`、另一个是三个码，仍然是两个键——而这是对的，
+ * 搜一个城市和搜三个城市本来就该拿到不同的内容，共享缓存才是错的。
+ * 要让跨轮稳定命中，得由编排层按**单个城市**逐个预取（每城一个键），
+ * 而不是让模型每轮自由拼一个组合串。那是下一步，不在这一刀里。
+ */
+export async function destinationCacheParts(
+  destination: string,
+  amap: AmapClient | undefined,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  if (!amap) return [];
+  const codes = new Set<string>();
+  for (const part of splitPlaces(destination)) {
+    let hit = await amap.resolveRegion(part, signal).catch(() => undefined);
+    if (hit) {
+      codes.add(hit.adcode);
+      continue;
+    }
+    // 连写：「南通如东」→ 前 2 字是市、余下是区。只切这两刀。
+    for (const cut of [2, 3]) {
+      if (part.length <= cut + 1) continue;
+      const head = await amap.resolveRegion(part.slice(0, cut), signal).catch(() => undefined);
+      if (!head) continue;
+      codes.add(head.adcode);
+      const tail = await amap.resolveRegion(part.slice(cut), signal).catch(() => undefined);
+      if (tail) codes.add(tail.adcode);
+      hit = head;
+      break;
+    }
+  }
+  // 排序：`南通 张家港` 与 `张家港（经南通）` 必须落到同一个键。
+  return [...codes].sort();
+}
+
+/**
+ * 出发日 → ISO 周键（M77 走查追修）。
+ *
+ * TTL 是两周，理由写着"网红点与老字号是**周级**变化的内容"。而键原来精确到天，
+ * 于是三天行程的三天各是一个键——用周级的理由设 TTL，却用天级的键去查，TTL 等于没生效。
+ * 精确日期仍然进提示词（"这个季节"那句），只是不进键。
+ */
+export function weekKeyOf(date?: string): string {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return "-";
+  const d = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "-";
+  // ISO 周：把日期挪到本周四，再数它是当年第几周。
+  const day = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - day + 3);
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const fd = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - fd + 3);
+  const week = 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+
 export const destinationHighlightsTool: ExternalTool<
   DestinationHighlightsArgs,
   DestinationHighlightsData
@@ -336,10 +441,29 @@ export const destinationHighlightsTool: ExternalTool<
     }
 
     /*
-     * ⑤环境缓存：**按目的地 + 出发日**，不按会话。
-     * 同一个城市不同用户查到的东西没有区别，按会话缓存等于没缓存。
+     * ⑤环境缓存：**按行政区编码 + ISO 周**，不按会话，也不按模型传的原字符串。
+     *
+     * 原来直接拿 `destination` 当键，而模型一天之内为同一趟行程传过六种写法
+     * （南通 / 南通如东 / 南通 张家港 / 张家港（经南通） / 南通如东—张家港 / 张家港），
+     * 六个键六次真搜，每次 4~7 秒。归一到 adcode 之后写法就不再影响命中。
+     * 认不出来时退回原串——那是从前的行为，不会更糟。
      */
-    const key = envCacheKey("dest-highlights", [destination, args.date ?? "-"]);
+    const parts = await destinationCacheParts(destination, getAmapClient(), ctx.signal);
+    const keyParts = parts.length > 0 ? parts : [destination];
+    const key = envCacheKey("dest-highlights", [...keyParts, weekKeyOf(args.date)]);
+    /*
+     * 「模型没搜就答」的失败有短负缓存（10 分钟）：它此前不缓存，于是同一轮里
+     * 连错三次、每次白花 5~7 秒。10 分钟只挡住同一轮的重试，不会让两周都拿不到结果。
+     */
+    const missKey = `${key}:no-search`;
+    if (await readNegative(missKey)) {
+      throw new ToolError(
+        "destination_highlights",
+        "upstream",
+        "刚才这个目的地搜过一次没搜成（模型未联网），本轮不再重试",
+        false,
+      );
+    }
     const { value } = await withEnvCache(key, ENV_TTL.destinationHighlights, async () => {
       const turn = await callWebSearch(destination, args.date, ctx.signal);
       /*
@@ -347,6 +471,8 @@ export const destinationHighlightsTool: ExternalTool<
        * 放在缓存的 fetch 里抛：失败的结果不该被缓存 2 周。
        */
       if (turn.searchCount === 0) {
+        // 记一条短负缓存再抛：不记的话同一轮会连着白花三次（真跑 turn-6fafa7d9）。
+        await writeNegative(missKey);
         throw new ToolError(
           "destination_highlights",
           "upstream",

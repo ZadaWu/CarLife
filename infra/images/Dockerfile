@@ -12,6 +12,23 @@ FROM node:24-alpine AS base
 WORKDIR /app
 RUN corepack enable
 
+# ── 构建期可换 npm 源（缺省不换）
+#
+# 2026-09-19 那次部署整套镜像**零缓存命中**（`node:24-alpine` 是会移动的 tag，一动
+# 下游全失效），于是每个镜像都要从头装依赖——而从国内 ECS 直连 registry.npmjs.org
+# 实测 13.7 KB/s、40 秒连一份包元数据都传不完，构建就停在那里，`up` 一步都没走到。
+# 留这个口子与 apply 第①步给 Docker Hub 写 registry-mirrors 是同一个思路。
+#
+# **缺省为空 = 官方源**：本机开发与 CI 的行为一个字都不变，只有部署脚本显式传值才换。
+# 换源不放松完整性：这里走 `pnpm install --frozen-lockfile`，pnpm-lock.yaml 里逐包的
+# integrity 哈希照样校验，换个镜像站换不了包的内容。
+ARG NPM_REGISTRY=""
+# 两处都要设，少一个就还有一半流量走官方源：COREPACK_NPM_REGISTRY 管 corepack 自己
+# 下载 pnpm 那一步，npm config 写出的 ~/.npmrc 管 pnpm 解析依赖那一步。
+# 用 `:-` 兜默认值而不是直接赋空——COREPACK_NPM_REGISTRY 被设成空串会让 corepack 出错。
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org}
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+
 # ── 依赖层：只拷 workspace 清单
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -22,6 +39,12 @@ COPY enterprise/backend/shared/tools/package.json       enterprise/backend/share
 COPY enterprise/backend/shared/memory/package.json      enterprise/backend/shared/memory/
 COPY enterprise/backend/shared/guardrails/package.json  enterprise/backend/shared/guardrails/
 COPY enterprise/backend/shared/rag/package.json         enterprise/backend/shared/rag/
+# acp 与 research 曾漏在这份清单外，而 `src` 阶段的 `COPY enterprise/` 会把它们的
+# **源码**带进来——于是缺失不在构建期暴露：pnpm install 时它们不是 workspace 成员，
+# node_modules 里没有链接，而服务走 tsx 不编译，要等运行到那条代码路径才 Cannot find module。
+# 这份清单必须覆盖 gateway / agent-runtime / worker / db 的 workspace 依赖传递闭包。
+COPY enterprise/backend/shared/acp/package.json          enterprise/backend/shared/acp/
+COPY enterprise/backend/shared/research/package.json     enterprise/backend/shared/research/
 COPY enterprise/backend/gateway/package.json     enterprise/backend/gateway/
 COPY enterprise/backend/agent-runtime/package.json enterprise/backend/agent-runtime/
 COPY enterprise/backend/worker/package.json      enterprise/backend/worker/

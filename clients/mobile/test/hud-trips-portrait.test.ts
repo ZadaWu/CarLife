@@ -2,7 +2,11 @@
  * [F-01-10][AC-01-1] [F-18-15][AC-18-11] 手机端行程列表的接线（施工单 M75-02）。
  *
  * 读源码不渲染（本包没有 jsdom）；与 `hud-window-card.test.ts` 同一条教训：`MobileHud` 有两处布局分支，
- * 紧凑周日历卡与日期条要两处都挂，三态只判一处。App 侧守的是：列表来自数据源的 `onPlans`、
+ * 行程入口与日期条要两处都挂，三态只判一处。
+ *
+ * 2026-09-12：主页不再常驻周日历卡，入口收成「我的行程」按钮 + 抽屉，所以这里守的从
+ * 「`<TripCalendarCard compact>` 在 HUD 里出现一次」改成「HUD 里一次都不出现，
+ * 而那枚按钮的 onClick 就是 `trips.onOpenList`」。App 侧守的是：列表来自数据源的 `onPlans`、
  * 「知道了」走 Rust 命令、「让暖暖调整」经 `sendText` 并切到对话页、critical 让暖暖进 alert、行驶中不弹。
  */
 import assert from "node:assert/strict";
@@ -18,11 +22,14 @@ const RUST_CMD = readFileSync(new URL("../src-tauri/src/commands/profile.rs", im
 const count = (src: string, needle: string) => src.split(needle).length - 1;
 
 describe("[F-01-10] MobileHud：三态只判一处、挂两处", () => {
-  it("紧凑周日历卡与日期条各出现一次；`{tripsCard}` `{dateBanner}` 各两处；提示卡分流不变", () => {
-    assert.equal(count(HUD, "<TripCalendarCard"), 1);
-    assert.match(HUD, /<TripCalendarCard\s+compact/);
+  it("周日历卡不在主页；行程入口与日期条两处分支都挂", () => {
+    assert.equal(
+      count(HUD, "<TripCalendarCard"),
+      0,
+      "主页又挂回了周日历卡——它 2026-09-12 起只住在抽屉里（features/trip/index.tsx）",
+    );
     assert.equal(count(HUD, "<TripDateBanner"), 1);
-    assert.equal(count(HUD, "{tripsCard}"), 2, "漏一处的表现是「有地图时看得到行程卡、没地图时看不到」");
+    assert.equal(count(HUD, "{departNode}"), 2, "漏一处的表现是「有地图时有入口、没地图时没有」");
     assert.equal(count(HUD, "{dateBanner}"), 2);
     assert.equal(count(HUD, "{windowCard}"), 2);
   });
@@ -31,13 +38,18 @@ describe("[F-01-10] MobileHud：三态只判一处、挂两处", () => {
     assert.match(HUD, /const showTips = !hasTrips \|\| selectedTrip !== undefined;/);
     assert.match(HUD, /const windowCard = !showTips \? null :/);
     assert.match(HUD, /trips && selectedTrip && !tripMap\?\.nav \?/);
-    assert.match(HUD, /const tripsCard = !trips \|\| !hasTrips \|\| selectedTrip \? null :/);
+    // 一程都没有就不画入口：点开是空抽屉的按钮比没有按钮更让人找原因。
+    assert.match(HUD, /const tripsEntryNode =\s*\n?\s*!trips \|\| !hasTrips \? null :/);
     assert.equal(count(HUD, "className={stageClass}"), 2);
   });
 
-  it("HUD 层仍无输入框；行程卡的清单在抽屉（onOpenList），不在主页", () => {
+  it("HUD 层仍无输入框；整张日历在抽屉里（onOpenList），主页只有入口", () => {
     assert.equal(HUD.includes("<input"), false);
-    assert.match(HUD, /onOpenList=\{trips\.onOpenList\}/);
+    assert.match(
+      HUD,
+      /className="hud-trips-entry"\s*\n?\s*onClick=\{trips\.onOpenList\}/,
+      "「我的行程」的点击必须就是 onOpenList——另起一个 handler 迟早与抽屉的开关对不上",
+    );
   });
 });
 
@@ -64,9 +76,9 @@ describe("[F-18-15] App 的接线", () => {
     assert.match(APP, /if \(navDay !== undefined\) \{\s*\n\s*\/\/[^\n]*\n\s*setTripHint\(/);
   });
 
-  it("抽屉与弹层只在主页挂；抽屉在导览页开着时让位", () => {
-    assert.match(APP, /nav === "hud" && !guide && tripsOpen && \(/);
-    assert.match(APP, /nav === "hud" && reviewEntry\?\.review && \(/);
+  it("抽屉与弹层只在行程页挂（M103-02 起主页是入口页）；抽屉在导览页开着时让位", () => {
+    assert.match(APP, /nav === "hud" && tripOpen && !guide && tripsOpen && \(/);
+    assert.match(APP, /nav === "hud" && tripOpen && reviewEntry\?\.review && \(/);
   });
 });
 

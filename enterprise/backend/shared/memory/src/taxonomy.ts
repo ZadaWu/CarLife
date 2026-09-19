@@ -74,7 +74,7 @@ export const MEMORY_TAXONOMY: readonly MemoryCategory[] = [
     key: "context_cache",
     name: "Context cache 环境缓存",
     storage: "Redis",
-    decay: "TTL 分钟~小时；目的地推荐与景区导览简报按周（2 周）",
+    decay: "TTL 分钟~小时；目的地推荐、景区导览简报与沿途服务按周（2 周）",
     owner: "FL-21 F-21-07",
     note: "严格说非记忆，**不参与 re-rank**——放进 Mem0 的话天气预报会跟着记忆被访问强化，越查越不容易过期。",
   },

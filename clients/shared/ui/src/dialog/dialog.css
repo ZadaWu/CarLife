@@ -108,8 +108,8 @@
   box-shadow: inset 3px 0 0 var(--hud-pin);
 }
 .dlg-sessions__title {
-  font-size: 17px;
-  line-height: 1.35;
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
   color: var(--hud-text);
   /* 标题已经在服务端裁到 15 字；这一行是防"兜底时间串 + 窄屏"的溢出 */
   overflow: hidden;
@@ -126,7 +126,8 @@
 .dlg-sessions__badge {
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
+  font-weight: var(--m-weight-medium);
   /* 用页面底色而不是卡面色：胶囊叠在卡面上，同色就看不出是个胶囊。 */
   background: var(--hud-map-base);
   border: 1px solid var(--hud-card-border);
@@ -140,16 +141,18 @@
 .dlg-sessions__hint--error { color: var(--hud-danger); }
 /* 回看态的出口条：与输入框同高，避免切换时整块布局跳一下。 */
 .dlg-input--viewing { align-items: center; gap: 14px; }
-.dlg-viewing__note { flex: 1; color: var(--hud-text-muted); font-size: var(--hud-font-body); }
+.dlg-viewing__note { font: var(--hud-type-body); flex: 1; color: var(--hud-text-muted); }
 .dlg-input--viewing button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   padding: 12px 22px; border-radius: 10px; border: none;
   background: var(--hud-pin); color: #fff;
-  font-size: var(--hud-font-body); cursor: pointer;
+  cursor: pointer;
 }
 .dlg-banner {
   padding: 10px 16px;
   text-align: center;
-  font-size: 15px;
+  font-size: var(--m-font-body);
   color: var(--hud-badge-text);
   background: var(--hud-amber);
 }
@@ -164,7 +167,7 @@
 .dlg-empty {
   margin: auto;
   color: var(--hud-text-muted);
-  font-size: 17px;
+  font-size: var(--m-font-title);
 }
 /*
  * 一行 = 「语音」小标签 + 气泡，纵向叠放，整体靠向自己那一侧。
@@ -184,8 +187,8 @@
   max-width: 78%;
   padding: 12px 16px;
   border-radius: 18px;
-  font-size: 17px;
-  line-height: 1.5;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
   color: var(--hud-text);
   background: var(--hud-card-bg);
   border: 1px solid var(--hud-card-border);
@@ -198,11 +201,29 @@
   border-color: var(--hud-amber);
   color: var(--hud-badge-text);
 }
+/*
+ * 关键信息高亮（2026-09-18 用户定调「回答对关键的信息需要高亮」）。
+ * 只会出现在助手气泡里——`**` 由服务端的表述规则产出
+ * （`agent-runtime/src/llm/answer-format.ts`），车主自己打的星号不走这条路。
+ *
+ * **用浅橙底，不用实心橙、更不用红。** 实心橙这一屏已经归了主行动（发送键），
+ * 再来一枚会打乱"该点哪里"；红在设计系统里只给「事实变坏了」的判定，
+ * 而这里标的多半是订单号、门店和时间，那不是坏消息。
+ *
+ * `<mark>` 自带一层浏览器默认亮黄底，必须显式盖掉，否则两端都会冒出一条荧光黄。
+ */
+.dlg-key {
+  padding: 0 3px;
+  border-radius: 5px;
+  background: var(--m-amber-tint);
+  color: inherit;
+  font-weight: var(--m-weight-medium);
+}
 .dlg-bubble__tag {
   /* 气泡外的来源标记：不做胶囊底片，一行小灰字就够——它不是可点的东西。 */
   display: inline-block;
   margin: 0 2px 4px;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 .dlg-cursor {
@@ -229,15 +250,16 @@
 
 /*
  * 工具进展（FL-08 F-08-05）。**刻意弱于正文**：十几秒里会跳三四句，
- * 做得和回答一样重会把真正的回答淹掉。车机可读性下限仍要守，
- * 所以字号不低于 20px（驾驶态一瞥可辨，不是"能看清"）。
+ * 做得和回答一样重会把真正的回答淹掉。所以走 caption 档——手机上比气泡小两档。
+ * 车机的可读性下限由文件尾部那条 `[data-surface="cockpit"] .dlg-progress` 单独守
+ * （它取 `--hud-font-body`，横屏下仍是 24 基准 px）。
  */
 .dlg-progress {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  font-size: 20px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 .dlg-progress__dot {
@@ -252,10 +274,12 @@
 
 /* ── 对话层：新消息提示与文字输入（施工单 M3-07，F-03-07 / F-03-09） */
 .dlg-newmsg {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 92px;
   padding: 8px 18px; border-radius: 999px; border: none;
   background: var(--hud-pin); color: #fff;
-  font-size: var(--hud-font-body); cursor: pointer;
+  cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
 }
 .dlg-input {
@@ -275,9 +299,11 @@
   font-size: var(--hud-font-body);
 }
 .dlg-input button {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   padding: 12px 22px; border-radius: 10px; border: none;
   background: var(--hud-pin); color: #fff;
-  font-size: var(--hud-font-body); cursor: pointer;
+  cursor: pointer;
 }
 .dlg-input button:disabled { opacity: .45; cursor: not-allowed; }
 .dlg-banner--error { color: var(--hud-danger); }
@@ -304,9 +330,9 @@
   background: var(--hud-card-bg);
 }
 .dlg-rail__summary {
+  font: var(--hud-type-caption);
   list-style: none;
   padding: 12px 16px;
-  font-size: var(--hud-font-caption);
   color: var(--hud-text-muted);
   letter-spacing: .05em;
   cursor: pointer;
@@ -361,21 +387,20 @@
 }
 /* 栏头两行：标题一行，「＋ 新对话」自成一行（定稿如此，挤在一行时按钮只剩一点点）。 */
 [data-surface="cockpit"] .dlg-sessions__head {
+  font: var(--hud-type-headline);
   flex-direction: column;
   align-items: flex-start;
   gap: calc(14 * var(--hud-unit));
   padding: calc(24 * var(--hud-unit)) calc(24 * var(--hud-unit)) calc(18 * var(--hud-unit));
-  font-size: var(--hud-font-title);
-  font-weight: 700;
   letter-spacing: 0;
   color: var(--hud-text);
 }
 [data-surface="cockpit"] .dlg-sessions__new {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   border: 1px solid var(--hud-amber);
   border-radius: 999px;
   color: var(--hud-amber);
-  font-size: var(--hud-font-poi);
-  font-weight: 700;
   padding: calc(10 * var(--hud-unit)) calc(26 * var(--hud-unit));
 }
 /* 底部那 110px 是给旧底部导航留的；新版车机的页签在顶栏。 */
@@ -411,8 +436,7 @@
   box-shadow: inset 3px 0 0 var(--hud-amber);
 }
 [data-surface="cockpit"] .dlg-sessions__title {
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 700;
+  font: var(--hud-type-title);
 }
 /*
  * ⚠️ 时间戳必须显式给字号。基础规则用的是 `var(--hud-font-caption)`，那是**跟 --hud-unit
@@ -421,16 +445,16 @@
  * 都要一起换算成基准单位，不能一半 token 一半绝对值。
  */
 [data-surface="cockpit"] .dlg-sessions__meta {
-  font-size: var(--hud-font-body);
+  font: var(--hud-type-caption);
   gap: calc(10 * var(--hud-unit));
-  line-height: 1.2;
 }
 [data-surface="cockpit"] .dlg-sessions__badge {
-  font-size: calc(19 * var(--hud-unit));
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   padding: calc(2 * var(--hud-unit)) calc(10 * var(--hud-unit));
 }
 [data-surface="cockpit"] .dlg-sessions__empty,
-[data-surface="cockpit"] .dlg-sessions__hint { font-size: var(--hud-font-body); padding: calc(16 * var(--hud-unit)); }
+[data-surface="cockpit"] .dlg-sessions__hint { font: var(--hud-type-body); padding: calc(16 * var(--hud-unit)); }
 
 /* 对话区：同样是一张白卡。 */
 [data-surface="cockpit"] .dlg-main {
@@ -446,6 +470,7 @@
 }
 
 [data-surface="cockpit"] .dlg-bubble {
+  font: var(--hud-type-body);
   max-width: 74%;
   /* 左右内边距 30 基准：定稿里文字离气泡边 42 device px。 */
   padding: calc(16 * var(--hud-unit)) calc(30 * var(--hud-unit));
@@ -455,8 +480,6 @@
    * 就近落到字号阶梯上的 30；原来写的是绝对 20px，**连 design-system.md §5
    * 「最小 21 基准 px」都不到**——车机上那是 20 device px，比手机端还小。
    */
-  font-size: calc(30 * var(--hud-unit));
-  line-height: 1.55;
 }
 /*
  * 用户气泡：浅橙底 + 深蓝字。定稿是这样，理由也成立——实心橙上压白字，
@@ -467,9 +490,9 @@
   border-color: rgba(245, 166, 35, 0.55);
   color: var(--hud-text);
 }
-[data-surface="cockpit"] .dlg-bubble__tag { font-size: var(--hud-font-body); }
+[data-surface="cockpit"] .dlg-bubble__tag { font: var(--hud-type-caption); }
 [data-surface="cockpit"] .dlg-progress {
-  font-size: var(--hud-font-body);
+  font: var(--hud-type-caption);
   padding: calc(4 * var(--hud-unit)) calc(26 * var(--hud-unit)) calc(10 * var(--hud-unit));
 }
 [data-surface="cockpit"] .dlg-progress__dot { background: var(--hud-amber); }
@@ -477,12 +500,12 @@
 /* 播报开关：开着时走琥珀（它是"正在生效"，与顶栏选中态同一支色）。 */
 [data-surface="cockpit"] .dlg-toolbar { padding: calc(20 * var(--hud-unit)) calc(24 * var(--hud-unit)) 0; }
 [data-surface="cockpit"] .dlg-toggle {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   gap: calc(10 * var(--hud-unit));
   padding: calc(10 * var(--hud-unit)) calc(22 * var(--hud-unit));
-  font-size: var(--hud-font-body);
-  font-weight: 600;
   border-color: var(--hud-card-border);
 }
 [data-surface="cockpit"] .dlg-toggle.is-on {
@@ -498,13 +521,13 @@
   border-top-color: var(--hud-divider);
 }
 [data-surface="cockpit"] .dlg-input input {
+  font: var(--hud-type-input);
   height: calc(72 * var(--hud-unit));
   padding: 0 calc(22 * var(--hud-unit));
   border-radius: calc(18 * var(--hud-unit));
   border-color: var(--hud-card-border);
   background: #f7fafd;
   color: var(--hud-text);
-  font-size: var(--hud-font-poi);
 }
 [data-surface="cockpit"] .dlg-input input:focus {
   outline: none;
@@ -512,12 +535,12 @@
   background: #fff;
 }
 [data-surface="cockpit"] .dlg-input button:not(.dlg-attach) {
+  font: var(--hud-type-action);
+  letter-spacing: 0.02em;
   min-width: calc(150 * var(--hud-unit));
   height: calc(72 * var(--hud-unit));
   border-radius: calc(18 * var(--hud-unit));
   background: linear-gradient(180deg, #ffa51f, #ff8a00);
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 800;
   box-shadow: 0 8px 20px rgba(255, 190, 90, 0.5);
 }
 [data-surface="cockpit"] .dlg-input button:not(.dlg-attach):disabled { box-shadow: none; }
@@ -528,13 +551,14 @@
  * 加新的输入条样式时按「发送键」写选择器，别按「这行里的 button」写。
  */
 [data-surface="cockpit"] .dlg-attach {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   width: calc(72 * var(--hud-unit));
   height: calc(72 * var(--hud-unit));
   border-radius: calc(18 * var(--hud-unit));
   background: #f7fafd;
-  font-size: calc(28 * var(--hud-unit));
 }
-[data-surface="cockpit"] .dlg-empty { font-size: var(--hud-font-body); }
+[data-surface="cockpit"] .dlg-empty { font: var(--hud-type-body); }
 
 /* ── 附件（M80-03）：气泡里的缩略图 / 视频；输入框上方的待发条 ── */
 .dlg-att { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -545,17 +569,17 @@
 .dlg-att__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .dlg-att__chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
-  font-size: 14px; background: rgba(0, 0, 0, 0.08); color: inherit;
+  font-size: var(--m-font-body); background: rgba(0, 0, 0, 0.08); color: inherit;
 }
 .dlg-att__chip--error { background: rgba(200, 40, 40, 0.14); }
 .dlg-att__video-placeholder {
   display: inline-flex; align-items: center; gap: 10px; min-width: 200px; padding: 12px 16px; border-radius: 12px;
-  border: 0; cursor: pointer; font-size: 15px; background: rgba(0, 0, 0, 0.55); color: #fff;
+  border: 0; cursor: pointer; font-size: var(--m-font-body); background: rgba(0, 0, 0, 0.55); color: #fff;
 }
 .dlg-att__video-placeholder:disabled { opacity: 0.7; cursor: default; }
 .dlg-att__play {
   width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.9); color: #111; font-size: 16px;
+  background: rgba(255, 255, 255, 0.9); color: #111; font-size: var(--m-font-title);
 }
 .dlg-att__video { width: min(100%, 360px); max-height: 60vh; border-radius: 12px; background: #000; display: block; }
 .dlg-att__lightbox {
@@ -563,26 +587,26 @@
   background: rgba(0, 0, 0, 0.92); cursor: zoom-out;
 }
 .dlg-att__lightbox img { max-width: 96vw; max-height: 86vh; object-fit: contain; border-radius: 6px; }
-.dlg-att__lightbox-hint { color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+.dlg-att__lightbox-hint { color: rgba(255, 255, 255, 0.7); font-size: var(--m-font-body); }
 
 .dlg-pending { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 0; }
 .dlg-pending__item {
   display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px;
-  background: var(--hud-card-bg); border: 1px solid var(--hud-card-border); font-size: 14px; color: var(--hud-text);
+  background: var(--hud-card-bg); border: 1px solid var(--hud-card-border); font-size: var(--m-font-body); color: var(--hud-text);
 }
 .dlg-pending__item--failed { border-color: rgba(200, 40, 40, 0.5); }
 .dlg-pending__item img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
-.dlg-pending__icon { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; }
+.dlg-pending__icon { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--m-font-metric); }
 .dlg-pending__meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .dlg-pending__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dlg-pending__state { color: var(--hud-text-muted); font-size: 12px; }
+.dlg-pending__state { color: var(--hud-text-muted); font-size: var(--m-font-caption); }
 .dlg-pending__item--failed .dlg-pending__state { color: var(--hud-danger); }
-.dlg-pending__hint { color: var(--hud-warn); font-size: 12px; }
-.dlg-pending__item button { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--hud-card-border); background: #fff; font-size: 13px; }
-.dlg-pending__remove { min-width: 32px; font-size: 18px; line-height: 1; }
+.dlg-pending__hint { color: var(--hud-warn); font-size: var(--m-font-caption); }
+.dlg-pending__item button { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--hud-card-border); background: var(--hud-card-bg); font-size: var(--m-font-caption); }
+.dlg-pending__remove { min-width: 32px; font-size: var(--m-font-title); line-height: 1; }
 .dlg-attach {
   flex: 0 0 auto; width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--hud-card-border);
-  background: var(--hud-card-bg); font-size: 20px;
+  background: var(--hud-card-bg); font-size: var(--m-font-metric);
 }
 /*
  * 📎 的内边距与居中要单独用一条更高特指度的规则压住。
@@ -613,29 +637,29 @@
  * （左栏 + 对话区两张白卡）。手机端竖屏放不下左栏，历史仍是顶部抽屉——
  * 这一段只改抽屉行与气泡的观感，不动 `--drawer` 那套结构。
  * ============================================================ */
-[data-surface="mobile"] .dlg-screen { background: #eaf2fa; }
+[data-surface="mobile"] .dlg-screen { background: var(--m-page-bg); }
 
 /* 顶部那一行：白卡 + 「＋ 新建对话」琥珀描边胶囊（原来是一条裸的 summary 行）。 */
 [data-surface="mobile"] .dlg-rail--drawer {
   margin: 8px 10px 0;
   border: 1px solid var(--hud-card-border);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(70, 120, 170, 0.10);
+  border-radius: var(--m-radius-card);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
   overflow: hidden;
 }
 [data-surface="mobile"] .dlg-rail__summary {
   padding: 14px 16px;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
   color: var(--hud-text);
 }
 [data-surface="mobile"] .dlg-sessions__new {
   border: 1px solid var(--hud-amber);
   border-radius: 999px;
   color: var(--hud-amber);
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
   padding: 7px 14px;
 }
 [data-surface="mobile"] .dlg-sessions__item.is-active {
@@ -649,7 +673,8 @@
   max-width: 82%;
   padding: 13px 16px;
   border-radius: 20px;
-  font-size: 16px;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
 }
 /*
  * 用户气泡：浅橙底 + 深蓝字（同车机端的理由）——实心橙上压白字，一段三行的
@@ -661,7 +686,7 @@
   color: var(--hud-text);
 }
 /* 「语音」标签在气泡外的上沿：它是这条消息的来源，不是正文的一部分（版式见 `.dlg-row`）。 */
-[data-surface="mobile"] .dlg-bubble__tag { font-size: 13px; }
+[data-surface="mobile"] .dlg-bubble__tag { font-size: var(--m-font-caption); }
 [data-surface="mobile"] .dlg-progress__dot { background: var(--hud-amber); }
 
 /* 输入条：白卡 + 主行动橙的发送键（原来是蓝色 `--hud-pin`，那支蓝在新版里只属于图标）。 */
@@ -676,22 +701,29 @@
   border-top: none;
 }
 [data-surface="mobile"] .dlg-input input {
-  height: 50px;
+  height: 48px;
   padding: 0 16px;
   border-radius: 16px;
   border-color: var(--hud-card-border);
-  background: #fff;
+  background: var(--m-card-bg);
   color: var(--hud-text);
-  font-size: 16px;
+  font-size: var(--m-font-title);
 }
+/*
+ * 发送键：**白底 + 橙描边**（定稿「引导配合」那一屏）。不是实心橙——
+ * 一屏一枚实心橙，而对话页的那一枚要留给卡片里的主行动（「补拍右侧」「预约门店检查」）：
+ * 发送是常驻控件，长期占着那一枚会让真正要车主点的那个按钮失去分量。
+ */
 [data-surface="mobile"] .dlg-input button:not(.dlg-attach) {
   min-width: 88px;
-  height: 50px;
+  height: 48px;
   border-radius: 16px;
-  background: linear-gradient(180deg, #ffa51f, #ff8a00);
-  font-size: 17px;
-  font-weight: 800;
-  box-shadow: 0 6px 16px rgba(255, 190, 90, 0.45);
+  border: 1px solid var(--hud-amber);
+  background: var(--m-card-bg);
+  color: var(--hud-text);
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
+  box-shadow: var(--m-card-shadow);
 }
 [data-surface="mobile"] .dlg-input button:not(.dlg-attach):disabled { box-shadow: none; }
 /*
@@ -701,9 +733,96 @@
  * 加新的输入条样式时按「发送键」写选择器，别按「这行里的 button」写。
  */
 [data-surface="mobile"] .dlg-attach {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hud-card-border);
   border-radius: 16px;
-  background: #fff;
-  font-size: 22px;
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
 }
+[data-surface="mobile"] .dlg-attach svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--hud-text);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 待发附件条（2026-09-18 用户走查：「缩略图和外边边框的样式不对」）。
+ *
+ * 它此前吃的是两端共用的基线：12px 圆角、44px 小方图、一个描边方框里的 ×。
+ * 与定稿对不上的是三处——定稿里照片是**大圆角的一块图**（`photo-diagnosis-03-guided.png`
+ * 里那张仪表照），卡片用的是这一屏统一的 `--m-radius-card` + 卡阴影，
+ * 而 × 这种"取消"从来不做成带框的按钮（它不是行动，是撤销）。
+ *
+ * 高度也跟着回来了：那行端上框灯的调试字撤掉之后，这张卡是两行而不是三行。
+ */
+[data-surface="mobile"] .dlg-pending { padding: 8px 12px 0; gap: 8px; }
+[data-surface="mobile"] .dlg-pending__item {
+  gap: 12px;
+  padding: 10px;
+  border-radius: var(--m-radius-card);
+  border: 1px solid var(--hud-card-border);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+}
+/* 缩略图按定稿那张照片的观感：大一圈、圆角跟着卡走小一档，不描边。 */
+[data-surface="mobile"] .dlg-pending__item img,
+[data-surface="mobile"] .dlg-pending__thumb {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: none;
+  box-shadow: none;
+  overflow: hidden;
+}
+[data-surface="mobile"] .dlg-pending__thumb img { width: 100%; height: 100%; border-radius: inherit; }
+[data-surface="mobile"] .dlg-pending__name { font-size: var(--m-font-body); font-weight: var(--m-weight-medium); }
+/* ×：撤销不是行动，不给描边也不给底片——一枚灰叉贴在右上角那一列。 */
+[data-surface="mobile"] .dlg-pending__remove {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--hud-text-muted);
+  font-size: var(--m-font-title);
+}
+
+/* ============================================================
+ * 车机皮肤（续）：横幅与附件条那几组的基线吃的是手机阶梯（`--m-font-*`，定值 px）。
+ * 基线归手机不动，车机挂皮肤接回样式系统——理由同 `hud.css` 末尾那一段。
+ * ============================================================ */
+[data-surface="cockpit"] .dlg-banner { font: var(--hud-type-body); }
+[data-surface="cockpit"] .dlg-att__chip { font: var(--hud-type-badge); font-variant-numeric: tabular-nums; }
+[data-surface="cockpit"] .dlg-att__video-placeholder { font: var(--hud-type-body); }
+[data-surface="cockpit"] .dlg-att__play { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .dlg-att__lightbox-hint { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .dlg-pending__item { font: var(--hud-type-body); }
+[data-surface="cockpit"] .dlg-pending__icon { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .dlg-pending__state { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .dlg-pending__hint { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .dlg-pending__item button { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .dlg-pending__remove { font: var(--hud-type-control); letter-spacing: 0.02em; }
+
+/* 端上框灯（ACR-044 验机用）：待发条上的一行摘要、缩略图可点、灯箱叠框。 */
+.dlg-pending__thumb { padding: 0; border: 0; background: none; cursor: pointer; line-height: 0; }
+.dlg-pending__det { display: block; color: var(--hud-text-muted); font-size: var(--m-font-caption); }
+.dlg-vision-toggle { display: inline-flex; align-items: center; gap: 4px; margin-inline: 6px; white-space: nowrap; color: var(--hud-text-muted); font-size: var(--m-font-caption); }
+.dlg-det__lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(0, 0, 0, 0.88); }
+.dlg-det__frame { position: relative; display: inline-block; max-width: 96vw; max-height: 80vh; }
+.dlg-det__frame img { display: block; max-width: 96vw; max-height: 80vh; }
+.dlg-det__overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dlg-det__overlay rect { fill: none; stroke: #ff3b30; stroke-width: 2; vector-effect: non-scaling-stroke; }
+[data-surface="cockpit"] .dlg-pending__det, [data-surface="cockpit"] .dlg-vision-toggle { font: var(--hud-type-caption); }

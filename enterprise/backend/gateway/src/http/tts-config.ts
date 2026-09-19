@@ -1,7 +1,7 @@
 /**
  * 端上取合成端点（配合后台的 TTS 引擎开关）。
  *
- *   GET /v1/tts/config → { engine, url, resourceId, speaker, billed, refreshMs }
+ *   GET /v1/tts/config → { engine, url, resourceId, speaker, billed, streamSpeech, refreshMs }
  *
  * # 为什么要有这一跳
  *
@@ -80,6 +80,9 @@ export function createTtsConfigRouter(config: ConfigStore): Router {
       // 端上「无 key 拒绝合成」的判据（ACR-015）。原先端上拿 billed 当这个用，
       // aliyun 档计费但密钥在网关侧，两个概念从此分开下发。
       keyRequired: resolved.keyRequired,
+      // 边收边播（流式播报）。**默认关**——它改的是"什么时候开口"，
+      // 听感只有真车上能判，默认开等于让每台端替我们做实验。
+      streamSpeech: values.get("TTS_STREAM_SPEECH")?.trim() === "on",
       refreshMs: REFRESH_MS,
     });
   });

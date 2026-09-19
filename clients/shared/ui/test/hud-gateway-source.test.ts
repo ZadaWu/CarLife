@@ -316,3 +316,77 @@ test("无选中投影列表首条；无列表回落当前；清除选中回首�
   stop();
   assert.equal(shown.at(-1), "广州", "没有列表（老网关）才回落当前行程");
 });
+
+/*
+ * 已结束的那程（2026-09-16 走查）。
+ *
+ * `endDate` 列还空着的老行程走完了也留在活动列表里，且出发日最早——于是"列表首条"
+ * 恰好是一份已结束的行程，`tripPlanToHud` 判它"卡片收起"，主页地图整块收起，
+ * 看起来像地图坏了（用户原话：「默认行程展示了一个已结束的行程，导致地图没有正确显示」）。
+ * 下面三条钉住新口径：默认跳过走完的；点开的那程照样交出去；没点就不交。
+ */
+function datedListJson(plans: Array<{ id: string; startDate: string }>): string {
+  const mk = (id: string, startDate: string) => ({
+    status: "confirmed",
+    destination: id,
+    startDate,
+    days: 2,
+    skeleton: [{ day: 1, theme: "a", spots: [{ name: `${id}-1`, lat: 30, lon: 120 }] }],
+    caveats: [],
+    updatedTurnId: "t",
+  });
+  return JSON.stringify({
+    plan: null,
+    plans: plans.map((p) => ({
+      planId: `p-${p.id}`,
+      plan: mk(p.id, p.startDate),
+      committedAt: "2026-09-01T00:00:00.000Z",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+    })),
+  });
+}
+
+async function projectOnce(json: string, then?: (src: ReturnType<typeof createGatewayHudSource>) => void) {
+  const shown: string[] = [];
+  const src = createGatewayHudSource({
+    intervalMs: 10_000,
+    base: () => makeSnapshot("sunny"),
+    today: () => "2026-09-16",
+    fetchPlanJson: async () => json,
+    onPlan: (p) => shown.push(p ? p.destination : "-"),
+  });
+  const stop = src.subscribe(() => {}, () => {});
+  await new Promise((r) => setTimeout(r, 5));
+  then?.(src);
+  stop();
+  return shown;
+}
+
+test("无选中时跳过已结束的那程——默认画第一条还没走完的", async () => {
+  // 首条是 9/3 出发的两天行程（早就走完），第二条才是本周正在走的。
+  const shown = await projectOnce(
+    datedListJson([
+      { id: "玉溪", startDate: "2026-09-03" },
+      { id: "青岛", startDate: "2026-09-15" },
+    ]),
+  );
+  assert.equal(shown.at(-1), "青岛", "默认那份必须是未结束的，不是排在首位的已结束行程");
+});
+
+test("车主点开已结束的那程 → 整份快照照样交出去（地图要画得出那一程）", async () => {
+  const shown = await projectOnce(datedListJson([{ id: "玉溪", startDate: "2026-09-03" }]), (src) => {
+    src.select("p-玉溪");
+  });
+  assert.equal(shown[0], "-", "没点它之前不交——不把走完的行程默认挂在地图上");
+  assert.equal(shown.at(-1), "玉溪", "点开之后要交出去，否则选中态的地图恒是装饰概览");
+});
+
+test("全是已结束的且没点任何一程 → 不交（否则上个月那程一直挂在主页）", async () => {
+  const shown = await projectOnce(
+    datedListJson([
+      { id: "玉溪", startDate: "2026-09-03" },
+      { id: "舟山", startDate: "2026-07-01" },
+    ]),
+  );
+  assert.deepEqual(shown, ["-"]);
+});

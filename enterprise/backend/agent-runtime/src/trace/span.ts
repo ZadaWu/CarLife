@@ -29,9 +29,9 @@ import { spanData, type SpanData, type SpanStatus } from "./index";
 export interface SpanEvent {
   sessionId: string;
   turnId?: string;
-  kind: "span" | "prompt" | "tool_call";
+  kind: "span" | "prompt" | "tool_call" | "agent_output";
   at: number;
-  data: SpanData | PromptData | ToolCallData;
+  data: SpanData | PromptData | ToolCallData | AgentOutputData;
 }
 
 /**
@@ -49,6 +49,66 @@ export interface ToolCallData extends Record<string, unknown> {
   /** 工具注册表声明的供应商（如 ragflow-cloud / mock-dealer / amap）。 */
   provider?: string;
   source: { kind: "real" | "mock"; provider?: string };
+  /**
+   * 入参与返回值的 JSON 文本（2026-09-15，控制台轨迹的业务视图）。
+   *
+   * 业务人员查"酒店为什么排得不合理"，要看的是模型拿什么条件去搜、搜回来了什么——
+   * `name` + `status` 只说明"调过"，说明不了"调得对不对"。
+   * 两者都按 `TOOL_IO_MAX_CHARS` 截断（返回值里 RAG 命中块与 POI 列表实测可达数十 KB），
+   * 截断了就置 `inputTruncated` / `outputTruncated`——差值要能看出来。
+   * 展示前经网关 `redact` 脱敏，与 `intent` 里的用户原文同一道处理。
+   * 字段缺失 = 这一轮跑在埋点之前，与"入参为空"不是一回事。
+   */
+  input?: string;
+  output?: string;
+  inputTruncated?: true;
+  outputTruncated?: true;
+  durationMs?: number;
+}
+
+/** 工具入参 / 返回值各自的入库上限。 */
+export const TOOL_IO_MAX_CHARS = 8_000;
+
+/**
+ * 一次 LLM 调用**实际产出**的文本（2026-09-15，控制台轨迹的业务视图）。
+ *
+ * # 与 `prompt` 成对：那条是"发给模型什么"，这条是"模型答了什么"
+ *
+ * 业务人员看 hotel 分支时要的就是这一对——酒店专家收到什么任务、交回什么名单。
+ * 记在 `withLlmSpans` 里：那是唯一同时覆盖 ACP 与直连两条路径的接缝，
+ * 换掉 pi 也不用重埋（与 `llm.<agent>` span 同一处、同一个理由）。
+ *
+ * # 为什么默认**不**像提示词那样挖掉
+ *
+ * 提示词 ≈ 整段对话原文，所以要提权；产出是模型生成的内容，与会话页上
+ * 默认可见的助手回复是同一类东西，只经 PII 脱敏。分支被「提交即收工」掐掉时
+ * 这里只有半截文本，`status` 会是 `cancelled`——结论在 `branch.submission` 里。
+ */
+export interface AgentOutputData extends Record<string, unknown> {
+  agent: string;
+  /** 原始长度。截断后 `text.length` 会小于它。 */
+  chars: number;
+  text: string;
+  truncated?: true;
+  status: SpanStatus;
+}
+
+/** 单条产出入库上限，与提示词同一档。 */
+export const OUTPUT_MAX_CHARS = 20_000;
+
+/**
+ * 把任意值截成入库文本。对象走 JSON；字符串原样；超限截断并带标记。
+ * 序列化失败（循环引用等）不抛——埋点坏了不该让调用坏，退回 `String(v)`。
+ */
+export function clipForTrace(v: unknown, max: number): { text: string; truncated: boolean } {
+  let text: string;
+  try {
+    text = typeof v === "string" ? v : (JSON.stringify(v) ?? String(v));
+  } catch {
+    text = String(v);
+  }
+  if (text.length <= max) return { text, truncated: false };
+  return { text: `${text.slice(0, max)}\n…（已截断，原长 ${text.length} 字符）`, truncated: true };
 }
 
 /**
@@ -97,6 +157,8 @@ export interface SpanOptions {
   agent?: string;
   /** **结构性信息**，不含用户原文（AC-44-10）。 */
   detail?: string;
+  /** 见 `SpanData.waitMs`：这一跳里排我们自己队的那部分。 */
+  waitMs?: number;
 }
 
 /**
@@ -158,12 +220,25 @@ export function recordSpan(
  */
 export function recordToolCall(
   threadId: string | undefined,
-  o: { name: string; agent?: string; mode?: string; provider?: string; status: "ok" | "failed" },
+  o: {
+    name: string;
+    agent?: string;
+    mode?: string;
+    provider?: string;
+    status: "ok" | "failed";
+    /** 校验后的入参；`undefined` = 调用方没给（老接线），此时不写 `input`。 */
+    args?: unknown;
+    /** 成功时的返回值。 */
+    result?: unknown;
+    durationMs?: number;
+  },
 ): void {
   if (!sink) return;
   try {
     const key = resolveTraceKey(threadId);
     const kind = o.mode === "mock" ? ("mock" as const) : ("real" as const);
+    const input = o.args === undefined ? undefined : clipForTrace(o.args, TOOL_IO_MAX_CHARS);
+    const output = o.result === undefined ? undefined : clipForTrace(o.result, TOOL_IO_MAX_CHARS);
     sink({
       sessionId: key.sessionId,
       turnId: key.turnId,
@@ -175,6 +250,9 @@ export function recordToolCall(
         status: o.status,
         ...(o.provider ? { provider: o.provider } : {}),
         source: { kind, ...(o.provider ? { provider: o.provider } : {}) },
+        ...(input ? { input: input.text, ...(input.truncated ? { inputTruncated: true as const } : {}) } : {}),
+        ...(output ? { output: output.text, ...(output.truncated ? { outputTruncated: true as const } : {}) } : {}),
+        ...(o.durationMs !== undefined ? { durationMs: Math.max(0, o.durationMs) } : {}),
         ...(key.fallback ? { keyFallback: true as const } : {}),
       },
     });
@@ -217,6 +295,39 @@ export function recordPrompt(
 }
 
 /**
+ * 落一条 LLM 产出（见 `AgentOutputData`）。空文本也记——"模型一个字没答"
+ * 与"没记"要分得开（状态多半是 failed / cancelled，业务视图据此说"这一步没有结果"）。
+ */
+export function recordAgentOutput(
+  threadId: string | undefined,
+  agent: string,
+  text: string,
+  status: SpanStatus,
+): void {
+  if (!sink) return;
+  try {
+    const key = resolveTraceKey(threadId);
+    const clipped = clipForTrace(text, OUTPUT_MAX_CHARS);
+    sink({
+      sessionId: key.sessionId,
+      turnId: key.turnId,
+      kind: "agent_output",
+      at: Date.now(),
+      data: {
+        agent,
+        chars: text.length,
+        text: clipped.text,
+        ...(clipped.truncated ? { truncated: true as const } : {}),
+        status,
+        ...(key.fallback ? { keyFallback: true as const } : {}),
+      },
+    });
+  } catch {
+    // 吞掉：埋点坏了不该让对话坏。
+  }
+}
+
+/**
  * 包住一次异步调用并计时。**成功失败都发**——失败的那一跳往往正是慢的那一跳
  * （超时 5s 后失败，比成功的 200ms 更值得看见）。
  *
@@ -246,13 +357,136 @@ export async function span<T>(
 /**
  * 错误归类。**不落原始 message**——上游报错里出现过带查询串的 URL，
  * 而那正是用户原文（AC-44-10 的边界）。
+ *
+ * # 为什么不去 message 里找状态码（M94-01）
+ *
+ * 这里曾经有两行 `\b(4\d{2})\b` / `\b(5\d{2})\b`：在**任意错误文本**里找三位数，
+ * 找到就当成 HTTP 状态码。它误判过一次，而那一次的代价远超频次——
+ * `submit_drive_draft` 的形状校验退回，消息里回显了模型交上来的停靠点名
+ * 「东久服务区(**507**.5km)」，于是一次纯粹的入参不合法被标成了服务端 5xx，
+ * 排查方向整个歪掉（turn-dfb2fd8e，2026-09-16）。同一份校验的另一次退回
+ * （文案里不带点名）落的是 `ToolError`：**同一种失败两种分类，差别只是
+ * 文案里有没有碰巧出现 5 开头的三位数**。
+ *
+ * 判据因此改成"向已经知道答案的那一方要"（ADR-012）：
+ *  - 工具错误读 `ToolError.category`（`external.ts` 自己的注释就写着"结构化带着，
+ *    不要让上层拿正则去扒 message"——这里正是那个上层）；
+ *  - HTTP 读结构化 `status`，**取不到就不猜**。
+ *
+ * `timeout` / `network` 两条的文本匹配保留：它们匹配的是错误码与固定短语
+ * （`ETIMEDOUT` / `fetch failed`），不是"任意数字"这种会撞上业务数据的形状；
+ * 且工具错误已在它们之前被 `ToolError` 分支接走，撞不上模型写的 findings。
  */
 export function classifyError(err: unknown): string {
   const name = err instanceof Error ? err.name : typeof err;
   const msg = err instanceof Error ? err.message : "";
+
+  // ① 工具错误：分类依据在错误对象自己身上。duck-typing 而不 import ToolError——
+  // `trace/` 是横切层，不该为了读一个字段依赖业务包。
+  const toolCategory = toolErrorCategory(err);
+  if (toolCategory) {
+    const code = upstreamCode(err);
+    return code ? `tool_${toolCategory}:${code}` : `tool_${toolCategory}`;
+  }
+
+  // ② HTTP：只认结构化状态码（fetch Response、SDK 的错误体、cause 链）。
+  const status = httpStatus(err);
+  if (status !== undefined) {
+    if (status >= 500) return "http_5xx";
+    if (status >= 400) return "http_4xx";
+  }
+
   if (/timeout|timed out|ETIMEDOUT|AbortError/i.test(`${name} ${msg}`)) return "timeout";
   if (/ECONNREFUSED|ENOTFOUND|ECONNRESET|fetch failed/i.test(msg)) return "network";
-  if (/\b(4\d{2})\b/.test(msg)) return "http_4xx";
-  if (/\b(5\d{2})\b/.test(msg)) return "http_5xx";
+
+  /*
+   * ④ **我们自己的代码 bug：带上出错位置**（M98-03）。
+   *
+   * 这四类是 JS 引擎在"代码本身写错了"时抛的，不是环境问题、不是上游挂了、不是配额用完：
+   * 一个 `ReferenceError` 的意思永远是某个标识符不存在。库里有 12 条这样的失败 span
+   * （`acp.connect` 上 `ReferenceError` 8 条 + `TypeError` 4 条，2026-09-15），
+   * detail 里只有类名——**知道有 bug，却不知道在哪一行**，于是它们被读成了一种外部故障。
+   *
+   * 落位置不违反"不落 message 全文"那条纪律（AC-44-10）：位置里只有**我们自己的**
+   * 文件名与行号，没有用户原文、没有上游回显。反过来，不落位置的代价正是那 12 条。
+   *
+   * 为什么只有这四类：其余类名（`Error`、`RequestError`…）既可能是我们抛的、也可能是
+   * 上游库抛的，拼位置会把三方包的内部路径落进库里。
+   * 为什么排在 `network` 之后：undici 的网络失败抛的**也是 `TypeError`**（`fetch failed`），
+   * 那一条判据必须先把它接走，否则一次网络抖动会被记成一个代码 bug。
+   */
+  if (name === "ReferenceError" || name === "TypeError" || name === "RangeError" || name === "SyntaxError") {
+    const frame = ownFrame(err);
+    return frame ? `${name}@${frame}` : name;
+  }
   return name || "error";
+}
+
+/** 仓库里的顶层目录——栈帧落在它们下面才算"我们自己的代码"。 */
+const REPO_DIRS = ["enterprise/", "clients/", "contracts/", "scripts/", "mocks/", "evals/"] as const;
+
+/**
+ * 栈里第一条**属于本仓、且不在 `node_modules` 下**的帧，形如 `enterprise/backend/…/x.ts:312`。
+ *
+ * 取第一条而不是栈顶：引擎抛错时栈顶常在 `node_modules` 或 `node:internal` 里
+ * （某个库拿我们传过去的坏值去用）。一条都找不到就返回 `undefined`——**不猜**，
+ * 调用方退回只落类名，与改动前逐字一致。
+ *
+ * 绝对路径一律剥掉：`/Users/<人名>/git/…` 里有机器主人的名字，那是落库要展示的字段。
+ * 不带列号——定位靠行号就够，列号只让串更长。
+ */
+function ownFrame(err: unknown): string | undefined {
+  const stack = err instanceof Error ? err.stack : undefined;
+  if (typeof stack !== "string") return undefined;
+  for (const line of stack.split("\n").slice(1)) {
+    if (line.includes("node_modules") || line.includes("node:")) continue;
+    for (const dir of REPO_DIRS) {
+      const at = line.indexOf(dir);
+      if (at < 0) continue;
+      // 帧尾形如 `…/x.ts:312:11)`：取到行号为止。
+      const rest = line.slice(at).replace(/\)\s*$/, "");
+      const m = /^([^\s:]+):(\d+)(?::\d+)?$/.exec(rest);
+      if (m) return `${m[1]}:${m[2]}`;
+    }
+  }
+  return undefined;
+}
+
+/** `ToolError` 的 `category`（`timeout` / `upstream` / `unconfigured` / `invalid`）。 */
+function toolErrorCategory(err: unknown): string | undefined {
+  if (!(err instanceof Error) || err.name !== "ToolError") return undefined;
+  const c = (err as { category?: unknown }).category;
+  return typeof c === "string" && c.length > 0 ? c : undefined;
+}
+
+/**
+ * 上游自己给的错误码（高德是 infocode）。
+ *
+ * 带上它是因为「被限流」与「上游说没有这个地方」在 message 上长得一模一样，
+ * 分辨它们的依据只有这个码（`external.ts` 的 `code` 字段就是为此存在的）。
+ * 清洗后再拼：码来自外部，而 detail 是要落库展示的。
+ */
+function upstreamCode(err: unknown): string | undefined {
+  const raw = (err as { code?: unknown }).code;
+  if (typeof raw !== "string" && typeof raw !== "number") return undefined;
+  const cleaned = String(raw).replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 24);
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+/** 结构化 HTTP 状态码。四个来源都试，**一个都取不到就返回 undefined**（不猜）。 */
+function httpStatus(err: unknown): number | undefined {
+  const pick = (o: unknown): number | undefined => {
+    if (!o || typeof o !== "object") return undefined;
+    for (const key of ["status", "statusCode"] as const) {
+      const v = (o as Record<string, unknown>)[key];
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+    }
+    return undefined;
+  };
+  return (
+    pick(err) ??
+    pick((err as { response?: unknown }).response) ??
+    pick((err as { cause?: unknown }).cause) ??
+    pick(((err as { cause?: { response?: unknown } }).cause ?? {}).response)
+  );
 }

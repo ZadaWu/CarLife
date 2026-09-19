@@ -31,16 +31,15 @@
 }
 
 .cabin-depart-card__kicker {
+  font: var(--hud-type-label);
   color: #8fd8ff;
-  font-size: calc(13 * var(--hud-unit));
   letter-spacing: 0.32em;
 }
 
 .cabin-depart-card h2 {
+  font: var(--hud-type-headline);
   margin: 0;
   color: #fff;
-  font-size: calc(34 * var(--hud-unit));
-  line-height: 1.15;
 }
 
 .cabin-depart-card__stops {
@@ -55,13 +54,13 @@
 }
 
 .cabin-depart-card__stops li {
+  font: var(--hud-type-body);
   counter-increment: depart-stop;
   padding: calc(5 * var(--hud-unit)) calc(11 * var(--hud-unit));
   border: 1px solid rgba(157, 204, 255, 0.24);
   border-radius: 999px;
   background: rgba(20, 52, 92, 0.55);
   color: #dcecff;
-  font-size: calc(14.5 * var(--hud-unit));
 }
 
 .cabin-depart-card__stops li::before {
@@ -71,9 +70,9 @@
 }
 
 .cabin-depart-card__energy {
+  font: var(--hud-type-caption);
   margin: 0;
   color: #ffd9a0;
-  font-size: calc(13.5 * var(--hud-unit));
 }
 
 .cabin-depart-card__actions {
@@ -84,6 +83,8 @@
 }
 
 .cabin-depart-card__primary {
+  font: var(--hud-type-action);
+  letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -94,8 +95,6 @@
   border-radius: 999px;
   background: linear-gradient(120deg, #ffba54, #ff9b3d);
   color: #35240a;
-  font-size: calc(17 * var(--hud-unit));
-  font-weight: 700;
   cursor: pointer;
   box-shadow: 0 10px 26px rgba(255, 168, 61, 0.32);
 }
@@ -107,21 +106,21 @@
 }
 
 .cabin-depart-card__ghost {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   min-height: 44px;
   padding: calc(10 * var(--hud-unit)) calc(20 * var(--hud-unit));
   border: 1px solid rgba(157, 204, 255, 0.35);
   border-radius: 999px;
   background: none;
   color: #cfe4ff;
-  font-size: calc(15 * var(--hud-unit));
   cursor: pointer;
 }
 
 .cabin-depart-card__hint {
+  font: var(--hud-type-caption);
   margin: 0;
   color: #93b1d4;
-  font-size: calc(12.5 * var(--hud-unit));
-  line-height: 1.5;
 }
 
 /* 出发导航方案区（M66-04）：策略一句、休息点、里程行、提醒。跟随卡片既有字号与 --hud-unit。 */
@@ -137,13 +136,14 @@
 }
 
 .cabin-depart-card__plan-strategy {
+  font: var(--hud-type-caption);
   margin: 0;
   color: #8fd8ff;
-  font-size: calc(13 * var(--hud-unit));
   letter-spacing: 0.08em;
 }
 
 .cabin-depart-card__plan-stops {
+  font: var(--hud-type-caption);
   margin: 0;
   /*
    * 序号走计数器 + `::before`，不用 `list-style` 的标记（走查 2026-09-02：序号左边被吃掉）。
@@ -156,8 +156,6 @@
   padding-left: 0;
   counter-reset: depart-plan-stop;
   color: #dcecff;
-  font-size: calc(14 * var(--hud-unit));
-  line-height: 1.5;
   /*
    * 途经点全展示，高度由 JS 按 3.5 条量出来后写在 style 上（见 stopsViewportHeight）。
    * 这里只负责"超出就能滑"：
@@ -196,16 +194,41 @@
 
 .cabin-depart-card__plan-stops-none,
 .cabin-depart-card__plan-summary {
+  font: var(--hud-type-caption);
   margin: 0;
   color: #ffd9a0;
-  font-size: calc(13 * var(--hud-unit));
 }
 
 .cabin-depart-card__plan-caveats {
+  font: var(--hud-type-caption);
   margin: 0;
   padding-left: calc(16 * var(--hud-unit));
   color: #93b1d4;
-  font-size: calc(12 * var(--hud-unit));
-  line-height: 1.45;
 }
 
+
+/* ============================================================
+ * 竖屏（手机端）的字号：改走 `tokens.css` 的 --m-font-*，不再随 --hud-portrait-unit 缩放。
+ *
+ * 这张卡两端共用，上面所有规则写的都是车机基准（`calc(N * var(--hud-unit))`）。
+ * 缩到手机上是 11.0 / 11.4 / 11.9×3 / 12.4 / 12.8 / 13.3 / 13.7 / 15.6 / 31.1px——
+ * 五档低于 12 的可读下限，且没有任何两档拉得开。
+ *
+ * 只覆盖字号，落点与间距仍按 unit 缩放（这张卡的版式是照车机画的，动了要重排）。
+ * 车机一个字节不动：这个媒体块在 1672×941 的横屏上不匹配。
+ * 对应关系见 `内部文档` §4。
+ * ============================================================ */
+@media (max-aspect-ratio: 85/100) {
+  .cabin-depart-card__kicker { font-size: var(--m-font-caption); }
+  .cabin-depart-card h2 { font-size: var(--m-font-title); line-height: var(--m-lh-title); }
+  .cabin-depart-card__stops li { font-size: var(--m-font-body); }
+  .cabin-depart-card__energy { font-size: var(--m-font-caption); }
+  .cabin-depart-card__primary { font-size: var(--m-font-title); }
+  .cabin-depart-card__ghost { font-size: var(--m-font-body); }
+  .cabin-depart-card__hint { font-size: var(--m-font-caption); }
+  .cabin-depart-card__plan-strategy { font-size: var(--m-font-caption); }
+  .cabin-depart-card__plan-stops { font-size: var(--m-font-body); }
+  .cabin-depart-card__plan-stops-none,
+  .cabin-depart-card__plan-summary { font-size: var(--m-font-caption); }
+  .cabin-depart-card__plan-caveats { font-size: var(--m-font-caption); }
+}

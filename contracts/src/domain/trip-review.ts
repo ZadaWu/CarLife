@@ -327,10 +327,146 @@ export function adjustPlanIdOf(text: string): string | undefined {
 /**
  * 一句结构化的话：`调整行程 <planId>：第 2 天：多云 → 雷阵雨；第 2 天：新增暴雨橙色预警。请按这些变化调整行程，其它不动。`
  * 变化文案直接用 `TripReviewChange.text`——弹层上给人看的与发给模型的是同一份。
+ *
+ * 这一支是**"环境变了"**；车主在行程详情抽屉里亲手改结构那一支是 `adjustStructurePrompt`（M83-01）。
+ * 两者都必须以 `ADJUST_PREFIX` 开头——服务端认的是这个开头，不是措辞。
  */
 export function adjustPrompt(planId: string, changes: readonly TripReviewChange[]): string {
   const body = changes.map((c) => c.text).join("；");
   return `${ADJUST_PREFIX} ${planId}：${body || "行程环境有变化"}。请按这些变化调整行程，其它不动。`;
+}
+
+
+// ── 结构变更（M83-01）：车主在行程详情抽屉里亲手改的那几下 ────────────────
+
+/**
+ * 一次结构变更。**只有三种**：删掉一站、把一站换到第几天、某一天重排顺序。
+ *
+ * 改站名、改时间、加站都不在里面——那是模型的活（设计 Brief §2）：
+ * 端上排出来的时间是"09:00 + 90 分钟"这种拍脑袋的数，M34-01 为此明令端上不排时。
+ *
+ * # 站点的身份是**名字**，不是下标
+ *
+ * 变更集要能在车主连点好几下之后仍然指向同一个站，而下标在一次删除或换天之后立刻失真。
+ * 同一天出现同名站（两个「服务区」）是可能的，取舍是**取第一处匹配**；
+ * `reorder` 给的是完整名字序列而不是相对位移，本身不受这条影响。
+ */
+export type TripStructureEdit =
+  | { kind: "remove"; day: number; spot: string }
+  | { kind: "move"; day: number; spot: string; toDay: number }
+  | { kind: "reorder"; day: number; order: readonly string[] };
+
+/** 应用顺序固定：先删、再换天、最后排序。`EDIT_ORDER[kind]` 越小越先。 */
+const EDIT_ORDER: Record<TripStructureEdit["kind"], number> = { remove: 0, move: 1, reorder: 2 };
+
+/**
+ * 把变更集应用到快照上，得到"改完长什么样"。**抽屉的预览与发给暖暖的那句话共用这一份**——
+ * 界面另写一套应用逻辑，屏上看到的与暖暖收到的迟早不是一件事。
+ *
+ * # 三条刻意的取舍
+ *
+ * 1. **不重排时间**：被移动 / 改序的站点，`estStart` / `estEnd` 原样带走。时间由暖暖重排，
+ *    端上补一个看起来像真的时间，正是 M34-01 禁止的事。
+ * 2. **`legs` 置空**：删站换天之后，那份分段描述的路已经不存在了。保留旧值会让抽屉
+ *    在预览态显示与新顺序自相矛盾的行车时长——比不显示更糟。
+ * 3. **非法目标天忽略而不抛错**：界面不该产生 `toDay > days` 的路径，但契约层不为界面的 bug 崩掉。
+ *
+ * 输入不被修改。
+ */
+export function applyStructureEdits(
+  plan: TripPlanSnapshot,
+  edits: readonly TripStructureEdit[],
+): TripPlanSnapshot {
+  const days = plan.skeleton.map((d) => ({ ...d, spots: [...d.spots] }));
+  const dayAt = (n: number) => days.find((d) => d.day === n);
+  const takeSpot = (n: number, name: string) => {
+    const d = dayAt(n);
+    if (!d) return undefined;
+    const i = d.spots.findIndex((s) => s.name === name);
+    if (i < 0) return undefined;
+    return d.spots.splice(i, 1)[0];
+  };
+
+  const ordered = [...edits].sort((a, b) => EDIT_ORDER[a.kind] - EDIT_ORDER[b.kind]);
+  for (const e of ordered) {
+    if (e.kind === "remove") {
+      takeSpot(e.day, e.spot);
+      continue;
+    }
+    if (e.kind === "move") {
+      const target = dayAt(e.toDay);
+      // 目标天不存在就整条忽略——**先查再取**，否则那一站会被摘下来再也放不回去。
+      if (!target || e.toDay === e.day) continue;
+      const spot = takeSpot(e.day, e.spot);
+      if (spot) target.spots.push(spot);
+      continue;
+    }
+    const d = dayAt(e.day);
+    if (!d) continue;
+    /*
+     * 排序只对"该天此刻还在的站"生效：`order` 里有而列表里没有的名字忽略（可能同一轮里被删了），
+     * 列表里有而 `order` 里没有的按原相对顺序缀在后面（不能凭空丢站）。
+     */
+    const rest = [...d.spots];
+    const sorted: typeof d.spots = [];
+    for (const name of e.order) {
+      const i = rest.findIndex((s) => s.name === name);
+      if (i >= 0) sorted.push(rest.splice(i, 1)[0]!);
+    }
+    d.spots = [...sorted, ...rest];
+  }
+
+  const next: TripPlanSnapshot = { ...plan, skeleton: days };
+  delete next.legs;
+  return next;
+}
+
+/**
+ * 「已改 n 处」——抽屉标题下那一行。**与发给暖暖的话同源**：n 就是 `edits.length`，
+ * 也是 `adjustStructurePrompt` 拼出来的分句数。两处各数各的，必然漂移（M72-05 的同一条纪律）。
+ */
+export function structureEditSummary(edits: readonly TripStructureEdit[]): { count: number; text: string } {
+  const count = edits.length;
+  return { count, text: count === 0 ? "" : `已改 ${count} 处 · 保存后由暖暖重排时间` };
+}
+
+/** 一条变更的人话分句。话与摘要同源，所以这里不带任何标点，拼接时统一加。 */
+function structureEditClause(plan: TripPlanSnapshot, edit: TripStructureEdit): string {
+  if (edit.kind === "remove") return `第 ${edit.day} 天删除「${edit.spot}」`;
+  if (edit.kind === "move") return `第 ${edit.day} 天的「${edit.spot}」移到第 ${edit.toDay} 天`;
+  const names = edit.order.length > 0 ? edit.order : (plan.skeleton.find((d) => d.day === edit.day)?.spots ?? []).map((s) => s.name);
+  return `第 ${edit.day} 天顺序改为 ${names.join(" → ")}`;
+}
+
+/**
+ * 结构变更发给暖暖的那句话。开头复用 `ADJUST_PREFIX`，所以服务端 `adjustPlanIdOf` /
+ * `wantsAdjust` 一个字都不用改就认得（那是端上的协议，不是要理解的措辞）。
+ *
+ * 与 `adjustPrompt` 的分工：**那个是"环境变了"（天气 / 预警 / 路线），这个是"我改了结构"**。
+ *
+ * # 尾句为什么要点名「定下来」
+ *
+ * 2026-09-14 真跑实测（M83-05）：只说「请按这些变化重排每天的时间，其它不动」时，
+ * 模型**三条改动全做对了**、也确实装的是库里那份，但它把结果当成**草案**收尾——
+ * 回一句"这份还是草案，没保存，想定下来说一声「就这样定了」"。于是确认弹窗不出现、
+ * `trip_plan_update` 不发生，库里那份**原封不动**。
+ *
+ * 而车主刚刚按的是「保存调整」。对他来说这一步已经做完了，再要他对着屏幕说一句
+ * 才算数，是把端上的一次明确操作降级成了一次闲聊。
+ *
+ * 所以尾句里带上处置意图（命中 `COMMIT_PATTERNS`），让这一轮走完
+ * 细化 → **确认弹窗** → `trip_plan_update`。确认弹窗照常弹——
+ * 抽屉仍然不绕 HITL，只是不再需要车主额外说一句话把它叫出来。
+ */
+export function adjustStructurePrompt(
+  planId: string,
+  plan: TripPlanSnapshot,
+  edits: readonly TripStructureEdit[],
+): string {
+  if (edits.length === 0) throw new Error("adjustStructurePrompt: 没有变更可发送");
+  const ordered = [...edits].sort((a, b) => a.day - b.day || EDIT_ORDER[a.kind] - EDIT_ORDER[b.kind]);
+  const body = ordered.map((e) => structureEditClause(plan, e)).join("；");
+  return `${ADJUST_PREFIX} ${planId}：${body}。请按这些变化重排每天的时间，其它不动，改完直接把这份行程定下来。`;
 }
 
 // ── 周日历与相对时间（M73-01）：主页列表卡的口径，端上不自己算 ──────────────

@@ -53,6 +53,7 @@ mock-repair:@carlife/mock-repair:8797:mocks/repair:compose
 mock-insurance:@carlife/mock-insurance:8798:mocks/insurance:compose
 mock-tts:@carlife/mock-tts:8794:mocks/tts:svc
 local-asr:local-asr:8795:.:compose
+research-runtime:@carlife/research-runtime:8800:enterprise/backend/research-runtime:svc
 worker:@carlife/worker:8796:enterprise/backend/worker:svc
 vision-trainer:vision-trainer:8799:enterprise/backend/vision-trainer:py
 "
@@ -94,8 +95,15 @@ if [ "$DEV_HOST_OS" = "Darwin" ]; then
   DEFAULT_TARGETS="$DEFAULT_TARGETS mock-tts"
 fi
 DEFAULT_TARGETS="$DEFAULT_TARGETS runtime cockpit mobile web cockpit-app mobile-app worker"
+# research-runtime 进 DEFAULT_TARGETS（2026-09-17）：它曾被刻意排除（ACR-034，"缺省关着、
+# 默认起它只多一个空转进程"），但后台热配置里 RESEARCH_RUNTIME_URL 已填了 8800，
+# 网关按 DB 优先读到地址就去探活——进程不起，控制台系统页把它判成故障
+# （research_unreachable），与 mock-repair 那条同一副面孔：地址在、进程不在。
+# 排在 worker 之后：它只依赖 PG（pg-boss），不依赖 runtime，工具走它自己的
+# /internal/research/tools/*。RESEARCH_ENABLED 仍缺省 off——那管的是 worker 挂不挂取数任务。
+DEFAULT_TARGETS="$DEFAULT_TARGETS research-runtime"
 BASE_DEFAULT_TARGETS="$DEFAULT_TARGETS"
-ALL_TARGETS="gateway mock-dealer mock-cabin mock-repair mock-insurance mock-tts local-asr runtime cockpit mobile web cockpit-app mobile-app worker vision-trainer"
+ALL_TARGETS="gateway mock-dealer mock-cabin mock-repair mock-insurance mock-tts local-asr runtime cockpit mobile web cockpit-app mobile-app worker research-runtime vision-trainer"
 
 . "$ROOT/infra/scripts/asr-engine.sh"
 
@@ -376,7 +384,7 @@ cmd_status() {
     if [ "$kind" = "compose" ]; then
       pid="$(port_pids "$port" | head -1)"
       if [ "$name" = "local-asr" ] && [ "$(effective_asr_engine)" != "mock" ]; then
-        printf '  %-12s %-7s %-8s %s\n' "$name" "$disp" "-" "未启用（生效档位 $(effective_asr_engine)，来源 $ASR_ENGINE_SOURCE）"
+        printf '  %-12s %-7s %-8s %s\n' "$name" "$disp" "-" "未启用（生效档位 $(effective_asr_engine)，来源 $(asr_engine_source)）"
         continue
       fi
       if ! command -v docker >/dev/null 2>&1; then

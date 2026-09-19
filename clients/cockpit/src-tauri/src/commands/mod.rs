@@ -8,3 +8,5 @@ pub mod prefs;
 pub mod reminders;
 pub mod trips;
 pub mod voice;
+// 端侧指示灯检测（ACR-044）。
+pub mod vision;

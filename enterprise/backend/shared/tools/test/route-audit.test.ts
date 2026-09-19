@@ -347,14 +347,14 @@ describe("审计落库", () => {
 });
 
 describe("注册表接线", () => {
-  it("ACL：tour 与 trip 拿得到，其他 Agent 拿不到", () => {
-    for (const agent of ["tour", "trip"] as const) {
+  it("ACL：trip 与 trip-review 拿得到，tour（M86-06 起只补字段、顺序由编排层体检）与其他 Agent 拿不到", () => {
+    for (const agent of ["trip", "trip-review"] as const) {
       assert.ok(
         listForAgent(agent).some((t) => t.name === "route_audit"),
         `${agent} 应有 route_audit`,
       );
     }
-    for (const agent of ["hotel", "drive", "transit", "buying", "cabin", "service"] as const) {
+    for (const agent of ["tour", "hotel", "drive", "transit", "buying", "cabin", "service"] as const) {
       assert.ok(
         !listForAgent(agent).some((t) => t.name === "route_audit"),
         `${agent} 不该有 route_audit`,
@@ -362,10 +362,10 @@ describe("注册表接线", () => {
     }
   });
 
-  it("提示词元数据：snippet 与纪律齐全（提交前必须体检 + 时段自行把关）", () => {
+  it("提示词元数据：snippet 与纪律齐全（改完要再验 + 时段自行把关）", () => {
     const reg = getTool("route_audit")!;
     const g = (reg.promptGuidelines ?? []).join("\n");
-    assert.match(g, /提交.*前必须体检/);
+    assert.match(g, /再验一次/);
     assert.match(g, /不懂时段/);
     assert.match(g, /直线估算/);
   });

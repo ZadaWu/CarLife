@@ -23,8 +23,8 @@ const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
 const req = (over: Partial<GuardCheckRequest> = {}): GuardCheckRequest => ({
   sessionId: "sess-1",
-  tool: "calendar",
-  summary: "写入 3 条行程事件",
+  tool: "appointment",
+  summary: "预约保养 · 南山服务中心 · 周六 10:00",
   ...over,
 });
 
@@ -167,7 +167,7 @@ describe("挂起的边界", () => {
     await new Promise((r) => setTimeout(r, 10));
     const list = gate.listPending();
     assert.equal(list.length, 1);
-    assert.equal(list[0].tool, "calendar");
+    assert.equal(list[0].tool, "appointment");
     assert.ok(list[0].waitingMs >= 0);
   });
 });
@@ -360,8 +360,8 @@ describe("话术开关的归属与边界（M6-04）", () => {
 describe("拒绝记忆：同一件事被否过就别再弹（F-27-10）", () => {
   const req = (actionKey?: string) => ({
     sessionId: "s1",
-    tool: "calendar",
-    summary: "写入日历：后天八点出发",
+    tool: "appointment",
+    summary: "预约保养：后天八点",
     actionKey,
   });
 
@@ -390,7 +390,7 @@ describe("拒绝记忆：同一件事被否过就别再弹（F-27-10）", () => 
     gate.resume(popups[0], true);
     assert.equal((await first).decision, "allow");
 
-    // 同样的动作再来一次：**必须重新问**，否则"帮我加个日历"会变成三条重复日程。
+    // 同样的动作再来一次：**必须重新问**，否则"帮我约一下"会变成三张重复工单。
     const second = gate.check(req("k2"));
     await tick();
     assert.equal(popups.length, 2, "批准过的动作再次发生仍要确认");
@@ -450,16 +450,19 @@ describe("拒绝记忆：同一件事被否过就别再弹（F-27-10）", () => 
 describe("动作指纹", () => {
   it("**入参字段顺序不同也算同一件事**——否则拒绝记忆当场失效", () => {
     assert.equal(
-      actionFingerprint("s1", "calendar", { op: "write", events: [{ title: "a", start: "b" }] }),
-      actionFingerprint("s1", "calendar", { events: [{ start: "b", title: "a" }], op: "write" }),
+      actionFingerprint("s1", "appointment", { op: "write", events: [{ title: "a", start: "b" }] }),
+      actionFingerprint("s1", "appointment", { events: [{ start: "b", title: "a" }], op: "write" }),
     );
   });
 
   it("会话、工具、入参任一不同即不同", () => {
-    const base = actionFingerprint("s1", "calendar", { op: "write" });
-    assert.notEqual(base, actionFingerprint("s2", "calendar", { op: "write" }));
-    assert.notEqual(base, actionFingerprint("s1", "appointment", { op: "write" }));
-    assert.notEqual(base, actionFingerprint("s1", "calendar", { op: "read" }));
+    const base = actionFingerprint("s1", "appointment", { op: "write" });
+    // 会话不同
+    assert.notEqual(base, actionFingerprint("s2", "appointment", { op: "write" }));
+    // 工具不同
+    assert.notEqual(base, actionFingerprint("s1", "trip_plan_commit", { op: "write" }));
+    // 入参不同
+    assert.notEqual(base, actionFingerprint("s1", "appointment", { op: "read" }));
   });
 });
 
@@ -467,8 +470,8 @@ describe("拒绝记忆的键：轮次优先（实测教训）", () => {
   it("**同一轮内换措辞也算同一件事**——按入参指纹的版本抑制等于没做", () => {
     const sink = registerTurnSink("s1", "turn-1", () => {});
     try {
-      const a = refusalKey("s1", "calendar", { events: [{ title: "去黄山" }] });
-      const b = refusalKey("s1", "calendar", { events: [{ title: "黄山出发" }] });
+      const a = refusalKey("s1", "appointment", { events: [{ title: "去黄山" }] });
+      const b = refusalKey("s1", "appointment", { events: [{ title: "黄山出发" }] });
       assert.equal(a, b, "模型重试时会换措辞，四次重试不该变成四个弹窗");
     } finally {
       sink();
@@ -477,10 +480,10 @@ describe("拒绝记忆的键：轮次优先（实测教训）", () => {
 
   it("换一轮就重新问——用户重新开口是新的一次表态", () => {
     const s1 = registerTurnSink("s1", "turn-1", () => {});
-    const k1 = refusalKey("s1", "calendar", {});
+    const k1 = refusalKey("s1", "appointment", {});
     s1();
     const s2 = registerTurnSink("s1", "turn-2", () => {});
-    const k2 = refusalKey("s1", "calendar", {});
+    const k2 = refusalKey("s1", "appointment", {});
     s2();
     assert.notEqual(k1, k2);
   });
@@ -488,14 +491,14 @@ describe("拒绝记忆的键：轮次优先（实测教训）", () => {
   it("不同工具互不牵连", () => {
     const sink = registerTurnSink("s1", "turn-1", () => {});
     try {
-      assert.notEqual(refusalKey("s1", "calendar", {}), refusalKey("s1", "appointment", {}));
+      assert.notEqual(refusalKey("s1", "appointment", {}), refusalKey("s1", "trip_plan_commit", {}));
     } finally {
       sink();
     }
   });
 
   it("拿不到轮次时退回入参指纹，不是放弃抑制", () => {
-    assert.equal(refusalKey("nobody", "calendar", { a: 1 }), actionFingerprint("nobody", "calendar", { a: 1 }));
+    assert.equal(refusalKey("nobody", "appointment", { a: 1 }), actionFingerprint("nobody", "appointment", { a: 1 }));
   });
 });
 

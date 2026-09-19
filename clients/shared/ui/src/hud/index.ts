@@ -40,6 +40,48 @@ export {
 export type { TripCalendarCardProps, WeekBar } from "./TripCalendarCard";
 export { TripDateBanner, shortDateLabel } from "./TripDateBanner";
 export type { TripDateBannerProps } from "./TripDateBanner";
+// 行程详情抽屉（M83-03）：按天看沿途服务与时间轴；纯受控，状态在页面层。
+export { TripDetailDrawer, drawerSubtitle } from "./TripDetailDrawer";
+export type { TripDetailDrawerProps } from "./TripDetailDrawer";
+export {
+  chargeCellValue,
+  chargeStopName,
+  chargeStopNames,
+  dayArriveHotelTime,
+  dayDepartTime,
+  dayMetrics,
+  dayReturnRow,
+  dayServices,
+  dayTimeline,
+  dayTouched,
+  driveLabel,
+  editableRows,
+  moveInOrder,
+  pushMove,
+  pushRemove,
+  pushReorder,
+  returnLegs,
+  rowChangeLabel,
+  rowChanges,
+  stayLabel,
+  tripChargeStops,
+  undoRemove,
+  selectedServicePois,
+  serviceOverride,
+  servicePoisFor,
+  serviceCellTitle,
+  PENDING,
+  SERVICE_CATEGORY_KEYS,
+} from "./trip-detail";
+export type {
+  DayMetrics,
+  EditableRow,
+  RowChange,
+  SelectedServicePoi,
+  ServiceCategoryKey,
+  ServiceCell,
+  TimelineRow,
+} from "./trip-detail";
 // 变化摘要弹层与演示条目（M72-04 建于车机；M75-01 上提，两端共用一份，样式在 trip-review.css）。
 export { TripReviewSheet, groupChangesByDay, reviewedAtLabel } from "./TripReviewSheet";
 export type { TripReviewSheetProps } from "./TripReviewSheet";
@@ -60,9 +102,10 @@ export type { PortraitTimelineProps, PortraitTimelineStop } from "./PortraitTime
 export { BottomNav, NAV_ITEMS } from "./BottomNav";
 export type { BottomNavProps, NavView } from "./BottomNav";
 // 新版车机 UI：顶栏（页签上提到屏顶）与出行状态栏（能量胶囊摊开成屏底一条）。手机端仍用 BottomNav / EnergyCapsule。
-export { TopBar, topBarDateLabel, topBarTimeLabel } from "./TopBar";
-export type { TopBarProps } from "./TopBar";
-export { StatusBar, durationLabel } from "./StatusBar";
+export { TopBar, TOP_BAR_LINK_LABEL, topBarDateLabel, topBarTimeLabel } from "./TopBar";
+export type { TopBarLink, TopBarProps } from "./TopBar";
+export { StatusBar } from "./StatusBar";
+export { METRIC_EMPTY, METRIC_UNAVAILABLE, durationLabel } from "./metric-text";
 export type { StatusBarProps } from "./StatusBar";
 export { MicIndicator } from "./MicIndicator";
 export type { MicIndicatorProps, ListenState, ListenMode } from "./MicIndicator";
@@ -70,8 +113,10 @@ export type { MicIndicatorProps, ListenState, ListenMode } from "./MicIndicator"
 export { CABIN_ARRIVAL_SPRITES, SPRITES } from "./sprites";
 export type { HudSprites } from "./sprites";
 // 网关数据源 / 实时能量 / 精灵语义映射 / 行程地图入参 / 跟车顶栏 / 到站播报 / 演示行程（M65-01 上提，两端共用）
-export { createGatewayHudSource, MOCK_HOME } from "./gateway-source";
-export type { GatewayHudSource, GatewayHudSourceOptions, HomePlace, HudDataSource } from "./gateway-source";
+export { createGatewayHudSource, hudSourceFailure, MOCK_HOME } from "./gateway-source";
+export type { GatewayHudSource, GatewayHudSourceOptions, HomePlace, HudDataSource, HudSourceFailure } from "./gateway-source";
+// 真实地图行程模式的判定：两端共用一份（原来车机内联、手机一份，见 trip-mode.ts 文件头）。
+export { tripActiveFor } from "./trip-mode";
 export { demoEnergy, startEnergyPolling, toLiveEnergy } from "./energy-source";
 export type { EnergyPoller, EnergyPollerOptions } from "./energy-source";
 export { KIND_SPRITE, spriteFor } from "./sprite-for";

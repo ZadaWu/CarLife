@@ -46,6 +46,8 @@ export interface IconEmbeddingRepository {
   nearest(q: IconNearestQuery): Promise<IconNearestRow[]>;
   countByVehicle(vehicleModel: string): Promise<number>;
   deleteByVehicle(vehicleModel: string): Promise<number>;
+  /** 按 symbol_id 取手册侧那一行（语义在 descriptor 里）；车型不给就取任一车型的。M80-15 给检测器的类别名找语义用。 */
+  getBySymbol(q: { symbolId: string; vehicleModel?: string }): Promise<IconEmbeddingRow | null>;
 }
 
 const toLiteral = (v: readonly number[]): string => `[${v.map((x) => (Number.isFinite(x) ? x : 0)).join(",")}]`;
@@ -116,6 +118,20 @@ export function createIconEmbeddingRepository(prisma: PrismaClient): IconEmbeddi
         Math.max(1, Math.min(200, q.k)),
       );
       return rows.map((r) => ({ ...fromRaw(r), distance: Number(r.distance) }));
+    },
+
+    async getBySymbol(q) {
+      const rows = await prisma.$queryRawUnsafe<RawRow[]>(
+        `SELECT "id","vehicle_model","symbol_id","side","kind","descriptor","source_asset","manual_anchor"
+           FROM "icon_embeddings"
+          WHERE "symbol_id" = $1 AND "side" = 'manual'
+            AND ($2::text IS NULL OR "vehicle_model" = $2)
+          ORDER BY "kind" = 'image' DESC
+          LIMIT 1`,
+        q.symbolId,
+        q.vehicleModel ?? null,
+      );
+      return rows[0] ? fromRaw(rows[0]) : null;
     },
 
     async countByVehicle(vehicleModel) {

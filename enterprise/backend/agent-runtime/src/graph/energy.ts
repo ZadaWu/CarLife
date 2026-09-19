@@ -11,6 +11,8 @@
 
 import type { VehicleEnergyType } from "@carlife/memory";
 
+import type { VehicleEnergyNow } from "./energy-now";
+
 /**
  * 意图模型会把"这辆车是电动车"写成**硬约束**——依据是对话历史。
  *
@@ -55,6 +57,9 @@ export function reconcileConstraints(
   const kept: string[] = [];
   const dropped: string[] = [];
   for (const c of constraints) {
+    // ADR-012 例外：这里不是"取回模型已经知道的事实"，而是**抓模型说错的话**——
+    // 权威事实（能源类型）来自 ④车辆档案，正则用来发现模型的断言与档案矛盾。
+    // 让模型自己标注这一栏等于请它给自己判错：它既然会错说"电动车"，也会错标。
     const claim = ENERGY_CLAIMS.find((x) => x.re.test(c));
     if (claim && claim.type !== energyType) dropped.push(c);
     else kept.push(c);
@@ -76,17 +81,230 @@ export function energyFact(energyType: VehicleEnergyType | undefined): string {
   return "车辆档案里没有这辆车的能源类型，**不要假设**，也不要给与能源相关的数值。";
 }
 
-/** 补能评估分支：**只要补能相关的字段**，不要行车分段。 */
-export function energyFields(energyType: VehicleEnergyType | undefined): string {
+// ── 满电续航：⑥用车画像的实测值，作为事实喂给自驾分支（沿途服务数据源交接，待执行事项 1）──
+
+/**
+ * 这辆车的满电续航，**只认 ⑥ 的实测**。
+ *
+ * # 为什么不是 ④车辆档案
+ *
+ * `charging` 的 schema 曾写着 rangeKm「取自④车辆档案」，而 `VehicleProfile` 里根本没有续航字段
+ * （车型 / 年款 / 里程 / 能源类型，仅此）。drive 分支既没有档案工具也没有画像工具，
+ * 于是 73 次真实调用的 rangeKm 全落在 400 / 450 / 500 这几个整数档上——
+ * 模型在思考里自己写了「没有车辆档案数据传入」。站点是真的，"该在这里充"却建立在一个编的数上。
+ *
+ * 唯一有出处的续航是 ⑥ 用车画像按行程折算的实测值（`UsageSummary.mildTempRangeKm` /
+ * `lowTempRangeKm`），且带样本量与新鲜度判定（`assessUsability`）。出发前的缺口测算
+ * （`index.ts` 的 `energyGap`）用的就是它；规划轮没理由用另一个来源。
+ *
+ * # 「不可用」是独立的一档
+ *
+ * 画像不可用（没流水 / 过期 / 样本不足）或有画像但没有一条带实测续航的行程时，
+ * 结论不是"用标称值"（④ 里也没有），而是**不查补能点**——与 `energyFact` 的「未知就不假设」同源。
+ */
+export type VehicleRangeFacts =
+  | {
+      status: "measured";
+      /** 常温（>15℃）实测满电续航；无样本则缺省。 */
+      mildTempRangeKm?: number;
+      /** 低温（≤5℃）实测满电续航；无样本则缺省。 */
+      lowTempRangeKm?: number;
+      sampleSize: number;
+      windowDays: number;
+    }
+  | { status: "unavailable"; reason: string };
+
+/**
+ * 把实测续航与**车机此刻的读数**一起作为事实摆进自驾分支的提示词（与 `energyFact` 同一手法）。
+ *
+ * 两个数据源分工：⑥ 定满量程（插点间距），车机定出发余量（`startSoc`）。
+ * 都没有时才回到"不要调 charging"那一档——顺序不能倒过来：
+ * 仪表口径的满量程是拿剩余续航回推的估计，⑥ 才是按真实行程折算的统计值。
+ *
+ * `range` 与 `now` 都不给（燃油车 / 能源类型未知且车机读不到）= 一行都不加。
+ *
+ * 三档措辞都直接告诉模型**该拿这个数做什么**。只陈述事实不给动作的后果实测过
+ * （缺失时模型自己补一个 400）。
+ */
+export function rangeFact(range?: VehicleRangeFacts, now?: VehicleEnergyNow): string | undefined {
+  const live = now?.status === "live" ? now : undefined;
+  const reading = liveReadingLine(live);
+  // 燃油车 / 能源类型未知：`range` 压根没取，只把读数如实摆上，不谈 rangeKm（`refuel` 没有这个入参）。
+  if (range === undefined) return reading;
+
+  if (range.status === "measured") {
+    const parts: string[] = [];
+    if (range.mildTempRangeKm !== undefined) parts.push(`常温约 ${Math.round(range.mildTempRangeKm)} km`);
+    if (range.lowTempRangeKm !== undefined) parts.push(`低温约 ${Math.round(range.lowTempRangeKm)} km`);
+    return join([
+      reading,
+      `满电续航（⑥用车画像实测，近 ${range.windowDays} 天 ${range.sampleSize} 条行程）：${parts.join("、")}。` +
+        "调 charging 时 rangeKm 取这里的数（按出行季节选档，只有一档就用那一档）；" +
+        socDirective(live) +
+        "**不要用标称值或凭印象的整数顶替。**",
+    ]);
+  }
+
+  // ⑥ 没有，但车机报得出满量程：降级到仪表口径，**口径要说出来**。
+  if (live?.fullRangeKm !== undefined) {
+    return join([
+      reading,
+      `这辆车没有 ⑥ 的实测满电续航（${range.reason}）。调 charging 时 rangeKm 用车机仪表口径的满量程 ` +
+        `${live.fullRangeKm} km（由上面的剩余续航与电量折算）；` +
+        socDirective(live) +
+        "并在 findings 里注明「满量程为车机仪表口径、非长期实测统计」。",
+    ]);
+  }
+
+  return join([
+    reading,
+    `这辆车没有可用的实测续航（${range.reason}）${live ? "，车机也没报出可折算的满量程" : ""}。` +
+      "**不要编一个 rangeKm 去调 charging**——" +
+      "补能点提交空数组，并在 findings 里写明缺续航数据、请车主出发前按仪表续航自行安排补能。",
+  ]);
+}
+
+/**
+ * 同一份事实，给**续航分支**的说法（turn-9386d1c2）。
+ *
+ * `rangeFact` 是给自驾分支写的：它三档措辞都在教模型怎么填 `charging` 的 rangeKm 与 startSoc。
+ * 而续航分支跑在 `ownership-task` 上，它的工具表里**没有 `charging`**（ACL 只给 trip/supervisor/drive），
+ * 同一份提示词于是自相矛盾——上一段刚说"沿途充电站不归你、你手里没有充电站工具"，
+ * 下一段花三句教它调 charging。实测的后果是模型把那个数（满电续航 428km）塞进了它手里
+ * **唯一吃这个数的工具** `energy_gap`，当成百公里能耗，单位还填了燃油车的 `L`。
+ *
+ * 所以这一档只陈述事实、不指派动作：百公里能耗已由编排层按轮注进 `energy_gap`
+ * （见 `energy-consumption.ts`），这条分支根本不需要自己拿 428 做任何换算。
+ */
+export function rangeFactForEnergyBranch(
+  range?: VehicleRangeFacts,
+  now?: VehicleEnergyNow,
+): string | undefined {
+  const live = now?.status === "live" ? now : undefined;
+  const reading = liveReadingLine(live);
+  if (range === undefined) return reading;
+
+  if (range.status === "measured") {
+    const parts: string[] = [];
+    if (range.mildTempRangeKm !== undefined) parts.push(`常温约 ${Math.round(range.mildTempRangeKm)} km`);
+    if (range.lowTempRangeKm !== undefined) parts.push(`低温约 ${Math.round(range.lowTempRangeKm)} km`);
+    return join([
+      reading,
+      `满电续航（⑥用车画像实测，近 ${range.windowDays} 天 ${range.sampleSize} 条行程）：${parts.join("、")}。` +
+        "这是**满电能跑多远**，不是百公里能耗——" +
+        "算这趟要多少电就调 `energy_gap`，它的能耗口径系统已经按这辆车算好带上了，" +
+        "**不要自己拿这个数换算一个能耗填进去**。",
+    ]);
+  }
+
+  return join([
+    reading,
+    `这辆车没有可用的实测满电续航（${range.reason}）。` +
+      "续航余量按车机读数与本次里程说，**不要编一个满电续航去折算**；" +
+      "拿不到口径时 `energy_gap` 会如实说缺什么，照它说的讲。",
+  ]);
+}
+
+/** 车机此刻报的那两个数。没有读数时不加行（`undefined`），不留"暂无"这类空话。 */
+function liveReadingLine(live: Extract<VehicleEnergyNow, { status: "live" }> | undefined): string | undefined {
+  if (!live) return undefined;
+  const parts: string[] = [];
+  if (live.batteryPercent !== undefined) {
+    parts.push(
+      `电量 ${round1(live.batteryPercent)}%` +
+        (live.batteryRangeKm !== undefined ? `、仪表剩余续航 ${Math.round(live.batteryRangeKm)} km` : "") +
+        (live.charging ? "（正在充电）" : ""),
+    );
+  }
+  if (live.fuelPercent !== undefined) {
+    parts.push(
+      `油量 ${round1(live.fuelPercent)}%` +
+        (live.fuelRangeKm !== undefined ? `、仪表剩余续航 ${Math.round(live.fuelRangeKm)} km` : ""),
+    );
+  }
+  if (parts.length === 0) return undefined;
+  return (
+    `车机实时读数（${readAt(live.asOf)}）：${parts.join("；")}。` +
+    "这是**此刻**的余量，出发时会变——用到它就在 findings 里带上读数时刻。"
+  );
+}
+
+/** `charging` 的 startSoc 该填什么：有实时电量就填它，没有才回到满电口径。 */
+function socDirective(live: Extract<VehicleEnergyNow, { status: "live" }> | undefined): string {
+  if (live?.batteryPercent !== undefined) {
+    const soc = Math.max(0.01, Math.min(1, live.batteryPercent / 100));
+    return (
+      `startSoc 填 ${soc.toFixed(2)}（上面车机读数的 ${round1(live.batteryPercent)}%），` +
+      "并在 findings 里注明「补能点按出发时实际电量估算，读数时刻见上」；"
+    );
+  }
+  return (
+    "没有实时电量读数，startSoc 按满电 1.0 插点，" +
+    "并在 findings 里注明「补能点按满电出发口径估算，出发前按实际电量确认」；"
+  );
+}
+
+/** 读数时刻按北京时间写死时区：本地时区变化不该让同一份读数显示成另一个点。 */
+function readAt(iso: string): string {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return iso;
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(t);
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+function join(lines: (string | undefined)[]): string {
+  return lines.filter((x): x is string => x !== undefined).join("\n");
+}
+
+/**
+ * 补能评估分支怎么收尾（ACR-047）：**以一次 `submit_range_assessment` 提交收尾**，散文只给人看。
+ *
+ * 此前是"正文末尾附 `{"rangeMarginPct":…}`"，编排层拿正则从散文尾巴抠——ADR-012 在这条链上的例外之一。
+ * 三档的差别只在 `basis` 与要不要数字，**不知道就是 unavailable**：给了数字字段就等于允许它猜。
+ *
+ * # 纯电档为什么没有 `energyStops`（沿途服务数据源交接，待执行事项 2）
+ *
+ * 这条分支跑在 `ownership-task` 上，它的工具表里有 `vehicle_profile` / `usage_profile` / `refuel`，
+ * **没有 `charging`，也没有 `map_route`**——被要求"指出需要充电的位置"时，它手里既没有路线
+ * 也没有查充电站的手段，交上来的只能是编的名字。充电点位置归自驾分支，这里只要它算得出的那一样：余量。
+ * 燃油档同理：`refuel` 的入参是路线取样点，而它没有 `map_route`。
+ */
+export function energySubmitDirective(
+  energyType: VehicleEnergyType | undefined,
+  now?: VehicleEnergyNow,
+): string {
+  const tail = "散文只给人看，不要把结论只写在正文里。";
   if (energyType === "bev" || energyType === "phev") {
-    return '{"rangeMarginPct":续航余量百分比,"energyStops":["建议充电点名称"]}';
+    return (
+      "算完**必须以一次 `submit_range_assessment` 工具调用收尾**：basis 填 measured（按这辆车的实测画像算）" +
+      "或 estimated（经验估算），rangeMarginPct 填到达时的续航余量百分比（可为负，表示不够），" +
+      "有样本数 / 窗口天数就一并填；沿途大约要补几次能填 chargeStopsNeeded。" + tail
+    );
   }
   if (energyType === "icev") {
-    // 没有实时油量 → 结构上就不给百分比字段，模型没法把它填出来。
-    return '{"energyStops":["建议加油点名称"]}';
+    // 车机报得出油量就允许它给百分比——"没有油量数据"在能量遥测接线之后不再成立；
+    // 报不出时 basis 只能是 unavailable（给了数字字段就等于允许它编）。没有路线 → 任何一档都不给加油点。
+    return now?.status === "live" && now.fuelPercent !== undefined
+      ? "算完**必须以一次 `submit_range_assessment` 工具调用收尾**：basis 填 estimated，" +
+          "rangeMarginPct 按上面车机读到的油量与本次里程算，并在 findings 里说明这是读数时刻的油量。" + tail
+      : "**必须以一次 `submit_range_assessment` 工具调用收尾**：basis 填 unavailable，余量那一栏不给" +
+          "（车机报不出这辆车的油量，编一个数比不给更糟），findings 里写清缺的是油量数据；沿途加油站由自驾分支按路线查。" + tail;
   }
-  // 能源类型未知：**任何补能字段都不要**。给了字段就等于允许它猜。
-  return "（本次不要求 JSON——车辆能源类型未知，没有可靠可填的字段）";
+  // 能源类型未知：**任何数字都不要**。给了字段就等于允许它猜。
+  return (
+    "**必须以一次 `submit_range_assessment` 工具调用收尾**：basis 填 unavailable，余量那一栏不给，" +
+    "findings 里写明缺的是车辆能源类型、请车主补充。" + tail
+  );
 }
 
 /**
@@ -95,19 +313,30 @@ export function energyFields(energyType: VehicleEnergyType | undefined): string 
  * 三种形态都不一样，而**"不知道"必须是独立的一种**——
  * 归到任一侧都会让下游说出一句它无权说的话。
  */
-export function energyBranchPrompt(energyType: VehicleEnergyType | undefined, goal: string): string {
+export function energyBranchPrompt(
+  energyType: VehicleEnergyType | undefined,
+  goal: string,
+  now?: VehicleEnergyNow,
+): string {
+  const liveFuel = now?.status === "live" && now.fuelPercent !== undefined;
   if (energyType === "bev" || energyType === "phev") {
     return [
       `针对这次出行做续航评估：${goal}`,
-      "结合车辆与用车数据给出续航余量百分比，并指出需要充电的位置。",
+      // 充电点位置不在这条分支：理由见 `energyFields` 的说明。
+      "结合车辆与用车数据给出续航余量百分比。**沿途充电站不归你**——" +
+        "它由自驾分支按路线查，你手里没有路线也没有充电站工具，不要在回答里给充电站名字。",
     ].join("\n\n");
   }
   if (energyType === "icev") {
     return [
       `针对这次出行做补能评估：${goal}`,
-      // **明确不要百分比**：我们没有油量数据，给一个数就是编的。
-      "这是一辆燃油车。请给出预计油耗与建议加油点，**不要给续航余量百分比**——" +
-        "系统没有实时油量数据，编一个数比不给更糟。",
+      // 有读数就允许算余量，没有仍然明确不要百分比——编一个数比不给更糟。
+      // 加油站两档都不归它（理由见 `energyFields`）。
+      "这是一辆燃油车。请给出预计油耗口径与一般性建议（长途出发前加满、别等亮灯再找站）。" +
+        (liveFuel
+          ? "余量百分比按上面车机读到的油量与本次里程算，**并说明这是读数时刻的油量**。"
+          : "**不要给续航余量百分比**——车机报不出这辆车的油量，编一个数比不给更糟。") +
+        "**沿途加油站不归你**——它由自驾分支按路线查，你手里没有路线，不要在回答里给加油站名字。",
     ].join("\n\n");
   }
   return [

@@ -1,0 +1,25 @@
+{
+  "name": "@carlife/research-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "comment:deps": "依赖只有 zod / zod-to-json-schema / @carlife/db（只为 ResearchRepository 的类型与只读方法）/ @carlife/research（M89-01 加：来源护照 SOURCE_PASSPORTS / passportOf 与五个镜头名 LENSES 的真相源，纯函数库、零 IO，research-tools-ro 不禁它；抄一份常量的代价是权利边界在仓里有两套）。**刻意不引 @carlife/tools**：引了它，用研面的模型手里就多出车主面的全部工具，而这件事零报错（ADR-011 / ACR-038 步 2）。zod-to-json-schema 与 @carlife/tools 钉同一个范围，同一份 zod schema 才不会在两个包里出两种 JSON Schema。check:arch 的 research-tools-ro 守这一条。",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@carlife/db": "workspace:*",
+    "@carlife/research": "workspace:*",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

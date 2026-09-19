@@ -267,7 +267,7 @@ pub enum BranchStatus {
 pub struct PermissionRequest {
     /// 中断点 id，resume 时回传关联。
     pub interrupt_id: String,
-    /// 动作类别（如 calendar_write / appointment）。
+    /// 动作类别（如 trip_plan_commit / appointment）。
     pub action: String,
     /// 弹窗标题级别的动作说明。
     pub title: String,

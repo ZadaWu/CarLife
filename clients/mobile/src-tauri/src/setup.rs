@@ -38,22 +38,13 @@ pub fn init(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     crate::commands::netdiag::autorun_if_enabled();
 
     /*
-     * 播报开关的初值（M65-04）：偏好文件的 `broadcastEnabled`，缺省 false = 静音。
-     * 手机默认不出声（F-02-12「车机播报 / 手机静默」）——静默是默认策略，不是禁止出声。
-     * 之后设置页改的是托管状态里的原子量，文件只在这里读一次（与哨兵开关同一形态）。
-     */
-    {
-        let handle = app.handle().clone();
-        let enabled = crate::commands::profile::broadcast_enabled_pref(&handle);
-        app.state::<Arc<carlife_tts::TtsState>>().set_muted(!enabled);
-    }
-    /*
-     * iOS 音频会话类别设成 `playback`（M65-04）。默认 `soloAmbient` 受静音键管，
-     * 静音键一拨暖暖就哑，而日志里一行异常都没有。共享层这个函数幂等且非 iOS 上是 no-op；
-     * 哨兵切 `playAndRecord` 后归还时也是切回它，两者不打架。
+     * iOS 音频会话类别设成 `playback`。手机端**没有本地播报**（F-02-12「车机播报 / 手机静默」，
+     * M65-04 加过一版、2026-09-17 撤掉），这里仍然设它是因为哨兵切 `playAndRecord` 后归还时
+     * 切回的就是这一档——启动态与归还态一致，界面音效不会在第一次长按之后突然变响。
+     * 共享层这个函数幂等且非 iOS 上是 no-op。
      */
     if let Err(e) = carlife_media::release_recording_session() {
-        eprintln!("[tts] 设置音频会话为 playback 失败（静音键下可能无声）：{e}");
+        eprintln!("[audio] 设置音频会话为 playback 失败：{e}");
     }
 
     /*

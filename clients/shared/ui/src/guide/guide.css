@@ -42,18 +42,18 @@
   border-radius: 12px;
   background: var(--hud-card-bg);
   color: var(--hud-text);
-  font-size: 17px;
+  font-size: var(--m-font-title);
   cursor: pointer;
 }
 .guide-screen__title-wrap { min-width: 0; }
 .guide-screen__title {
   margin: 0;
-  font-size: 21px;
-  font-weight: 700;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 .guide-screen__arrival {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -71,8 +71,8 @@
 }
 .guide-screen__col-title {
   margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
   color: var(--hud-text-muted);
   letter-spacing: 0.06em;
 }
@@ -122,8 +122,8 @@
   background: var(--hud-card-bg);
   border: 3px solid var(--hud-amber);
   color: var(--hud-text);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--m-font-caption);
+  font-weight: var(--m-weight-bold);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -131,7 +131,7 @@
 }
 .guide-timeline__kind {
   grid-area: kind;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--hud-wave-bg);
@@ -147,8 +147,8 @@
 .guide-timeline__kind.is-photo { color: var(--hud-amber); }
 .guide-timeline__name {
   grid-area: name;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -156,7 +156,7 @@
 }
 .guide-timeline__note {
   grid-area: note;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
   margin-top: 2px;
   display: -webkit-box;
@@ -197,7 +197,7 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
   color: var(--hud-text);
-  font-size: 20px;
+  font-size: var(--m-font-metric);
   line-height: 1;
   cursor: pointer;
   opacity: 0.92;
@@ -227,8 +227,8 @@
   background: var(--hud-card-bg);
   border: 2.5px solid var(--hud-amber);
   color: var(--hud-text);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--m-font-caption);
+  font-weight: var(--m-weight-bold);
   font-style: normal;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
 }
@@ -251,8 +251,8 @@
   background: var(--hud-card-bg);
   border: 1px solid var(--hud-card-border);
   color: var(--hud-text);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--m-font-caption);
+  font-weight: var(--m-weight-bold);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 /* 被散开的点在真实坐标留的小圆点（位置真相） */
@@ -322,7 +322,7 @@
 .guide-minimap__fallback-note {
   flex: 0 0 auto;
   margin: 0 0 8px;
-  font-size: 12.5px;
+  font-size: var(--m-font-caption);
   line-height: 1.5;
   color: var(--hud-text-muted);
 }
@@ -330,14 +330,14 @@
    不是出了故障（配色与 order-note 一致，就在它上面一行）。 */
 .guide-minimap__unplaced {
   margin: 8px 0 0;
-  font-size: 12.5px;
+  font-size: var(--m-font-caption);
   line-height: 1.5;
   color: var(--hud-text-muted);
 }
 .guide-screen__order-note,
 .guide-screen__transport {
   margin: 8px 0 0;
-  font-size: 12.5px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 
@@ -365,14 +365,14 @@
 }
 /* 竖屏是单列流：改列宽 / 间距变量，不去覆盖那两条 grid 规则——覆盖一条漏一条就是两行又不齐。 */
 .guide-screen--portrait { --guide-cols: minmax(0, 1fr); --guide-gap: 14px; }
-.guide-screen--portrait .guide-screen__title { font-size: 18px; }
+.guide-screen--portrait .guide-screen__title { font-size: var(--m-font-title); }
 .guide-screen__arrival-fold {
   flex: 0 0 auto;
   background: var(--hud-card-bg);
   border: 1px solid var(--hud-card-border);
   border-radius: 12px;
   padding: 8px 14px;
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 .guide-screen__arrival-fold summary {
   cursor: pointer;
@@ -403,11 +403,11 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 .guide-comfort__kind {
   display: inline-block;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   padding: 1px 8px;
   border-radius: 999px;
   margin-right: 6px;
@@ -426,14 +426,14 @@
   border: 1px solid var(--hud-card-border);
   border-radius: 16px;
   padding: 18px 20px;
-  font-size: 16px;
+  font-size: var(--m-font-title);
   flex: 0 0 auto;
 }
 .guide-screen__pending { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .guide-screen__pending p { margin: 0; }
 .guide-screen__pending-sub,
 .guide-screen__failed-sub {
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 .guide-screen__pending-dot {
@@ -457,7 +457,7 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
   color: var(--hud-text-muted);
-  font-size: 13px;
+  font-size: var(--m-font-body);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -470,11 +470,11 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-amber);
   color: var(--hud-badge-text);
-  font-size: 16px;
+  font-size: var(--m-font-title);
   cursor: pointer;
 }
 .guide-screen__empty {
-  font-size: 14px;
+  font-size: var(--m-font-body);
   color: var(--hud-text-muted);
 }
 
@@ -506,12 +506,12 @@
 }
 .guide-jobs__dot { width: 10px; height: 10px; }
 .guide-jobs__title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
 }
 .guide-jobs__progress {
   margin-left: auto;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 .guide-jobs__list {
@@ -530,7 +530,7 @@
 .guide-jobs__row:first-child { border-top: none; }
 .guide-jobs__state {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--hud-wave-bg);
@@ -544,8 +544,8 @@
   color: var(--hud-danger);
 }
 .guide-jobs__name {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -561,7 +561,7 @@ button.guide-jobs__name--open {
   text-decoration-color: var(--hud-amber);
   text-underline-offset: 3px;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--m-weight-bold);
 }
 .guide-jobs__fetch {
   margin-left: auto;
@@ -571,12 +571,12 @@ button.guide-jobs__name--open {
   border: 1px solid var(--hud-card-border);
   background: var(--hud-amber);
   color: var(--hud-badge-text);
-  font-size: 14px;
+  font-size: var(--m-font-body);
   cursor: pointer;
 }
 .guide-jobs__note {
   flex-basis: 100%;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
   margin: -4px 0 6px;
 }
@@ -586,7 +586,7 @@ button.guide-jobs__name--open {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 18px;
-  font-size: 12.5px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
   flex: 0 0 auto;
 }
@@ -647,31 +647,27 @@ button.guide-jobs__name--open {
 [data-surface="cockpit"] .guide-screen__back-icon { width: calc(26 * var(--hud-unit)); height: calc(26 * var(--hud-unit)); }
 [data-surface="cockpit"] .guide-screen__back-label { display: none; }
 [data-surface="cockpit"] .guide-screen__title {
-  font-size: calc(40 * var(--hud-unit));
-  font-weight: 800;
-  line-height: 1.2;
+  font: var(--hud-type-headline);
 }
 [data-surface="cockpit"] .guide-screen__arrival {
+  font: var(--hud-type-caption);
   margin-top: calc(6 * var(--hud-unit));
-  font-size: calc(21 * var(--hud-unit));
-  line-height: 1.5;
 }
 [data-surface="cockpit"] .guide-screen__regen {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   flex: 0 0 auto;
   margin-top: calc(4 * var(--hud-unit));
   min-height: calc(52 * var(--hud-unit));
   padding: 0 calc(24 * var(--hud-unit));
   border-radius: 999px;
   border: 1px solid var(--hud-card-border);
-  background: #fff;
+  background: var(--m-card-bg);
   color: var(--hud-text);
-  font-size: var(--hud-font-caption);
-  font-weight: 600;
 }
 [data-surface="cockpit"] .guide-screen__col-title {
+  font: var(--hud-type-label);
   margin: 0 0 calc(6 * var(--hud-unit));
-  font-size: var(--hud-font-poi);
-  font-weight: 800;
   letter-spacing: 0;
   color: var(--hud-text);
 }
@@ -709,22 +705,22 @@ button.guide-jobs__name--open {
   padding: calc(2 * var(--hud-unit)) 0;
 }
 [data-surface="cockpit"] .guide-timeline__seq {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   width: calc(32 * var(--hud-unit));
   height: calc(32 * var(--hud-unit));
   border: none;
   background: var(--hud-amber);
   color: var(--hud-badge-text);
-  font-size: calc(17 * var(--hud-unit));
-  font-weight: 800;
   box-shadow: 0 0 0 calc(3 * var(--hud-unit)) #fff;
 }
-[data-surface="cockpit"] .guide-timeline__name { font-size: var(--hud-font-body); font-weight: 700; line-height: 1.15; }
-[data-surface="cockpit"] .guide-timeline__note { font-size: var(--hud-font-caption); line-height: 1.25; margin-top: 0; }
+[data-surface="cockpit"] .guide-timeline__name { font: var(--hud-type-title); }
+[data-surface="cockpit"] .guide-timeline__note { font: var(--hud-type-caption); margin-top: 0; }
 /* 胶囊配色（定稿点名）：游玩点 = 浅橙底深橙字；打卡点 = 浅灰蓝底石板字；休憩类 = 浅蓝底蓝字；避雷 = 浅琥珀。 */
 [data-surface="cockpit"] .guide-timeline__kind,
 [data-surface="cockpit"] .guide-comfort__kind {
-  font-size: calc(16 * var(--hud-unit));
-  font-weight: 700;
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   padding: calc(4 * var(--hud-unit)) calc(14 * var(--hud-unit));
   border-radius: 999px;
   background: rgba(245, 166, 35, 0.14);
@@ -749,7 +745,7 @@ button.guide-jobs__name--open {
 [data-surface="cockpit"] .guide-screen__comfort-block.is-pitfall .guide-screen__col-title { color: var(--hud-warn); }
 /* 休憩 / 避雷的行：胶囊 · 粗名字 · 灰说明 同一行，行间细线。 */
 
-[data-surface="cockpit"] .guide-screen__comfort-block ul { gap: 0; font-size: var(--hud-font-caption); }
+[data-surface="cockpit"] .guide-screen__comfort-block ul { font: var(--hud-type-caption); gap: 0; }
 [data-surface="cockpit"] .guide-screen__comfort-block li {
   display: flex;
   align-items: baseline;
@@ -759,11 +755,13 @@ button.guide-jobs__name--open {
   color: var(--hud-text-muted);
 }
 [data-surface="cockpit"] .guide-screen__comfort-block li:last-child { border-bottom: none; }
+/* 名字只是同一行里加重，不换字号——列表本身是 caption，名字跳到 title 会把一行拆成两个层级。
+   系统里这种「行内强调」走字重不走样式（`tokens.css` 的 `.hud-t--strong` 同一条规矩）。 */
 [data-surface="cockpit"] .guide-screen__comfort-block li b {
+  font-weight: 700;
   flex: 0 0 auto;
   min-width: calc(180 * var(--hud-unit));
   color: var(--hud-text);
-  font-size: var(--hud-font-body);
 }
 /* 路线卡：示意图的浅蓝底圆角与卡一致；示意图上不放缩放键（它不是地图）。 */
 /*
@@ -785,8 +783,7 @@ button.guide-jobs__name--open {
 [data-surface="cockpit"] .guide-minimap__unplaced,
 [data-surface="cockpit"] .guide-screen__order-note,
 [data-surface="cockpit"] .guide-screen__transport {
-  font-size: var(--hud-font-caption);
-  line-height: 1.5;
+  font: var(--hud-type-caption);
   margin-top: calc(8 * var(--hud-unit));
 }
 [data-surface="cockpit"] .guide-minimap__fallback-note { margin: 0 0 calc(10 * var(--hud-unit)); }
@@ -800,7 +797,7 @@ button.guide-jobs__name--open {
 .guide-minimap-wrap.is-schematic .guide-minimap__route { stroke-dasharray: 1 8; stroke-width: 4; }
 .guide-minimap-wrap.is-schematic .guide-minimap__route-halo,
 .guide-minimap-wrap.is-schematic .guide-minimap__chevron { display: none; }
-[data-surface="cockpit"] .guide-screen__caveats { font-size: var(--hud-font-caption); }
+[data-surface="cockpit"] .guide-screen__caveats { font: var(--hud-type-caption); }
 
 /* ============================================================
  * 新版手机 UI（2026-09-09 定稿 `内部文档`；2026-09-11 按截图逐块对齐）。
@@ -808,7 +805,7 @@ button.guide-jobs__name--open {
  * `--portrait` 规则决定。定稿的头部是两行：「‹ 返回」与「⟳ 重新采集」一行、大标题一行；
  * 到达段是一条带 › 的折叠行；路线卡里的图只占约四分之一屏；时间轴每行：序号 · 胶囊 · 名字 · 右侧灰说明。
  * ============================================================ */
-[data-surface="mobile"] .guide-screen { --guide-gap: 12px; background: #eaf2fa; gap: 12px; padding: calc(10px + env(safe-area-inset-top)) 14px 24px; }
+[data-surface="mobile"] .guide-screen { --guide-gap: 12px; background: var(--m-page-bg); gap: 12px; padding: calc(10px + env(safe-area-inset-top)) 14px 24px; }
 [data-surface="mobile"] .guide-screen__sheet { display: contents; }
 [data-surface="mobile"] .guide-screen__header { flex-wrap: wrap; gap: 10px 12px; }
 [data-surface="mobile"] .guide-screen__back,
@@ -817,8 +814,8 @@ button.guide-jobs__name--open {
   border: 1px solid var(--hud-card-border);
   background: #fff;
   color: var(--hud-text);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
   min-height: 40px;
   min-width: 0;
   padding: 0 14px;
@@ -829,29 +826,29 @@ button.guide-jobs__name--open {
 [data-surface="mobile"] .guide-screen__back-icon { width: 18px; height: 18px; }
 [data-surface="mobile"] .guide-screen__regen { color: var(--hud-amber); border-color: var(--hud-amber); margin-left: auto; }
 [data-surface="mobile"] .guide-screen__title-wrap { flex: 1 0 100%; order: 3; }
-[data-surface="mobile"] .guide-screen__title { font-size: 28px; font-weight: 800; line-height: 1.2; }
-[data-surface="mobile"] .guide-screen__col-title { font-size: 18px; font-weight: 800; letter-spacing: 0; color: var(--hud-text); margin-bottom: 10px; }
+[data-surface="mobile"] .guide-screen__title { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); line-height: 1.2; }
+[data-surface="mobile"] .guide-screen__col-title { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); letter-spacing: 0; color: var(--hud-text); margin-bottom: 10px; }
 [data-surface="mobile"] .guide-screen__timeline-col,
 [data-surface="mobile"] .guide-screen__map-col,
 [data-surface="mobile"] .guide-screen__comfort-block,
 [data-surface="mobile"] .guide-screen__arrival-fold {
-  border-radius: 20px;
+  border-radius: var(--m-radius-card);
   border: 1px solid var(--hud-card-border);
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
   padding: 14px 16px;
 }
 /* 到达段：一条带 › 的折叠行（定稿）。 */
-[data-surface="mobile"] .guide-screen__arrival-fold { padding: 4px 16px; font-size: 15px; }
+[data-surface="mobile"] .guide-screen__arrival-fold { padding: 4px 16px; font-size: var(--m-font-body); }
 [data-surface="mobile"] .guide-screen__arrival-fold summary {
   list-style: none;
   min-height: 44px;
   color: var(--hud-text);
-  font-weight: 600;
+  font-weight: var(--m-weight-bold);
   justify-content: space-between;
 }
 [data-surface="mobile"] .guide-screen__arrival-fold summary::-webkit-details-marker { display: none; }
-[data-surface="mobile"] .guide-screen__arrival-fold summary::after { content: "›"; font-size: 22px; color: var(--hud-text-muted); }
+[data-surface="mobile"] .guide-screen__arrival-fold summary::after { content: "›"; font-size: var(--m-font-body); color: var(--hud-text-muted); }
 [data-surface="mobile"] .guide-screen__arrival-fold[open] summary::after { content: "⌄"; }
 [data-surface="mobile"] .guide-screen__arrival-fold p { color: var(--hud-text-muted); padding-bottom: 10px; }
 /* 路线卡：图约四分之一屏，圆角浅蓝底；示意图上没有缩放键。 */
@@ -864,7 +861,7 @@ button.guide-jobs__name--open {
 [data-surface="mobile"] .guide-minimap__fallback-note,
 [data-surface="mobile"] .guide-minimap__unplaced,
 [data-surface="mobile"] .guide-screen__order-note,
-[data-surface="mobile"] .guide-screen__transport { font-size: 13px; line-height: 1.5; }
+[data-surface="mobile"] .guide-screen__transport { font-size: var(--m-font-caption); line-height: 1.5; }
 /* 时间轴：紧凑行——序号 · 胶囊 · 名字 · 右侧灰说明，行间细线。 */
 [data-surface="mobile"] .guide-timeline { padding-left: 2px; }
 [data-surface="mobile"] .guide-timeline::before { left: 14px; width: 2px; top: 16px; bottom: 16px; opacity: 0.45; }
@@ -878,13 +875,15 @@ button.guide-jobs__name--open {
 [data-surface="mobile"] .guide-timeline__row:last-child { border-bottom: none; }
 [data-surface="mobile"] .guide-timeline__seq {
   width: 26px; height: 26px; border: none; background: var(--hud-amber); color: var(--hud-badge-text);
-  font-size: 13px; font-weight: 800; box-shadow: 0 0 0 3px #fff;
+  font-size: var(--m-font-caption); font-weight: var(--m-weight-bold); box-shadow: 0 0 0 3px var(--m-card-bg);
 }
-[data-surface="mobile"] .guide-timeline__name { font-size: 15px; font-weight: 700; }
-[data-surface="mobile"] .guide-timeline__note { margin: 0; font-size: 12px; line-height: 1.35; text-align: right; }
+/* 走 body 不走 title：这一行是「序号 · 胶囊 · 名字 · 右侧说明」四栏挤在 390 里，
+   名字列抬到 16 之后六行里有五行被省略号截掉（440×956 实测）。 */
+[data-surface="mobile"] .guide-timeline__name { font-size: var(--m-font-body); font-weight: var(--m-weight-bold); }
+[data-surface="mobile"] .guide-timeline__note { margin: 0; font-size: var(--m-font-caption); line-height: 1.35; text-align: right; }
 [data-surface="mobile"] .guide-timeline__kind,
 [data-surface="mobile"] .guide-comfort__kind {
-  font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  font-size: var(--m-font-caption); font-weight: var(--m-weight-bold); padding: 3px 9px; border-radius: 999px;
   background: rgba(245, 166, 35, 0.14); color: var(--hud-warn);
 }
 [data-surface="mobile"] .guide-timeline__kind.is-photo,
@@ -894,10 +893,38 @@ button.guide-jobs__name--open {
 [data-surface="mobile"] .guide-comfort__kind { background: rgba(61, 143, 214, 0.12); color: var(--hud-pin); margin-right: 0; flex: 0 0 auto; white-space: nowrap; }
 [data-surface="mobile"] .guide-comfort__kind.is-pitfall { background: rgba(184, 115, 15, 0.12); color: var(--hud-warn); }
 [data-surface="mobile"] .guide-screen__comfort-block.is-pitfall .guide-screen__col-title { color: var(--hud-warn); }
-[data-surface="mobile"] .guide-screen__comfort-block ul { gap: 0; font-size: 13px; }
+[data-surface="mobile"] .guide-screen__comfort-block ul { gap: 0; font-size: var(--m-font-body); }
 [data-surface="mobile"] .guide-screen__comfort-block li {
   display: flex; align-items: baseline; gap: 10px; padding: 9px 0;
   border-bottom: 1px solid var(--hud-divider); color: var(--hud-text-muted);
 }
 [data-surface="mobile"] .guide-screen__comfort-block li:last-child { border-bottom: none; }
-[data-surface="mobile"] .guide-screen__comfort-block li b { flex: 0 0 auto; color: var(--hud-text); font-size: 15px; }
+[data-surface="mobile"] .guide-screen__comfort-block li b { flex: 0 0 auto; color: var(--hud-text); font-size: var(--m-font-body); }
+
+/* ============================================================
+ * 车机皮肤（续）：返回键、类型芯片、小地图控件与标注、失败/空态、采集面板——
+ * 这几组的基线吃的是手机阶梯（`--m-font-*`，定值 px）。基线归手机不动，
+ * 车机挂皮肤接回样式系统，理由同 `hud.css` 末尾那一段。
+ *
+ * ⚠️ `.guide-minimap__seq / __name / __origin text` **不在这里**：
+ * 那是 SVG `<text>`，字号是 viewBox 用户单位不是屏幕 px，给它换样式等于量错了对象。
+ * ============================================================ */
+[data-surface="cockpit"] .guide-screen__back { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .guide-screen--portrait .guide-screen__title { font: var(--hud-type-headline); }
+[data-surface="cockpit"] .guide-screen__arrival-fold { font: var(--hud-type-body); }
+[data-surface="cockpit"] .guide-screen__failed { font: var(--hud-type-title); }
+[data-surface="cockpit"] .guide-screen__failed-sub { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .guide-screen__retry { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .guide-screen__empty { font: var(--hud-type-body); }
+[data-surface="cockpit"] .guide-timeline__kind { font: var(--hud-type-badge); font-variant-numeric: tabular-nums; }
+[data-surface="cockpit"] .guide-minimap__controls button { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .guide-amark__badge { font: var(--hud-type-badge); font-variant-numeric: tabular-nums; }
+[data-surface="cockpit"] .guide-amark__name { font: var(--hud-type-badge); font-variant-numeric: tabular-nums; }
+[data-surface="cockpit"] .guide-minimap__fallback-note { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .guide-minimap__unplaced { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .guide-jobs__title { font: var(--hud-type-title); }
+[data-surface="cockpit"] .guide-jobs__name { font: var(--hud-type-title); }
+[data-surface="cockpit"] .guide-jobs__fetch { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .guide-jobs__progress { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .guide-jobs__state { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .guide-jobs__note { font: var(--hud-type-caption); }

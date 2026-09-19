@@ -92,6 +92,14 @@ export interface EnergyPollerOptions {
 
 export interface EnergyPoller {
   stop(): void;
+  /**
+   * 立即重读一次（顶栏的刷新按钮）。走的是与轮询**同一条** `pull`，
+   * 所以失败语义也一样——读不到就切 `unavailable`，不沿用上一个数字。
+   *
+   * 返回的 promise 在这一跳落地后兑现（读到或读不到都兑现）；`vin` 为空时是空操作，
+   * 因为那时屏幕上本来就没有能量读数，"刷新"没有对象。
+   */
+  refresh(): Promise<void>;
 }
 
 /**
@@ -105,7 +113,7 @@ export function startEnergyPolling(
 ): EnergyPoller {
   if (!vin) {
     onEnergy(undefined);
-    return { stop() {} };
+    return { stop() {}, refresh: async () => {} };
   }
   const intervalMs = opts.intervalMs ?? 15_000;
   const fetchJson = opts.fetchEnergyJson;
@@ -128,5 +136,6 @@ export function startEnergyPolling(
       alive = false;
       clearInterval(timer);
     },
+    refresh: pull,
   };
 }

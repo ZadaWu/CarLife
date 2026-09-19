@@ -161,9 +161,16 @@ export interface CacheStats {
   /** 后端不可用而直连的次数。**不静默**——它是"缓存没生效"的唯一信号。 */
   degraded: number;
   keys: number;
+  /**
+   * 同键并发被合并掉的次数（M77 走查追修）。
+   *
+   * **与 hits 分开数**：hits 是"缓存挡下了多少"，合并挡下的是"同一瞬间的重复"，
+   * 两者的改进方向完全不同——把它并进 hits 会让命中率虚高，掩盖键设计的问题。
+   */
+  coalesced: number;
 }
 
-const stats: CacheStats = { hits: 0, misses: 0, degraded: 0, keys: 0 };
+const stats: CacheStats = { hits: 0, misses: 0, degraded: 0, keys: 0, coalesced: 0 };
 let backend: EnvCacheBackend | undefined;
 
 /** 装配层注入。未注入即不缓存——不是报错。 */
@@ -315,6 +322,36 @@ export interface CachedResult<T> {
  * `ttlSeconds` 由调用方给，**不设默认值**：一个默认 TTL 会被无脑复用到
  * 变化速度完全不同的数据上，而那正是本模块要避免的（见文件头）。
  */
+/**
+ * 同一个键正在飞的那次请求（M77 走查追修）。
+ *
+ * 缓存只挡得住**已经回来**的重复；一轮 fan-out 里几条腿几乎同时问同一个键时，
+ * 它们全都 miss、全都真发一次。真跑里目的地亮点就这样在一轮内连查三次，每次 5 秒。
+ * 合并之后后到的等前一个，共享同一个结果与同一次失败。
+ *
+ * 进程内即可：跨进程的重复由 Redis 那一层挡，这里挡的是同一进程内的并发。
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
+/** 负缓存：记一条"这个键刚查过、没结果"，短 TTL。值本身不重要，存在即命中。 */
+export async function writeNegative(key: string, ttlSeconds = 600): Promise<void> {
+  if (!backend) return;
+  try {
+    await backend.set(key, "1", ttlSeconds);
+  } catch {
+    /* 写不进就是下次再试一遍，不值得打断调用方 */
+  }
+}
+
+export async function readNegative(key: string): Promise<boolean> {
+  if (!backend) return false;
+  try {
+    return (await backend.get(key)) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export async function withEnvCache<T>(
   key: string,
   ttlSeconds: number,
@@ -338,7 +375,25 @@ export async function withEnvCache<T>(
     return { value: await fetch(), cached: false };
   }
 
-  const value = await fetch();
+  /*
+   * miss 了先看有没有同键在飞（见 `inFlight`）。**这一段不进 stats.hits**——
+   * 那个数是"缓存挡下了多少"，把并发合并混进去会让命中率虚高，看不出缓存本身好不好。
+   */
+  const flying = inFlight.get(key) as Promise<T> | undefined;
+  if (flying) {
+    stats.coalesced += 1;
+    return { value: await flying, cached: false };
+  }
+
+  const task = fetch();
+  inFlight.set(key, task);
+  let value: T;
+  try {
+    value = await task;
+  } finally {
+    // 成功失败都要摘掉：留着的话这个键从此永远复用一个已经落定的 Promise。
+    inFlight.delete(key);
+  }
   try {
     await backend.set(key, JSON.stringify(value), ttlSeconds);
     stats.keys += 1;
@@ -392,6 +447,17 @@ export const ENV_TTL = {
    * 冒充现在"的风险。哪天真接了价格源，这个 TTL 要重新论证。
    */
   charging: 60 * 60,
+  /**
+   * 沿途服务（餐饮 / 公厕 / 停车场 / 充电站 / 服务区）的周边搜索：**2 周**
+   * （2026-09-16 走查从 1 小时改来）。存的全是 POI 的位置与名称这类静态属性，
+   * 没有营业状态这种实时数，与充电站同理由；改成按周是两头一起算的账：
+   *  - 一小时时缓存**等于没有**：它只在行程落库后的后台补算里被调，同一份行程
+   *    下一次重算通常在几小时到几天之后，控制台里因此从来看不到这四类的条目；
+   *  - 一次补算 = 每个停靠点 × 四类目各一次 `/place/around`，一份三天的行程二三十次，
+   *    而高德搜索一天一把 key 只有约 450 次配额——改一次出发日就重烧一遍，配额撑不住。
+   * 键按（取整坐标 + 半径 + 类目码），命名空间按类目分开（`route-services.ts`）。
+   */
+  routeServices: 14 * 24 * 60 * 60,
   /**
    * 目的地推荐（美食榜 / 打卡点 / 拍照建议）：**2 周**（2026-09-02 从 24 小时改来）。
    *

@@ -91,6 +91,38 @@ describe("runNavPlanFanout", () => {
     assert.match(promptSeen, /maxLegMinutes 必须传 120/);
   });
 
+  it("[F-18-08] runNavPlan 把④车辆档案的能源类型往下传给 map_route——不注入读取口时逐字不变", async () => {
+    const promptFor = async (deps: Parameters<typeof runNavPlan>[0]): Promise<string> => {
+      let seen = "";
+      const streamer: ChatStreamer = async function* (messages) {
+        seen = JSON.stringify(messages);
+        yield "";
+      };
+      await runNavPlan(
+        { streamer, listPreferences: async () => ({ results: [], degraded: true }), timeoutMs: 500, ...deps },
+        { userId: "u1", origin: { lat: 31.23, lon: 121.47, source: "fix" }, destination: input.destination },
+      );
+      return seen;
+    };
+
+    const bev = await promptFor({ readEnergyType: async () => "bev" } as never);
+    assert.match(bev, /energy 传 .{0,3}bev/, "任务里要点名传 energy");
+    assert.match(bev, /纯电/);
+
+    // 不注入读取口 = 接线之前的行为：提示词里一个字都不多
+    const none = await promptFor({} as never);
+    assert.doesNotMatch(none, /energy 传/);
+    assert.doesNotMatch(none, /能源类型/);
+
+    // 读取口抛错也不该拖垮这条分支——少一维排序依据而已
+    const failed = await promptFor({
+      readEnergyType: async () => {
+        throw new Error("pg down");
+      },
+    } as never);
+    assert.doesNotMatch(failed, /energy 传/);
+  });
+
   it("提交从未到达 → 超时，方案退化为直连 + NO_SUBMISSION_CAVEAT，不抛", async () => {
     const streamer = hangingStreamer(() => {});
     const { plan, branch } = await runNavPlanFanout(streamer, input, { threadId: "nav-thread-2", turnId: "nav-turn-2", timeoutMs: 60 });

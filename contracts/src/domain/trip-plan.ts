@@ -103,6 +103,28 @@ export interface TripPlanLodging {
   strategy: "checkin-midday" | "checkin-evening";
   /** 一句话说明（含行李处置），模型写，HUD 原样显示。 */
   note?: string;
+  /**
+   * 办入住的时段窗口 HH:MM（`estStart` 起、`estEnd` 止），由排行程的那一方给。
+   *
+   * # 为什么这个数必须由模型给，算不出来
+   *
+   * 第 1 天只有**一个自由量**——几点从家出发——而展示层是拿「第一个景点 estStart −
+   * 当天去程段总时长」把它倒推出来的。于是「到片区」与「第一个景点开始」在数据上是同一刻，
+   * 中间那次办入住没有任何可落脚的时间：窗口两头相等，等于没有窗口。
+   *
+   * 实测（turn-ced08ea1）：到达日的落脚行恒无时刻，车主问的是"到底几点到酒店"，
+   * 而按现在的排法**第 1 天几乎永远落在这一档**（第一个景点本来就在下午，落脚行插在最前面，
+   * 前一站不存在）。补一个"大概 12:40"是编的——到店那一刻算不出来。
+   *
+   * 所以向已经知道它的那一方要（ADR-012）：排这一天的模型本来就在决定"几点到、几点开始玩"。
+   * 有了它，第 1 天的出发时刻也从「第一个景点倒推」改成「办入住倒推」，比原来更准
+   * （原来的口径把办入住的时间算成了 0）。
+   *
+   * 缺省 = 模型没给（或老快照）：展示层退回原来的「前一站结束 – 下一站开始」那个间隙，
+   * 两头缺一头就不给时刻——**不编**。
+   */
+  estStart?: string;
+  estEnd?: string;
 }
 
 export interface TripPlanDaySnapshot {
@@ -114,6 +136,21 @@ export interface TripPlanDaySnapshot {
   hotel?: TripPlanHotelSnapshot;
   /** 住宿策略（M34-01）：仅换酒店日/到达日；缺省 = 连住或旧快照。 */
   lodging?: TripPlanLodging;
+  /**
+   * 从前一晚住处开到当天第一站的车程（M83 走查追修）。见 `TripPlanStartLeg`。
+   *
+   * **只有第 2 天起有**：第 1 天的出发时刻由 `legs` 的去程段倒推。
+   * 缺省 = 没算出来（坐标缺、路径规划失败、非自驾）或老快照——
+   * 展示层**不给出发时刻**，不按"早上九点"之类的假设编一个。
+   */
+  startLeg?: TripPlanStartLeg;
+  /**
+   * 从当天最后一站开到当晚住处的车程（M83 走查追修）。见 `TripPlanEndLeg`。
+   *
+   * **只有当天有酒店时才有**（最后一天通常没有酒店，那一天末行是返程或「预计到达」）。
+   * 缺省 = 没算出来（坐标缺、路径规划失败）或老快照——展示层**不给到店时刻**。
+   */
+  endLeg?: TripPlanEndLeg;
   notes?: string[];
 }
 
@@ -129,6 +166,18 @@ export interface TripPlanLeg {
   reason?: "rest" | "charge";
   /** 段尾是 `PENDING_STOP` 占位——"这里需要停一次，但没人给得出名字"。 */
   pending?: boolean;
+  /**
+   * 去程还是返程（M102-01）。`buildLegs` 写：去程段 `outbound`、返程段 `return`。
+   * 确认路径按方向各算一次高德路线时靠它分组——不靠"首段 fromStop 等于 destination"这类猜法。
+   * M102 之前落库的旧快照没有这个字段：那时整条不重算，数保持原样。
+   */
+  direction?: "outbound" | "return";
+  /**
+   * ISO 时刻：这一段的 `driveMinutes` 是哪一刻按高德算路覆盖的（M102-01）。
+   * **只有确认路径覆盖过的段才有**；缺省 = 仍是规划时 drive 分支提交的数。
+   * 用时刻而不是布尔，与 `TripPlanStartLeg.computedAt` 同义：路况会变，展示侧能据此标"预计"。
+   */
+  computedAt?: string;
 }
 
 export interface TripPlanSnapshot {
@@ -206,7 +255,160 @@ export interface TripPlanSnapshot {
    * **不回落到任何常数**。
    */
   leg?: TripLeg;
+  /**
+   * 沿途服务（餐饮 / 卫生间 / 停车场 / 充电站 / 高速服务区）——行程详情抽屉那几格的数据源。
+   *
+   * **确认后后台算一次、写回这一行**（与 `destinationHighlights` 同一形态，`agent-runtime/src/graph/route-services.ts`）：
+   * 一份三天行程约 30~50 次高德请求，串进确认那一跳不可接受，但不构成"不能落库"的理由。
+   * 按**当天已解析坐标的停靠点**周边查（不沿折线均匀取样——高速段直线半径内的餐饮多在下道后的镇上，
+   * 不可达），高速段以服务区为单位单独列名。
+   *
+   * 缺省 = 还没算完 / 这次没算出来 / 老快照——展示层保持「待查」。
+   * 与之相对，`days[].food === 0` 是**查过了没有**（粤北山区那种真实结果），展示「0 个」。
+   * `skeletonKey` 是按哪一版停靠点算的（`tripServicesKey`）：骨架变了这份就不作数，展示层退回「待查」。
+   */
+  services?: TripPlanServices;
   updatedTurnId: string;
+}
+
+/**
+ * 地图上要画的一个服务点。**只带画得出来的那三个字段**——
+ * 高德的 `id` 与 `typecode` 端上用不到，不进快照（快照是要落库、要随每轮读写的）。
+ */
+export interface ServicePoi {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+/**
+ * 每天每类最多存几条明细（M93-04）。
+ *
+ * 计数是"周边有多少"，明细是"图上画哪些"，二者**本来就可以不等**：
+ * `food: 65` 配 `pois.food.length: 20` 是正常形态，展示层说"周边 65 个，图上是最近的 20 个"。
+ * **计数不许改成 20**——那会把"查过了有 65 个"说成 20 个。
+ *
+ * 20 这个数来自体积：4 类 × 20 条 × 约 40 B ≈ 3.2 KB/天，一份 3 天行程让 `plan` 从约 6 KB
+ * 涨到约 16 KB，仍远低于需要担心的量级。
+ */
+export const MAX_POIS_PER_CATEGORY = 20;
+
+/** 某一天的沿途服务计数。每个计数**各自可缺省**：那一类目查询失败就缺省（待查），查过没有才是 0。 */
+export interface TripPlanDayServices {
+  day: number;
+  /** 当天停靠点周边 `radiusM` 内的餐饮 POI 数（按 POI 去重）。 */
+  food?: number;
+  /** 公共厕所数。母婴室（高德 200304）不计入。 */
+  restroom?: number;
+  /** 停车场数。 */
+  parking?: number;
+  /**
+   * 充电站数（M93-04）。
+   *
+   * 与 `TripPlanSnapshot.energyStops` **不是一回事**：那是 drive 分支**求解**出来的补能点
+   * （"这一路要在哪儿充"），车没有实测续航时分支按纪律交空数组；这一项是**查**出来的
+   * "当天停靠点周边有多少桩"，与要不要补能无关。从前这一格读的是前者，于是恒显「无需补能」。
+   */
+  charging?: number;
+  /**
+   * 逐类的 POI 明细，**按到当天停靠点的最近距离升序**、每类最多 `MAX_POIS_PER_CATEGORY` 条。
+   *
+   * 某类查到了但一条都没有时**不写该键**：计数说"有没有"，明细说"画哪些"，
+   * 空数组与缺键在展示层是同一件事，少一个空数组少一份歧义。
+   */
+  pois?: {
+    food?: ServicePoi[];
+    restroom?: ServicePoi[];
+    parking?: ServicePoi[];
+    charging?: ServicePoi[];
+  };
+  /** 大交通高速段沿途的服务区名（去程落第 1 天）。没有高速段 / 没算出来则缺省。 */
+  serviceAreas?: string[];
+}
+
+export interface TripPlanServices {
+  /** ISO 时刻：这份是什么时候算的。 */
+  computedAt: string;
+  /** 停靠点周边查询半径（米）。展示"周边 3 公里"要念它，不要写死。 */
+  radiusM: number;
+  /** 按哪一版停靠点算的，见 `tripServicesKey`。 */
+  skeletonKey: string;
+  days: TripPlanDayServices[];
+}
+
+/**
+ * 停靠点指纹：逐天的景点名与酒店名，外加出发地（高速段服务区按它算）。
+ *
+ * 两端各算一次、必须相等（后台写入时记下，展示时比对），所以它住在契约里而不是任一端。
+ * 只看名字不看坐标：坐标回填是确认路径的副作用，同一版骨架前后两次解析结果可能有一两个点差异。
+ */
+export function tripServicesKey(plan: TripPlanSnapshot): string {
+  const days = [...plan.skeleton]
+    .sort((a, b) => a.day - b.day)
+    .map((d) => `${d.day}:${d.spots.map((s) => s.name).join("|")}#${d.hotel?.name ?? ""}`);
+  return `${days.join(";")}@${plan.origin ?? ""}`;
+}
+
+/**
+ * 某一天的沿途服务；**骨架已经变了就当没有**（展示层退回「待查」，后台会按新骨架重算）。
+ * 抽屉的编辑预览（挪景点、删景点）走的也是这条路：预览里的骨架与算时的对不上，格子如实变回待查。
+ */
+export function tripServicesForDay(plan: TripPlanSnapshot, day: number): TripPlanDayServices | undefined {
+  const s = plan.services;
+  if (!s || s.skeletonKey !== tripServicesKey(plan)) return undefined;
+  return s.days.find((d) => d.day === day);
+}
+
+/**
+ * 当天从**住处**开到第一站的车程（M83 走查追修）。
+ *
+ * # 它补的是哪个洞
+ *
+ * `TripPlanSnapshot.legs` 只描述**大交通**（去程上海 → 苏州、返程苏州 → 上海）——
+ * `submit_drive_draft` 的 `legMinutes` 装的就是那一段。市内每天从酒店开到第一个景点
+ * 的车程从没有人提交过，于是行程详情抽屉里第 2 天起的「从酒店出发」**永远没有时刻**
+ * （用户 2026-09-14 走查原话："第二天从酒店出发也没有出发时间点"）。
+ *
+ * # 为什么是代码算而不是模型给
+ *
+ * 两组坐标之间开多久，是高德能 100% 确定的量，不是模型的决策——与坐标回填同一条纪律
+ * （M13-06「代码解析不让 LLM 抄数字」）。而且**没有哪个分支手里有全部信息**：
+ * 酒店是 hotel 分支定的、每天第一站是 tour 分支定的，只有汇聚之后才同时知道。
+ *
+ * 算的时机与坐标回填同一跳（确认路径，权限门之前）：那时两端坐标刚解析好、
+ * 现成可用，且弹窗批的与落库的是同一份数据。
+ *
+ * # 只有第 2 天起有
+ *
+ * 第 1 天的出发时刻由 `legs` 的去程段倒推（那是大交通，本来就有数据），
+ * 两处口径不重叠——同一件事有两个来源，迟早对不上。
+ */
+export interface TripPlanStartLeg {
+  /** 从哪儿出发（前一晚的酒店名）。 */
+  fromName: string;
+  /** 车程分钟数。高德 `v5/direction/driving` 的 `cost.duration`，代码取整，模型不写。 */
+  driveMinutes: number;
+  /** ISO 时刻：这个数是哪一刻算的。路况会变，展示侧据此决定要不要标"预计"。 */
+  computedAt: string;
+}
+
+/**
+ * 当天最后一站开到**当晚住处**的车程（M83 走查追修）。
+ *
+ * 与 `TripPlanStartLeg` 对称：那个是「早上从哪儿出发」，这个是「晚上几点到酒店」。
+ * 用户走查原话：「第一天第二天要住酒店的，最好把最后一个景点到酒店的时间也算出来，
+ * 这样用户能方便地了解自己的时间安排」——没有它，时间轴末尾那一行只有「入住」
+ * 两个字，一天什么时候结束是看不出来的。
+ *
+ * 同样由确认路径按坐标调高德算，代码算不让模型抄；只有**当天有酒店**的日子才有。
+ */
+export interface TripPlanEndLeg {
+  /** 开到哪儿（当晚酒店名）。 */
+  toName: string;
+  /** 车程分钟数。高德 `v5/direction/driving` 的 `cost.duration`，代码取整。 */
+  driveMinutes: number;
+  /** ISO 时刻：这个数是哪一刻算的。 */
+  computedAt: string;
 }
 
 /** 见 `TripPlanSnapshot.leg`。`road` 缺席 = 路况读不到（未知路段过半），不等于畅通。 */

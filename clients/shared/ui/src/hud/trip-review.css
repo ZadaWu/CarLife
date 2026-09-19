@@ -62,10 +62,8 @@
 .trip-review__sheet.is-critical .trip-review__icon { color: var(--hud-danger); }
 .trip-review__icon svg { width: 100%; height: 100%; display: block; }
 .trip-review__title {
+  font: var(--hud-type-headline);
   margin: 0;
-  font-size: calc(40 * var(--hud-unit));
-  font-weight: 700;
-  line-height: 1.2;
 }
 .trip-review__pills {
   display: flex;
@@ -73,10 +71,10 @@
   gap: calc(12 * var(--hud-unit));
 }
 .trip-review__pill {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   padding: calc(4 * var(--hud-unit)) calc(18 * var(--hud-unit));
   border-radius: var(--hud-radius-pill);
-  font-size: calc(24 * var(--hud-unit));
-  line-height: 1.5;
   white-space: nowrap;
 }
 .trip-review__pill--subject {
@@ -99,12 +97,13 @@
 }
 /* 两栏抬头：与每行的「原 → 现」对齐（kind 列 120u、箭头 40u）。 */
 .trip-review__cols {
+  font: var(--hud-type-label);
+  letter-spacing: 0.04em;
   display: grid;
   grid-template-columns: calc(40 * var(--hud-unit)) calc(120 * var(--hud-unit)) 1fr calc(40 * var(--hud-unit)) 1fr;
   gap: calc(16 * var(--hud-unit));
   padding: 0 calc(8 * var(--hud-unit));
   color: var(--hud-text-muted);
-  font-size: calc(22 * var(--hud-unit));
 }
 .trip-review__cols span:nth-child(1) { grid-column: 3; }
 .trip-review__cols span:nth-child(2) { grid-column: 5; }
@@ -116,6 +115,8 @@
   align-items: start;
 }
 .trip-review__badge {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
   position: relative;
   z-index: 1;
   width: calc(40 * var(--hud-unit));
@@ -127,10 +128,11 @@
   border-radius: 50%;
   background: var(--hud-card-bg);
   color: var(--hud-amber);
-  font-size: calc(24 * var(--hud-unit));
-  font-weight: 700;
 }
-.trip-review__badge--all { font-size: calc(18 * var(--hud-unit)); }
+.trip-review__badge--all {
+  font: var(--hud-type-badge);
+  font-variant-numeric: tabular-nums;
+ }
 .trip-review__items {
   margin: 0;
   padding: 0;
@@ -140,6 +142,7 @@
   gap: calc(8 * var(--hud-unit));
 }
 .trip-review__item {
+  font: var(--hud-type-body);
   display: grid;
   grid-template-columns: calc(120 * var(--hud-unit)) 1fr calc(40 * var(--hud-unit)) 1fr;
   gap: calc(16 * var(--hud-unit));
@@ -147,8 +150,6 @@
   padding: calc(10 * var(--hud-unit)) calc(14 * var(--hud-unit));
   border-radius: calc(14 * var(--hud-unit));
   background: var(--trip-review-inset);
-  font-size: calc(26 * var(--hud-unit));
-  line-height: 1.4;
 }
 .trip-review__kind { color: var(--hud-text-muted); }
 .trip-review__before { color: var(--hud-text-muted); text-decoration: line-through; }
@@ -166,11 +167,10 @@
   border-top: 1px solid var(--hud-divider);
 }
 .trip-review__btn {
+  font: var(--hud-type-control);
+  letter-spacing: 0.02em;
   min-height: calc(64 * var(--hud-unit));
   padding: calc(14 * var(--hud-unit)) calc(24 * var(--hud-unit));
-  font: inherit;
-  font-size: calc(30 * var(--hud-unit));
-  font-weight: 600;
   border-radius: calc(16 * var(--hud-unit));
   border: none;
   cursor: pointer;
@@ -223,34 +223,34 @@
   }
   .trip-review__head { gap: calc(6 * var(--hud-unit)); }
   .trip-review__icon { width: calc(28 * var(--hud-unit)); height: calc(28 * var(--hud-unit)); }
-  .trip-review__title { font-size: calc(19 * var(--hud-unit)); }
+  .trip-review__title { font-size: var(--m-font-title); }
   .trip-review__pills { flex-basis: 100%; gap: calc(8 * var(--hud-unit)); }
   .trip-review__pill {
     padding: calc(3 * var(--hud-unit)) calc(12 * var(--hud-unit));
-    font-size: calc(13 * var(--hud-unit));
+    font-size: var(--m-font-caption);
   }
   .trip-review__body { gap: calc(8 * var(--hud-unit)); }
   .trip-review__cols {
     grid-template-columns: calc(24 * var(--hud-unit)) calc(60 * var(--hud-unit)) 1fr calc(20 * var(--hud-unit)) 1fr;
     gap: calc(8 * var(--hud-unit));
     padding: 0 calc(4 * var(--hud-unit));
-    font-size: calc(12 * var(--hud-unit));
+    font-size: var(--m-font-caption);
   }
   .trip-review__day { grid-template-columns: calc(24 * var(--hud-unit)) 1fr; gap: calc(8 * var(--hud-unit)); }
   .trip-review__badge {
     width: calc(24 * var(--hud-unit));
     height: calc(24 * var(--hud-unit));
     border-width: calc(1.5 * var(--hud-unit));
-    font-size: calc(15 * var(--hud-unit));
+    font-size: var(--m-font-caption);
   }
-  .trip-review__badge--all { font-size: calc(12 * var(--hud-unit)); }
+  .trip-review__badge--all { font-size: var(--m-font-caption); }
   .trip-review__items { gap: calc(6 * var(--hud-unit)); }
   .trip-review__item {
     grid-template-columns: calc(60 * var(--hud-unit)) 1fr calc(20 * var(--hud-unit)) 1fr;
     gap: calc(8 * var(--hud-unit));
     padding: calc(8 * var(--hud-unit)) calc(10 * var(--hud-unit));
     border-radius: calc(10 * var(--hud-unit));
-    font-size: calc(14 * var(--hud-unit));
+    font-size: var(--m-font-body);
   }
   .trip-review__actions {
     gap: calc(10 * var(--hud-unit));
@@ -259,7 +259,7 @@
   .trip-review__btn {
     min-height: calc(44 * var(--hud-unit));
     padding: calc(10 * var(--hud-unit)) calc(12 * var(--hud-unit));
-    font-size: calc(15 * var(--hud-unit));
+    font-size: var(--m-font-body);
     border-radius: calc(12 * var(--hud-unit));
   }
 }

@@ -51,10 +51,19 @@ export function coverageOf(models: readonly string[], docs: DocumentsByDataset):
 }
 
 /**
- * 不被任何已知车型匹配到的文档——**它们对所有限定车型的检索都是隐形的**。
+ * 限定车型检索时**谁也看不见**的文档。
  *
  * 传了却检索不到是最贵的一种失败：花了解析额度、占了库位，
  * 而唯一的症状是"这款车问什么都说没资料"。返回 `数据集/文件名`。
+ *
+ * 判据按作用域分叉（ACR-042）——**两种集的"隐形"是两回事**：
+ *
+ *   per-model  文件名不含任何目录车型 = 隐形。按车型分区的集里，不属于任何一款车的
+ *              文档永远落不进任何一次限定检索。
+ *   shared     文件名**含**车型、而那款车不在目录里 = 隐形。它既不是行业级（所以不对
+ *              所有车可见），指向的车又不存在（所以也没有人能看到它）——通常是车名写错了。
+ *              不含车型的行业文档在这类集里对所有车可见，**不是隐形**：M96 把三篇行业级
+ *              条款报成隐形就是拿 per-model 的判据去量 shared 的集。
  */
 export function invisibleDocuments(
   models: readonly string[],
@@ -63,10 +72,28 @@ export function invisibleDocuments(
   const out: string[] = [];
   for (const def of DATASETS) {
     for (const name of docs[def.key] ?? []) {
-      if (!models.some((m) => documentMatchesModel(name, m))) out.push(`${def.key}/${name}`);
+      const matched = models.some((m) => documentMatchesModel(name, m));
+      if (def.scope === "per-model") {
+        if (!matched) out.push(`${def.key}/${name}`);
+      } else if (!matched && mentionsSomeModel(name)) {
+        out.push(`${def.key}/${name}`);
+      }
     }
   }
   return out;
+}
+
+/**
+ * 文件名里像是点了某款车，但那款车不在目录里（多半是车名写错了）。
+ *
+ * 只能是启发式：真判据（`documentMatchesModel`）要有一个候选车型名，而这里恰恰是
+ * "候选之外"的情况。所以只认一条**窄**信号——`Model?` / `Cybertruck` 这类车系写法。
+ * **宁可漏报不误报**：这条检查的全部价值是"它一红就一定有事"，
+ * 误报会让自检变成需要人去分辨真假的噪音，那还不如不检。
+ * 代价是中文车名写错（如"迈瑞宝"）漏报——由语料工单的文件名规范（D15）兜。
+ */
+function mentionsSomeModel(name: string): boolean {
+  return /model\s*[a-z0-9]|cybertruck/i.test(name);
 }
 
 export interface FetchedCoverage {

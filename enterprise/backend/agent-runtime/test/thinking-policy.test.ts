@@ -14,13 +14,14 @@ import { afterEach, describe, it } from "node:test";
 import {
   DIRECT_CALL_SITES,
   PI_NARRATING_ANSWER_SESSIONS,
+  PI_OVERRIDES,
   anthropicThinkingFields,
   deepseekThinkingFields,
   piThinkingLevelFor,
   thinkingForSite,
   withDeepSeekThinking,
 } from "../src/llm/thinking-policy";
-import { thinkingLevelFor } from "../src/acp-client/agent-prompt";
+import { canonicalAgent, thinkingLevelFor } from "../src/acp-client/agent-prompt";
 
 const root = new URL("../", import.meta.url).pathname;
 const read = (rel: string) => readFileSync(join(root, rel), "utf8");
@@ -151,5 +152,22 @@ describe("[F-33-01][AC-33-1] pi 侧档位规则", () => {
     assert.equal(thinkingForSite("web-search"), "off");
     assert.equal(thinkingForSite("main-direct"), "high");
     assert.equal(thinkingForSite("judge"), "high");
+  });
+});
+
+describe("[F-18-01] PI_OVERRIDES：tour-plan-task 钉 high（M86-03，ACR-037）", () => {
+  it("key 是会话名：tour-plan-task → high；规范名 tour-plan 本来就是 high（无后缀 = 应答档），别据此误判覆盖生效", () => {
+    assert.equal(piThinkingLevelFor("tour-plan-task"), "high");
+    assert.equal(piThinkingLevelFor("tour-plan"), "high");
+    assert.equal(canonicalAgent("tour-plan-task"), "tour-plan");
+    // 对照：普通 -task 会话仍是 off——刀只落在点名的那一个上
+    assert.equal(piThinkingLevelFor("tour-task"), "off");
+    assert.equal(thinkingLevelFor("tour-plan-task"), "high");
+  });
+
+  it("PI_OVERRIDES 的每个 key 都以 -task 结尾——写规范名等于没写且不报错，这里替它报", () => {
+    const keys = Object.keys(PI_OVERRIDES);
+    assert.ok(keys.includes("tour-plan-task"));
+    for (const k of keys) assert.match(k, /-task$/, `${k} 不是会话名`);
   });
 });

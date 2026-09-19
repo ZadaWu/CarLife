@@ -211,13 +211,13 @@ describe("外发个人信息：从工具传到权限门（M15-04）", () => {
     assert.match(summary, /某某门店/);
   });
 
-  it("`calendar` 不带 disclosures——它外发的不是个人信息给第三方", async () => {
+  it("`vehicle_profile_write` 不带 disclosures——它写的是我们自己的库", async () => {
     const seen = captureCheck();
     setSessionResolver(() => ({ carlifeSessionId: "s-1", agent: "ownership" }));
     await handleToolsRequest(
       fakeReq({
-        name: "calendar",
-        args: { op: "write", title: "出发", start: "2026-09-01T08:00:00+08:00" },
+        name: "vehicle_profile_write",
+        args: { vin: "LSJA0000000000001", maintenance: { at: "2026-09-01", odometerKm: 30000 } },
         agent: "ownership",
       }),
       fakeRes().res,

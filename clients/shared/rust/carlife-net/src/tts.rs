@@ -110,6 +110,13 @@ pub struct TtsRuntimeConfig {
     /// 免费档天天在跑，日志里每条都喊"计费"，真出事时那行字就没人看了。
     #[serde(default)]
     pub billed: bool,
+    /// 边收边播（流式播报）。**由后台开关下发，端上没有本地默认**——
+    /// 缺省 false 就是"按老样子等整段"，这也是这个字段该有的保守方向。
+    ///
+    /// 开了之后首声约等于"模型说完第一句"的时间；关了是"说完整段再分段合成"。
+    /// 两种模式共用同一份分段判据，关掉不会退回整段一次合成。
+    #[serde(default)]
+    pub stream_speech: bool,
     /// 端上多久复查一次（毫秒）。由服务端定，端上不要自己另设一个。
     #[serde(default)]
     pub refresh_ms: u64,
@@ -260,12 +267,14 @@ mod tests {
             resource_id: "seed-tts-2.0".into(),
             speaker: "zh_female_vv_uranus_bigtts".into(),
             billed: false,
+            stream_speech: false,
             refresh_ms: 30_000,
         };
         for engine in ["mock", "doubao", "aliyun"] {
             let cfg = TtsRuntimeConfig {
                 engine: engine.into(),
                 billed: engine != "mock",
+                stream_speech: false,
                 ..base.clone()
             };
             let client = TtsClient::for_runtime(&cfg, "device-jwt");

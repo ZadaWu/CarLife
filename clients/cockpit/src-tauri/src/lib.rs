@@ -42,6 +42,7 @@ pub fn run() {
     ));
 
     tauri::Builder::default()
+        .manage(commands::vision::VisionState::default())
         .manage(commands::media::VoiceState::default())
         // 打断计数（M33-02）：没有它，"打断到底有没有生效"只能靠人眼看。
         .manage(Arc::new(interrupt::InterruptCounters::default()))
@@ -163,6 +164,19 @@ pub fn run() {
             app.manage(tts_state);
             // 途中提醒的开关与密度档（M77-07）：跨重启保持，缺省 开 / 适中。
             commands::reminders::load_en_route_prefs(app.handle());
+            /*
+             * 预热合成配置（M77 走查追修第二步）。
+             *
+             * 不预热的话，本次启动的**第一轮对话拿不到"边收边播"开关**——
+             * `stream_speech_cached()` 读的是缓存，而缓存要等第一次播报时
+             * `effective()` 去问网关才填上。于是车主开了开关、试第一句，
+             * 发现还是老样子，只好以为开关没生效。
+             *
+             * 失败不影响启动：问不到就维持"按老样子等整段"，与不预热时一致。
+             */
+            tauri::async_runtime::spawn(async {
+                let _ = tts::endpoint::effective().await;
+            });
             // ⑥用车流水的采集开关与待发队列（M11-01）。
             let trip_state = Arc::new(commands::trips::TripState::default());
             if let Some(p) = commands::trips::collect_pref_path(app.handle()) {
@@ -176,6 +190,8 @@ pub fn run() {
         // 能开哪些 URL 由 capabilities/default.json 的 opener 权限白名单钉死。
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            // 端侧指示灯检测（ACR-044）：字节进、框出，不出端。
+            commands::vision::vision_detect,
             commands::attachments::fetch_attachment,
             commands::attachments::upload_attachment,
             // 车内音乐的现场逃生阀（M63-03）：没有界面入口，见该命令的文档注释。
@@ -238,6 +254,7 @@ pub fn run() {
             commands::reminders::log_en_route_event,
             commands::reminders::export_en_route_log,
             commands::stream::start_session_stream,
+            commands::stream::start_user_events_stream,
             commands::stream::start_mock_stream,
             commands::stream::refresh_history,
             commands::stream::list_sessions,

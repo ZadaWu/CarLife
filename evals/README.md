@@ -13,6 +13,26 @@ M38-02；判定内核单独成文件是为了能离线单测，见 `risk/lib.tes
 | `scenarios/cases.jsonl` | 核心场景标注：ownership / service / boundary，一行一 case（M51-01 扩到 **86 条**） |
 | `risk/cases.jsonl` | 红队样本（M38-02 建 55 条，M51-01 扩到 **110 条**），一行一 case |
 | `runs/` | 各档实跑产物（`--json` 落盘），汇总报告消费它们 |
+| `research-coding/seed.ts` + `seed/` | 研究面造数（M82-03）：从 `内部文档` 的角色派生六个**行为分群**，生成 65 车主 / 65 车 / ~1,400 轮 / ~1,100 趟，全部打 `research_synthetic` 可整体删。确定性（同种子逐字节相同）、零 LLM、走仓储不直插 SQL、只允许本机库。跑法 `corepack pnpm research:seed [--drop] [--enqueue] [--gold N]` |
+| `research-coding/gold/candidates.jsonl` | gold set 的**分层抽样候选**（`--gold N` 产出，本单只抽不编码）。⚠️ `unitId` 每次重造都会变，**跨造数稳定的键是 `fingerprint`**；M82-10 标注请按它对回来 |
+| `research-coding/gold/README.md` | **编码指南**（M82-10）：六条轴怎么判、三个最容易分歧的地方、独立编码与仲裁的规矩、各文件是什么 |
+| `research-coding/compare.ts` + `run.ts` | 一致率 runner（M82-10）。跑法 `corepack pnpm eval:research-coding`；判定本体在 `compare.ts`（纯函数，`run.test.ts` 20 条） |
+
+## 登记表：每份评测的命令 / 数据集 / 口径 / 分母 / 产物
+
+| 评测 | 命令 | 数据集 | 口径 | 分母 | 产物 |
+|---|---|---|---|---|---|
+| 编码一致率（M82-10） | `eval:research-coding` | `research-coding/gold/` | 多标签轴 Jaccard ≥ 0.5 算一致，单选轴集合相等；α 同报但**不设门槛** | **两边都有编码的单元**——一边缺的是「没编」不是「编错」 | `runs/research-coding-<date>.{json,md}` |
+| 多天行程天×片区（M86-01，ACR-037） | `eval:trip-clustering -- --layer off\|plan\|review` | `trip-clustering/cases.jsonl`（12 条固定行程 prompt：M86-01 的 8 条 + M87-01 补的西南 / 东北 / 华北与一条 5 天；`runs/*-8cases` 后缀是 M86 检查点在 8 条上的留档） | 误归率（离别的天质心更近的点占比，**越低越好**）+ 天内平均半径 + 天间距，三个一起看；判据误归率 < 10% 且半径不高于 `off` 档；计分函数与探针 `probe:tour-clustering` 共用 `trip-clustering/score.ts` | **有坐标的点**（落库快照 `working_tasks.draft` 里过了 `trustCoordHit` 的）；坐标覆盖率 < 60% 的 case 不进合计；`--fake` 不计分 | `runs/trip-clustering-<layer>-<date>.{json,md}` |
+
+两个数各答各的问题，**永远分列**：`humanPercent`（研究者 A vs B）回答「这套码表说得清吗」，
+是 `research_codebooks.agreement` 与 measurement 门读的那个；`modelPercent`（Coder vs 仲裁结果）
+回答「这个模型编得准吗」，只进报告。合成一个数会让「码表模糊」与「模型不准」分不开，
+而两者的处置完全不同。
+
+**模型参照不顶替人工参照**：`gold/reference-model.jsonl` 是另一个模型编的一遍，
+只用来让链路在真数据上跑通并给出偏差方向；它永远不写进 `humanPercent`，
+所以测量门不会因为它变绿。
 
 ## 两条分类轴（M51-01）：覆盖率与拦截率各按哪一栏算
 

@@ -12,7 +12,8 @@
  * # 签名算法：RPC 风格 V1（HMAC-SHA1）
  *
  * 三处容易错、错了只表现为 `SignatureDoesNotMatch`：
- *  1. 百分号编码**不是** `encodeURIComponent`——要把 `+`→`%20`、`*`→`%2A`、`%7E`→`~`；
+ *  1. 百分号编码**不是** `encodeURIComponent`——除 `A-Za-z0-9-_.~` 外全部要编码，
+ *     而 `encodeURIComponent` 放过了 `!'()*` 五个、还把空格编成 `+`、把 `~` 编成 `%7E`；
  *  2. 参数排序按**编码前**的键名字典序，且要包含全部公共参数；
  *  3. 密钥要在末尾**多加一个 `&`**（`AccessKeySecret + "&"`），这是 RPC 签名的历史遗留。
  */
@@ -154,15 +155,46 @@ function explain(code: number, message?: string): { text: string; retryable: boo
 /**
  * RPC 签名用的百分号编码。
  *
- * `encodeURIComponent` 不够：它把空格编成 `+`、不编 `*`、把 `~` 编成 `%7E`，
- * 三处都与阿里云的规范相反。差一处就是 `SignatureDoesNotMatch`，
+ * 规范是：**只有** `A-Za-z0-9-_.~` 原样保留，其余一律 `%XX`。
+ * `encodeURIComponent` 与它有四处出入——它把空格编成 `+`、把 `~` 编成 `%7E`，
+ * 并且**原样放过 `!'()*` 五个字符**。差一处就是 `SignatureDoesNotMatch`，
  * 而那个错误信息不会告诉你是哪一处。
+ *
+ * # 漏掉的是 `!'()` 四个，不是五个
+ *
+ * 2026-09-18/19 车机端连撤 8 轮"这条回答我收回了"，审计里一条 block 都没有、
+ * 全是 fail-closed。根因是这里漏掉的 `(` 与 `)`：高德 POI 名里带半角括号
+ * （`如家精选酒店(上海外滩南京路步行街店)`），它一旦被念进助手的回答，
+ * 那一片送审就必然验签失败 → `finish()` 抛 → 整轮撤回。
+ * 也就是说，**这条安全边界的可用性取决于回答里有没有半角括号**。
+ *
+ * ⚠️ 别把 `*` 也算进这次的故障范围：`encodeURIComponent` 确实放过它，但**旧版补丁
+ * 已经显式把 `*` 单独 replace 成 `%2A` 了**，所以 markdown 加粗的两个星号从来
+ * 没有触发过这次事故。真正漏的是 `!`、`'`、`(`、`)` 四个。把 `*` 一起说成根因，
+ * 会让下一个人照着错误的触发条件去复现，怎么也复现不出来。
+ *
+ * 所以这里不再"从 `encodeURIComponent` 的结果上补丁"，而是直接按白名单编码：
+ * 补丁式写法的问题是它只覆盖已经想到的字符，而规范给的是一份白名单。
  */
 function percentEncode(v: string): string {
-  return encodeURIComponent(v)
-    .replace(/\+/g, "%20")
-    .replace(/\*/g, "%2A")
-    .replace(/%7E/g, "~");
+  let out = "";
+  for (const byte of new TextEncoder().encode(v)) {
+    // A-Z a-z 0-9 - _ . ~ 原样，其余按 UTF-8 字节逐个 %XX
+    if (
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a) ||
+      (byte >= 0x30 && byte <= 0x39) ||
+      byte === 0x2d ||
+      byte === 0x5f ||
+      byte === 0x2e ||
+      byte === 0x7e
+    ) {
+      out += String.fromCharCode(byte);
+    } else {
+      out += "%" + byte.toString(16).toUpperCase().padStart(2, "0");
+    }
+  }
+  return out;
 }
 
 /** 规范化查询串：按**编码前**的键名排序，再逐对编码拼接。 */

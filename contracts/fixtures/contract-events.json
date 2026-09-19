@@ -101,8 +101,8 @@
       "event": {
         "type": "permission",
         "interruptId": "int-1",
-        "action": "calendar_write",
-        "title": "写入你的日历",
+        "action": "trip_plan_commit",
+        "title": "确认这份行程",
         "details": [
           {
             "label": "10月1日",
@@ -110,7 +110,7 @@
           }
         ],
         "disclosure": [],
-        "scope": "google:primary"
+        "scope": "trip:sess-demo-001"
       }
     },
     {

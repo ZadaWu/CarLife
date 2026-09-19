@@ -20,7 +20,7 @@ export function PendingPage({
         <span className="pending-tag">待建设</span>
         <p>{what}</p>
         <p className="muted">
-          归属清单：<code>{owner}</code>。本 Sprint（M3）不包含该功能，页面可达是为了让路由与权限先就位。
+          归属清单：<code>{owner}</code>。本期不包含该功能，页面可达是为了让路由与权限先就位。
         </p>
       </div>
     </div>

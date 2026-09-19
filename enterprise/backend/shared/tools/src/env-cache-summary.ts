@@ -86,6 +86,18 @@ const names = (xs: unknown, n: number): string =>
     .slice(0, n)
     .join("、");
 
+/**
+ * 沿途服务的五个命名空间（`route-services.ts` 的 `serviceCacheNamespace`）→ 标题里的类目名。
+ * 值是 `AmapPoi[]`，形状与充电站那条相同，只是类目不同。
+ */
+const SERVICE_NS_LABEL: Record<string, string> = {
+  "svc-food": "沿途餐饮",
+  "svc-restroom": "沿途卫生间",
+  "svc-parking": "沿途停车场",
+  "svc-charging": "沿途充电站",
+  "svc-service_area": "沿途服务区",
+};
+
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
@@ -218,6 +230,22 @@ export function describeEnvCacheEntry(key: string, raw: string | null): EnvCache
         return {
           title: `充电站 · ${lat !== undefined && lon !== undefined ? coord(lat, lon) : "?"}${r ? ` 半径 ${km(r)}` : ""}`,
           summary: clip(list.length ? `${list.length} 个：${names(list, 3)}` : "范围内没有充电站"),
+        };
+      }
+      case "svc-food":
+      case "svc-restroom":
+      case "svc-parking":
+      case "svc-charging":
+      case "svc-service_area": {
+        // 沿途服务：键是（取整坐标、半径、类目码），值是 POI 数组——与充电站同形，只是类目名不同。
+        const label = SERVICE_NS_LABEL[ns] ?? ns;
+        const list = Array.isArray(v) ? v : [];
+        const lat = num(parts[0]);
+        const lon = num(parts[1]);
+        const r = num(parts[2]);
+        return {
+          title: `${label} · ${lat !== undefined && lon !== undefined ? coord(lat, lon) : "?"}${r ? ` 半径 ${km(r)}` : ""}`,
+          summary: clip(list.length ? `${list.length} 个：${names(list, 3)}` : `范围内没有${label.slice(2)}`),
         };
       }
       default:

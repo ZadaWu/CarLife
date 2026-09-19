@@ -84,14 +84,18 @@ describe("命中与未命中", () => {
     assert.ok(ENV_TTL.route < ENV_TTL.weatherForecast, "路线的 TTL 必须比天气短");
   });
 
-  it("目的地推荐与导览简报按周缓存：2 周（2026-09-02 从 24 小时改来）", () => {
-    // 两者内容周级变化、单次又是本仓最贵的外部调用；24 小时时每天第一次点都要重跑搜索。
+  it("目的地推荐、导览简报与沿途服务按周缓存：2 周", () => {
+    // 前两者内容周级变化、单次又是本仓最贵的外部调用；24 小时时每天第一次点都要重跑搜索。
+    // 沿途服务（2026-09-16 走查从 1 小时改来）存的是 POI 静态属性，且一次补算二三十次
+    // 搜索、只在行程落库后的后台被调——1 小时的缓存等于没有，白烧高德配额。
     const twoWeeks = 14 * 24 * 60 * 60;
     assert.equal(ENV_TTL.destinationHighlights, twoWeeks);
     assert.equal(ENV_TTL.guideBrief, twoWeeks);
-    // 其余条目仍按分钟~小时：这两条是刻意的例外，不该被别的工具无脑复用。
+    assert.equal(ENV_TTL.routeServices, twoWeeks);
+    // 其余条目仍按分钟~小时：这三条是刻意的例外，不该被别的工具无脑复用。
+    const weekly = new Set(["destinationHighlights", "guideBrief", "routeServices"]);
     for (const [name, ttl] of Object.entries(ENV_TTL)) {
-      if (name === "destinationHighlights" || name === "guideBrief") continue;
+      if (weekly.has(name)) continue;
       assert.ok(ttl <= 60 * 60, `${name} 的 TTL 不该超过 1 小时`);
     }
   });

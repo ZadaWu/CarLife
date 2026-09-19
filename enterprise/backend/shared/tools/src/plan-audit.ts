@@ -47,6 +47,11 @@ export interface PlanAuditArgs {
   origin?: string;
   destination: string;
   limits: PlanAuditLimits;
+  /**
+   * 车主要求的总天数（M77 走查追修）。**不知道就不传**——大多数人不说天数，
+   * 那时这一项整个跳过，不计 passed 也不报，免得制造一条恒在的噪音。
+   */
+  requestedDays?: number;
   /** 本会话生效的约束集（`reconcileConstraints().kept`）。 */
   constraints: string[];
   /** 被剔除 / 被用户覆盖的约束（`dropped`），只进 passed 的依据。 */
@@ -79,17 +84,79 @@ export function auditPlan(args: PlanAuditArgs): AuditReport {
   const lastDay = days.length ? days[days.length - 1]!.day : 0;
   const constraints = args.constraints ?? [];
 
-  // ── hotel：除最后一天外每天要有住宿 ───────────────────────────
+  /*
+   * ── hotel：除最后一天外每天要有住宿，**最后一天则不许有** ──────
+   *
+   * 反向那一条是 M93-02 补的。此前只查"少了"不查"多了"，于是真跑 turn-86ce2093 的
+   * 3 天行程排出 3 晚住宿，体检 hotel 项照样满分——车主要住 2 晚，方案给了 3 晚，
+   * 而唯一该拦住它的地方对此只字不提。两个方向共用 `AUDIT_LEVEL_OF.hotel` 一个等级：
+   * 它们是同一件事（住宿天数与行程天数对不上）的两侧，分等级只会让报告更难读。
+   */
   if (constraints.some((c) => DAY_RETURN_RE.test(c))) {
     passed += 1;
     findings.push(finding("constraint", "warning", "用户声明当天回 / 不住宿，不验住宿"));
   } else {
     const missing = days.filter((d) => d.day !== lastDay && !d.hotel);
-    if (missing.length === 0) passed += 1;
+    const extra = days.filter((d) => d.day === lastDay && d.hotel);
+    if (missing.length === 0 && extra.length === 0) passed += 1;
     for (const d of missing) {
       findings.push(finding("hotel", AUDIT_LEVEL_OF.hotel, `第 ${d.day} 天没有住宿`, { day: d.day }));
     }
+    for (const d of extra) {
+      findings.push(
+        finding("hotel", AUDIT_LEVEL_OF.hotel, `第 ${d.day} 天是返程日，不该有住宿`, { day: d.day }),
+      );
+    }
   }
+
+  /*
+   * ── days：方案的天数与车主要的对不对得上 ──────────────────────
+   *
+   * 真跑 turn-49a88d21：车主说"中秋三天"，tour 只交了第 1 天，合并出来就是 1 天，
+   * 落库也是 1 天，而当时体检 4 项全过——没有任何一项在看"够不够天"。
+   * narrator 却从 findings 与对话上下文拼出了三天的话，车主听到三天、看到一天。
+   *
+   * 车主没说天数时整个跳过：那是常态（"去杭州玩玩"），报一条 unverifiable 只会变成噪音。
+   */
+  if (args.requestedDays !== undefined && args.requestedDays > 0) {
+    if (days.length === args.requestedDays) {
+      passed += 1;
+    } else {
+      const diff = args.requestedDays - days.length;
+      findings.push(
+        finding(
+          "days",
+          AUDIT_LEVEL_OF.days,
+          diff > 0
+            ? `方案只排了 ${days.length} 天，车主要的是 ${args.requestedDays} 天，少 ${diff} 天`
+            : `方案排了 ${days.length} 天，超过车主要的 ${args.requestedDays} 天`,
+          { actual: days.length, limit: args.requestedDays },
+        ),
+      );
+    }
+  }
+
+  /*
+   * ── 这里曾经有一项 dup（同名景点跨天重复）。2026-09-13 撤掉，不是因为它拦错了一次，
+   * 是因为**它要的事实不在它的输入里**（ADR-010 的同一条）：`spots[].name` 只是个字符串，
+   * 判不出这个名字指的是什么类型的地方，而"重不重复"恰恰取决于那个类型。
+   *
+   * 三次真跑，三种都该放过的形态被判成重复，每次都让 tour 重排、每次都把方案改差：
+   *
+   * | turn | 被判重复的 | 实际是什么 | 代价 |
+   * |---|---|---|---|
+   * | 0d025244 | 第 1 天两段濠河 | 夜游压轴，tour.md 自己要的 | 12.2s，晚间档被换成夜里关门的文峰塔 |
+   * | 0d025244 | 第 3 天两段唐闸 | 一次游玩拆成两行写 | 同上（这一类已由 `collapseRepeatedSpots` 在编排层并掉） |
+   * | 0c52eebf | 第 2、3 天同一家酒店 | 连住——入住日与退房日各出现一次 | 19.7s 两轮，最后第 3 天被换成另一家不相干的酒店、lodging 清空 |
+   *
+   * 补救方案都要求先认出"这是住宿 / 这是夜游"，而这两样都没有可靠依据：
+   * 比当天挂载的 `hotel.name` 在 0c52eebf 失效（tour 自己查的酒店与 hotel 分支挑的不是一家），
+   * 按名字认关键词也不行（同一轮 hotel 分支交过一家叫「园外楼饭店」的）。
+   * 每补一次都是再加一个猜测，而每个猜测都会在某一轮翻车。
+   *
+   * **要重新开这一项，先让提交带上类型**（`poi_search` 的 category 本来就有，只是没往上传），
+   * 或者先把住宿从 `spots` 里赶回 `lodging` / `hotel` 字段——那才是判断者需要的事实。
+   */
 
   // ── leg / daily / stop：都吃 legs ─────────────────────────────
   if (!args.legs || args.legs.length === 0) {
@@ -163,9 +230,17 @@ export function auditPlan(args: PlanAuditArgs): AuditReport {
     const lastLegTo = args.legs?.length ? args.legs[args.legs.length - 1]!.toStop : undefined;
     const end = lastLegTo ?? lastSpot;
     if (end && normalizePlace(end) === normalizePlace(args.origin)) {
+      // 末站（分段的终点，没有就看最后一天的最后一个景点）回到出发地 = 闭环成立，不需要分段也能验。
       passed += 1;
+    } else if (!args.legs || args.legs.length === 0) {
+      /*
+       * 闭环没验成，而且连分段都没有——**别说"最后一段没有终点站"**（M77 走查追修）：
+       * 那句话暗示"有分段、只是末段缺终点"，实际上和上面 leg / daily / stop 三条是同一个根因。
+       * 四条各说各的，读弹窗的人会以为一次撞上了四个毛病。
+       */
+      findings.push(finding("return", "unverifiable", "返程闭环", { missing: "分段数据" }));
     } else {
-      // 草案的最后一段没有终点站（drive 分支不把"回家"当停靠）——这一项验不了，不下 blocker。
+      // 有分段，但最后一段没有终点站（drive 分支不把"回家"当停靠）——这一项验不了，不下 blocker。
       findings.push(finding("return", "unverifiable", "返程闭环", { missing: "返程段（草案的最后一段没有终点站）" }));
     }
   }

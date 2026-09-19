@@ -20,7 +20,7 @@
 
 import type { RunnableConfig } from "@langchain/core/runnables";
 
-import { extractCrop, observePhoto, type AlertReading, type ObservedItem, type PhotoObservation, type VisionProvider } from "@carlife/tools";
+import { extractCrop, observePhoto, withClientDetections, type AlertReading, type ClientDetections, type ObservedItem, type PhotoObservation, type VisionProvider } from "@carlife/tools";
 import type { IconDescriptor, MatchResult } from "@carlife/rag";
 
 import type { GraphState } from "./state";
@@ -31,6 +31,8 @@ export interface PhotoInput {
   handle: string;
   contentType: string;
   bytesBase64: string;
+  /** 端上的框（ACR-045）：有就直接当第一遍，不再向任何检测器要框。 */
+  detections?: ClientDetections;
 }
 
 export interface PhotoMatch {
@@ -41,6 +43,11 @@ export interface PhotoMatch {
   manualAnchor: string | null;
   verified: boolean;
   evidence: string;
+  /**
+   * 手册图标目录里这一条的原文说明（2026-09-19）；`null` = 这台机器上取不到目录（容器里没挂 data/）。
+   * 与 `name` / `severity` 同一张表，只是索引里没存它——由 `VisionDeps.lookupIconMeaning` 回目录取。
+   */
+  description?: string | null;
 }
 
 export interface PhotoObservedItem {
@@ -56,8 +63,16 @@ export interface PhotoObservedItem {
   /** 对上的手册图标；null = 未能对上（`matchReason` 说为什么） */
   match: PhotoMatch | null;
   matchReason?: string;
-  /** 闸门没过时的 top 候选（只用于「疑似」措辞，不当结论） */
-  suspected?: { name: string; symbolId: string };
+  /**
+   * 闸门那一路的 top-1 相似度（对上没对上都记）。
+   * 2026-09-18 查驻车灯为什么对不上时，trace 里只有「对上没对上」，原因与分数都得读代码反推——
+   * 这个字段和 `matchReason` 一起进 `vision` 事件，下次一条查询就够。
+   */
+  matchSim?: number;
+  /** 闸门没过时的 top 候选（只用于「疑似」措辞，不当结论）；`source` 说它来自目录召回还是端侧检测器（M80-15） */
+  suspected?: { name: string; symbolId: string; source?: "catalog" | "detector"; description?: string | null };
+  /** 检测器给的类别名，原样留档（trace 与评测用；措辞走 `suspected`） */
+  symbolHint?: string;
 }
 
 /** 一条读到的车机警报（M80-10）。字面照抄，含义与措施来自知识库的官方警报代码表。 */
@@ -75,8 +90,23 @@ export interface PhotoAlert {
   manual: { title: string; meaning: string[]; action: string[]; models: string[] } | null;
 }
 
+/**
+ * 纯文字追问沿用上一张照片观察的时间窗。
+ *
+ * 5 分钟：够覆盖「发完照片补一句」「看完回答再追问一句」，又不至于让半小时前的照片
+ * 被当成"他现在看到的仪表"——灯会灭、人会开走，过期的观察比没有观察更误导。
+ */
+export const PHOTO_INHERIT_WINDOW_MS = 5 * 60_000;
+
 export interface PhotoObservationState {
   handle: string;
+  /** 这份观察是什么时候做的（ms）。继承判新旧用；2026-09-18 之前的检查点里没有它，视为过期。 */
+  observedAt?: number;
+  /**
+   * 这一轮**没有附照片**，观察是从上一条带照片的消息沿用下来的（2026-09-18，turn-6f2bf4b1）。
+   * 下游措辞要说清楚「上一条发的那张照片」，不能说成「您这条发的图」。
+   */
+  inherited?: boolean;
   unreadable: boolean;
   frame: { cut_off_sides: string[]; cutOffSource: "model" | "code" | "none"; quality: Record<string, boolean> };
   items: PhotoObservedItem[];
@@ -102,7 +132,7 @@ export interface PhotoObservationState {
   figures?: FigureHitLite[];
 }
 
-export type IconMatcher = (args: { crop: Buffer; descriptor: IconDescriptor; vehicleModel?: string }) => Promise<MatchResult>;
+export type IconMatcher = (args: { crop: Buffer; descriptor: IconDescriptor; vehicleModel?: string; symbolHint?: string }) => Promise<MatchResult>;
 
 export type AlertLookup = (code: string) => { title: string; meaning: string[]; action: string[]; models: string[] } | null;
 
@@ -113,6 +143,11 @@ export interface VisionDeps {
   lookupAlert?: AlertLookup;
   /** 缺省 = 不匹配（`CARLIFE_ICON_INDEX=off` 或索引未接） */
   matchIcon?: IconMatcher;
+  /**
+   * `symbol_id` → 手册目录里那一条的原文说明（2026-09-19）。缺省不装 = 端上少一行说明，不影响其余。
+   * **回目录取而不是进索引**：那一列是纯展示文本，进索引就得 `kb:icons` 重建一次才能改一个错字。
+   */
+  lookupIconMeaning?: (symbolId: string, vehicleModel?: string) => string | null;
   /** 手册图示召回（ACR-029）：拿观察层的 crop 去查手册图文索引。缺省不装 = 这一路不跑。 */
   recallFigures?: (crops: Buffer[]) => Promise<FigureHitLite[]>;
 }
@@ -147,6 +182,12 @@ export function describeItem(it: Pick<PhotoObservedItem, "color" | "shape" | "el
   return `${parts.join(" ")}（${ZH_STATE[it.state] ?? it.state}）`;
 }
 
+/** 「疑似」措辞：目录召回第一名与端侧检测器的类别名分开说，两者都不足以确认。 */
+function suspectedClause(s: PhotoObservedItem["suspected"]): string {
+  if (!s) return "";
+  return s.source === "detector" ? `（端侧检测器认为像「${s.name}」，未经手册核验，只能说「疑似」）` : `（最接近的是「${s.name}」，不足以确认）`;
+}
+
 /** 给 `intent` 的一行摘要：只有观察，不带目录匹配——名称不进意图判断。 */
 export function photoSummaryLine(obs: PhotoObservationState): string {
   // 警报页优先（M80-10）：意图层要据此判到售后（代码表在维修知识库），所以这一行必须说清是警报列表。
@@ -170,13 +211,30 @@ export function retakeHintsFor(obs: { unreadable: boolean; frame: PhotoObservati
   if (q.blur) hints.push("照片有些糊，拿稳再拍一张");
   if (q.dark) hints.push("画面偏暗，开灯或提高亮度后再拍");
   if (q.glare) hints.push("屏幕有反光，稍微换个角度");
-  if (obs.frame.cut_off_sides.length) {
+  if (obs.frame.cut_off_sides.length >= 4) {
+    /*
+     * 四边都被标上（2026-09-19）：逐边念「左、右、上、下侧可能没拍全」是一句没法执行的话，
+     * 而它其实在说同一件事——**照片裁得太紧**。这也正是零框漏检的根因，所以两条话术是同一句。
+     */
+    hints.push("照片裁得比较紧，退后一点把整块屏幕拍全再来一张");
+  } else if (obs.frame.cut_off_sides.length) {
     const side: Record<string, string> = { left: "左", right: "右", top: "上", bottom: "下" };
     const s = obs.frame.cut_off_sides.map((x) => side[x] ?? x).join("、");
     hints.push(obs.frame.cutOffSource === "model" ? `${s}侧可能没拍全，如果那边还有灯请补一张` : `${s}侧没拍到，请补一张`);
   }
   const lowConf = obs.items.filter((i) => i.category === "warning_light" && i.confidence < 0.5).length;
   if (lowConf > 0) hints.push(`有 ${lowConf} 个符号看不太清，离近一点拍会更准`);
+  /*
+   * 一个符号都没框到（2026-09-19 用户走查）。
+   *
+   * 在这之前这种照片一条指引都给不出：`unreadable` 是 false（图解得开）、`quality` 全空
+   * （端侧检测器不判糊不判暗）、低置信项数为 0（因为根本没有项）。于是车主拿到的是
+   * 「没辨识出指示符号」加一句"去问服务顾问"——**连"再拍一张、这次拍远一点"都没说**。
+   *
+   * 方向是**往远拍**，与上面那条低置信的「离近一点」相反，这不是笔误：
+   * 检测器漏的是裁得太紧的近景（走查那张图标占画幅 9~10%，训练分布是 3~4%）。
+   */
+  if (obs.items.length === 0) hints.push("这张没认出仪表上的符号，退后一点把整块屏幕拍全再来一张");
   return hints;
 }
 
@@ -224,6 +282,8 @@ export function alertSection(obs: PhotoObservationState): string {
 /** 拼进双路上下文的段落。 */
 export function photoSection(obs: PhotoObservationState): string {
   const lines: string[] = [PHOTO_SECTION_HEADER];
+  // 沿用的观察要说清楚来历：这一条没有图，别让模型说成「您这条发的图」。
+  if (obs.inherited) lines.push("（车主这一条消息**没有附照片**；以下沿用他上一条消息里那张照片的观察，回答时说「您刚才发的那张照片」）");
   if (obs.unreadable) {
     lines.push("- 照片没能读出内容");
   } else if (obs.items.length === 0) {
@@ -235,7 +295,7 @@ export function photoSection(obs: PhotoObservationState): string {
         const m = it.match;
         lines.push(`- ${seen} → 手册图标：${m.name} · ${ZH_CLASS[m.class]} · ${ZH_SEVERITY[m.severity]}${m.manualAnchor ? ` · 出处：${m.manualAnchor}` : ""}${m.verified ? "" : "（未核验，只能说「疑似」）"}`);
       } else if (it.category === "warning_light") {
-        lines.push(`- ${seen} → 未能与手册对上${it.suspected ? `（最接近的是「${it.suspected.name}」，不足以确认）` : ""}`);
+        lines.push(`- ${seen} → 未能与手册对上${suspectedClause(it.suspected)}`);
       } else {
         lines.push(`- ${seen}`);
       }
@@ -285,6 +345,8 @@ export function photoRetrievalTerms(obs: PhotoObservationState | undefined): str
   }
   if (!photoHasSymbols(obs)) return [...new Set(out)];
   for (const it of obs!.items) {
+    // 端侧检测器的疑似名进检索（M80-15）：它在白底实拍上 22/25 对，而目录召回的第一名在远拍上不可靠，仍不进
+    if (!it.match && it.suspected?.source === "detector") out.push(it.suspected.name);
     if (!it.match) continue;
     out.push(it.match.name);
     if (it.match.manualAnchor) {
@@ -330,7 +392,11 @@ export async function buildPhotoObservation(
   lookupAlert?: AlertLookup,
   /** 手册图示召回（ACR-029）；不给就不跑。拿的是匹配那一步裁好的 crop，不再裁一次。 */
   recallFigures?: VisionDeps["recallFigures"],
+  /** `symbol_id` → 原文说明（2026-09-19）；不给就每条 `description` 为 null，端上少一行。 */
+  lookupIconMeaning?: VisionDeps["lookupIconMeaning"],
 ): Promise<PhotoObservationState> {
+  const meaningOf = (symbolId: string): string | null => lookupIconMeaning?.(symbolId, vehicleModel) ?? null;
+  const withMeaning = (d: string | null): { description?: string } => (d ? { description: d } : {});
   const items: PhotoObservedItem[] = [];
   const caveats: string[] = [];
   const crops: Buffer[] = [];
@@ -346,6 +412,7 @@ export async function buildPhotoObservation(
       colorAgreement: it.colorAgreement,
       undeterminable: it.undeterminable,
       match: null,
+      ...(it.symbolHint ? { symbolHint: it.symbolHint } : {}),
     };
     if (it.category === "warning_light" && !matchIcon && recallFigures) {
       // 索引 off 但图示召回 on：裁一次只给召回用
@@ -359,11 +426,14 @@ export async function buildPhotoObservation(
       try {
         const crop = await extractCrop(image, it.bbox, 0.5);
         crops.push(crop);
-        const r = await matchIcon({ crop, descriptor: { shape: it.shape, color: it.color, state: it.state, elements: it.elements, text: it.text }, vehicleModel });
-        if (r.matched) base.match = semanticsToMatch(r);
+        const r = await matchIcon({ crop, descriptor: { shape: it.shape, color: it.color, state: it.state, elements: it.elements, text: it.text }, vehicleModel, symbolHint: it.symbolHint });
+        if (r.sim !== undefined) base.matchSim = r.sim;
+        // 取不到说明时**不写这个键**（与 `symbolHint` 同一惯例）：null 与"没有这一项"在下游是同一回事，
+        // 而多一个恒为 null 的键会让每一处深比较都得跟着改。
+        if (r.matched) base.match = { ...semanticsToMatch(r), ...withMeaning(meaningOf(r.semantics.symbolId)) };
         else {
           base.matchReason = r.reason;
-          if (r.top) base.suspected = { name: r.top.name, symbolId: r.top.symbolId };
+          if (r.top) base.suspected = { name: r.top.name, symbolId: r.top.symbolId, source: r.topSource ?? "catalog", ...withMeaning(meaningOf(r.top.symbolId)) };
         }
       } catch (e) {
         base.matchReason = `match_failed:${(e as Error).message}`;
@@ -415,7 +485,33 @@ export async function buildPhotoObservation(
 /** 图节点：没有附件 → 直通；有 → 观察第一张（多张只取第一张，其余记 note）。 */
 export const observeAttachmentsNode = async (state: typeof GraphState.State, config?: RunnableConfig): Promise<Partial<typeof GraphState.State>> => {
   const inputs = state.photoInput;
-  if (!inputs || inputs.length === 0) return { photoObservation: undefined };
+  if (!inputs || inputs.length === 0) {
+    /*
+     * 这一轮没带照片。以前一律清空——于是「发完照片补一句『什么灯亮了』」的那一句
+     * 成了一个没头没尾的问题：检索词只剩一句白话、表述模型把手册图示当成了用户的照片
+     * （turn-6f2bf4b1）。现在：上一份观察还新鲜就沿用，并标 `inherited`。
+     * turn-runner 会让这一轮等带照片的那一轮收口（`photo-turns.ts`），所以读到的是它的终态。
+     */
+    const prev = state.photoObservation;
+    const fresh = prev?.observedAt !== undefined && Date.now() - prev.observedAt <= PHOTO_INHERIT_WINDOW_MS;
+    if (prev && fresh) {
+      const configurable = config?.configurable as ChatGraphConfigurable | undefined;
+      configurable?.onTrace?.({
+        kind: "vision",
+        data: {
+          handle: prev.handle,
+          mode: "inherited",
+          ageMs: Date.now() - prev.observedAt!,
+          items: prev.items.length,
+          ms: 0,
+          // 沿用了哪几盏：回放时一眼看得出这一轮的「什么灯」指的是谁（首跑时这里是空的，看不出来）。
+          observed: prev.items.slice(0, 8).map((i) => ({ seen: describeItem(i), match: i.match?.name ?? null, verified: i.match?.verified ?? false })),
+        },
+      });
+      return { photoObservation: { ...prev, inherited: true } };
+    }
+    return { photoObservation: undefined };
+  }
   const configurable = config?.configurable as ChatGraphConfigurable | undefined;
   const deps = visionDeps;
   const first = inputs[0];
@@ -445,14 +541,16 @@ export const observeAttachmentsNode = async (state: typeof GraphState.State, con
      * 串行会把警报页那一轮的耗时白加 1~2 秒；而 `readAlerts` 可选——端侧检测器与 fake 档没有它，
      * 那时这一遍直接跳过，照片照常走图标那条路。读警报失败也只是没有这一段，不拖垮整轮。
      */
+    // 端上已经框好（ACR-045）：第一遍直接用端上的框；描述 / 核验 / 读警报页仍走配置的 provider
+    const provider = first.detections ? withClientDetections(deps.provider, first.detections) : deps.provider;
     const [obs, alerts] = await Promise.all([
-      observePhoto(image, deps.provider),
+      observePhoto(image, provider),
       deps.provider.readAlerts?.(image).catch((e: unknown) => {
         console.warn("[vision] 读警报页失败，本次只走图标观察", e);
         return undefined;
       }) ?? Promise.resolve(undefined),
     ]);
-    result = await buildPhotoObservation(first.handle, image, obs, deps.matchIcon, undefined, alerts, deps.lookupAlert, deps.recallFigures);
+    result = await buildPhotoObservation(first.handle, image, obs, deps.matchIcon, undefined, alerts, deps.lookupAlert, deps.recallFigures, deps.lookupIconMeaning);
   } catch (e) {
     // 观察层自己已经把检测/解码失败折成 unreadable；这里兜的是意料之外的异常——照样不让整轮失败。
     result = {
@@ -485,7 +583,16 @@ export const observeAttachmentsNode = async (state: typeof GraphState.State, con
       retakeHints: result.retakeHints,
       notes: result.notes,
       ms: Date.now() - t0,
-      observed: result.items.slice(0, 8).map((i) => ({ seen: describeItem(i), match: i.match?.name ?? null, verified: i.match?.verified ?? false })),
+      // 每一项：看到了什么、对上谁、核验没有、**没对上是因为什么、分数多少、端上说它像什么**——
+      // 后三项 2026-09-18 起才有；没有它们，"为什么没认出来"只能读代码反推（turn-2db10f67）。
+      observed: result.items.slice(0, 8).map((i) => ({
+        seen: describeItem(i),
+        match: i.match?.name ?? null,
+        verified: i.match?.verified ?? false,
+        reason: i.match ? null : (i.matchReason ?? null),
+        sim: i.matchSim === undefined ? null : Number(i.matchSim.toFixed(3)),
+        hint: i.symbolHint ?? null,
+      })),
       // 警报页（M80-10）：代码进轨迹，回放时才看得出"这一轮到底读到了哪几条"
       alerts: result.alerts.map((a) => ({ code: a.code, title: a.title, active: a.active, inManual: a.manual !== null })),
       noActiveAlerts: result.noActiveAlerts,
@@ -493,5 +600,6 @@ export const observeAttachmentsNode = async (state: typeof GraphState.State, con
       figures: (result.figures ?? []).map((f) => ({ figureId: f.figureId, location: f.location, sim: Number(f.sim.toFixed(3)), via: f.via })),
     },
   });
-  return { photoObservation: result };
+  // 盖时间戳：纯文字追问靠它判断这份观察还新不新鲜（`PHOTO_INHERIT_WINDOW_MS`）。
+  return { photoObservation: { ...result, observedAt: Date.now(), inherited: false } };
 };

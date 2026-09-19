@@ -12,6 +12,7 @@
 | `probe/` | `probe:*` | 阿里云护栏、高德（直连与网关代理）、RAGFlow、天气、端到端时延——探的都是外部依赖 |
 | `kb/` | `kb:*` `rag:eval` | 知识库语料：MinerU 转换、RAGFlow 上传 / 替换 / 移动 / 等待解析 / 切片质检、检索评测 |
 | `demo/` | `demo:*` | 演示数据播种与检查单、故障注入、我的车建档、Google 日历授权、M21 走查 |
+| `git/` | `git:commit-own` | 多会话共用一个索引时只提交自己的路径：临时索引 + `commit-tree` + `update-ref` 带旧值校验（CAS），`.jsonl` 台账按 `entity_id` 合并；先跑 `.husky/pre-commit` 再提交 |
 | `release/` | `release:client` `release:public` | 客户端发版（三处版本号 + CHANGELOG）；公开镜像仓导出（契约 `public-export.yaml`，dry-run 到临时目录并自检禁用路径 / 内容） |
 | `lib/` | — | `workspace-members`：从 `pnpm-workspace.yaml` 展开成员，别再手写目录清单 |
 

@@ -34,22 +34,8 @@ export {
   type ToolRegistration,
 } from "./registry";
 
-export {
-  calendarTool,
-  createCalendarTool,
-  createMockBackend,
-  createFanoutCalendarBackend,
-  setCalendarBackend,
-  getCalendarBackend,
-  type BusySlot,
-  type CalendarArgs,
-  type CalendarBackend,
-  type CalendarBinding,
-  type CalendarEventDraft,
-  type CalendarResult,
-} from "./calendar";
-export { createGoogleCalendarBackend, googleEventId, type GoogleCalendarConfig } from "./calendar-google";
-export { createCaldavBackend, buildIcs, caldavUid, type CaldavConfig } from "./calendar-caldav";
+export { openWaitMeter, recordWait } from "./wait-meter";
+
 export {
   setEnvCache,
   createRedisEnvCache,
@@ -97,6 +83,11 @@ export {
   type CabinStatusToolData,
   type CabinVinArgs,
 } from "./cabin-status";
+export {
+  deriveFullRangeKm,
+  vehicleEnergyTool,
+  type VehicleEnergyData,
+} from "./vehicle-energy";
 export {
   CABIN_COMFORT_DOMAINS,
   cabinChildModeTool,
@@ -236,7 +227,25 @@ export {
 export {
   createAmapClient,
   setAmapClient,
+  AMAP_KEY_ENV_NAMES,
+  AMAP_KEY_MAX,
+  // key 池：三处读法收成一个（M100-01）；台账与预算见 ./amap-ledger。
+  resolveAmapKeys,
+  AMAP_DEFAULT_DAILY_BUDGET,
+  AMAP_SOFT_CEILING,
+  amapBudgetFromEnv,
+  AMAP_REVIVE_PROBE_MS,
+  type AmapKeySource,
+  type AmapLanePreference,
   getAmapClient,
+  // 「被限流」必须能和「高德说没有这个地方」分开——判据在这里，别在调用点扒 message。
+  isRateLimited,
+  // 「这把 key 今天用光了」与限流是两回事：换 key，不重试。
+  isDailyQuotaExhausted,
+  AMAP_ALL_LANES_RETIRED_CODE,
+  splitLegMinutes,
+  AMAP_WAYPOINT_MARK,
+  AMAP_DESTINATION_MARK,
   type AmapCast,
   type AmapClient,
   type AmapClientOptions,
@@ -247,6 +256,32 @@ export {
   type AmapRegeo,
   type LngLat,
 } from "./amap";
+export {
+  amapFamilyOf,
+  amapKeyFingerprint,
+  beijingDay,
+  buildAmapPoolSnapshot,
+  createMemoryAmapLedger,
+  // Redis 台账（M100-02）：同步返回、懒连接、连不上退回进程内；装配层只管把 REDIS_URL 递进去。
+  createRedisAmapLedger,
+  parseAmapDailyBudget,
+  sumByFamily,
+  AMAP_API_FAMILIES,
+  AMAP_OUTCOMES,
+  AMAP_POOL_KEY_PREFIX,
+  type AmapApiFamily,
+  type AmapDailyBudget,
+  type AmapOutcome,
+  type AmapPoolKeyRef,
+  type AmapPoolKeyStatus,
+  type AmapPoolSnapshot,
+  type AmapRedisLedger,
+  type AmapRedisLike,
+  type AmapResetObservation,
+  type AmapRetiredInfo,
+  type AmapUsageLedger,
+  type AmapUsageSnapshot,
+} from "./amap-ledger";
 export {
   mapRouteTool,
   AMAP_STRATEGY,
@@ -274,13 +309,21 @@ export {
   submitHotelsTool,
   submitTourDaysTool,
   submitTransitTool,
-  submitDriveDraftTool,
+  // ACR-047：段列表契约、续航评估与意图理解的提交通道
+  submitDrivePlanTool,
+  submitRangeAssessmentTool,
+  submitIntentTool,
+  assertDriveLegs,
+  // 「这一轮第几次提交」（M94-04）：轨迹概括读它，单测靠 reset 清场。
+  submitAttempts,
+  resetSubmitAttempts,
   submitNavPlanTool,
   submitGuideSpotsTool,
   submitGuideAccessTool,
   submitGuideComfortTool,
   setBranchSubmissionSink,
   type BranchSubmissionSink,
+  type SubmissionRejection,
   type SubmitHotelsArgs,
   type SubmittedHotel,
   type SubmitGuideSpotsArgs,
@@ -289,6 +332,14 @@ export {
   type SubmittedGuideSpot,
   type SubmitNavPlanArgs,
   type SubmittedNavWaypoint,
+  type SubmitDrivePlanArgs,
+  type DriveLeg,
+  type DriveLegStop,
+  type DriveStopKind,
+  type DriveLegDirection,
+  type SubmitRangeAssessmentArgs,
+  type RangeBasis,
+  type SubmitIntentArgs,
 } from "./branch-submit";
 export {
   webSearchTool,
@@ -314,6 +365,9 @@ export {
 export {
   energyGapTool,
   computeEnergyGap,
+  setEnergyConsumptionLookup,
+  lookupEnergyConsumption,
+  type EnergyConsumptionLookup,
   type EnergyGapArgs,
   type EnergyGapData,
   type EnergyUnit,
@@ -326,6 +380,26 @@ export {
   type PlanAuditArgs,
   type PlanAuditLimits,
 } from "./plan-audit";
+export { cityDistrictsTool, type CityDistrictsArgs, type CityDistrict, type CityDistrictsResult } from "./city-districts";
+export {
+  itineraryAssembleTool,
+  planEditTool,
+  submitRepairsTool,
+  submitVerdictTool,
+  setReviewAssembler,
+  getReviewAssembler,
+  applyPlanEdits,
+  PlanEditError,
+  type ReviewAssembler,
+  type ReviewCtx,
+  type ReviewSnapshotView,
+  type PlanEditOp,
+  type PlanEditArgs,
+  type RepairBranch,
+  type SubmitRepairsArgs,
+  type SubmitVerdictArgs,
+  type VerdictRow,
+} from "./trip-review-tools";
 export {
   refuelLogTool,
   setRefuelStore,
@@ -333,6 +407,7 @@ export {
   type RefuelLogArgs,
   type RefuelLogData,
   type RefuelLogStore,
+  type RefuelRecordRow,
 } from "./refuel-log";
 export {
   dataFreshnessTool,
@@ -385,6 +460,7 @@ export {
   createChargingTool,
   createAmapChargingBackend,
   planChargeStops,
+  pointAlongRoute,
   parsePowerKw,
   haversineKm,
   SAFETY_SOC,
@@ -397,14 +473,63 @@ export {
   type ChargingBackend,
 } from "./charging";
 export {
+  setEnergyStopCandidateRecorder,
+  setEnergyStopLookup,
+  verifyEnergyStops,
+  energyStopCore,
+  MIN_CORE_CHARS,
+  type EnergyStopCandidate,
+  type EnergyStopCandidateRecorder,
+  type EnergyStopKind,
+  type EnergyStopLookup,
+  type EnergyStopVerdict,
+} from "./energy-stop-candidates";
+export {
+  chainsOf,
+  samePlace,
+  setRouteDurationLookup,
+  setRouteDurationRecorder,
+  toleranceFor,
+  verifyLegMinutes,
+  TOLERANCE_MIN,
+  TOLERANCE_RATIO,
+  type LegChain,
+  type LegLike,
+  type RouteDurationLookup,
+  type RouteDurationRecord,
+  type RouteDurationRecorder,
+} from "./route-duration-ledger";
+export {
+  routeServicesTool,
+  createRouteServicesTool,
+  createAmapRouteServicesBackend,
+  SERVICE_TYPECODES,
+  SERVICE_RADIUS_M,
+  NURSERY_ROOM_TYPECODE,
+  MAX_PER_POINT,
+  MAX_POINTS as ROUTE_SERVICES_MAX_POINTS,
+  ROUTE_SERVICES_NOTICE,
+  type ServiceCategory,
+  type RouteServicesArgs,
+  type RouteServicesResult,
+  type RouteServicesBackend,
+  type ServiceCategoryResult,
+  type ServicePoi,
+} from "./route-services";
+export {
   poiSearchTool,
+  spotSearchTool,
+  hotelSearchTool,
   createPoiSearchTool,
+  type PoiSearchToolOptions,
   PRICE_NOTICE,
   type PoiSearchArgs,
   type PoiSearchResult,
   type PoiCandidate,
   type PoiSearchBackend,
   type PoiCategory,
+  setPoiCoordSink,
+  type PoiCoordSink,
 } from "./poi-search";
 export {
   routeAuditTool,
@@ -517,7 +642,28 @@ export {
   type InsurancePolicy,
   type PrecheckResult,
   type PrecheckBreakdownRow,
+  type PremiumForecast,
 } from "./insurance-claims";
+// 售后理赔两工具（M96-02，ACR-041）：材料时限是代码内词条；净收益把赔付与涨价放进同一个回答。
+export {
+  claimChecklistTool,
+  claimChecklistFor,
+  ACCIDENT_TYPES,
+  ACCIDENT_TYPE_LABELS,
+  type AccidentType,
+  type ClaimChecklist,
+} from "./claim-checklist";
+export {
+  claimAdvisorTool,
+  leaningOf,
+  policyKeyOf,
+  policyKeySentence,
+  type ClaimAdvice,
+  type ClaimAdvisorArgs,
+  type ClaimLeaning,
+  type LossSource,
+  type PolicyKey,
+} from "./claim-advisor";
 // 视觉观察层（M71-02，ACR-024）：不是工具、不进任何 Agent 的 ACL——它是与 ASR 同位的输入转换。
 export * from "./vision";
 // 视频抽帧与分段转写（M80-01，ACR-027）：同上，输入转换，不进 ACL；调用方是网关。

@@ -8,7 +8,7 @@
  *
  * 实测来源 turn-d454d12b：车主问「帮我找一天不下雨的我们回去」，
  * 意图抽得很准（goal 里明写"挑选一天不下雨的日期"），分支多半也查了天气，
- * 但那句话不在 JSON 里，`parseTripDraft` 整段丢弃。
+ * 但那句话不在 JSON 里，汇聚整段丢弃。
  * 应答节点于是自己再调 5 次 `weather`、再想 10 秒——17.7 秒的应答里大半是在补这个窟窿。
  *
  * 而换成非推理模型时后果更直接：它没有工具，只能编。实测两版提示词都写出
@@ -19,7 +19,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { unmetAsks, describeMerged, TRIP_ASKS } from "../src/graph/subgraphs/trip";
-import { mergeBranches, parseTripDraft } from "../src/graph/merge";
+import { mergeBranches, parseDriveText } from "../src/graph/merge";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 
 /** 真实那一轮的意图（trace_events kind=intent, turn-d454d12b）。 */
 const GOAL_D454 = "为上海至徐州的返乡返程挑选一天不下雨的日期并安排返程行程";
@@ -84,13 +85,13 @@ test("问法在 constraints 里而不在 goal 里，同样要判出来", () => {
 });
 
 test("findings 穿过 parse → merge → describe 全程不丢", () => {
-  // 这条链路上此前**每一段都可能丢**：parseTripDraft 不认这个字段、
+  // 这条链路上此前**每一段都可能丢**：正文解析不认这个字段、
   // solve 逐字段重建 draft、describeMerged 只打印硬字段。
   // 任一段漏掉的表现都一样：应答模型看不到，然后自己重查一遍。
-  const text = `路线已规划。
-{"legMinutes":[151,108,131],"stops":["扬州服务区","无锡服务区"],"findings":["16 号徐州晴、淮安晴（weather 查询）"]}`;
+  // 正文回落只认「整段就是一个 JSON 对象」（ACR-047 的 parseDriveText）：前面的寒暄不再被贪婪正则吞掉。
+  const text = driveText(legsFrom([151, 108, 131], ["扬州服务区", "无锡服务区"]), { findings: ["16 号徐州晴、淮安晴（weather 查询）"] });
 
-  const parsed = parseTripDraft(text);
+  const parsed = parseDriveText(text)!;
   assert.deepEqual(parsed.findings, ["16 号徐州晴、淮安晴（weather 查询）"]);
 
   const merged = mergeBranches([{ agent: "trip-task", status: "ok", text }], []);
@@ -108,7 +109,7 @@ test("两条分支各自的 findings 要合并，不能后盖前", () => {
       {
         agent: "trip-task",
         status: "ok",
-        text: '{"legMinutes":[80,80],"stops":["崇启大桥服务区"],"findings":["16 号沿途晴"]}',
+        text: driveText(legsFrom([80, 80], ["崇启大桥服务区"]), { findings: ["16 号沿途晴"] }),
       },
       {
         agent: "ownership-task",
@@ -132,9 +133,9 @@ test("只交 findings、没交结构化字段的分支仍然算没干活", () =>
 });
 
 test("空串 findings 不能骗过覆盖判定", () => {
-  const parsed = parseTripDraft('{"findings":["", "   "]}');
-  assert.deepEqual(parsed.findings, []);
-  assert.equal(unmetAsks(GOAL_D454, CONSTRAINTS_D454, parsed.findings).length, 1);
+  const parsed = parseDriveText('{"findings":["", "   "]}');
+  assert.deepEqual(parsed?.findings ?? [], []);
+  assert.equal(unmetAsks(GOAL_D454, CONSTRAINTS_D454, parsed?.findings ?? []).length, 1);
 });
 
 test("规则表里每条的 asked/answered 不能是同一个意思", () => {

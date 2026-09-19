@@ -45,11 +45,10 @@ export const DOMAIN_OF: Readonly<Record<string, VisibilityDomain>> = Object.free
   // ② 情景记忆 / ③ 偏好（Mem0）
   episodic_memory: "private",
   preference_memory: "private",
-  // 对话历史、个人行程计划、常住地、日历授权
+  // 对话历史、个人行程计划、常住地
   chat_history: "private",
   trip_plan: "private",
   owner_profile: "private",
-  calendar_grant: "private",
   // 按人聚合的⑥画像
   member_usage_profile: "private",
 
@@ -149,8 +148,6 @@ export function canReadDomain(role: GrantRole | null | undefined, domain: Visibi
 export const PRIVATE_DOMAIN_TOOLS = [
   // ③偏好：这个人喜欢什么。访客没有偏好可召回，读别人的更不行。
   "preference_recall",
-  // 用户级 OAuth 凭证（§5 授权前提）——访客没有自己的日历。
-  "calendar",
   // 按人聚合的⑥画像（个人驾驶习惯）。整车画像是 `usage_profile`，那个是共享域。
   "member_preference_set",
   // 已确认行程：属人不属车（一份承诺，落在某个人名下）。

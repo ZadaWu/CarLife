@@ -50,6 +50,10 @@ const ENV = {
   ...loadDotEnv(),
   ASR_ENGINE: "fake",
   CARLIFE_AGENT_RUNTIME: "acp", // ← 本脚本的唯一变量
+  // M87-04：⑤ 那一轮要走到多天行程的 Plan 层。显式设 plan 而不靠缺省——冒烟要证明的是
+  // "Plan 层被走到"，不是"缺省是哪一档"（缺省由 M87-05 切、由评测判据定）。
+  // 显式给 off 可以做对照（那时 ⑤ 的 city_districts 断言会红——这正是"断言真的在看 Plan 层"的证据）。
+  CARLIFE_TRIP_PLAN_LAYER: process.env.CARLIFE_TRIP_PLAN_LAYER ?? "plan",
   DATABASE_URL: resolveTestDatabaseUrl(),
   GATEWAY_PORT: "18787",
   AGENT_RUNTIME_PORT: "18788",
@@ -170,7 +174,8 @@ async function main(): Promise<void> {
     // calendar 权限门后让测试一直等一个它没有发送的 resume。
     const t1 = await turn(
       sessionId,
-      "我明天要开电动车从深圳去黄山，目的地是黄山。",
+      // 天数要说出来（M90-01 起）：没说几天的骨架轮会先被问一句，不出草案。
+      "我明天要开电动车从深圳去黄山玩三天，目的地是黄山。",
     );
     console.log(`\n[turn1] ${t1.text}\n`);
     const seq = t1.kinds.filter((k, i, a) => k !== a[i - 1]).join("→");
@@ -252,6 +257,77 @@ async function main(): Promise<void> {
       stats.invocations - stats.failures > 0,
       `工具至少成功执行过一次（成功 ${stats.invocations - stats.failures} / 共 ${stats.invocations}）`,
     );
+
+    /*
+     * ⑤ 多天行程的 Plan 层（M87-04）。此前四轮里没有一条带天数的多天行程，Plan 层在
+     * `no-days` 处跳过，本 Sprint 要切缺省的那一档冒烟一次都没走过。
+     *
+     * 新会话：① 那轮留了一件 trip 任务，同会话再发会被当成细化轮（`input.plan` 在场 → Plan 层跳过）。
+     * 天数要在原话里：意图层只填车主原话里说了的数字。
+     * 判据是 `city_districts`——只有编排层的 planCollect 会调它，模型手里没有这个工具（空 ACL）。
+     */
+    const { sessionId: tripSession } = (await (
+      await fetch(`${GATEWAY}/v1/session`, authed({ method: "POST" }))
+    ).json()) as { sessionId: string };
+    // 「另一趟」要说出来：① 那轮的黄山任务还开着（任务按人不按会话），不说就会被当成细化轮、Plan 层跳过。
+    const t5 = await turn(tripSession, "另外帮我新排一趟行程：从上海自驾去苏州玩三天，带爸妈，想看园林和古镇。");
+    console.log(`\n[turn5-多天行程] ${t5.text.slice(0, 200)}\n`);
+    check(t5.kinds[t5.kinds.length - 1] === "update:turn_end", "多天行程轮以 turn_end 收尾");
+    /*
+     * 判据从轨迹取，不从 `/internal/tools/stats`：那张表只数 pi 经 tools-endpoint 打进来的调用（`body.name`），
+     * 编排层在进程内 `invokeTool` 的 `city_districts` / `spot_search` 根本不进它。Plan 层跑没跑，
+     * 只有 `trace_events` 里的 `itinerary.plan.collect` span 知道（detail 带 `skipped` 就是没跑，原因在里面）。
+     */
+    const { PrismaClient } = await import("@carlife/db");
+    const prisma = new PrismaClient({ datasources: { db: { url: ENV.DATABASE_URL } } });
+    try {
+      const spans = (await prisma.traceEvent.findMany({ where: { sessionId: tripSession, kind: "span" } })).map(
+        (r) => r.data as { name?: string; status?: string; detail?: string },
+      );
+      const named = (n: string) => spans.filter((d) => d.name === n);
+      const collect = named("itinerary.plan.collect");
+      check(
+        collect.some((d) => d.status === "ok" && !/"skipped"/.test(d.detail ?? "")),
+        `Plan 层被走到：itinerary.plan.collect ${collect.length} 条（${collect.map((d) => d.detail).join(" ") || "无"}）`,
+      );
+      check(named("itinerary.plan.skeleton").some((d) => d.status === "ok"), "骨架在四条腿之前落盘：itinerary.plan.skeleton ok");
+      check(named("itinerary.plan.decide").length === 1, "1c tour-plan-task 发了一次：itinerary.plan.decide 一条");
+    } finally {
+      await prisma.$disconnect();
+    }
+    const stats5 = (await (await fetch(`${RUNTIME}/internal/tools/stats`)).json()) as { byTool: Record<string, number> };
+    check(
+      (stats5.byTool.submit_tour_days ?? 0) >= 1,
+      `逐天骨架经 submit_tour_days 提交（tour-plan 或 tour）：${stats5.byTool.submit_tour_days ?? 0} 次`,
+    );
+
+    /*
+     * ⑥ / ⑦ 出行需求澄清门（ACR-039 / M90-01）：没说几天 → 先被问一句、不出草案；答了 → 下一轮进 Plan 层排。
+     * 判据从轨迹取：⑥ 记恰一条 `itinerary.clarify`、不新增 `itinerary.plan.collect`；⑦ 的 collect 不带 `skipped`。
+     * 「另外」「那趟」都要说出来：⑤ 的苏州任务还开着，不说就会被判成细化轮。
+     */
+    const t6 = await turn(tripSession, "另外再帮我排一趟去杭州的自驾行程。");
+    console.log(`\n[turn6-被问一句] ${t6.text.slice(0, 200)}\n`);
+    check(t6.kinds[t6.kinds.length - 1] === "update:turn_end", "澄清轮以 turn_end 收尾");
+    const t7 = await turn(tripSession, "杭州那趟另排，玩两天。");
+    console.log(`\n[turn7-答天数] ${t7.text.slice(0, 200)}\n`);
+    check(t7.kinds[t7.kinds.length - 1] === "update:turn_end", "答复轮以 turn_end 收尾");
+    const prisma2 = new PrismaClient({ datasources: { db: { url: ENV.DATABASE_URL } } });
+    try {
+      const spans = (await prisma2.traceEvent.findMany({ where: { sessionId: tripSession, kind: "span" }, orderBy: { at: "asc" } })).map(
+        (r) => r.data as { name?: string; status?: string; detail?: string },
+      );
+      const clarify = spans.filter((d) => d.name === "itinerary.clarify");
+      check(clarify.length === 1, `澄清门问了恰一次：itinerary.clarify ${clarify.length} 条（${clarify.map((d) => d.detail).join(" ") || "无"}）`);
+      const collect = spans.filter((d) => d.name === "itinerary.plan.collect");
+      const last = collect[collect.length - 1];
+      check(
+        collect.length === 2 && last?.status === "ok" && !/"skipped"/.test(last.detail ?? ""),
+        `答复轮进了 Plan 层：itinerary.plan.collect 共 ${collect.length} 条，最后一条 ${last?.detail ?? "无"}`,
+      );
+    } finally {
+      await prisma2.$disconnect();
+    }
   } finally {
     // 这些 server 没有统一的 shutdown API；SIGTERM 可能被 runtime 的 trace flush
     // 挂起，所以 smoke 必须用 SIGKILL 收口，否则验证通过后仍会一直占着端口。

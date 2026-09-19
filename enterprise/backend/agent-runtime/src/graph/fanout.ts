@@ -87,6 +87,15 @@ export interface FanoutOptions {
    */
   submissionOf?: (agent: string) => Promise<{ payload: unknown }> | undefined;
   /**
+   * 被暂存区**按期望退回**、之后又没再交成的那一份（branch-submissions 的 `heldSubmission`）。
+   *
+   * 退回是为了让模型在会话里重交一份完整的；但它可能不重交（直接收场）或来不及（超时）。
+   * 那时分支手里只有这一份残缺提交——**残缺也比没有强**：没有这道闸的从前，
+   * 它本来就是被照收的那一份。所以提交没赢竞速时来这里取，取到就当提交用，状态记 ok。
+   * 不传 / 返回 undefined = 行为与从前逐字相同。
+   */
+  heldSubmissionOf?: (agent: string) => { payload: unknown } | undefined;
+  /**
    * 本轮的取消信号（施工单 M33-01）。**上游取消要能穿过 fan-out 这一层**。
    *
    * 本函数每条分支已经有自己的 `AbortController`（超时与"提交即收工"用它），
@@ -226,8 +235,29 @@ async function runBranch(
         endedAt: ctx.now(),
       });
     }
-    return finish({ agent: branch.agent, status: "ok", text: outcome.text, startedAt, endedAt: ctx.now() });
+    // 流先收场：模型被退回后没再交成 → 用被退的那份（见 `heldSubmissionOf`）。
+    const heldOnEnd = ctx.opts.heldSubmissionOf?.(branch.agent);
+    return finish({
+      agent: branch.agent,
+      status: "ok",
+      text: outcome.text,
+      ...(heldOnEnd ? { submission: heldOnEnd.payload } : {}),
+      startedAt,
+      endedAt: ctx.now(),
+    });
   } catch (err) {
+    // 超时 / 失败同理：重交到一半被掐，手里那份残缺提交照用，别让这道闸把一条腿整个弄丢。
+    const heldOnFail = ctx.opts.heldSubmissionOf?.(branch.agent);
+    if (heldOnFail) {
+      return finish({
+        agent: branch.agent,
+        status: "ok",
+        text: "",
+        submission: heldOnFail.payload,
+        startedAt,
+        endedAt: ctx.now(),
+      });
+    }
     const isTimeout = err instanceof BranchTimeout;
     return finish({
       agent: branch.agent,

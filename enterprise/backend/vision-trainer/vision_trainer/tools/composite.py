@@ -55,6 +55,8 @@ COL_X_MIN, COL_X_MAX = 0.014, 0.042
 COL_Y_MIN, COL_Y_MAX = 0.19, 0.60
 ROW_GAP_MIN, ROW_GAP_MAX = 0.050, 0.075
 
+FULL_FRAME = False  # 由 --full-frame 置位；见 write_split 里的取舍注释
+
 ROW = re.compile(r"^\|\s*([a-z0-9_]+)\s*\|(?:[^|]*\|){9}\s*([a-z-]+)\s*\|\s*([^|]*?)\s*\|\s*$")
 
 
@@ -124,7 +126,10 @@ def blend(bg: Image.Image, icon: Image.Image, xy: tuple[int, int], rng: random.R
         # 2026-09-09 第一版对照图上一眼就能认出哪五条是合成的。所以先高斯 0.8 px 再放大，
         # 并把系数封在 8 倍：放大倍数本身就是"这枚图标源色有多淡"的产物，不该无上限。
         chroma = np.stack([_gauss(chroma[..., k], 0.8) for k in range(3)], axis=-1)
-        target_lum = max(8.0, local - rng.uniform(CONTRAST_MIN, CONTRAST_MAX))
+        # 浅底：笔画比底暗；深底（夜间模式，local < 100）：笔画比底亮。原先只有前一条，
+        # 贴到黑底上的图标会被压成暗灰疙瘩（2026-09-17 黑底合成第一版一眼就看出来）。
+        contrast = rng.uniform(CONTRAST_MIN, CONTRAST_MAX)
+        target_lum = min(240.0, local + contrast) if local < 100.0 else max(8.0, local - contrast)
         sat_scale = min(8.0, rng.uniform(SAT_MIN, SAT_MAX) / ink_sat)
         rgb = lum[..., None] * (target_lum / ink_lum) + chroma * sat_scale
     rgb += np.random.default_rng(rng.randrange(1 << 30)).normal(0, rng.uniform(1.5, 5.0), rgb.shape)
@@ -181,12 +186,18 @@ def write_split(out: Path, split: str, count: int, frames: list[Path], icons: li
             skipped += 1
             continue
         name = f"{split}-{made:05d}"
-        # 输出的是**屏幕裁剪**而不是整帧：整帧 1920×1080 里一枚图标只有 30 px，送进 640 的训练尺寸会被缩到 10 px，
-        # 基本学不到。裁到屏幕（约 1360×800）后同样尺寸下是 14 px，配 imgsz 960 是 21 px。
-        # 而且这也更接近推理时的真实输入——车主是把屏幕拍满整张照片的（tesla-01 就是）。
-        pad = int(min(box.width, box.height) * 0.03)
-        cx0, cy0 = max(0, box.x0 - pad), max(0, box.y0 - pad)
-        cx1, cy1 = min(canvas.width, box.x1 + pad), min(canvas.height, box.y1 + pad)
+        # 输出**屏幕裁剪**还是**整帧**——这一条 2026-09-16 被真机照片推翻过一次，两种都留着。
+        #
+        # 原来只出屏幕裁剪，理由是「整帧 1920×1080 里一枚图标只有 30 px，缩到训练尺寸就学不到」。
+        # 代价是模型**从没见过带环境的构图**：车主举着手机拍，屏幕只占画面一半，周围是展厅、车窗、方向盘。
+        # 2026-09-16 实测：同一个模型在「屏幕拍满」的网图上 4 个框全中，在门店实拍上框全部落到地图区，
+        # 一盏灯都没框住。所以 --full-frame 出整帧版，让训练构图和车主的拍法对齐。
+        if FULL_FRAME:
+            cx0, cy0, cx1, cy1 = 0, 0, canvas.width, canvas.height
+        else:
+            pad = int(min(box.width, box.height) * 0.03)
+            cx0, cy0 = max(0, box.x0 - pad), max(0, box.y0 - pad)
+            cx1, cy1 = min(canvas.width, box.x1 + pad), min(canvas.height, box.y1 + pad)
         out_im = canvas.convert("RGB").crop((cx0, cy0, cx1, cy1))
         ow, oh = out_im.size
         out_im.save(img_dir / f"{name}.jpg", quality=rng.randint(70, 92))
@@ -300,6 +311,7 @@ def compare_sheet(out: Path, frames: list[Path], dest: Path, rng: random.Random,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--full-frame", action="store_true", help="输出整帧（带车内环境）而不是屏幕裁剪")
     ap.add_argument("--catalog", type=Path, default=ICONS_ROOT / "tesla-model3-indicators.md")
     ap.add_argument("--frames", type=Path, default=FRAMES)
     ap.add_argument("--name", default="synth-real-bg")
@@ -312,6 +324,8 @@ def main() -> None:
     ap.add_argument("--compare", type=Path, help="真实亮灯图标列 vs 合成图标列的并排对照图输出路径")
     ap.add_argument("--compare-only", action="store_true", help="只出对照图，用已有的数据集，不重新合成")
     args = ap.parse_args()
+    global FULL_FRAME
+    FULL_FRAME = bool(getattr(args, 'full_frame', False))
 
     rng = random.Random(args.seed)
     icons = load_icons(args.catalog)

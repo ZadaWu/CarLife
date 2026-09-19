@@ -51,6 +51,145 @@ export type RouteTarget = (typeof ROUTE_TARGETS)[number];
  * 两个信号是**或**的关系——任一命中即算，因为落库前还有一道确认弹窗，
  * 多弹一次的代价远小于该弹不弹。
  */
+/**
+ * 告诉意图模型「此刻手上这份行程是什么状态」（M77 走查追修）。
+ *
+ * # 为什么非有不可
+ *
+ * 意图 probe 原来只给对话历史 + 那句指令，**一个字都没说当前是草案还是已确认**。
+ * 模型只能从助手过去说的话里猜，而那些话里既有「行程定好了」也有「这次没定成」。
+ * 实测 turn-59647b62：车主说「那你直接定了」被判成 `adjust`（它以为已经定过了），
+ * turn-63270d33：「不用改了就这样吧」被判成 `none`——两轮都没弹确认、没落库，
+ * 而助手照样回了一句「好，那就定了」。车主的原话是"我说了2次确定，但是一直没有定"。
+ *
+ * 根因不是这些说法认不出（`commit` 那栏早就写着"认可的意思到了就是 commit"），
+ * 是**判断所需的事实没送到判断者手里**。文件头记的那两次漏判（turn-7481f04c /
+ * turn-d65a0a10）当时按"补说法"修，所以同一根因又发作了一次。
+ *
+ * 只给状态与规模，不给行程内容：内容在对话历史里已经有了，重复一遍只会挤占窗口。
+ */
+export function planStateLine(plan?: {
+  status?: string;
+  destination?: string;
+  days?: number;
+  committedPlanId?: string;
+  /**
+   * 眼前这一版与库里那一版**不一致**（M84-04 的 `dirty`）。
+   *
+   * 没有这一档时只有"落过库 / 没落过库"两支，而**落过库之后又改了一笔**恰好落在两支之间：
+   * 文案会说"再说一次「定了」而内容没变，那是 none"——可内容确实变了，
+   * 于是车主说「定了」被判成 none，改动永远存不进去，他再说一遍，再判 none。
+   */
+  dirty?: boolean;
+}): string | undefined {
+  if (!plan) return undefined;
+  if (plan.status === "cancelled") return undefined;
+  const what = `${plan.destination || "目的地待定"}${plan.days ? ` ${plan.days} 天` : ""}`;
+  if (plan.committedPlanId && plan.dirty) {
+    return `【行程状态】库里那份**是旧版**：${what} 已经确认落库过，但之后又改过，**改动还没保存**。车主这一轮但凡表示认可（含「定了」「就按这个改」「可以」「不用改了」），就是 commit——编排层会原地更新那一份，不新落一行。`;
+  }
+  return plan.committedPlanId
+    ? `【行程状态】当前有一份**已经确认落库**的行程：${what}。对它提修改是 adjust；车主再说一次「定了」而内容没变，那是 none。`
+    : `【行程状态】当前有一份**还没确认、没落库**的草案：${what}。车主这一轮但凡表示认可（含「定了」「就这样」「可以」「不用改了」），就是 commit。`;
+}
+
+/**
+ * 把"上一轮问过要取消哪一份、候选是这些"摆到模型面前（M77 走查追修，ADR-010）。
+ *
+ * 不给候选，模型就没法把「九月二十五号那条」对到具体某一份上——它连有哪几份都不知道。
+ * 序号要与追问时报给车主的那一份列表**同序**，否则它挑的 2 号不是车主看到的 2 号。
+ */
+export function cancelCandidatesLine(candidates: ReadonlyArray<{ label: string }>): string | undefined {
+  if (candidates.length === 0) return undefined;
+  return [
+    "【待澄清的取消】上一轮已经问过车主要取消哪一份，当时给他看的是这个列表（序号一致）：",
+    ...candidates.map((c, i) => `${i + 1}. ${c.label}`),
+    "如果车主这一轮的话指向了其中某一份（按目的地、出发日期、序号、「上次那个」这类指代都算），",
+    "在 JSON 里给 cancelPick，值是**序号数字**；他说要全删就给 \"all\"。",
+    "指向不明确、或这一轮在说别的事，就**不要给这一栏**——宁可再问一次，也不要替他挑。",
+  ].join("\n");
+}
+
+/**
+ * 把"上一轮已经说清的出险事实"摆到模型面前（M101-04，ADR-010）。
+ *
+ * 形态与 `cancelCandidatesLine` 同源：判断者（这里是意图层）要给出 `estimatedLossCny` /
+ * `accidentType`，就得先知道这两件事上一轮已经说过。不给它，第二句「那要准备什么材料」里
+ * 没有任何数字，它如实地不给这两栏，下游只好退回缺省的单方事故并再问一遍——
+ * 而车主刚刚才说过。
+ *
+ * **不要求它重复**：这一轮没提就不给，合并由 `claimFacts` 通道的 reducer 兜底；
+ * 更正了就给新值。让模型每轮重抄一遍旧值，等于把"有没有更正"这件事也交给它去判。
+ */
+export function claimFactsLine(facts?: {
+  estimatedLossCny?: number;
+  accidentType?: string;
+}): string | undefined {
+  if (!facts) return undefined;
+  const parts: string[] = [];
+  if (facts.estimatedLossCny !== undefined) parts.push(`估损约 ${facts.estimatedLossCny} 元`);
+  if (facts.accidentType) parts.push(`事故类型 ${ACCIDENT_TYPE_LABELS[facts.accidentType] ?? facts.accidentType}`);
+  if (parts.length === 0) return undefined;
+  return [
+    `【本次出险已经说清的事实】${parts.join("；")}。`,
+    "车主这一轮**更正**了其中某项（「其实是撞了别人的车」「其实要三千多」这类）就给新值；",
+    "**没提就不要给这两栏**——系统会沿用上面这份，不需要你重复抄一遍。",
+  ].join("\n");
+}
+
+/** 事故类型的中文说法。只用于把事实讲给模型听，不参与任何判定。 */
+const ACCIDENT_TYPE_LABELS: Record<string, string> = {
+  single_vehicle: "单方事故（自己撞的 / 剐蹭）",
+  two_party: "双方事故（有对方车）",
+  injury: "有人受伤",
+  battery_or_fire: "三电或自燃",
+  charging_pile: "充电桩事故",
+};
+
+/**
+ * 次要意图的封闭候选表。
+ *
+ * **封闭**是关键：让模型自由发挥会得到一堆同义异形的标签，下游没法用。
+ * 加一项时同时改三处——这张表、`SECONDARY_INTENT_LINES` 的说明、以及吃它的那个门。
+ */
+export const SECONDARY_INTENTS = [
+  "archive",
+  "maintenance",
+  "repair_history",
+  "repair_quote",
+  "insurance_claim",
+  // M96-03：出险材料与时限、车主权益——售后理赔那一路的两扇门
+  "claim_materials",
+  "entitlement",
+] as const;
+
+export type SecondaryIntent = (typeof SECONDARY_INTENTS)[number];
+
+/** 出险事故类型的封闭取值（与 `claim_checklist` 工具的 schema 同一张表）。 */
+export const ACCIDENT_TYPES = ["single_vehicle", "two_party", "injury", "battery_or_fire", "charging_pile"] as const;
+
+/** 候选表的说明，进提示词。每一条都要给正反例——只给名字模型会按字面猜。 */
+const SECONDARY_INTENT_LINES = [
+  "secondaryIntents 是这一轮**顺带**要办的事，可以有几个、也可以一个都没有（没有就整栏不给）。候选只有这七个：",
+  "- archive：把这次问诊 / 维修**记进车辆档案**（「帮我记一下」「存档」「记到档案里」）。",
+  "  只在他明确要求留档时给；单纯描述症状不是 archive。",
+  "- maintenance：问的是**保养**（下次什么时候保养、机油该不该换、首保到期没）。",
+  "- repair_history：问**修过什么**（维修记录、保养历史）。",
+  "- repair_quote：问**正在修的这一单多少钱**（报价、费用）。",
+  "- insurance_claim：问**保险能报多少 / 这一单走不走保险划不划算 / 报了明年涨多少**",
+  "  （「这个划痕走保险划算吗」「报了保险明年保费会涨多少」）。",
+  "- claim_materials：问**出险了要准备什么 / 流程怎么走 / 有没有时限 / 会不会被拒赔**",
+  "  （「出险要带什么材料」「报案有没有时限」「先修了再报会不会拒赔」）。",
+  "  ⚠️ 「保险一年多少钱」「三者险买多少」是买保险的估价，不是这一栏（那归 route=buying）。",
+  "- entitlement：问**自己有什么权益 / 送几次救援 / 充电额度还剩多少 / 去哪查**",
+  "  （「我的保险送几次免费救援」「首任车主的权益怎么查」）。",
+  "拿不准就不给——这几栏都是「有就多查一次，没有就不查」，漏判只是少一段依据，误判会白查。",
+  "estimatedLossCny 只在车主**说了大概损失金额**时给（「大概两千块」→ 2000，「千把块」→ 1000）；",
+  "  没说数就不要这一栏，**不要自己估**——下游拿它算走不走保险，编一个数整笔账就是假的。",
+  "accidentType 只在原话说清了事故形态时给，取值 single_vehicle（自己撞的 / 剐蹭）/ two_party（有对方车）/",
+  "  injury（有人受伤）/ battery_or_fire（三电损坏或自燃）/ charging_pile（充电桩相关）；没说清就不要这一栏。",
+]
+
 export const PLAN_ACTIONS = [
   "commit",
   "cancel",
@@ -78,7 +217,7 @@ export function sideTasksEnabled(): boolean {
 }
 
 const SCHEMA_BASE =
-  '{"goal":"用户这一轮要达成什么","constraints":["硬约束，逐条","如同行老人/时间窗/预算"],"context":"相关背景","riskBoundary":"涉及的风险边界，无则空字符串","riskCategory":"这一轮碰到哪一类风险边界","route":"这一轮该交给谁","action":"对已有行程的处置","when":{"date":"YYYY-MM-DD 或 --DD","hour":"整点 0-23，说不准就不要这个字段"}';
+  '{"goal":"用户这一轮要达成什么","constraints":["硬约束，逐条","如同行老人/时间窗/预算"],"context":"相关背景","riskBoundary":"涉及的风险边界，无则空字符串","riskCategory":"这一轮碰到哪一类风险边界","route":"这一轮该交给谁","action":"对已有行程的处置","planScope":"这一轮是接着改手上那份行程，还是另起一趟：refine / new；不涉及行程就不给这一栏","newAsks":["这一轮原话里**新提**的、当前草案还没体现的要求；没有就不给这一栏"],"secondaryIntents":["顺带要办的事，取值见下面候选表；没有就不给这一栏"],"estimatedLossCny":"车主口述的大概损失金额（元，纯数字）；他没说数就不要这一栏","accidentType":"出险的事故类型，取值见候选表说明；没说清就不要这一栏","when":{"date":"YYYY-MM-DD 或 --DD","hour":"整点 0-23，说不准就不要这个字段"},"destinations":["行程要去的目的地，按原话顺序，最多 3 个；只在 route=itinerary 时给"],"transitMode":"车主点名的交通方式：drive/train/flight；他没点名就不要这一栏","tripLimits":{"days":"这趟一共几天（数字）","maxLegHours":"单段连续开车不超过几小时（数字，可小数）","minRangeMarginPct":"到达时续航余量不低于百分之几（数字）"},"symptom":{"safetyCritical":"症状涉及制动/转向/轮胎等安全件（布尔）","worsensWithSpeedOrBraking":"症状随车速或制动加剧（布尔）","persistent":"症状持续存在而非偶发（布尔）","warningLight":"伴随仪表警告灯亮起（布尔）"}';
 const SCHEMA_SIDE_TASKS = ',"sideTasks":[{"route":"这句话里顺带要办的另一件事交给谁","goal":"那件事的一句话规范说法（自带地点与对象）"}]';
 
 /**
@@ -106,21 +245,63 @@ const SIDE_TASKS_LINES = [
  * 拼意图提示词。`sideTasks` 一栏按开关进出；其余每一句与开关无关，一字不变。
  * 既有 import 用的常量 `INTENT_INSTRUCTION` 是开关 on 的版本；意图节点在 M69-02 改成按开关现拼。
  */
-export function buildIntentInstruction(enabled: boolean = sideTasksEnabled()): string {
+export function buildIntentInstruction(
+  enabled: boolean = sideTasksEnabled(),
+  withCancelPick = false,
+): string {
   return INTENT_INSTRUCTION_LINES.flatMap((line) => {
-    if (line === SCHEMA_SLOT) return [`${SCHEMA_BASE}${enabled ? SCHEMA_SIDE_TASKS : ""}}`];
+    if (line === SCHEMA_SLOT)
+      return [`${SCHEMA_BASE}${enabled ? SCHEMA_SIDE_TASKS : ""}${withCancelPick ? CANCEL_PICK_SCHEMA : ""}}`];
     if (line === SIDE_TASKS_SLOT) return enabled ? [...SIDE_TASKS_LINES, ""] : [];
     return [line];
   }).join("\n");
 }
 
 const SCHEMA_SLOT = "__SCHEMA__";
+export const CANCEL_PICK_SCHEMA = ',"cancelPick":"上一轮问的那份取消，车主指的是第几个（数字）或 all；指向不明就整栏不给"';
 const SIDE_TASKS_SLOT = "__SIDE_TASKS__";
 
 const INTENT_INSTRUCTION_LINES = [
-  "请先做意图理解，只输出一个 JSON 对象（不要代码块标记、不要任何解释文字），字段：",
+  "请先做意图理解：**工具表里有 `submit_intent` 就必须调用它**提交一个 JSON 对象（字段如下），正文不要再写任何内容——" +
+    "把 JSON 写在正文里不算交；只有手上没有这个工具时（离线桩）才直接输出那个 JSON 对象（不要代码块标记、不要任何解释文字）。字段：",
   SCHEMA_SLOT,
   "约束要从原话里抽出来，**不要遗漏同行者、时间、预算这类会改变方案的条件**。",
+  "destinations 只在 route=itinerary 时给：写车主说的**目的地**名（「南通」「张家港」「普陀山」），",
+  "  不写出发地、不写具体景点；同一趟多个目的地按原话顺序都列上；没说去哪就整栏不给。",
+  "  **说了去哪就必须填这一栏**，不能只写进 constraints（「目的地苏州」不算）——下游拿这一栏判断要不要回头问车主去哪，",
+  "  不会再解析一遍文本；漏填的后果是他明明说了「去苏州」还被追问一句「想去哪儿」。",
+  "transitMode 只在车主**点名交通方式**时给，取值 drive / train / flight：",
+  "  「坐飞机」「飞过去」「订机票」→ flight；「坐高铁」「走火车」→ train；「自驾」「开车去」→ drive。",
+  "  **你自己建议的那种不算**——只写他说的。他没表态就整栏不给（那时由方案自己挑）。",
+  "  同样别只写进 constraints 就算了：下游拿这一栏去决定弹窗上列哪一种，不会再解析一遍文本。",
+  "tripLimits 只填**车主原话里真的说了的**数字，没说的那一栏不给、一个都没有就不要这一栏：",
+  "  days 是这趟的**总天数**——「三天」「三日行程」「玩三天」「两天一夜」「中秋那三天」都算；",
+  "  但「第三天换个酒店」里的\"三天\"不是总天数，那种不填。",
+  "  maxLegHours 是单段连续开车上限（「一次别开超过两小时」→2；「连着开不要超过 90 分钟」→1.5）。",
+  "  minRangeMarginPct 是到达时续航余量下限（「到了还要剩 30%」→30）。",
+  "  **这几个数你已经读懂了，别只写进 constraints 就算了**——下游拿数字去算，不会再解析一遍文本。",
+  "planScope 只在 route=itinerary、而且手上**已经有一份行程**（见【行程状态】与档案里的行程清单）时才给：",
+  "  refine = 接着改手上那份——「第二天换个酒店」「把第三天改到下午」「加一天」「太赶了松一点」。",
+  "  new    = 另起一趟，和手上那份无关——「再帮我订一个去浙江的三日游」「我还想去趟厦门」。",
+  "  **判据是目的地换没换，不是语气**：手上那份是苏州的，他说「帮我订一个从上海到浙江的三日游」，那就是 new。",
+  "  同一趟里的细节调整一律 refine，哪怕他用了「订一个」「帮我定」这种像新开一趟的说法。",
+  "  ⚠️ **判错成 refine 的代价比判错成 new 大得多**：",
+  "  新行程会接着用上一趟的酒店和车程（真跑里出现过「温州的行程住青岛的酒店，893 公里外」），",
+  "  而且落库时走的是原地更新——**他已经定好的那份行程会被覆盖掉**。",
+  "  判成 new 最多是多排一份，判成 refine 是把他的数据改坏。",
+  "newAsks 只装**这一轮原话里新提出来、而【行程状态】里那份草案还没体现**的要求，一条都没有就整栏不给。",
+  "  它是 constraints 的**子集**，不是 constraints 的复述——",
+  "  constraints 每一轮都把**一直生效的老要求**重抄一遍（这是对的，下游要拿全量去排），",
+  "  而 newAsks 问的是**增量**：这一句话里他多要了什么。",
+  "  「就这样定了」这种纯认可的话里没有任何新要求，整栏不给；",
+  "  「就这样定了，我们是走自驾啊」里的「走自驾」才是一条 newAsks。",
+  "  **别把老要求换个说法塞进来**——下游会把它念给车主听「这一轮你还提到…」，",
+  "  他会以为方案没照他说的排，而实际上排了。",
+  "symptom 只在 route 是 service / ownership、而且原话**描述了故障症状**（异响 / 抖动 / 漏液 / 亮灯 / 刹车软）时给：",
+  "  四个字段都是布尔，**原话没说到的字段不要给**，不要猜；一个都判不了就整栏不给。",
+  "  「过 60 就抖，刹车时更厉害」→ worsensWithSpeedOrBraking=true；「一直这样」→ persistent=true；",
+  "  「刹车 / 方向 / 轮胎」→ safetyCritical=true；「仪表亮了个红灯」→ warningLight=true。",
+  "  下游拿这四个布尔做风险分级，**不会再解析一遍文本**——漏给的后果是明明说了刹车软还被判成低风险。",
   "",
   "route 只能是下面之一：",
   "- itinerary：与出行相关**且要规划或处置行程的**——规划行程（不论一天还是多天）、问怎么去、",
@@ -146,7 +327,10 @@ const INTENT_INSTRUCTION_LINES = [
   "  解释在车主手册的「指示灯」一章，维修知识库里没有；只有车主明确要修车 / 预约 / 留档才是 service（M80-09）。",
   "  ⚠️ 但**车机「警报」列表截图**（一行行的代码如 VCFRONT_a004、DI_a223 加一句提示）判给 service——",
   "  逐条代码的官方含义与措施在维修知识库的警报代码表里，车主手册里没有（M80-10）。",
-  "- buying：还没买车时的选车、比价、算成本。",
+  "  **出险与理赔**也归 service（M96-03）：「这个划痕走保险划算吗」「出险要准备什么材料」「报案有没有时限」",
+  "  「我的保险送几次救援 / 有什么权益去哪查」——这些要查保单、算净收益、列材料，都在售后那一路；",
+  "  ⚠️ 但「保险一年多少钱」「三者险买多少合适」是**买保险的估价**，仍归 buying。",
+  "- buying：还没买车时的选车、比价、算成本；以及**买保险要花多少**（保费估算）。",
   "- testDrive：预约试驾、选门店与时段。",
   "- cabin：车里与车无关的闲聊、放音乐、解闷；以及**座舱设置**（M24-04/08）——",
   "  调空调温度/风量、座椅加热通风按摩、氛围灯、放儿歌/播客/调音量、香氛、儿童锁屏幕锁，",
@@ -163,6 +347,10 @@ const INTENT_INSTRUCTION_LINES = [
   "- commit：把草案定下来。凡是表示认可、拍板、要落实的都算——",
   "  「就这样定了」「可以的」「你这样安排没问题」「帮我创建行程」「订吧」「OK」。",
   "  **不要求原话里出现「确认」或「行程」两个字**，认可的意思到了就是 commit。",
+  "  ⚠️ 但**一边认可一边补新要求**时判 none，不是 commit——",
+  "  「就这样定了，我们是走自驾啊」「定了，第三天再加个点」「可以，不过把酒店换成市区的」。",
+  "  草案还没体现那个要求，这时落库的会是他**不要的那一版**；判 none，编排层会先改再让他确认。",
+  "  只有认可、没有新要求时才是 commit。",
   "- cancel：把某一份已有行程取消掉。",
   "- cancel_all：把全部行程都取消掉（原话有「全部/所有/都」这类范围词）。",
   "- none：这一轮不是对草案表态——还在提需求、在改细节（「第二天换个酒店」是 none 不是 commit）。",
@@ -174,6 +362,8 @@ const INTENT_INSTRUCTION_LINES = [
   "  （那是主页上点了「让暖暖调整」），以及「把我那趟青岛的第二天改成室内」这类点名改已确认行程的话。",
   "  与 none 的区别：none 是改**眼前的草案**，adjust 是改**库里定过的**那份。拿不准且没有草案就给 adjust。",
   "没有草案、或看不出在对草案表态，就给 none。",
+  "",
+  ...SECONDARY_INTENT_LINES,
   "",
   "riskCategory 判**车主这一轮的诉求**碰到哪一类风险边界，只能是下面之一：",
   "- autonomous-driving：**要求开启、接管或代为决策**自动驾驶／自动泊车／辅助驾驶。",
@@ -343,11 +533,74 @@ function asStringArray(v: unknown): string[] {
  * @param raw      模型原始输出
  * @param fallback 降级时的目标（通常是用户原话）
  */
+/**
+ * 行程数量约束的取值与归一（ADR-012）。**逐项校验，不合格的那一项当没给**——
+ * 拿一个错的上限去拆段比没有上限更糟：会把本来合规的分段拆碎，而车主看不出为什么。
+ *
+ * 模型按**小时**说单段上限（人就是这么说话的），这里换算成分钟，与
+ * `SolvableConstraints.maxLegMinutes` 同一单位；天数与百分比收成整数。
+ */
+/** `transitMode` 的封闭取值表——表外的一律当"没表态"。 */
+const TRANSIT_MODES = ["drive", "train", "flight"] as const;
+
+export function parseTripLimits(raw: unknown): Intent["tripLimits"] | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const num = (v: unknown): number | undefined => {
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.trim()) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const out: NonNullable<Intent["tripLimits"]> = {};
+  const days = num(o.days);
+  // 上界 30 沿用被它取代的那个抽取器：再长的"行程"多半是模型把别的数字读成了天数。
+  if (days !== undefined && Number.isInteger(days) && days > 0 && days <= 30) out.days = days;
+  const hours = num(o.maxLegHours);
+  if (hours !== undefined && hours > 0 && hours <= 24) out.maxLegMinutes = Math.round(hours * 60);
+  const pct = num(o.minRangeMarginPct);
+  if (pct !== undefined && pct > 0 && pct <= 100) out.minRangeMarginPct = Math.round(pct);
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** 症状四布尔（M104-01）：非布尔一律丢；一个都没有返回 undefined。 */
+export function parseSymptom(v: unknown): Intent["symptom"] | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  const out: NonNullable<Intent["symptom"]> = {};
+  for (const k of ["safetyCritical", "worsensWithSpeedOrBraking", "persistent", "warningLight"] as const) {
+    if (typeof o[k] === "boolean") out[k] = o[k] as boolean;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * 意图四要素：**先认提交槽**（`submit_intent`，ACR-047），没有提交才退回正文（`extractJsonObject`）。
+ *
+ * ACP 路径上模型调工具落槽，正文为空；`CARLIFE_LLM=fake` 的确定性桩没有工具，仍输出裸 JSON，
+ * 由正文那条兜底——§4.5「正则降级为兜底」的适用范围就此收窄到没有工具的路径。
+ */
+export function parseIntentFrom(submission: unknown, raw: string, fallback: string): Intent {
+  if (submission && typeof submission === "object" && !Array.isArray(submission)) {
+    return parseIntentObject(submission as Record<string, unknown>, fallback);
+  }
+  return parseIntent(raw, fallback);
+}
+
 export function parseIntent(raw: string, fallback: string): Intent {
   const json = extractJsonObject(raw);
   if (json) {
     try {
-      const o = JSON.parse(json) as Record<string, unknown>;
+      return parseIntentObject(JSON.parse(json) as Record<string, unknown>, fallback);
+    } catch {
+      /* 落到下面的降级 */
+    }
+  }
+  return degradedIntent(fallback);
+}
+
+/** 字段白名单与取值校验——两条来源（提交槽 / 正文）共用这一份，不各写一遍。 */
+export function parseIntentObject(o: Record<string, unknown>, fallback: string): Intent {
+  {
+    {
       const goal = typeof o.goal === "string" && o.goal.trim() ? o.goal.trim() : fallback;
       /*
        * 路由只收**候选表里的值**。模型给了表外的串（或压根没给）就当没给——
@@ -367,6 +620,38 @@ export function parseIntent(raw: string, fallback: string): Intent {
       const when = parseWhen(o.when);
       // 副任务（ACR-023）：白名单、排除主路由与 general、去重、截断；主路由没给就整栏不要。
       const sideTasks = parseSideTasks(o.sideTasks, route);
+      // 目的地（M77 走查追修）：编排层拿它在 fan-out 一开始并行预取目的地亮点，
+      // 不必等 tour 排完再由它自己去搜——那一搜曾是 tour 关键路径上的 4~7 秒。
+      const destinations = asStringArray(o.destinations).map((d) => d.trim()).filter(Boolean).slice(0, 3);
+      // 次要意图：白名单过滤，表外的一律丢弃——下游拿它去比较永远不等，不如不给。
+      const secondaryIntents = asStringArray(o.secondaryIntents).filter((x) =>
+        (SECONDARY_INTENTS as readonly string[]).includes(x),
+      );
+      // 取消指认（M77 走查追修）：数字或 "all"，其余一律当没给——挑错一份的代价是删掉不该删的。
+      const rawPick = o.cancelPick;
+      const pickNum = typeof rawPick === "number" ? rawPick : typeof rawPick === "string" ? Number(rawPick) : NaN;
+      const cancelPick: number | "all" | undefined =
+        rawPick === "all" ? "all" : Number.isInteger(pickNum) && pickNum >= 1 ? pickNum : undefined;
+      // 另起一趟还是接着改（ADR-010 / INC-0155）：表外一律当没给，下游按"接着改"走老行为。
+      const planScope = o.planScope === "new" || o.planScope === "refine" ? o.planScope : undefined;
+      // 这一轮的**增量要求**（ADR-010 / INC-0148）：模型自己报，编排层不再拿两轮 constraints 做集合差——
+      // 两轮 constraints 是两次独立 LLM 调用各自复述的**全量快照**，措辞必然漂移，差集恒为假。
+      const newAsks = asStringArray(o.newAsks).map((x) => x.trim()).filter(Boolean).slice(0, 5);
+      // 行程数量约束（ADR-012）：模型直接给数字，编排层不再从 constraints 文本里解析。
+      const tripLimits = parseTripLimits(o.tripLimits);
+      // 交通方式（ADR-012）：表外一律丢弃，宁可"他没表态"也不猜一个。
+      const transitMode = TRANSIT_MODES.includes(o.transitMode as never)
+        ? (o.transitMode as Intent["transitMode"])
+        : undefined;
+      // 出险估损与事故类型（M96-03，ADR-012）：数字只收正的有限值，类型只收表内的；
+      // 不合格当没给——下游 claim_advisor 会退到报价单，或明确报"算不了"，不会拿一个坏数去算。
+      const lossRaw = typeof o.estimatedLossCny === "number" ? o.estimatedLossCny : typeof o.estimatedLossCny === "string" ? Number(o.estimatedLossCny.trim()) : NaN;
+      const estimatedLossCny = Number.isFinite(lossRaw) && lossRaw > 0 ? Math.round(lossRaw) : undefined;
+      const accidentType = (ACCIDENT_TYPES as readonly string[]).includes(o.accidentType as string)
+        ? (o.accidentType as Intent["accidentType"])
+        : undefined;
+      // 故障症状（M104-01，ADR-012）：只收布尔，别的当没给；四个都没给就整栏不要。
+      const symptom = parseSymptom(o.symptom);
       return {
         goal,
         constraints: asStringArray(o.constraints),
@@ -379,13 +664,23 @@ export function parseIntent(raw: string, fallback: string): Intent {
         ...(action ? { action } : {}),
         ...(when ? { when } : {}),
         ...(sideTasks.length ? { sideTasks } : {}),
+        ...(cancelPick !== undefined ? { cancelPick } : {}),
+        ...(secondaryIntents.length ? { secondaryIntents } : {}),
+        ...(newAsks.length ? { newAsks } : {}),
+        ...(planScope ? { planScope } : {}),
+        ...(destinations.length ? { destinations } : {}),
+        ...(tripLimits ? { tripLimits } : {}),
+        ...(transitMode ? { transitMode } : {}),
+        ...(estimatedLossCny !== undefined ? { estimatedLossCny } : {}),
+        ...(accidentType ? { accidentType } : {}),
+        ...(symptom ? { symptom } : {}),
       };
-    } catch {
-      /* 落到下面的降级 */
     }
   }
-  // 降级：不猜、不编，如实标记。下游据此知道"这一轮的约束是不可信的"。
-  // 风险这一栏降级成 `unknown` 而不是 `none`——理由见 `parseRiskCategory`。
+}
+
+/** 降级：不猜、不编，如实标记。下游据此知道"这一轮的约束是不可信的"。风险这一栏降级成 `unknown`——理由见 `parseRiskCategory`。 */
+function degradedIntent(fallback: string): Intent {
   return {
     goal: fallback,
     constraints: [],

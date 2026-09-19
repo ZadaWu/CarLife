@@ -13,11 +13,13 @@
 
 use std::sync::Arc;
 
-use carlife_core::contract::ChatMessage;
+use std::collections::BTreeMap;
+
+use carlife_core::contract::{ChatMessage, ClientDetections};
 use carlife_net::GatewayClient;
 use tauri::{AppHandle, State};
 
-use crate::events::{run_mock_stream, spawn_session_stream, StreamState};
+use crate::events::{run_mock_stream, spawn_session_stream, spawn_user_events_stream, StreamState};
 
 /// 网关地址与令牌。
 ///
@@ -48,24 +50,36 @@ pub async fn create_session() -> Result<String, String> {
 ///
 /// `attachments`（M80-03）：本轮要绑的附件句柄（`upload_attachment` 的回执）。缺省 / 空 = 纯文字，
 /// 请求体与老形状逐字相同。
+///
+/// `detections`（ACR-046）：端上框灯开着时，检测已完成的照片的结果，按附件句柄索引；缺省 / 空 = 请求体与今天相同。
 #[tauri::command]
 pub async fn send_text_message(
     session_id: String,
     content: String,
     attachments: Option<Vec<String>>,
+    detections: Option<BTreeMap<String, ClientDetections>>,
 ) -> Result<String, String> {
     let (base_url, token) = gateway_env();
     let handles = attachments.unwrap_or_default();
+    let detections = detections.unwrap_or_default();
     GatewayClient::new(base_url, token)
-        .send_text_with_attachments(
+        .send_text_with_detections(
             &session_id,
             &content,
             carlife_core::contract::MessageSource::Text,
             &handles,
+            &detections,
         )
         .await
         .map(|t| t.turn_id)
         .map_err(|e| e.to_string())
+}
+
+/// 账号级事件流（ACR-033）：订阅的键是**人**，所以它不吃 session_id。
+#[tauri::command]
+pub fn start_user_events_stream(app: AppHandle, state: State<'_, Arc<StreamState>>) {
+    let (base_url, _token) = gateway_env();
+    spawn_user_events_stream(app, Arc::clone(&state), base_url);
 }
 
 #[tauri::command]

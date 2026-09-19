@@ -73,11 +73,12 @@ describe("五个子 Agent 的硬约束要写在 prompt 里", () => {
     assert.match(p, /不要把.*车机还没接上.*说成.*没有播放器件/s, "这一条正是走查那句话的反面");
   });
 
-  it("trip 明确要求「车主说加日历就直接调 calendar」", () => {
-    // 主线后半段（HITL + 写日历）此前从没跑到过，一部分原因就是没人告诉它要调。
+  it("trip 被要求加日历时如实说没有这个能力（FL-31 已下线）", () => {
+    // 能力没了，提示词如果只是"删掉那一段"，模型会自己补一句"稍后帮你加"——
+    // 那是没做却说做了。所以要显式写进去：说不能，并让车主自己记。
     const p = loadAgentPrompt("trip");
-    assert.match(p, /calendar/);
-    assert.match(p, /直接调用/);
+    assert.match(p, /没有写日历的能力/);
+    assert.match(p, /不要假装写好了/);
   });
 
   it("trip 明确禁止编造路线数字——它手上没有 map_route/charging", () => {
@@ -88,6 +89,26 @@ describe("五个子 Agent 的硬约束要写在 prompt 里", () => {
     const p = loadAgentPrompt("service");
     assert.match(p, /不给确定性故障诊断/);
     assert.match(p, /放心开/);
+  });
+
+  /**
+   * M101-04：理赔那三件事由编排层预取（`runRepairContext`），pi 的 service 会话
+   * 在这条路上**从来没被 prompt 过**——工具表里那三行"车主问…时调用"是写给空气的。
+   * 把它们挪进「编排层已经替你查过了」之后，这条断言守的是别有人顺手搬回工具表：
+   * 搬回去不会报错，只会让模型在一条它根本走不到的路上多背三条规则。
+   */
+  it("[F-20-02] service 的理赔三件事在「编排层已经替你查过了」，不在工具表里", () => {
+    const p = loadAgentPrompt("service");
+    const table = p.slice(p.indexOf("## 手上的工具"));
+    const prefetched = p.slice(p.indexOf("## 编排层已经替你查过了"), p.indexOf("## 长度是硬约束"));
+    for (const name of ["insurance_precheck", "claim_advisor", "claim_checklist"]) {
+      assert.ok(!table.includes(name), `${name} 又回到工具表里了——那条路 pi 走不到`);
+      assert.ok(prefetched.includes(name), `${name} 不在「编排层已经替你查过了」段里`);
+    }
+    // 三句转述纪律从旧的工具表行原样搬过来，一字不丢。
+    assert.match(prefetched, /模拟测算，实际以保险公司核定为准/);
+    assert.match(prefetched, /`leaning` 是\*\*倾向不是决定\*\*/);
+    assert.match(prefetched, /48 小时报案与未经定损不修两条\*\*原样转述\*\*/);
   });
 
   it("buying 禁止用指导价推算落地价", () => {
@@ -101,13 +122,15 @@ describe("五个子 Agent 的硬约束要写在 prompt 里", () => {
 
 describe("四个行程专家的诚实红线要写在 prompt 里（M12-02）", () => {
   // 每条对应设计文档"数据真实性红线"的一项——prompt 是模型唯一能看到的约束面。
-  it("hotel 要求酒店名来自 poi_search，估价必须带估算字样", () => {
+  it("hotel 要求酒店名来自 hotel_search（钉死酒店的实例），估价必须带估算字样", () => {
     const p = loadAgentPrompt("hotel");
-    assert.match(p, /poi_search/);
+    assert.match(p, /hotel_search/);
+    assert.doesNotMatch(p, /poi_search/, "hotel 手里已没有多类别搜索，提示词不该再提它");
     assert.match(p, /估算/);
   });
-  it("tour 要求景点名来自 poi_search", () => {
-    assert.match(loadAgentPrompt("tour"), /poi_search/);
+  it("tour 要求景点名来自 spot_search（钉死景点的实例）", () => {
+    assert.match(loadAgentPrompt("tour"), /spot_search/);
+    assert.doesNotMatch(loadAgentPrompt("tour"), /poi_search/, "tour 手里已没有多类别搜索，提示词不该再提它");
   });
   it("transit 的航班号红线已换家到 transit_route 的 promptGuidelines（M23-03）", () => {
     // 原断言查 transit.md 的 /禁止输出任何具体航班号/。纪律搬进工具注册后，
@@ -199,8 +222,11 @@ describe("fan-out 分支用的是同一份职责说明", () => {
     assert.equal(canonicalAgent("trip-task"), "trip");
     assert.equal(canonicalAgent("ownership-task"), "ownership");
     // 两者读**同一个文件**，但返回值不逐字相等：`-task` 的产出被 `merge.ts`
-    // 正则解析，不拼身份段（见 loadAgentPrompt）。所以比的是包含关系。
-    assert.ok(loadAgentPrompt("trip").endsWith(loadAgentPrompt("trip-task")));
+    // 正则解析，所以既不拼身份段、也不拼关键信息标注规则（见 loadAgentPrompt）。
+    // 因此比的是**包含**，不是前后缀——应答那份的形状是
+    // 「身份段 + 这个文件 + 排版规则」，两头都有东西。
+    assert.ok(loadAgentPrompt("trip").includes(loadAgentPrompt("trip-task")));
+    assert.ok(loadAgentPrompt("ownership").includes(loadAgentPrompt("ownership-task")));
   });
 
   it("非分支名不受影响", () => {

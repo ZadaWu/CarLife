@@ -15,6 +15,13 @@ export const NS_LABEL: Record<string, string> = {
   charging: "充电站搜索",
   "guide-brief": "景区导览简报",
   "dest-highlights": "目的地推荐",
+  // 沿途服务按类目各一个命名空间（服务端 `route-services.ts` 的 `serviceCacheNamespace`），
+  // 这样胶囊上能看出四类各缓存了多少；名字与那边一一对应，加类目两边一起加。
+  "svc-food": "沿途服务 · 餐饮",
+  "svc-restroom": "沿途服务 · 卫生间",
+  "svc-parking": "沿途服务 · 停车场",
+  "svc-charging": "沿途服务 · 充电站",
+  "svc-service_area": "沿途服务 · 高速服务区",
 };
 
 export function nsLabel(ns: string): string {

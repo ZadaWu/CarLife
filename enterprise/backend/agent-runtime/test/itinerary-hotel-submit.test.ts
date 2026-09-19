@@ -11,6 +11,7 @@ import { describe, it } from "node:test";
 
 import { mergeItinerary, type ItineraryInput } from "../src/graph/subgraphs/itinerary";
 import type { BranchResult } from "../src/graph/fanout";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 
 const INPUT: ItineraryInput = {
   goal: "广州三天",
@@ -30,10 +31,15 @@ const ok = (agent: string, text: string, submission?: unknown): BranchResult => 
   endedAt: 1,
 });
 
-/** 最小 tour 骨架：hotel 挂 day 需要 skeleton 存在。 */
+/**
+ * 最小 tour 骨架：hotel 挂 day 需要 skeleton 存在。
+ *
+ * 第 2 天是返程日（M77 走查追修）——最后一天回家、不挂酒店，
+ * 所以被断言的第 1 天必须不是最后一天，否则测的是"不挂"而不是"挂对了谁"。
+ */
 const TOUR = ok(
   "tour-task",
-  '{"destination":"广州","days":[{"day":1,"theme":"老城","area":"荔湾","spots":[{"name":"陈家祠堂","indoor":false}]}],"findings":[]}',
+  '{"destination":"广州","days":[{"day":1,"theme":"老城","area":"荔湾","spots":[{"name":"陈家祠堂","indoor":false}]},{"day":2,"theme":"返程","area":"返程","spots":[]}],"findings":[]}',
 );
 
 /** 事故原型 turn-29c4d1d9 的最小复刻：`"note":"高档","}` 多一个字符。 */
@@ -134,35 +140,25 @@ describe("hotel 结论的四态（M30-03）", () => {
     assert.ok(fell.missing.some((m) => m.includes("tour") === false || true), "missing 机制仍在");
   });
 
-  it("**drive 同输入对照**：提交喂 solve 与正文喂 solve 产出相同 violations（M30-04）", () => {
-    const draft = { legMinutes: [200, 200], stops: ["中途服务区"], energyStops: [], findings: [] };
-    // energyType 给定：能源未知时约束校对会做剔除，别让对照被那条纪律搅浑。
-    const inputWithConstraint: ItineraryInput = { ...INPUT, energyType: "ev", constraints: ["单段驾驶不超过2小时"] };
-    const viaText = mergeItinerary(
-      [TOUR, ok("drive-task", JSON.stringify(draft))],
-      inputWithConstraint,
-      ["tour", "drive"],
-    );
-    const viaSubmit = mergeItinerary(
-      [TOUR, ok("drive-task", "", draft)],
-      inputWithConstraint,
-      ["tour", "drive"],
-    );
-    assert.equal(viaText.driveSource, "text");
+  it("drive 只认提交槽与新形状正文；旧的平行数组正文当没交（ACR-047）", () => {
+    const inputWithConstraint: ItineraryInput = { ...INPUT, energyType: "ev", constraints: [], tripLimits: { maxLegMinutes: 120 } };
+    const legs = legsFrom([200, 200], ["中途服务区"], [1, 1], { origin: "上海", destination: "杭州" });
+    const viaSubmit = mergeItinerary([TOUR, ok("drive-task", "", { legs, energyStops: [], findings: [] })], inputWithConstraint, ["tour", "drive"]);
     assert.equal(viaSubmit.driveSource, "submission");
-    // 求解器的语义是**修复**（200 分钟段被劈成 100×4）而不是报错——
-    // 所以对照断言的是整份产出逐字相同：plan（含劈段后的 driveLine/transit 摘要）、
-    // violations、missing 三样全等，求解器输入不因通道不同而漂移。
-    assert.deepEqual(JSON.parse(JSON.stringify(viaSubmit.plan)), JSON.parse(JSON.stringify(viaText.plan)));
-    assert.deepEqual(viaSubmit.violations, viaText.violations);
-    assert.deepEqual(viaSubmit.missing, viaText.missing);
-    assert.ok(
-      viaSubmit.plan.transit?.summary?.includes("分4段"),
-      "劈段修复真的发生了（对照有效性自证：200×2 → 100×4）",
+    assert.ok(viaSubmit.plan.legs && viaSubmit.plan.legs.every((l) => l.driveMinutes <= 120), "200 分钟段被劈开");
+    const viaText = mergeItinerary([TOUR, ok("drive-task", driveText(legs))], inputWithConstraint, ["tour", "drive"]);
+    assert.equal(viaText.driveSource, "text");
+    assert.deepEqual(JSON.parse(JSON.stringify(viaText.plan.legs)), JSON.parse(JSON.stringify(viaSubmit.plan.legs)), "同输入两条路产出相同");
+    const legacy = mergeItinerary(
+      [TOUR, ok("drive-task", '{"legMinutes":[200,200],"stops":["中途服务区"],"findings":[]}')],
+      inputWithConstraint,
+      ["tour", "drive"],
     );
+    assert.equal(legacy.driveSource, "missing", "旧形状不再被解析——两种表达只留一种");
+    assert.ok(legacy.missing.some((m) => m.includes("drive")));
   });
 
-  it("提交来的 estPrice 仍走 markEstimate——估算标注由代码保证，不因换通道旁落", () => {
+  it("提交来的 estPrice 仍走 normalizeEstPrice——估算标注由代码保证，不因换通道旁落", () => {
     const out = mergeItinerary(
       [TOUR, ok("hotel-task", "", { hotels: [{ name: "店", area: "荔湾", estPrice: "约400-700/晚" }], findings: [] })],
       INPUT,

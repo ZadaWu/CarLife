@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fs from "node:fs";
 
-import { computeEnergyGap, energyGapTool } from "../src/energy-gap";
+import { computeEnergyGap, energyGapTool, setEnergyConsumptionLookup } from "../src/energy-gap";
 import { ToolError } from "../src/external";
 import { getTool, listExposableForMcp, listForAgent } from "../src/registry";
 
@@ -218,5 +218,92 @@ describe("energy_gap：mock 给「不够」而不是「够」", () => {
     });
     assert.equal(data.sufficient, false);
     assert.ok((data.gap ?? 0) > 0);
+  });
+});
+
+/**
+ * 能耗口径不由模型填（turn-9386d1c2）。
+ *
+ * 那一轮的真实形状：模型把 ⑥ 的满电续航 428km 当成百公里能耗，先配 `L`（被单位闸门拦下），
+ * 再换算成 93.46%/100km（那是整段 400km 的总电耗）重试并**成功**——需求量 373.8% 是真值的四倍，
+ * 一路进了 `submit_range_assessment`，全程零报错。所以这里钉三件事：
+ * 这一栏进不了 schema、续航当能耗会被拦、注入的那份胜过入参。
+ */
+describe("energy_gap：能耗口径不经模型（turn-9386d1c2）", () => {
+  it("schema 里没有 consumption 这一栏——模型填了也进不来", () => {
+    const reg = getTool("energy_gap");
+    assert.ok(reg);
+    const parsed = reg.schema.safeParse({
+      distanceKm: 400,
+      consumption: { value: 428, unit: "L", source: "measured" },
+      currentLevel: { value: 37.6, unit: "%" },
+    });
+    assert.equal(parsed.success, true, "多给的栏位被丢掉，不该整条拒绝");
+    assert.equal(
+      "consumption" in (parsed.success ? (parsed.data as object) : {}),
+      false,
+      "consumption 不该出现在解析结果里",
+    );
+  });
+
+  it("满电续航被当成能耗：两种单位都拦下", () => {
+    for (const unit of ["L", "%"] as const) {
+      assert.throws(
+        () =>
+          computeEnergyGap({
+            distanceKm: 400,
+            consumption: { value: 428, unit, source: "measured" },
+            currentLevel: { value: 37.6, unit },
+          }),
+        (e: unknown) => e instanceof ToolError && e.category === "invalid",
+        `${unit} 这一档没拦住`,
+      );
+    }
+  });
+
+  it("**上界拦不住「整段总量当百公里量」**——那一类只能靠这一栏不经模型", () => {
+    // 93.46%/100km 落在 100 以内，闸门放行，结果是四倍的需求量。钉住它，免得有人以为阈值够用。
+    const r = computeEnergyGap({
+      distanceKm: 400,
+      consumption: { value: 93.46, unit: "%", source: "measured" },
+      currentLevel: { value: 37.6, unit: "%" },
+    });
+    assert.equal(r.demand, 373.8);
+  });
+
+  it("注入的口径胜过入参，且区间按 measured 收窄", async () => {
+    setEnergyConsumptionLookup(() => ({
+      value: 23.4,
+      unit: "%",
+      source: "measured",
+      sampleSize: 50,
+      windowDays: 30,
+    }));
+    try {
+      const { data } = await energyGapTool.call(
+        // 入参里塞一个错的：注入存在时它不该生效。
+        { distanceKm: 400, consumption: { value: 93.46, unit: "%", source: "measured" }, currentLevel: { value: 37.6, unit: "%" } } as never,
+        { sessionId: "s", turnId: "t", agent: "ownership", mode: "real" },
+      );
+      assert.equal(data.demand, 93.6, "400km × 23.4%/100km");
+      assert.equal(data.sufficient, false);
+      assert.ok(data.basis.some((b) => b.includes("50 个样本")));
+    } finally {
+      setEnergyConsumptionLookup(undefined);
+    }
+  });
+
+  it("没注入就不编一个数：只说缺什么", async () => {
+    setEnergyConsumptionLookup(() => undefined);
+    try {
+      const { data } = await energyGapTool.call(
+        { distanceKm: 400, currentLevel: { value: 37.6, unit: "%" } } as never,
+        { sessionId: "s", turnId: "t", agent: "ownership", mode: "real" },
+      );
+      assert.equal(data.demand, undefined);
+      assert.ok(data.missing?.some((m) => m.includes("百公里能耗")));
+    } finally {
+      setEnergyConsumptionLookup(undefined);
+    }
   });
 });

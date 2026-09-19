@@ -143,6 +143,18 @@ export function archiveIntent(text: string): boolean {
   return ARCHIVE_RE.test(text);
 }
 
+/**
+ * 要不要把这次问诊记进档案：**模型说了算，正则只在它没表态时兜底**。
+ *
+ * 与行程那六个处置判定同一条规矩（`subgraphs/itinerary.ts` 的 `decide`）：
+ * 上面那张表只认「记录 / 留档 / 记下 + 档案 / 问诊」这类字面，而「帮我存一下」
+ * 「这个记着」它都不认。留档是写库动作，判漏了车主以为记下了、其实没有。
+ */
+export function wantsArchive(text: string, intent?: { secondaryIntents?: string[] }): boolean {
+  if (intent?.secondaryIntents) return intent.secondaryIntents.includes("archive");
+  return archiveIntent(text);
+}
+
 export type ConsultationArchivePlan =
   | { kind: "no-profile"; note: string }
   | { kind: "no-consultation"; note: string }
@@ -224,6 +236,10 @@ export function violatesVerdictBoundary(text: string): string | null {
   }
   if (/(没问题|没事|安全的?).{0,6}(放心|开吧|上路)|(保证|敢说|绝对).{0,8}(没问题|安全)/.test(text)) {
     return "包含否定性安全保证——它比确诊更危险";
+  }
+  // M96-03：理赔结果不归我们定。`claim_advisor` 给的是倾向，"肯定能赔"是替保险公司做了核定。
+  if (/(肯定|一定|保证|绝对|百分之百).{0,6}(能赔|会赔|给赔|能报|理赔通过|全赔)/.test(text)) {
+    return "包含理赔结果承诺";
   }
   return null;
 }

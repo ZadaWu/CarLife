@@ -32,21 +32,21 @@
 }
 
 .cloc-toggle__label {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 
 .cloc-toggle__hint,
 .cloc-choice__hint {
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
   color: var(--hud-text-muted);
 }
 
 .cloc-toggle__knob {
   position: relative;
   flex: none;
-  width: 52px;
+  width: 50px;
   height: 30px;
   border-radius: 999px;
   background: var(--hud-divider, rgba(150, 190, 225, 0.45));
@@ -103,8 +103,8 @@
 }
 
 .cloc-choice__label {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 
 /* ── 当前位置 + 手动定位 ─────────────────────────────── */
@@ -126,13 +126,13 @@
 }
 
 .cloc-status__value {
-  font-size: 16px;
+  font-size: var(--m-font-title);
   font-variant-numeric: tabular-nums;
   color: var(--hud-text);
 }
 
 .cloc-status__meta {
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 
@@ -144,7 +144,7 @@
   border: 1px solid var(--hud-card-border, #dde4ee);
   background: var(--hud-card-bg, #fff);
   color: var(--hud-text);
-  font-size: 15px;
+  font-size: var(--m-font-body);
   cursor: pointer;
 }
 
@@ -157,7 +157,7 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: var(--m-font-body);
   background: rgba(255, 176, 32, 0.16);
   border: 1px solid rgba(214, 106, 0, 0.4);
   color: var(--hud-warn);
@@ -165,8 +165,8 @@
 
 .cloc-note {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
   color: var(--hud-text-muted);
 }
 
@@ -220,11 +220,10 @@
 }
 
 .cloc-locate__hint {
+  font: var(--hud-type-caption);
   max-width: 15em;
   padding: calc(10 * var(--hud-unit, 1px)) calc(14 * var(--hud-unit, 1px));
   border-radius: calc(12 * var(--hud-unit, 1px));
-  font-size: var(--hud-font-caption, 14px);
-  line-height: 1.5;
   background: var(--hud-card-bg, rgba(255, 255, 255, 0.92));
   color: var(--hud-text);
   border: 1px solid var(--hud-card-border, #dde4ee);
@@ -262,3 +261,16 @@
     transition: none;
   }
 }
+
+/* ============================================================
+ * 车机皮肤：定位设置那一组的基线吃的是手机阶梯（`--m-font-*`，定值 px），
+ * 基线归手机不动，车机挂皮肤接回样式系统。理由同 `hud.css` 末尾那一段。
+ * ============================================================ */
+[data-surface="cockpit"] .cloc-toggle__label { font: var(--hud-type-title); }
+[data-surface="cockpit"] .cloc-choice__label { font: var(--hud-type-title); }
+[data-surface="cockpit"] .cloc-choice__hint { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .cloc-status__value { font: var(--hud-type-body); }
+[data-surface="cockpit"] .cloc-status__meta { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .cloc-action { font: var(--hud-type-control); letter-spacing: 0.02em; }
+[data-surface="cockpit"] .cloc-error { font: var(--hud-type-caption); }
+[data-surface="cockpit"] .cloc-note { font: var(--hud-type-caption); }

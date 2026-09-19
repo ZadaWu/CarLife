@@ -1,10 +1,19 @@
 // @carlife/rag —— RAGFlow Cloud 客户端封装（§6）。本仓不自建向量库。
-export { DATASETS, datasetFor, datasetsForAgent, type DatasetDef, type DatasetKey } from "./datasets";
+export {
+  DATASETS,
+  datasetFor,
+  datasetsForAgent,
+  datasetKeysForAgent,
+  datasetIdsFromEnv,
+  type DatasetDef,
+  type DatasetKey,
+} from "./datasets";
 export {
   createRagClient,
   DatasetAccessError,
   NoDocumentsForModelError,
   documentMatchesModel,
+  documentIdsFor,
   chunkMethodFor,
   type RagClient,
   type RagflowConfig,
@@ -80,10 +89,13 @@ export {
   type RecallArgs,
 } from "./icon-index";
 export { createIconImageResolver, type IconImageResolver, type IconImageResolverOptions } from "./icon-images";
-export { gate, decideMatch, DEFAULT_TAU, DEFAULT_DELTA, type GateOptions, type GateResult, type MatchResult, type MatchDeps, type IconSemantics } from "./icon-verify";
+export { gate, decideMatch, semanticsOfRow, DEFAULT_TAU, DEFAULT_DELTA, type GateOptions, type GateResult, type MatchResult, type MatchDeps, type IconSemantics } from "./icon-verify";
 
 // 手册图 → 段落锚定（ACR-029）：MinerU 块表进、带锚段与出处的图列表出，纯函数。
 export { anchorFigures, anchorStats, cleanBlockText, columnSplits, figureText } from "./figures";
 export type { AnchorOptions, AnchorRule, FigureAnchor, ManualFigure, MineruBlock } from "./figures";
 export { buildFigureIndex, recallFigures } from "./figure-index";
 export type { BuildFigureIndexOptions, BuildFigureIndexResult, FigureHit, FigureObserver, FigureStore, FigureStoreRow, RecallFiguresArgs } from "./figure-index";
+// 图文索引的 Qdrant 实现（ACR-030 / M81-01）：同一个 FigureStore 契约，换存储不换算法。
+export { createQdrantFigureStore, pointIdFor, DEFAULT_QDRANT_COLLECTION, DEFAULT_QDRANT_DIM } from "./figure-store-qdrant";
+export type { QdrantFigureStoreOptions } from "./figure-store-qdrant";

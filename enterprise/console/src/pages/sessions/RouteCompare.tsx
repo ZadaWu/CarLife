@@ -1,9 +1,16 @@
 /**
  * 行程路径优化前后对比（`route_audit` 的后台消费面）。
  *
- * 三列对照：**优化前**（模型第一次交给算法体检的顺序——`trip_route_audits`
- * 的第一条）→ **算法建议** → **最终行程**（该会话最后一份落库快照）。
+ * 三列对照：**首次体检的顺序**（`trip_route_audits` 的第一条）→ **算法建议**
+ * → **最终行程**（该会话最后一份落库快照，没有就退到未落库的草案）。
  * 回答的问题是"算法有没有把路调顺、模型采纳了没有、省了多少"。
+ *
+ * # 第一列不叫"LLM 第一版"了
+ *
+ * 多天行程自 ACR-037 起先过**编排层的分天**（k-means 聚类 + 配额裁剪），第一次体检的对象
+ * 是那份代码产出的骨架，之后才由 `tour-plan-task` 裁决换点。把它标成"LLM 第一版"是错的：
+ * 读的人会以为模型排了武林广场，其实那是聚类从候选池里取的（turn-ced8b400）。
+ * 两条路都还在，所以标题按记录里的 `agent` 分：`trip` = 编排层，其余 = 模型自己调的体检。
  *
  * # 里程口径
  *
@@ -94,7 +101,8 @@ interface PlanDay {
 
 interface PlanRow {
   planId: string;
-  status: "confirmed" | "cancelled";
+  /** `draft` = 还没确认、没落库的那一份（端点的 `draft` 字段转出来的，不是 `trip_plans` 的行）。 */
+  status: "confirmed" | "cancelled" | "draft";
   destination: string;
   days: number;
   committedAt: string;
@@ -110,10 +118,20 @@ interface PlanRow {
   };
 }
 
+/** 未落库的那一份（`working_tasks` 的活跃行程任务）。没有就是这段对话手上没有草案。 */
+interface DraftRow {
+  status: string;
+  updatedAt: string;
+  destination: string;
+  days: number;
+  plan: PlanRow["plan"];
+}
+
 interface TripRoutePayload {
   sessionId: string;
   audits: AuditRow[];
   plans: PlanRow[];
+  draft?: DraftRow;
 }
 
 const EARTH_R_KM = 6371.0088;
@@ -210,7 +228,30 @@ function adoptionOf(audit: AuditDay, finalNames: string[]): "adopted" | "kept" |
   return "partial";
 }
 
-function DayCompare({ audit, final }: { audit: AuditDay; final?: PlanDay }): JSX.Element {
+/**
+ * 第一列的标题：**这份顺序是谁排的**。
+ *
+ * 多天行程先过编排层分天（ACR-037），第一次体检看的是那份聚类骨架；单天与关掉分天层时
+ * 才是模型自己调的体检。记录里的 `agent` 分得开：`trip` = 编排层，其余（实测都是 `tour`）
+ * = 模型。分不清（老记录没有 agent）就不下断言，只说"首次体检"。
+ */
+export function beforeTitle(agent?: string): string {
+  if (agent === "trip") return "首次体检（编排层骨架）";
+  if (agent) return "首次体检（模型第一版）";
+  return "首次体检的顺序";
+}
+
+function DayCompare({
+  audit,
+  final,
+  agent,
+  finalIsDraft,
+}: {
+  audit: AuditDay;
+  final?: PlanDay;
+  agent?: string;
+  finalIsDraft?: boolean;
+}): JSX.Element {
   const finalSeq = final ? finalDayPoints(final) : undefined;
   const suggestedPoints = audit.suggestedOrder
     ?.map((n) => audit.points.find((p) => p.name === n))
@@ -239,7 +280,7 @@ function DayCompare({ audit, final }: { audit: AuditDay; final?: PlanDay }): JSX
   }> = [
     {
       key: "before",
-      title: "优化前（LLM 第一版）",
+      title: beforeTitle(agent),
       points: audit.points,
       km: audit.givenKm,
       stroke: "#d4622a",
@@ -255,7 +296,8 @@ function DayCompare({ audit, final }: { audit: AuditDay; final?: PlanDay }): JSX
     },
     {
       key: "final",
-      title: "最终行程（落库）",
+      // 退到草案时标题必须自己说清楚——"落库"两个字挂在一份没落库的行程上就是假话。
+      title: finalIsDraft ? "当前草案（未确认）" : "最终行程（落库）",
       points: finalSeq?.points ?? [],
       km: finalKm,
       stroke: "#2c8a5b",
@@ -302,6 +344,18 @@ function DayCompare({ audit, final }: { audit: AuditDay; final?: PlanDay }): JSX
                     <li key={`${p.name}-${i}`}>{p.name}</li>
                   ))}
                 </ol>
+              </>
+            ) : c.points.length === 1 ? (
+              /*
+               * 一个点：画不出折线，但**得把它写出来**。原先这里与"一个点都没有"共用
+               * "无可画的点序"一句话，于是"这一天只排了一处"被显示成"这一天什么都没有"
+               * ——与整天被 filter 掉是同一个毛病，只是换了个位置（turn-ced8b400）。
+               */
+              <>
+                <ol className="rc-order">
+                  <li>{c.points[0]!.name}</li>
+                </ol>
+                <p className="muted tiny">只有 1 个点，无折线可画</p>
               </>
             ) : (
               <p className="muted tiny">{c.note ?? "无可画的点序"}</p>
@@ -355,11 +409,30 @@ export function RouteCompare({
 
   // 静默失败会把"接口坏了"伪装成"这个会话没行程"——错误如实说。
   if (error) return <p className="muted tiny">路径优化数据加载失败：{error}</p>;
-  if (!data || (data.audits.length === 0 && data.plans.length === 0)) return null;
+  // 草案也算"这段对话有行程"——只有草案时整块仍要出现，否则又回到"看起来什么都没排"。
+  if (!data || (data.audits.length === 0 && data.plans.length === 0 && !data.draft)) return null;
 
   const firstAudit = data.audits[0];
   const confirmed = [...data.plans].reverse().find((p) => p.status === "confirmed");
-  const finalPlan = confirmed ?? data.plans[data.plans.length - 1];
+  /*
+   * 第三列与顶上那张卡读的是同一份「这次最后是什么样」。
+   *
+   * 落库的优先；一份都没落过就退到**未落库的草案**——「排了但没确认」是最常见的收场，
+   * 原先这里恒为 undefined，页面于是说"无可画的最终顺序"，读的人以为这次什么都没排出来
+   * （turn-ced8b400 实测：库里那份草案有三天的点序）。退到草案时状态写明未确认，不冒充落库。
+   */
+  const draftPlan: PlanRow | undefined = data.draft
+    ? {
+        planId: `draft:${sessionId}`,
+        status: "draft",
+        destination: data.draft.destination,
+        days: data.draft.days,
+        committedAt: data.draft.updatedAt,
+        plan: data.draft.plan,
+      }
+    : undefined;
+  const finalPlan = confirmed ?? data.plans[data.plans.length - 1] ?? draftPlan;
+  const finalIsDraft = finalPlan?.status === "draft";
 
   return (
     <section className="rc-section">
@@ -407,15 +480,36 @@ export function RouteCompare({
           只有落库行程，无"优化前"可对比。
         </p>
       ) : (
-        firstAudit.payload.days
-          .filter((d) => d.points.length >= 2)
-          .map((d) => (
+        /*
+         * 不足两个点的天**照样占一行**（turn-ced8b400，2026-09-18）。
+         *
+         * 原先这里是 `.filter(points.length >= 2)`——一个点没有顺序可比，这没错；
+         * 但整天不画的后果是页面上只剩「第 1 天」「第 3 天」，读的人得到的结论是
+         * "行程没排第 2 天"。真实情况是第 2 天排了、只有一个点（嵊泗列岛）。
+         * 没得比就说没得比，不能靠消失来表达。
+         */
+        firstAudit.payload.days.map((d) =>
+          d.points.length >= 2 ? (
             <DayCompare
               key={`${firstAudit.id}-${d.day ?? "x"}`}
               audit={d}
+              agent={firstAudit.agent}
+              finalIsDraft={finalIsDraft}
               final={finalPlan?.plan.skeleton?.find((pd) => pd.day === d.day)}
             />
-          ))
+          ) : (
+            <div className="rc-day" key={`${firstAudit.id}-${d.day ?? "x"}`}>
+              <div className="rc-day-head">
+                <strong>第 {d.day ?? "?"} 天</strong>
+                <span className="muted tiny">
+                  {d.points.length === 0
+                    ? "这一天没有带坐标的点，无顺序可比"
+                    : `只有 1 个点（${d.points[0]!.name}），无顺序可比`}
+                </span>
+              </div>
+            </div>
+          ),
+        )
       )}
     </section>
   );
@@ -434,8 +528,22 @@ const TRANSIT_LABEL: Record<string, string> = { drive: "自驾", train: "高铁/
  *
  * 这是用户在车机上看到的那份行程的**后台镜像**——运营点开一条对话，先要知道
  * "这条对话最后定了什么"，再看"算法有没有把它调顺"。已取消的也画，标成已取消：
- * 定过又取消是这条对话的真实经历，藏掉等于改写历史。
+ * 定过又取消是这条对话的真实经历，藏掉等于改写历史。**没确认的草案同理**，
+ * 只是标成"草案"并给出更新时刻，不写"已确定"。
  */
+const HEAD_OF: Record<PlanRow["status"], string> = {
+  confirmed: "已确定的行程",
+  cancelled: "已取消的行程",
+  draft: "当前草案（未确认）",
+};
+
+/** 草案那一栏写的是**更新时刻**而不是落库时刻——它还没落过库。 */
+const STATUS_OF: Record<PlanRow["status"], string> = {
+  confirmed: "已确定",
+  cancelled: "已取消",
+  draft: "草案 · 更新于",
+};
+
 function PlanCard({ plan }: { plan: PlanRow }): JSX.Element {
   const snap = plan.plan;
   const days = snap.skeleton ?? [];
@@ -443,10 +551,10 @@ function PlanCard({ plan }: { plan: PlanRow }): JSX.Element {
     <div className="rc-plan" aria-label="已确定的行程">
       <div className="rc-plan-head">
         <h3>
-          {plan.status === "cancelled" ? "已取消的行程" : "已确定的行程"} · {plan.destination}
+          {HEAD_OF[plan.status]} · {plan.destination || "未定目的地"}
         </h3>
         <span className={`rc-plan-status is-${plan.status}`}>
-          {plan.status === "cancelled" ? "已取消" : "已确定"} · {new Date(plan.committedAt).toLocaleString()}
+          {STATUS_OF[plan.status]} · {new Date(plan.committedAt).toLocaleString()}
         </span>
         <span className="muted tiny">
           {plan.days} 天{snap.startDate ? ` · ${snap.startDate} 出发` : " · 未定日期"}

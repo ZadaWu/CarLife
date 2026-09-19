@@ -29,3 +29,12 @@ effective_asr_engine() {
   _CARLIFE_ASR_ENGINE_CACHED="${engine:-ark}"
   printf '%s\n' "$_CARLIFE_ASR_ENGINE_CACHED"
 }
+
+# 档位的**来源**要用这个函数取，不要直接读 ASR_ENGINE_SOURCE：调用方拿档位一律走
+# `$(effective_asr_engine)`，赋值发生在命令替换的子 shell 里，出不来；调用方那边这个
+# 变量从头到尾就没被定义过，`set -u` 下直接是 `unbound variable` 把整条 status 打断。
+# 这里先在本函数（也是子 shell）里把档位算出来，再读同一层的 ASR_ENGINE_SOURCE。
+asr_engine_source() {
+  effective_asr_engine >/dev/null
+  printf '%s\n' "${ASR_ENGINE_SOURCE:-缺省}"
+}

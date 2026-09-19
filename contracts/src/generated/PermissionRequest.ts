@@ -12,7 +12,7 @@ export type PermissionRequest = {
  */
 interruptId: string, 
 /**
- * 动作类别（如 calendar_write / appointment）。
+ * 动作类别（如 trip_plan_commit / appointment）。
  */
 action: string, 
 /**

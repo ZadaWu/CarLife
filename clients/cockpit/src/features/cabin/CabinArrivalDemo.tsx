@@ -17,6 +17,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { ArrivalTrigger } from "./ArrivalTrigger";
 import { invoke } from "@tauri-apps/api/core";
 import type { AssistantState, TripPlanSnapshot } from "@carlife/shared";
 import {
@@ -450,50 +451,6 @@ function CabinArrivalOverlay({
   );
 }
 
-/**
- * 挂钩上的车钥匙 —— 出发入口的卡通形态（M26 走查）。
- *
- * 上半是一截卡通车尾（尾窗 / 尾灯 / 车牌 / 排气），车牌就是按钮文案「开始行程」；
- * 钥匙经保险杠下的挂钩垂下来，钥匙圈以下整组轻摆——挂板本体不动，
- * 整块一起晃会看起来像挂板要从墙上掉下来。
- */
-function CarKeyBoard() {
-  return (
-    <svg className="cabin-arrival-trigger__key" viewBox="0 0 150 172" aria-hidden="true" focusable="false">
-      {/* 钥匙先画、车尾后画：挂钩要压在钥匙圈上才像「穿过圈」 */}
-      <g className="cabin-arrival-trigger__swing">
-        <circle className="cabin-key__ring" cx="75" cy="92" r="8.5" />
-        <rect className="cabin-key__fob" x="59" y="101" width="32" height="44" rx="12" />
-        <rect className="cabin-key__panel" x="66" y="107" width="18" height="11" rx="5" />
-        <rect className="cabin-key__btn" x="66.5" y="124" width="17" height="5.5" rx="2.75" />
-        <rect className="cabin-key__btn" x="66.5" y="131.5" width="17" height="5.5" rx="2.75" />
-        {/* 钥匙齿只在一侧开齿：两侧对称会看起来像插销不像钥匙 */}
-        <path className="cabin-key__blade" d="M69 145h12v8h-4v5h4v9H69z" />
-      </g>
-
-      {/* 车尾挂板：车顶弧线 → 尾窗 → 行李箱盖折线 → 两角尾灯 → 车牌 → 保险杠。
-          尾灯必须在**左右两角**且压亮：没有它们这个轮廓会被读成一辆巴士。 */}
-      <path
-        className="cabin-car__body"
-        d="M18 40C20 18 34 8 75 8s55 10 57 32l2 14c0 14-8 22-24 22H40c-16 0-24-8-24-22Z"
-      />
-      <path className="cabin-car__window" d="M44 14c8-3 54-3 62 0 5 2 8 8 8 14H36c0-6 3-12 8-14Z" />
-      {/* 行李箱盖折线：一条弧线就够，让红色大块有"盖子"的结构感 */}
-      <path className="cabin-car__crease" d="M30 36c14-4 76-4 90 0" />
-      <rect className="cabin-car__lamp" x="20" y="42" width="26" height="11" rx="5.5" />
-      <rect className="cabin-car__lamp" x="104" y="42" width="26" height="11" rx="5.5" />
-      <rect className="cabin-car__plate" x="42" y="39" width="66" height="21" rx="5" />
-      <text className="cabin-car__plate-text" x="75" y="55" textAnchor="middle">
-        开始行程
-      </text>
-      <rect className="cabin-car__bumper" x="18" y="64" width="114" height="13" rx="6.5" />
-      <circle className="cabin-car__pipe" cx="38" cy="70.5" r="3.6" />
-      <circle className="cabin-car__pipe" cx="112" cy="70.5" r="3.6" />
-      <path className="cabin-car__hook" d="M75 75v8" />
-    </svg>
-  );
-}
-
 /** HUD 上的出发入口；动效是本地展示，不发出车辆控制请求。 */
 export function CabinArrivalDemo({ theme, plan, assistantState, soundOn, playSignal, hideTrigger }: CabinArrivalDemoProps) {
   const [open, setOpen] = useState(false);
@@ -650,16 +607,7 @@ export function CabinArrivalDemo({ theme, plan, assistantState, soundOn, playSig
 
   return (
     <>
-      {!hideTrigger && (
-      <button
-        type="button"
-        className="cabin-arrival-trigger"
-        onClick={play}
-        aria-label="开始行程"
-      >
-        <CarKeyBoard />
-      </button>
-      )}
+      {!hideTrigger && <ArrivalTrigger onPlay={play} />}
       {open ? (
         <CabinArrivalOverlay
           key={runId}

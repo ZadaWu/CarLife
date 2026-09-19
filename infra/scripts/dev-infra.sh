@@ -67,6 +67,7 @@ container_name() {
     postgres) printf '%s\n' 'carlife-postgres' ;;
     redis) printf '%s\n' 'carlife-redis' ;;
     minio) printf '%s\n' 'carlife-minio' ;;
+    qdrant) printf '%s\n' 'carlife-qdrant' ;;
     local-asr) printf '%s\n' 'carlife-local-asr' ;;
     mock-dealer | mock-cabin | mock-repair | mock-insurance) printf 'carlife-%s\n' "$1" ;;
     *) die "未知开发依赖服务：$1" ;;
@@ -101,7 +102,7 @@ assert_owned_container() {
 validate_compose() {
   local services service
   services="$(compose config --services 2>/dev/null)" || die "Compose 配置校验失败"
-  for service in postgres redis minio; do
+  for service in postgres redis minio qdrant; do
     printf '%s\n' "$services" | awk -v wanted="$service" '$0 == wanted { found = 1 } END { exit !found }' ||
       die "Compose 中缺少开发依赖服务：$service"
     assert_owned_container "$service"
@@ -133,7 +134,7 @@ health_of() {
 print_status() {
   local service name state health
   printf '%-10s %-22s %-10s %s\n' '服务' '容器' '状态' '健康'
-  for service in postgres redis minio; do
+  for service in postgres redis minio qdrant; do
     name="$(container_name "$service")"
     state="$(state_of "$service")"
     health="$(health_of "$service")"
@@ -174,7 +175,7 @@ wait_service_healthy() {
 
 wait_healthy() {
   local service
-  for service in postgres redis minio; do
+  for service in postgres redis minio qdrant; do
     wait_service_healthy "$service"
   done
 }
@@ -244,7 +245,7 @@ infra_up() {
     ensure_local_asr_model || die "local-asr 模型检查失败"
   fi
   printf '%s\n' '启动开发依赖容器（PostgreSQL / Redis / MinIO）...'
-  compose up -d postgres redis minio
+  compose up -d postgres redis minio qdrant
   wait_healthy
   if local_asr_enabled; then
     local_asr_up --model-checked
@@ -260,7 +261,7 @@ infra_down() {
   if container_exists local-asr; then
     compose --profile local-asr stop local-asr
   fi
-  compose stop postgres redis minio
+  compose stop postgres redis minio qdrant
   print_status
 }
 

@@ -186,21 +186,26 @@ describe("weather —— 高德供应商", () => {
     assert.equal(weatherCalls, 1, `同一 adcode 应只查一次天气，实际 ${weatherCalls} 次`);
   });
 
-  it("超出 4 天预报窗口明确报错，且错误信息说清窗口有多长", async () => {
+  it("超出预报窗口 → **正常返回空档段**，不抛错；说清窗口多长且不许据此推测（M77 走查追修）", async () => {
     const { impl } = stubFetch({ routes: [["/v3/geocode/regeo", OK_REGEO("440304", "深圳市")]] });
     setAmapClient(createAmapClient({ key: "k", fetchImpl: impl }));
 
+    /*
+     * 从前这里 assert.rejects。两天真跑里抛了 34 次，全是"车主要的日子在窗口外"
+     * 这种完全正常的情形（下周二出发、中秋那三天）——而抛错会进模型的工具循环，
+     * 它看到的是一次失败，多半再想一轮换个日期重查，每次都多烧一轮往返。
+     * 「查不到」是结论不是故障，所以改成 `unavailable` 说明原因。
+     */
     const far = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-    await assert.rejects(
-      () => weatherTool.call({ points: [{ name: "起点", lat: 22.55, lon: 114.05 }], date: far }, ctx),
-      (e: unknown) =>
-        e instanceof ToolError &&
-        e.category === "invalid" &&
-        !e.retryable &&
-        // M10-02 接入气象局后窗口变成 4 天(高德) + 7 天(气象局)，文案随之改写；
-        // 断言的**行为**没变：超窗口一律明确拒绝，且把各自的窗口说清楚。
-        e.message.includes("高德预报覆盖今天起 4 天"),
-    );
+    const r = await weatherTool.call({ points: [{ name: "起点", lat: 22.55, lon: 114.05 }], date: far }, ctx);
+    assert.equal(r.data.length, 1);
+    const seg = r.data[0]!;
+    assert.equal(seg.date, far);
+    assert.equal(seg.tempMaxC, null, "没有数据就是 null，不能猜一个");
+    const why = (seg.unavailable ?? []).join("");
+    assert.match(why, /高德覆盖今天起 4 天/);
+    // 这句是防编造的关键，换成正常返回之后更要写在 unavailable 里，模型才看得见。
+    assert.match(why, /不要据此推测那天的天气/);
   });
 
   it("未注入高德时仍走 Open-Meteo —— 兜底路径的行为不因接入高德而改变", async () => {
@@ -270,7 +275,9 @@ const OK_AROUND = {
       typecode: "180300",
       address: "京港澳高速",
       cityname: "东莞市",
-      location: "113.7,22.94",
+      // 坐标必须落在 fakeDriving 那条折线上（第 6 个 step 的端点 114.5,22.75 附近约 1km）——
+      // map_route 会把离路线超过 OFF_ROUTE_MAX_KM 的候选当"要下道绕过去"剔掉。
+      location: "114.51,22.752",
       distance: "1200",
     },
   ],
@@ -552,5 +559,26 @@ describe("高德客户端：cityLimit 是承诺，兑现不了就空手而归", 
     const pois = await client.textSearch({ keywords: "雷峰塔", region: "普陀山" });
     assert.equal(pois.length, 1);
     assert.ok(!calls.some((u) => u.includes("/v3/config/district")), "不限定就不必问行政区划");
+  });
+});
+
+describe("[F-58-06] resolveRegion：同名多级取最高一级（M86-04 检查点追修）", () => {
+  it("「西安」：高德先回辽源市西安区再回西安市 → 取西安市；只有区县级对得上的（嘉定）仍取区县", async () => {
+    const districtBody = (list: Array<[string, string, string]>) => ({
+      status: "1",
+      infocode: "10000",
+      districts: list.map(([name, level, adcode]) => ({ name, level, adcode, center: "0,0", districts: [] })),
+    });
+    const { impl } = stubFetch({
+      routes: [["/v3/config/district", districtBody([["西安区", "district", "220402"], ["西安市", "city", "610100"]])]],
+    });
+    const client = createAmapClient({ key: "k", fetchImpl: impl });
+    assert.deepEqual(await client.resolveRegion("西安"), { adcode: "610100", name: "西安市", level: "city" });
+
+    const { impl: impl2 } = stubFetch({
+      routes: [["/v3/config/district", districtBody([["嘉定区", "district", "310114"], ["嘉定镇街道", "street", "310114001"]])]],
+    });
+    const client2 = createAmapClient({ key: "k", fetchImpl: impl2 });
+    assert.deepEqual(await client2.resolveRegion("嘉定"), { adcode: "310114", name: "嘉定区", level: "district" });
   });
 });

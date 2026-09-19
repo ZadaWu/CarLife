@@ -182,6 +182,7 @@
 /* 文案放在天空区（地平线之上），**不放底部**：底部导航是 fixed 的，
    放在那儿会被那颗药丸压住——实测就压住了半行字。 */
 .drivet__label {
+  font: var(--hud-type-headline);
   position: absolute;
   left: 0;
   right: 0;
@@ -189,8 +190,6 @@
   margin: 0;
   text-align: center;
   color: var(--hud-text);
-  font-size: var(--hud-font-title);
-  font-weight: 600;
   letter-spacing: calc(3 * var(--hud-unit));
   opacity: 0.9;
 }

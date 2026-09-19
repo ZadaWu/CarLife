@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
-import { INTENT_INSTRUCTION, MAX_SIDE_TASKS, buildIntentInstruction, parseIntent, parseWhen } from "../src/graph/intent";
+import { INTENT_INSTRUCTION, MAX_SIDE_TASKS, buildIntentInstruction, parseIntent, parseSymptom, parseWhen } from "../src/graph/intent";
 
 /**
  * `when`：时间点的标准化（施工单 M19-08）。
@@ -174,5 +174,17 @@ describe("[F-11-06][AC-11-5] sideTasks：副任务解析（M69-01）", () => {
   it("降级路径（非法 JSON）返回对象的键集合与改动前相同", () => {
     const r = parseIntent("{ 不是 JSON", "原话");
     assert.deepEqual(Object.keys(r).sort(), ["constraints", "context", "degraded", "goal", "riskBoundary", "riskCategory"]);
+  });
+});
+
+describe("[F-20-06] symptom：症状四布尔只收布尔（M104-01，ADR-012）", () => {
+  it("布尔收、字符串丢、缺席 undefined；提示词里有这一栏与说明", () => {
+    assert.deepEqual(parseSymptom({ safetyCritical: true, persistent: "yes", warningLight: false }), { safetyCritical: true, warningLight: false });
+    assert.equal(parseSymptom({ persistent: "true" }), undefined);
+    assert.equal(parseSymptom(undefined), undefined);
+    assert.deepEqual(parseIntent('{"goal":"刹车软","route":"service","symptom":{"safetyCritical":true}}', "x").symptom, { safetyCritical: true });
+    assert.equal(parseIntent('{"goal":"x"}', "x").symptom, undefined);
+    assert.match(buildIntentInstruction(), /"symptom":\{"safetyCritical"/);
+    assert.match(buildIntentInstruction(), /symptom 只在 route 是 service \/ ownership/);
   });
 });

@@ -227,3 +227,36 @@ export {
   type ManualFigureNearestQuery,
   type ManualFigureNearestRow,
 } from "./repositories/manual-figure";
+/*
+ * 研究面仓储（M82-01）。**只注入 worker 与 research-runtime**——
+ * 它是全仓第二处允许无键跨用户读的地方，纪律写在文件头。
+ * gateway / agent-runtime / 端上代码 import 它都是错的。
+ */
+export {
+  createResearchRepository,
+  RESEARCH_EMBEDDING_DIM,
+  type ResearchRepository,
+  type ResearchWindow,
+  type RawTurn,
+  type RawTrip,
+  type RawSystemChanges,
+  type EvidenceUnitInput,
+  type CodingInput,
+  type CodebookAgreement,
+  type EmbeddingInput,
+  type EmbeddingNearestQuery,
+  type EmbeddingNearestRow,
+  type LensSnapshotInput,
+  type SystemEventInput,
+  type CodedTurnRow,
+} from "./repositories/research";
+/*
+ * 任务工作状态的仓储（M84-02，ACR-036 §4.9）：跨轮业务状态按 `userId × kind` 存，
+ * 与 `working-thread.ts`（会话 → 图 thread）是两件事，见那两个文件的头注。
+ */
+export {
+  createWorkingTaskStore,
+  rowToTask,
+  taskToRow,
+  type WorkingTaskStore,
+} from "./working-task";

@@ -1,0 +1,105 @@
+/*
+ * 「行程规划」二级页的页头（施工单 M103-02）。
+ *
+ * 页头**盖在** HUD 舞台上面（理由见 secondary.tsx 文件头）；舞台里从顶部锚定的那几样按
+ * `--mtrip-head-h` 往下让。只在 `.mtrip` 作用域下覆盖，hud.css / app.css 一字不动。
+ */
+
+.mtrip {
+  --mtrip-head-h: 48px;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.mtrip-body {
+  position: absolute;
+  inset: 0;
+}
+.mtrip-head {
+  position: absolute;
+  z-index: 46; /* 高于入口行(45)与助手(40)，低于底部导航(60)与各 sheet */
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--mtrip-head-h) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 12px 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  /* 压在真实地图上要有底：上实下虚的一层页底色，标题读得清、地图不被整条遮死（2026-09-18 ?plan=demo 实测）。 */
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--m-page-bg) 94%, transparent) 0%,
+    color-mix(in srgb, var(--m-page-bg) 80%, transparent) 70%,
+    transparent 100%
+  );
+  pointer-events: none; /* 页头只是个定位框：中间的标题不挡地图手势，两枚按钮各自可点 */
+}
+.mtrip-head > * { pointer-events: auto; }
+.mtrip-head__title {
+  margin: 0;
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
+  font-weight: var(--m-weight-bold);
+  color: var(--hud-text);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.mtrip-head__back,
+.mtrip-head__list {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  margin: 4px 0;
+  padding: 0 12px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 999px;
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+  font-family: var(--font-ui);
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mtrip-head__back { justify-self: start; }
+.mtrip-head__back svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mtrip-head__back.is-disabled {
+  color: var(--hud-text-muted);
+  cursor: default;
+}
+.mtrip-head__list {
+  justify-self: end;
+  color: var(--hud-pin);
+  font-variant-numeric: tabular-nums;
+}
+.mtrip-head__spacer { justify-self: end; }
+
+/* ── HUD 舞台里从顶部锚定的东西往下让出页头 ─────────────────
+ * hud.css 竖屏块的 `--hud-portrait-top` 是"所有 top 都要加的舞台顶边"，在这里把页头高加进去；
+ * app.css 里直接写 env() 的两条（跟车顶栏 / 住宿横幅）与日期条、日切换各补一次。 */
+.mtrip .hud-viewport[data-mode="portrait"] {
+  --hud-portrait-top: calc(env(safe-area-inset-top) + var(--mtrip-head-h));
+}
+.mtrip .hud-viewport[data-mode="portrait"] .hud-navbar,
+.mtrip .hud-viewport[data-mode="portrait"] .hud-datebar {
+  top: calc(12px + env(safe-area-inset-top) + var(--mtrip-head-h));
+}
+.mtrip .hud-viewport[data-mode="portrait"] .hud-lodging {
+  top: calc(14px + env(safe-area-inset-top) + var(--mtrip-head-h));
+}
+.mtrip .hud-viewport[data-mode="portrait"] .hud-daytabs {
+  top: calc(76px + env(safe-area-inset-top) + var(--mtrip-head-h));
+}

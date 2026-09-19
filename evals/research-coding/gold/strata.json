@@ -1,0 +1,29 @@
+{
+  "n": 200,
+  "scenes": {
+    "cabin": 36,
+    "charging": 45,
+    "commute": 45,
+    "long-trip": 34,
+    "maintenance": 40
+  },
+  "personas": {
+    "cold-sensitive": 36,
+    "commute-city": 35,
+    "family-shared": 44,
+    "new-owner": 35,
+    "long-haul": 25,
+    "maintenance-outsourced": 25
+  },
+  "rareCodes": {
+    "shared-ownership": 2,
+    "dtc-unclear": 20
+  },
+  "counterExamples": 5,
+  "hardBoundary": 0,
+  "violations": [
+    "罕见码 shared-ownership 只有 2 条 < 10",
+    "counter-example 只有 5 条 < 10",
+    "困难边界（mixed / uncertain）只有 0 条 < 10"
+  ]
+}

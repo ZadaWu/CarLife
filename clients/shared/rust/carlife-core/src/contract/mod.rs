@@ -14,8 +14,10 @@
 pub mod events;
 pub mod messages;
 pub mod samples;
+pub mod user_events;
 pub mod voice;
 
 pub use events::*;
 pub use messages::*;
+pub use user_events::*;
 pub use voice::*;

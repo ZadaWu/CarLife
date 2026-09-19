@@ -14,8 +14,11 @@
     "@carlife/memory": "workspace:*",
     "@carlife/rag": "workspace:*",
     "@carlife/db": "workspace:*",
+    "@carlife/guardrails": "workspace:*",
+    "@carlife/research": "workspace:*",
     "@carlife/tools": "workspace:*",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "pg-boss": "^12.0.0"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

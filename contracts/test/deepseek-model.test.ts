@@ -4,8 +4,8 @@ import { describe, it } from "node:test";
 import { DEFAULT_DEEPSEEK_MODEL, resolveDeepSeekModel } from "../src/constants";
 
 describe("DeepSeek 模型统一配置", () => {
-  it("默认模型是 deepseek-v4-flash", () => {
-    assert.equal(DEFAULT_DEEPSEEK_MODEL, "deepseek-v4-flash");
+  it("默认模型是 deepseek-flash（V4.1 Flash 正式名，不靠 deepseek-v4-flash 这个会被服务端重指的别名）", () => {
+    assert.equal(DEFAULT_DEEPSEEK_MODEL, "deepseek-flash");
     assert.equal(resolveDeepSeekModel(), DEFAULT_DEEPSEEK_MODEL);
     assert.equal(resolveDeepSeekModel(""), DEFAULT_DEEPSEEK_MODEL);
   });

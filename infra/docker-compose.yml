@@ -50,6 +50,32 @@ services:
       timeout: 3s
       retries: 10
 
+  # ── 图像知识库的向量检索（ACR-030）。
+  #
+  # 手册图的向量从库内 pgvector 搬到这里，原因是 **2560 维过不了 pgvector 的 HNSW 上限 2000 维**
+  # （2026-09-12 实测：`column cannot have more than 2000 dimensions for hnsw index`），
+  # 只能全表顺序扫描，3116 行实测 307 ms 且随手册数量线性增长。
+  #
+  # 向量仍由我们自己算（DashScope `qwen3-vl-embedding`）——Qdrant 只做存储与检索，
+  # 不绑任何 vectorizer，这正是选它而不选 Weaviate / Marqo 的理由（那两个的内置推理我们用不上）。
+  #
+  # **只绑 127.0.0.1**：它没有鉴权（本机开发档），绝不能让它出现在局域网上。
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    container_name: carlife-qdrant
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - carlife-qdrant-data:/qdrant/storage
+    healthcheck:
+      # 官方镜像里没有 curl / wget，用它自带的 bash 打开 /dev/tcp 探端口——
+      # 换成 curl 会永远 unhealthy 而看不出原因。
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # ── 对象存储（§9 / M8-04）。S3 兼容，本地用 MinIO。
   #
   # 它存的是**用户拍的照片与留档音频**——高鹏两周后要拿这些去和修理厂对峙。
@@ -136,6 +162,8 @@ volumes:
     name: carlife-minio-data
   carlife-redis-data:
     name: carlife-redis-data
+  carlife-qdrant-data:
+    name: carlife-qdrant-data
   carlife-whisper-models:
     name: carlife-whisper-models
     external: true

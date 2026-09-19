@@ -47,6 +47,9 @@ data/kb-figures/
 # ⚠️ data/kb-src/ **不在忽略之列**：那里放的是手写的知识库源文件（没有上游 PDF，
 # 重新生成不出来）。忽略掉的话，它就只存在于 RAGFlow 和某个人的本地磁盘上。
 
+# Qdrant 快照备份（一份 86 MB 起，且能从 Qdrant 服务重新打）
+data/backups/
+
 # Mem0 的运行时产物（historyDbPath 默认相对 cwd，谁先跑就落在谁的目录下）
 **/data/mem0-history.db
 **/data/mem0-vector.db
@@ -54,6 +57,8 @@ data/kb-figures/
 # 本地 dev 服务日志（infra/scripts/dev.sh）
 .dev-logs/
 .turbo/
+
+# 生成脚本旁的 work/ img/ media/ 是模板拆包、截图与中间产物，不入库
 
 
 # 模拟车机的运行时状态快照（mocks/cabin/src/persistence.ts）。
@@ -77,12 +82,28 @@ evals/runs/jobs/
 evals/runs/vision-trainer/
 evals/vision-observe/datasets/*/
 
-# pi-agents 本地运行时产物（会话记录、凭证与模型存储等）
-enterprise/backend/pi-agents/.pi/agent/
+# pi-agents 本地运行时产物（会话记录、凭证与模型存储等）。
+# 目录里只有 models.json 入库：它给 pi 的内置目录补 `deepseek-flash`（V4.1 Flash 的正式名，
+# pi 0.84.1 自带目录里没有它），随仓库走才能让每台机器跑同一个模型（2026-09-15）。
+enterprise/backend/pi-agents/.pi/agent/*
+!enterprise/backend/pi-agents/.pi/agent/models.json
 
 # 负样本的画框图（M80-05）：20 张一跑就是 38 MB 的可复跑诊断产物，不进仓库；
 # tesla-01 那两张留着当两家的肉眼对照。
 evals/runs/vision-observe-boxes/neg-*.png
+# inbox-*.png 同理，且多一层理由：它们是 inbox 真车照片画框后的产物，
+# 而 inbox 原图本身就因来源不明不进仓库（见本文件末尾）——画了框的版本
+# 一样是那批照片，提交它等于绕过那条纪律。22 张 51 MB，可用 eval 重跑。
+evals/runs/vision-observe-boxes/inbox-*.png
 
 # 小红书等来源不明的真车截图（M80-08 之后的真题 inbox）：只做内部评测，不进仓库、不进训练集、不外发
 evals/vision-observe/photos/inbox/
+
+# 各技能 workspace 的预览服务器 pid（viewer.log 已被上面的 *.log 覆盖）。
+# workspace 里的评测产物本身是入库的，只有这两个运行时文件不是。
+
+# 仓库根的临时目录：出图中间件、截图、一次性脚本。
+# scratchpad 该放会话目录，落到这里的一律是忘了清的，不入库。
+tmp/
+
+__pycache__/

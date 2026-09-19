@@ -28,13 +28,13 @@
 
 .own-title {
   margin: 0 0 16px;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 
 .own-card {
-  background: var(--hud-card-bg, #fff);
-  border-radius: 12px;
+  background: var(--m-card-bg);
+  border-radius: var(--m-radius-card);
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -46,7 +46,7 @@
 
 .own-badge {
   display: inline-block;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   padding: 2px 8px;
   border-radius: 999px;
   margin-left: 8px;
@@ -65,14 +65,14 @@
 }
 
 .own-model {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
   margin: 0;
 }
 
 .own-meta {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: var(--m-font-body);
   color: var(--hud-text-muted);
   line-height: 1.6;
 }
@@ -85,7 +85,7 @@
 
 .own-empty p {
   margin: 0 0 8px;
-  font-size: 15px;
+  font-size: var(--m-font-body);
   color: var(--hud-text-muted);
 }
 
@@ -97,8 +97,8 @@
   border-radius: 10px;
   background: #2563eb;
   color: #fff;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
 }
 
 .own-cta:active {
@@ -109,7 +109,7 @@
 .own-offline {
   padding: 32px 24px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--m-font-body);
   color: var(--hud-text-muted);
 }
 
@@ -121,7 +121,7 @@
   border-radius: 10px;
   background: transparent;
   color: inherit;
-  font-size: 14px;
+  font-size: var(--m-font-body);
 }
 
 /* ── 建档向导（M14-05）───────────────────────────────── */
@@ -132,7 +132,7 @@
   padding: 8px 12px;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: var(--m-font-title);
   background: var(--hud-card-bg, #fff);
   color: inherit;
   box-sizing: border-box;
@@ -158,7 +158,7 @@
   border-radius: 10px;
   background: var(--hud-card-bg, #fff);
   color: inherit;
-  font-size: 15px;
+  font-size: var(--m-font-body);
   text-align: left;
 }
 
@@ -170,20 +170,20 @@
 .own-choice.is-active {
   border-color: #2563eb;
   color: #2563eb;
-  font-weight: 600;
+  font-weight: var(--m-weight-bold);
 }
 
 .own-choice-note {
   display: block;
-  font-size: 12px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
-  font-weight: 400;
+  font-weight: var(--m-weight-regular);
 }
 
 /* 推算依据与数值同一视区（Brief §2）；琥珀只用于估算/待确认 */
 .own-forecast-value {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 
 .own-forecast-value--overdue {
@@ -193,7 +193,7 @@
 .own-basis {
   margin: 6px 0 0;
   padding-left: 18px;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-text-muted);
 }
 
@@ -203,7 +203,7 @@
 
 .own-source-badge {
   display: inline-block;
-  font-size: 11px;
+  font-size: var(--m-font-caption);
   padding: 1px 6px;
   border-radius: 4px;
   background: #e5e7eb;
@@ -225,8 +225,8 @@
 
 .own-member-name {
   margin: 0 0 2px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-bold);
 }
 
 .own-input {
@@ -238,7 +238,7 @@
   border: 1px solid var(--hud-divider);
   background: transparent;
   color: inherit;
-  font-size: 15px; box-sizing: border-box;
+  font-size: var(--m-font-body); box-sizing: border-box;
 }
 
 /* 多选标签：常驾/常乘、年龄段、出行需要共用一套 */
@@ -249,7 +249,7 @@
   border: 1px solid var(--hud-divider);
   background: transparent;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
 }
 
 /* `.own-chip--on` 的定义**必须排在下面那份 `.own-chip` 之后**，见那里的说明。
@@ -257,7 +257,7 @@
 
 .own-error {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   color: var(--hud-warn);
 }
 
@@ -301,7 +301,7 @@
 .own-page--dark {
   background: var(--o-bg);
   color: var(--o-text);
-  font-size: 16px;
+  font-size: var(--m-font-title);
   line-height: 1.5;
 }
 
@@ -314,6 +314,66 @@
   margin: 12px 0;
 }
 
+/*
+ * 顶部 tab（2026-09-12）：车辆档案 / 人员档案。
+ *
+ * 人员档案原来是二级页（点一行进去、左上角「‹ 车辆档案」退回来），改成两个平级的 tab
+ * 之后，"这辆车"和"谁在用"来回看不用退出去再点进去。
+ *
+ * ⚠️ 吸顶能成立，靠的是**滚动容器就是 `.own-page` 自己**（`position:absolute; inset:0;
+ * overflow-y:auto`）。`sticky` 的 `top` 相对的是这个滚动口的 padding box，`top: 0`
+ * 会一直贴到页壳上内距的最上沿——所以上内距（含刘海/灵动岛的安全区）必须**搬到
+ * tab 条自己身上**，`.own-page--tabs` 把页壳那份清零；不搬的话 tab 条滚上去就钻进
+ * 状态栏底下（安全区那条坑 2026-09-02 已经踩过一次，见 test/safe-area.test.ts）。
+ * 左右负外边距是让它铺满整宽：不铺的话卡片会从两侧 16px 的缝里穿过去。
+ */
+.own-page--tabs { padding-top: 0; }
+.own-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 -16px 4px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--o-bg);
+  display: flex;
+}
+.own-tabs__track {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--o-sub);
+  border: 1px solid var(--o-edge);
+}
+.own-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px; /* 触控热区下限 */
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--o-dim);
+  font: inherit;
+  font-weight: var(--m-weight-bold);
+  cursor: pointer;
+}
+.own-tab svg { width: 20px; height: 20px; }
+/*
+ * 选中态**不用实心橙**：这一页底下就是底部导航那枚橙色药丸，
+ * 一屏只留一个实心橙（同 `.own-page--light .own-cta` 那条注释）。
+ */
+.own-tab.is-active {
+  background: var(--o-card);
+  color: var(--o-text);
+  font-weight: var(--m-weight-bold);
+  box-shadow: 0 2px 8px rgba(70, 120, 170, 0.14);
+}
+
 .own-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .own-head--sub { justify-content: flex-start; }
 .own-head-icon { display: inline-flex; width: 34px; height: 34px; color: var(--o-blue); }
@@ -321,7 +381,7 @@
 .own-head-icon--sm { width: 26px; height: 26px; }
 .own-head-icon--warn { color: var(--o-amber); }
 .own-page--light .own-title,
-.own-page--dark .own-title { margin: 0; font-size: 28px; font-weight: 700; }
+.own-page--dark .own-title { margin: 0; font-size: var(--m-font-title); line-height: var(--m-lh-title); font-weight: var(--m-weight-bold); }
 
 .own-back {
   min-height: 48px;
@@ -329,12 +389,12 @@
   border: 0;
   background: transparent;
   color: var(--o-blue);
-  font-size: 16px;
+  font-size: var(--m-font-title);
   cursor: pointer;
 }
 .own-subline { margin: 4px 0 2px; text-align: center; }
 .own-center { text-align: center; }
-.own-tiny { font-size: 14px; }
+.own-tiny { font-size: var(--m-font-body); }
 
 .own-chip {
   display: inline-flex;
@@ -343,7 +403,7 @@
   border-radius: 999px;
   background: var(--o-sub);
   border: 1px solid var(--o-edge);
-  font-size: 14px;
+  font-size: var(--m-font-body);
   color: var(--o-text);
 }
 /*
@@ -365,7 +425,7 @@
   border-color: var(--o-blue, #4c9aff);
   color: var(--o-blue, #4c9aff);
   background: transparent;
-  font-weight: 600;
+  font-weight: var(--m-weight-bold);
 }
 
 .own-chip--quiet { color: var(--o-dim); }
@@ -383,8 +443,8 @@
   border: 1px solid var(--o-edge);
   background: var(--o-card);
   color: var(--o-text);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }
 .own-caret { transition: transform 0.16s ease; }
 .own-caret.is-open { transform: rotate(180deg); }
@@ -396,19 +456,19 @@
 }
 .own-pick-menu button {
   width: 100%; min-height: 48px; padding: 0 12px; text-align: left; box-sizing: border-box;
-  border: 0; border-radius: 12px; background: transparent; color: var(--o-text); font-size: 16px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--o-text); font-size: var(--m-font-title);
 }
 .own-pick-menu button.is-active { background: var(--o-sub); color: var(--o-blue); }
 
 /* 车辆主卡 */
-.own-hero-title { margin: 0 0 10px; font-size: 20px; font-weight: 650; text-align: right; }
+.own-hero-title { margin: 0 0 10px; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); text-align: right; }
 .own-hero-body { display: flex; align-items: center; gap: 12px; }
 .own-art { width: 132px; height: 132px; flex: 0 0 auto; display: grid; place-items: center; }
 .own-art img { width: 100%; height: 100%; object-fit: contain; }
 .own-art-fallback {
   width: 84px; height: 84px; display: grid; place-items: center;
   border-radius: 22px; background: var(--o-sub); color: var(--o-dim);
-  font-size: 34px; font-weight: 700;
+  font-size: var(--m-font-metric); font-weight: var(--m-weight-bold);
 }
 .own-facts { flex: 1; margin: 0; min-width: 0; }
 .own-facts > div {
@@ -416,11 +476,11 @@
   padding: 10px 0; border-bottom: 1px solid var(--o-edge);
 }
 .own-facts > div:last-child { border-bottom: 0; }
-.own-facts dt { color: var(--o-dim); font-size: 15px; }
+.own-facts dt { color: var(--o-dim); font-size: var(--m-font-body); }
 .own-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
 .own-facts-foot { justify-content: flex-start !important; }
-.own-num { color: var(--o-amber); font-size: 24px; font-weight: 700; }
-.own-num span { font-size: 14px; font-weight: 500; }
+.own-num { color: var(--o-amber); font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-weight: var(--m-weight-bold); }
+.own-num span { font-size: var(--m-font-body); font-weight: var(--m-weight-medium); }
 .own-star { color: var(--o-blue); }
 .own-facts-inline { margin: 4px 0; font-variant-numeric: tabular-nums; }
 
@@ -432,14 +492,14 @@
 }
 .own-badge-round svg { width: 32px; height: 32px; }
 .own-forecast-main { flex: 1; min-width: 0; }
-.own-forecast-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
+.own-forecast-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--m-font-title); }
 .own-page--light .own-forecast-value,
 .own-page--dark .own-forecast-value {
-  margin: 2px 0 6px; color: var(--o-amber); font-size: 34px; font-weight: 700;
+  margin: 2px 0 6px; color: var(--o-amber); font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-weight: var(--m-weight-bold);
   font-variant-numeric: tabular-nums;
 }
-.own-forecast-value span { font-size: 16px; font-weight: 500; }
-.own-basis { margin: 0 0 10px; color: var(--o-dim); font-size: 13px; }
+.own-forecast-value span { font-size: var(--m-font-title); font-weight: var(--m-weight-medium); }
+.own-basis { margin: 0 0 10px; color: var(--o-dim); font-size: var(--m-font-caption); }
 /*
  * 两个动作按钮同高。
  * `.own-secondary` 自带 `margin-top: 12px`（它原本是竖排里的次按钮），
@@ -450,26 +510,26 @@
 .own-actions > button { margin-top: 0; }
 .own-warnbtn {
   min-height: 48px; padding: 0 18px; border-radius: 14px;
-  border: 1px solid var(--o-amber); background: transparent; color: var(--o-amber); font-size: 16px;
+  border: 1px solid var(--o-amber); background: transparent; color: var(--o-amber); font-size: var(--m-font-title);
 }
 .own-warnbtn:disabled, .own-page--light .own-secondary:disabled { opacity: 0.5; }
 
 /* 画像 */
-.own-card-head { display: flex; align-items: center; gap: 8px; font-size: 20px; margin-bottom: 6px; }
+.own-card-head { display: flex; align-items: center; gap: 8px; font-size: var(--m-font-title); margin-bottom: 6px; }
 .own-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .own-stat {
   flex: 1 1 140px; min-width: 0; display: flex; align-items: center; gap: 8px;
   padding: 10px; border-radius: 16px; border: 1px solid var(--o-edge); background: var(--o-sub);
 }
-.own-stat small { display: block; color: var(--o-dim); font-size: 13px; }
-.own-stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
-.own-stat b span { font-size: 13px; font-weight: 500; }
-.own-stat-text { font-size: 15px !important; font-weight: 600; }
+.own-stat small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); }
+.own-stat b { font-size: var(--m-font-metric); line-height: var(--m-lh-metric); font-variant-numeric: tabular-nums; }
+.own-stat b span { font-size: var(--m-font-caption); font-weight: var(--m-weight-medium); }
+.own-stat-text { font-size: var(--m-font-body) !important; font-weight: var(--m-weight-bold); }
 .own-stat-icon { width: 34px; height: 34px; flex: 0 0 auto; }
 .own-stat-icon svg { width: 100%; height: 100%; }
 .own-stat-icon--blue { color: var(--o-blue); }
 .own-stat-icon--green { color: var(--o-ok); }
-.own-derivation { margin-top: 8px; font-size: 13px; color: var(--o-dim); }
+.own-derivation { margin-top: 8px; font-size: var(--m-font-caption); color: var(--o-dim); }
 .own-derivation summary { min-height: 32px; }
 .own-derivation ul { margin: 6px 0 0; padding-left: 18px; }
 
@@ -501,9 +561,9 @@
 .own-navrow-icon svg { width: 26px; height: 26px; }
 .own-navrow-icon--warn { background: var(--o-amber); color: #fff; }
 .own-navrow-main { flex: 1; min-width: 0; }
-.own-navrow-main b { display: block; font-size: 18px; font-weight: 650; }
-.own-navrow-main small { display: block; color: var(--o-dim); font-size: 13px; margin-top: 2px; }
-.own-navrow-arrow { color: var(--o-dim); font-size: 24px; line-height: 1; }
+.own-navrow-main b { display: block; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+.own-navrow-main small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); margin-top: 2px; }
+.own-navrow-arrow { color: var(--o-dim); font-size: var(--m-font-metric); line-height: 1; }
 
 /*
  * 时间轴：**竖线与圆点共用一条中线 `--o-rail-x`**，两边都从这一个数算出来。
@@ -559,21 +619,21 @@
   display: grid; place-items: center; background: var(--o-card); border: 2px solid var(--o-edge);
 }
 .own-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.own-avatar em { font-style: normal; font-size: 26px; font-weight: 700; color: var(--o-dim); }
+.own-avatar em { font-style: normal; font-size: var(--m-font-metric); font-weight: var(--m-weight-bold); color: var(--o-dim); }
 .own-person-main { flex: 1; min-width: 0; }
-.own-person-main b { display: block; font-size: 19px; font-weight: 700; }
-.own-person-main small { display: block; color: var(--o-dim); font-size: 13px; margin-top: 2px; }
-.own-role { color: var(--o-amber); font-weight: 600; }
+.own-person-main b { display: block; font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
+.own-person-main small { display: block; color: var(--o-dim); font-size: var(--m-font-caption); margin-top: 2px; }
+.own-role { color: var(--o-amber); font-weight: var(--m-weight-bold); }
 .own-needs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .own-needs em {
   font-style: normal; padding: 4px 10px; border-radius: 999px;
-  border: 1px solid var(--o-edge); font-size: 13px; color: var(--o-dim);
+  border: 1px solid var(--o-edge); font-size: var(--m-font-caption); color: var(--o-dim);
 }
 
 .own-prefs { list-style: none; margin: 6px 0 0; padding: 0; }
 .own-prefs li {
   display: flex; align-items: center; gap: 10px; min-height: 52px;
-  padding: 6px 0; border-bottom: 1px solid var(--o-edge); font-size: 17px;
+  padding: 6px 0; border-bottom: 1px solid var(--o-edge); font-size: var(--m-font-title);
 }
 .own-prefs li:last-child { border-bottom: 0; }
 
@@ -589,13 +649,13 @@
 .own-page--light .own-stat,
 .own-page--dark .own-stat { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 8px; }
 .own-page--light .own-stat b,
-.own-page--dark .own-stat b { font-size: 20px; }
+.own-page--dark .own-stat b { font-size: var(--m-font-metric); }
 .own-page--light .own-stat-text,
-.own-page--dark .own-stat-text { font-size: 14px !important; }
+.own-page--dark .own-stat-text { font-size: var(--m-font-body) !important; }
 
 /* 保养依据折叠成一行（定稿是一行小字，不是一段） */
 .own-page--light .own-basis,
-.own-page--dark .own-basis { margin: 0 0 8px; color: var(--o-dim); font-size: 13px; }
+.own-page--dark .own-basis { margin: 0 0 8px; color: var(--o-dim); font-size: var(--m-font-caption); }
 .own-page--light .own-basis summary,
 .own-page--dark .own-basis summary { cursor: pointer; min-height: 28px; list-style-position: inside; }
 .own-page--light .own-basis ul,
@@ -607,18 +667,18 @@
   padding-top: 10px;
   border-top: 1px solid var(--o-edge);
   color: var(--o-dim);
-  font-size: 13px;
+  font-size: var(--m-font-caption);
 }
 
 /* ── 车机区（M24-05）：三态与能力摘要 ── */
 .own-kv { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
-.own-kv li { display: flex; justify-content: space-between; font-size: 15px; }
+.own-kv li { display: flex; justify-content: space-between; font-size: var(--m-font-body); }
 .own-kv li span { color: var(--hud-text-muted); }
 
 /* ── 偏好编辑与组合管理（M24-09） ── */
 .own-form { display: grid; gap: 10px; margin-top: 8px; }
-.own-field { display: grid; gap: 4px; font-size: 14px; }
-.own-field input { padding: 8px 10px; border: 1px solid var(--hud-divider); border-radius: 8px; font-size: 15px; }
+.own-field { display: grid; gap: 4px; font-size: var(--m-font-body); }
+.own-field input { padding: 8px 10px; border: 1px solid var(--hud-divider); border-radius: 8px; font-size: var(--m-font-body); }
 .own-form-actions { display: flex; gap: 10px; }
 .own-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .own-chips .own-chip.is-on { background: var(--hud-pin); color: #fff; }
@@ -647,11 +707,11 @@
 
 .own-grant-name {
   flex: 1;
-  font-size: 15px;
+  font-size: var(--m-font-body);
 }
 
 .own-grant-role {
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   opacity: 0.7;
 }
 
@@ -659,7 +719,7 @@
   border: none;
   background: transparent;
   color: var(--hud-danger);
-  font-size: 13px;
+  font-size: var(--m-font-caption);
   padding: 4px 6px;
 }
 
@@ -678,7 +738,7 @@
   border: 1px solid var(--hud-card-border);
   background: var(--hud-card-bg);
   color: inherit;
-  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+  font-size: var(--m-font-title); /* 16px 以下 iOS 会自动放大页面 */
 }
 
 .own-grant-form select,
@@ -698,7 +758,7 @@
   margin: 0 0 12px;
   padding-left: 20px;
   color: var(--hud-text-muted);
-  font-size: 14px;
+  font-size: var(--m-font-body);
   line-height: 1.7;
 }
 
@@ -714,7 +774,7 @@
   color: inherit;
   /* 等宽 + 字距：32 位十六进制要能一眼对齐着抄 */
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 16px; /* 16px 以下 iOS 会自动放大页面 */
+  font-size: var(--m-font-title); /* 16px 以下 iOS 会自动放大页面 */
   letter-spacing: 0.06em;
 }
 
@@ -738,15 +798,15 @@
 
 .own-pair-confirm {
   margin: 0 0 8px;
-  font-size: 15px;
+  font-size: var(--m-font-body);
 }
 
 /* 6 位码是这一屏唯一要被人隔着一块屏读出来的东西，给它最大的字号。 */
 .own-pair-code {
   margin: 0 0 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 44px;
-  font-weight: 600;
+  font-size: var(--m-font-display);
+  font-weight: var(--m-weight-bold);
   letter-spacing: 0.16em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -772,7 +832,7 @@
 
 .own-grant-confirm p {
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--m-font-body);
   line-height: 1.6;
   color: var(--hud-text-muted);
 }
@@ -788,7 +848,7 @@
   border: 1px solid var(--hud-card-border);
   background: transparent;
   color: inherit;
-  font-size: 15px;
+  font-size: var(--m-font-body);
 }
 
 .own-grant-confirm-acts .own-grant-remove {
@@ -805,10 +865,10 @@
  * 与顶栏、地图钉、状态栏不是一家。深色主题不动。
  * ============================================================ */
 .own-page--light {
-  --o-bg: #eaf2fa;
-  --o-card: #ffffff;
-  --o-sub: #f7fafd;
-  --o-edge: rgba(163, 200, 232, 0.55);
+  --o-bg: var(--m-page-bg);
+  --o-card: var(--m-card-bg);
+  --o-sub: var(--m-inset-bg);
+  --o-edge: var(--hud-card-border);
   --o-text: #1f3d63;   /* text/primary */
   --o-dim: #6c8bb0;    /* text/secondary */
   --o-blue: #3d8fd6;   /* blue/500 */
@@ -817,15 +877,15 @@
   --o-danger: #c0392b;
 }
 .own-page--light .own-card {
-  border-radius: 24px;
-  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+  border-radius: var(--m-radius-card);
+  box-shadow: var(--m-card-shadow);
 }
-.own-page--light .own-title { font-size: 26px; font-weight: 800; }
+.own-page--light .own-title { font-size: var(--m-font-title); font-weight: var(--m-weight-bold); }
 /* 主行动与主数值走琥珀；一屏只有一个实心橙。 */
 .own-page--light .own-cta {
   background: linear-gradient(180deg, #ffa51f, #ff8a00);
   border: none;
   color: #fff;
-  font-weight: 800;
+  font-weight: var(--m-weight-bold);
   box-shadow: 0 8px 20px rgba(255, 190, 90, 0.45);
 }

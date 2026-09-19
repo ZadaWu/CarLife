@@ -42,7 +42,7 @@ const REPORT: AuditReport = {
 
 describe("[F-58-01][F-62-01][AC-58-2][AC-58-3][AC-58-7] 分级表", () => {
   it("每个体检项都有等级，且没有正餐 / 能源项", () => {
-    const items: AuditItem[] = ["hotel", "return", "leg", "daily", "stop", "order", "constraint"];
+    const items: AuditItem[] = ["hotel", "return", "leg", "daily", "stop", "days", "order", "constraint"];
     for (const it of items) assert.ok(AUDIT_LEVEL_OF[it] === "blocker" || AUDIT_LEVEL_OF[it] === "warning");
     assert.equal(Object.keys(AUDIT_LEVEL_OF).length, items.length);
     assert.ok(!("meal" in AUDIT_LEVEL_OF));

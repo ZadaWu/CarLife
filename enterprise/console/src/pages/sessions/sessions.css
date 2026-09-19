@@ -120,6 +120,32 @@
 .ss-trace-btn:hover { border-color: var(--accent); color: var(--accent); }
 .ss-trace-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 
+/* ── 上下文抽屉（cx- 前缀）。形态同轨迹抽屉，只多几种"状态"的着色 */
+.cx-overview {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 0 0 6px;
+}
+.cx-overview > div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--panel); }
+.cx-overview dt, .cx-task-meta dt { font-size: 11px; color: var(--fg-dim); margin-bottom: 2px; }
+.cx-overview dd, .cx-task-meta dd { margin: 0; font-size: 13px; line-height: 1.5; word-break: break-all; }
+.cx-sections th { text-align: left; white-space: nowrap; font-weight: 500; width: 96px; }
+.cx-sections td:nth-child(2) { white-space: nowrap; width: 56px; }
+.cx-section-text { white-space: pre-wrap; font-size: 12px; line-height: 1.6; }
+.cx-state { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.cx-section--present .cx-state { border-color: var(--ok); color: var(--ok); }
+.cx-section--absent .cx-state { color: var(--fg-dim); }
+.cx-section--unavailable .cx-state { border-color: var(--warn); color: var(--warn); }
+.cx-section--unavailable .cx-section-text { color: var(--warn); }
+.cx-task { border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--panel); }
+.cx-task--updated, .cx-task--opened { border-left-color: var(--accent); }
+.cx-task--closed { border-left-color: var(--fg-dim); opacity: 0.8; }
+.cx-task-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px; margin: 8px 0 0; }
+.cx-draft { margin-top: 8px; }
+.cx-draft summary { cursor: pointer; font-size: 12px; color: var(--fg-dim); }
+.cx-draft .trace-payload--wrap { max-height: 360px; overflow: auto; margin-top: 4px; }
+.cx-facts { list-style: none; margin: 0; padding: 0; }
+.cx-facts li { margin-bottom: 6px; }
+.cx-facts .trace-payload--wrap { margin-top: 4px; }
+
 .ss-bubble {
   position: relative; max-width: 860px;
   padding: 10px 14px; margin-bottom: 8px;
@@ -205,6 +231,8 @@
 .rc-plan-head h3 { margin: 0; font-size: 13px; }
 .rc-plan-status { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-dim); }
 .rc-plan-status.is-confirmed { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+/* 草案：警示色而不是绿色——它没落库，别让人一眼读成"已定" */
+.rc-plan-status.is-draft { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 .rc-plan-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
 .rc-plan-day { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
 .rc-plan-day-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }

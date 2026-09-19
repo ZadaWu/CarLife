@@ -6,17 +6,19 @@
  * 不提供"降级成明文存储"的路径（那等于这一层不存在）。
  *
  * 存储形态：`v1:<iv-b64>:<tag-b64>:<ciphertext-b64>`，版本前缀留给未来换算法。
+ *
+ * # 算法在 `../crypto/field-cipher`，钥匙还在这里
+ *
+ * 本模块曾与 `pii/crypto.ts` 是两份逐行同构的实现；当第三份（日历凭证）要出现时，
+ * 按 Rule of Three 把**算法**提炼了出去。提炼走的只有算法：盐与主密钥仍是本模块
+ * 独占的，与 PII 侧互不通用（理由见 `pii/crypto.ts` 文件头的"两套钥匙"一节）。
+ * `test/field-cipher-compat.test.ts` 用硬编码的历史密文守着这次提炼没有改变
+ * 任何一个字节的密文格式。
  */
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import { createFieldCipher } from "../crypto/field-cipher";
 
-const PREFIX = "v1";
 const SALT = "carlife-config-v1"; // 固定盐：主密钥本身已是高熵注入值
-const KEY_LEN = 32;
-const IV_LEN = 12;
-
-let cachedKey: Buffer | undefined;
-let cachedMaster: string | undefined;
 
 export class MasterKeyMissingError extends Error {
   constructor(reason: string) {
@@ -27,45 +29,18 @@ export class MasterKeyMissingError extends Error {
   }
 }
 
-function derive(master: string | undefined): Buffer {
-  if (!master) throw new MasterKeyMissingError("未设置");
-  if (master.length < 16) throw new MasterKeyMissingError("长度不足 16 字符");
-  if (cachedKey && cachedMaster === master) return cachedKey;
-  cachedKey = scryptSync(master, SALT, KEY_LEN);
-  cachedMaster = master;
-  return cachedKey;
-}
+const cipher = createFieldCipher({
+  prefix: "v1",
+  salt: SALT,
+  envVar: "CARLIFE_CONFIG_MASTER_KEY",
+  label: "配置",
+  // 配置侧**没有**"无前缀原样返回"那条通路（PII 才有，那是迁移期兼容读）：
+  // 配置密文全是我们自己写进去的，格式不对就是真的不对。
+  makeError: (reason) => new MasterKeyMissingError(reason),
+});
 
-export function encryptSecret(plain: string, master = process.env.CARLIFE_CONFIG_MASTER_KEY): string {
-  const key = derive(master);
-  const iv = randomBytes(IV_LEN);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return [PREFIX, iv.toString("base64"), cipher.getAuthTag().toString("base64"), enc.toString("base64")].join(
-    ":",
-  );
-}
-
-export function decryptSecret(
-  stored: string,
-  master = process.env.CARLIFE_CONFIG_MASTER_KEY,
-): string {
-  const [prefix, ivB64, tagB64, dataB64] = stored.split(":");
-  if (prefix !== PREFIX || !ivB64 || !tagB64 || !dataB64) {
-    throw new Error("配置密文格式非法（期望 v1:iv:tag:data）");
-  }
-  const decipher = createDecipheriv("aes-256-gcm", derive(master), Buffer.from(ivB64, "base64"));
-  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(dataB64, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
-}
+export const encryptSecret = cipher.encrypt;
+export const decryptSecret = cipher.decrypt;
 
 /** 启动期自检：主密钥可用且能完成一次加解密往返。 */
-export function assertMasterKeyUsable(master = process.env.CARLIFE_CONFIG_MASTER_KEY): void {
-  const probe = "carlife-master-key-probe";
-  if (decryptSecret(encryptSecret(probe, master), master) !== probe) {
-    throw new MasterKeyMissingError("加解密自检失败");
-  }
-}
+export const assertMasterKeyUsable = cipher.assertUsable;

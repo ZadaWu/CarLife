@@ -1,0 +1,222 @@
+/*
+ * 拍照问诊（施工单 M104-03 拍照页；M104-04 引导卡 / 报告页 / 追问）。
+ * 字号只从 --m-font-* 取；一屏一枚实心橙；红只给「高风险」的判定（报告页）。
+ */
+
+/* ── 拍照页：全屏层，无底导 ─────────────────────────────── */
+.cap {
+  position: absolute;
+  inset: 0;
+  z-index: 70; /* 高于底导(60)、低于 HITL(100) */
+  display: flex;
+  flex-direction: column;
+  background: var(--m-page-bg);
+  color: var(--hud-text);
+  font-family: var(--font-ui);
+}
+.cap-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 6px;
+}
+.cap-head__close {
+  justify-self: start;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.cap-head__close svg { width: 22px; height: 22px; fill: none; stroke: var(--hud-text); stroke-width: 2; stroke-linecap: round; }
+.cap-head__title { margin: 0; font-size: var(--m-font-title); line-height: var(--m-lh-title); font-weight: var(--m-weight-bold); }
+.cap-head__spacer { justify-self: end; }
+
+.cap-parts {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px 12px;
+}
+.cap-part {
+  flex: 1 1 0;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 999px;
+  background: var(--m-card-bg);
+  font-family: inherit;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cap-part.is-active { background: var(--m-amber-tint); border-color: var(--hud-amber); }
+
+/*
+ * 取景区：深色圆角块 = 提示语 + 示意图，**高度跟着内容走**（不是 flex:1 撑满）。
+ * 撑满的话块比图高一大截，图缩在中间、上下空两条深色，看着像没加载完；定稿里这块也是紧凑的。
+ * 它是示意不是实时画面。
+ */
+.cap-view {
+  position: relative;
+  flex: 0 0 auto;
+  /* 上下 auto：块在「部位芯片行」与「快门」之间垂直居中，留白分到两头而不是全堆在下面。 */
+  margin: auto 12px;
+  padding: 18px 16px;
+  border-radius: var(--m-radius-card);
+  background: #1a2a40;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cap-view__hint {
+  margin: 0;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+  font-weight: var(--m-weight-medium);
+  color: #fff;
+  text-align: center;
+}
+/*
+ * 虚线框 = 示意图的边界（`aspect-ratio` 跟着素材走），不是把整块撑满：
+ * 撑满的话框比图高一截，框内上下空两条，看起来像图没加载完。框外的深色是"取景区之外"，
+ * 与相机取景框同一个意思。
+ */
+.cap-view__frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 994 / 976;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  overflow: hidden;
+  display: grid;
+  place-items: stretch;
+}
+/*
+ * 示意图放进虚线框内。框的比例就是素材的比例（见上），所以 cover 不会裁掉任何东西——
+ * 仪表盘那张左边的行程数与右边的能耗表都要在，"该拍进来多少"正是它要示范的。
+ */
+.cap-view__art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.cap-view__status {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--m-card-bg);
+  color: var(--hud-text);
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+}
+.cap-view__status.is-failed b { font-weight: var(--m-weight-bold); }
+.cap-view__status.is-failed span { color: var(--hud-text-muted); font-size: var(--m-font-caption); line-height: var(--m-lh-caption); }
+.cap-view__actions { display: inline-flex; gap: 8px; margin-left: auto; }
+.cap-view__actions button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--hud-amber);
+  border-radius: 999px;
+  background: var(--m-card-bg);
+  font-family: inherit;
+  font-size: var(--m-font-body);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+  cursor: pointer;
+}
+.cap-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--hud-amber); animation: cap-pulse 1.2s ease-in-out infinite; }
+@keyframes cap-pulse { 50% { opacity: 0.3; } }
+
+.cap-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 18px 12px 6px;
+}
+/* 「从相册选」：与快门并排的次要入口——白底描边，不跟快门抢那一枚实心橙。 */
+.cap-gallery {
+  justify-self: start;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+  min-height: 56px;
+  padding: 6px 10px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 18px;
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+  font-family: inherit;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cap-gallery svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--hud-pin);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cap-gallery:disabled { opacity: 0.45; cursor: default; }
+/* 快门：白环 + 橙芯，这一屏唯一的实心橙。 */
+.cap-shutter {
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 4px solid var(--m-card-bg);
+  border-radius: 50%;
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.cap-shutter__core {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--hud-amber-cta);
+  box-shadow: var(--hud-amber-glow);
+}
+.cap-shutter:disabled { opacity: 0.45; cursor: default; }
+/*
+ * 禁用时**真的变灰**，不只是把橙色调淡。
+ * 快门芯是这一屏唯一的实心橙，45% 的橙仍然是橙——看着像「点不准」而不是「点不了」，
+ * 而未训练模型的部位（`CAPTURE_PARTS.ready === false`）需要的恰恰是后者。
+ */
+.cap-shutter:disabled .cap-shutter__core {
+  background: var(--hud-text-muted);
+  box-shadow: none;
+}
+.cap-gallery:disabled svg { stroke: var(--hud-text-muted); }
+.cap-caption {
+  margin: 4px 16px calc(14px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+}
+/* 「功能开发中」：同一行小字，但它是一句结论不是一句提示，所以加粗一档。 */
+.cap-caption--wip { font-weight: var(--m-weight-medium); }

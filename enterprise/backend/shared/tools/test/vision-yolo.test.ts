@@ -1,5 +1,5 @@
 /**
- * [F-20-03][AC-20-1] 端侧检测器当第一遍（施工单 M80-07）：像素框 → 0–1000 归一化、类别名不带出去、
+ * [F-20-03][AC-20-1] 端侧检测器当第一遍（施工单 M80-07）：像素框 → 0–1000 归一化、类别名只作 symbolHint 带出去（M80-15）、
  * frame 留空、服务出错抛 VisionProviderError；它不做描述与核验；env 选档只允许它当检测那一遍。
  * fetch 用桩——训练服务不在单测里起。
  */
@@ -52,18 +52,25 @@ describe("[F-20-03][AC-20-1] yolo 检测 provider", () => {
     assert.ok(ff.calls[0].url.endsWith("&imgsz=960"), ff.calls[0].url);
   });
 
-  it("像素框 → 0–1000 归一化整数框；**类别名不带出去**，一律 warning_light；frame 留空", async () => {
+  it("像素框 → 0–1000 归一化整数框；类别一律 warning_light，**类别名只作 symbolHint**（M80-15）；frame 留空", async () => {
     const ff = fakeFetch({ body: PREDICT_TESLA });
     const r = await createYoloDetectProvider({ baseURL: "http://t", model: "m", fetch: ff.fetch }).detect(PNG);
     assert.equal(r.frame.item_count, 2);
     assert.deepEqual(r.frame.cut_off_sides, [], "yolo 不知道有没有裁到边");
     assert.deepEqual(r.items[0].bbox, [558, 366, 596, 395]);
     assert.deepEqual(r.items[1].bbox, [566, 439, 598, 486]);
-    for (const it of r.items) {
+    for (const [i, it] of r.items.entries()) {
       assert.equal(it.category, "warning_light");
-      assert.ok(!("name" in it) && it.literal === undefined && it.shape === undefined, "检测器的名字与任何描述子字段都不进结果");
+      assert.ok(!("name" in it) && it.literal === undefined && it.shape === undefined, "检测器的名字不占描述子字段");
+      assert.equal(it.symbolHint, PREDICT_TESLA.detections[i].name);
     }
     assert.equal(r.items[0].confidence, 0.2774);
+  });
+
+  it("缺省 conf 0.3（ACR-045：G 版权重 0.3 认对不变、多报更少）", async () => {
+    const ff = fakeFetch({ body: PREDICT_TESLA });
+    await createYoloDetectProvider({ baseURL: "http://t", model: "m", fetch: ff.fetch }).detect(PNG);
+    assert.match(ff.calls[0].url, /conf=0\.3&/);
   });
 
   it("归一化：贴边裁剪、退化框丢弃、零尺寸图返回 null", () => {

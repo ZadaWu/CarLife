@@ -27,6 +27,48 @@ export interface InsurancePolicy {
   validTo: string;
   coverages: Array<{ type: string; limit: number; deductible: number }>;
   status: string;
+  /** 业务主键三段（M96-02，设计定稿 D15）：旧种子可缺省。 */
+  vehicle?: { brand: string; model: string; modelYear: number };
+  plan?: { insurer: string; channel: string; spu: string; sku: string };
+  contractYear?: number;
+  annualPremium?: number;
+  claimsThisPolicyYear?: number;
+  /**
+   * 保单载明的增值服务（ACR-043）：救援 / 代驾 / 洗车 / 代年检 / 充电额度…
+   *
+   * **工具层原样透传，一个数都不算**——"还剩几次"这件事只有一个地方有资格回答，
+   * 就是保单本身。这里的类型是假系统那份的复刻：`mocks/*` 与业务包零依赖（check:arch 守），
+   * 不能 import 过来；两边形状改了要同步，判据写在 mocks/insurance/src/index.ts 的注释里。
+   */
+  valueAddedServices?: Array<{
+    code: string;
+    name: string;
+    quotaKind: "count" | "amount" | "unlimited";
+    total?: number;
+    used?: number;
+    unit?: string;
+    periodKind: "policy_year";
+    conditions: string[];
+  }>;
+}
+
+/** POST /premium/forecast 的响应（M96-02）：再报一次案，次年保费变成多少。 */
+export interface PremiumForecast {
+  policyId: string;
+  claimsThisPolicyYear: number;
+  claimsAfterThis: number;
+  currentPremium: number;
+  /** 报了这一次案的次年保费。 */
+  nextYearPremium: number;
+  /** 不报这一次案的次年保费——增量与它比，不与今年比。 */
+  nextYearIfNoClaim: number;
+  /** nextYearPremium − nextYearIfNoClaim：报这一次案多交多少。 */
+  delta: number;
+  commercialFactor: number;
+  compulsoryFactor: number;
+  renewalRisk: boolean;
+  ruleNote: string;
+  disclaimer: string;
 }
 
 export interface PrecheckBreakdownRow {
@@ -55,6 +97,8 @@ export interface InsuranceBackend {
     vin: string;
     quote: { items: Array<{ name: string; partsFee: number; laborFee: number }>; total: number };
   }): Promise<PrecheckResult>;
+  /** 再报一次案的次年保费预测（M96-02）。脱保 / 未投保由后端 400，这里原样抛 ToolError。 */
+  forecast(a: { vin: string; injury?: boolean }): Promise<PremiumForecast>;
 }
 
 let backend: InsuranceBackend | undefined;
@@ -114,7 +158,27 @@ export function createHttpInsuranceBackend(baseUrl: string): InsuranceBackend {
         body: JSON.stringify(a),
       })) as PrecheckResult;
     },
+    async forecast(a) {
+      return (await call("claim_advisor", "/premium/forecast", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(a),
+      })) as PremiumForecast;
+    },
   };
+}
+
+/**
+ * 取这辆车**进行中**的维修报价单；没有维修系统或没有报价单都返回 undefined。
+ *
+ * 抽出来是给 claim_advisor 复用（M96-02）：取单只能有一份实现，
+ * 否则"金额不经模型的手"这条纪律会在两处各漂一次。
+ */
+export async function fetchInProgressQuote(vin: string): Promise<RepairQuote | undefined> {
+  const repair = getRepairBackend();
+  if (!repair) return undefined;
+  const { quotes } = await repair.quotes({ vin, status: "in_progress" });
+  return quotes[0];
 }
 
 // ── 两个只读工具 ──────────────────────────────────────────────
@@ -159,8 +223,7 @@ export const insurancePrecheckTool: ExternalTool<InsurancePrecheckArgs, Insuranc
       const vin = args.vin?.trim();
       if (!vin) throw new ToolError("insurance_precheck", "invalid", "必须指定 VIN", false);
 
-      const repair = getRepairBackend();
-      if (!repair) {
+      if (!getRepairBackend()) {
         throw new ToolError(
           "insurance_precheck",
           "unconfigured",
@@ -168,8 +231,8 @@ export const insurancePrecheckTool: ExternalTool<InsurancePrecheckArgs, Insuranc
           false,
         );
       }
-      const { quotes } = await repair.quotes({ vin, status: "in_progress" });
-      if (quotes.length === 0) {
+      const quote = await fetchInProgressQuote(vin);
+      if (!quote) {
         throw new ToolError(
           "insurance_precheck",
           "invalid",
@@ -177,7 +240,6 @@ export const insurancePrecheckTool: ExternalTool<InsurancePrecheckArgs, Insuranc
           false,
         );
       }
-      const quote = quotes[0];
       const result = await need("insurance_precheck").precheck({
         vin,
         quote: { items: quote.items, total: quote.total },

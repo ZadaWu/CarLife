@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import { AUTO_DECLARE_OWNER } from "./boardingPolicy";
+import { declareSession, probeBoardingOnce } from "./declareSession";
 import { qrSvg } from "./qr";
 import "./boarding.css";
 
@@ -104,7 +105,7 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
    * 相位落到 `skip` → 组件返回 `null` → **三个身份连同整道门一起无声消失**。
    * 用户看到的是"这个功能没了"，而真实原因在网络设置里。
    */
-  const probe = useCallback(async () => {
+  const probeOnce = useCallback(async () => {
     let role: string;
     try {
       role = await invoke<string>("device_role");
@@ -147,10 +148,7 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
     ) as { declared: boolean; activeUserId?: string | null };
     if (saved.declared) {
       try {
-        const raw = await invoke<string>("create_session_as", {
-          activeUserId: saved.activeUserId ?? null,
-        });
-        onDeclared(JSON.parse(raw) as { sessionId: string; guest: boolean });
+        onDeclared(await declareSession(saved.activeUserId ?? null));
         setPhase({ kind: "skip" });
         return;
       } catch {
@@ -185,6 +183,17 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
     }
   }, [loadMembers, onDeclared]);
 
+  /**
+   * 对外的探测：**整段走在飞闸上**（见 `declareSession.ts` 的文件头）。
+   *
+   * 闸挡在进入处而不是挡在里面那句 `create_session_as` 上——StrictMode 的两次运行
+   * 走的是同一串 await，挡在里面是场会输的赛跑。cleanup 取消不了已经在飞的探测，
+   * 所以也不能指望它。
+   *
+   * 「重试」按钮照常可用：闸 settle 之后就释放，不是缓存。
+   */
+  const probe = useCallback(() => probeBoardingOnce(probeOnce), [probeOnce]);
+
   useEffect(() => {
     // 版式截图入口下不探活：探活拿不到车辆凭证会把相位顶回 skip，整块就不渲染了。
     if (isBoardingDemo()) return;
@@ -216,8 +225,9 @@ export function BoardingGate({ onDeclared }: BoardingGateProps) {
       setBusy(true);
       setError(null);
       try {
-        const raw = await invoke<string>("create_session_as", { activeUserId: userId });
-        onDeclared(JSON.parse(raw) as { sessionId: string; guest: boolean });
+        // 闸在 declareSession 里（模块级，按声明的人分键）——`busy` 挡不住 StrictMode：
+        // 两次调用背靠背在同一个 commit 里，第二次读到的还是 setBusy 之前的那份。
+        onDeclared(await declareSession(userId));
       } catch (err) {
         setError(`无法开始：${String(err)}`);
       } finally {

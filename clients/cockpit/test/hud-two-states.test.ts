@@ -42,8 +42,13 @@ describe("App：选中不回落、× 清除", () => {
     assert.ok(!/DEMO_TRIP_ENTRIES\[0\]!\.planId/.test(APP), "演示态不再默认高亮首程");
   });
 
+  // 正则放开成"这个回调体里两件事都在"（M83-02 在中间插了收起菜单一行）——
+  // 它原本要守的是「× 既清端上选中、也告诉数据源」，不是这两行紧挨着。
   it("× → setSelectedPlanId(null) 且 source.select(null)", () => {
-    assert.match(APP, /onClearTripSelection = useCallback\(\(\) => \{\s*setSelectedPlanId\(null\);\s*if \("select" in source\) \(source as GatewayHudSource\)\.select\(null\);/);
+    const body = /onClearTripSelection = useCallback\(\(\) => \{([\s\S]*?)\}, \[source\]\);/.exec(APP)?.[1];
+    assert.ok(body, "找不到 onClearTripSelection 的回调体");
+    assert.match(body, /setSelectedPlanId\(null\);/);
+    assert.match(body, /if \("select" in source\) \(source as GatewayHudSource\)\.select\(null\);/);
     assert.match(APP, /onClearSelection: onClearTripSelection/);
   });
 });

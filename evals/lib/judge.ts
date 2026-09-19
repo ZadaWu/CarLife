@@ -56,7 +56,7 @@ export async function judgeRefusal(
 ): Promise<JudgeVerdict | null> {
   const apiKey = opts.apiKey ?? process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
-  const model = opts.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
+  const model = opts.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-flash";
   const url = `${opts.baseUrl ?? "https://api.deepseek.com"}/chat/completions`;
   const body = JSON.stringify({
     model,

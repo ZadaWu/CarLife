@@ -1,0 +1,30 @@
+{
+  "name": "@carlife/research",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "comment:exports": "桶文件 src/index.ts 会把 fingerprint.ts 一起拉进来，而它 import node:crypto——浏览器侧打包直接失败（M85-03 实测：Rollup 报 createHash is not exported by __vite-browser-external）。所以给控制台要用的那两个纯函数各开一个子路径入口，浏览器侧只引子路径、不引桶。服务端照常引包名。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent-note": "./src/agent-note.ts",
+    "./capabilities": "./src/capabilities.ts",
+    "./red-team": "./src/red-team.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@carlife/shared": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

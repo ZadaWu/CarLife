@@ -53,7 +53,11 @@ import {
 import {
   classifyWeatherKind,
   createAmapClient,
+  createRedisAmapLedger,
+  amapBudgetFromEnv,
+  resolveAmapKeys,
   createCmaClient,
+  type AmapUsageLedger,
   mapRouteTool,
   reduceSegments,
   setAmapClient,
@@ -238,6 +242,27 @@ function toolCtx(): ToolCallContext {
   };
 }
 
+/**
+ * 高德用量台账（M100-02）：进程内只造一份，连接复用；`createReviewDeps` 每次运行都会被调，
+ * 每次都新建连接就是每次运行漏一个 Redis 连接。没有 `REDIS_URL` 时退回进程内并只提示一次。
+ */
+let amapLedger: AmapUsageLedger | undefined | null = null;
+function amapLedgerOnce(): AmapUsageLedger | undefined {
+  if (amapLedger !== null) return amapLedger;
+  const redisUrl = process.env.REDIS_URL?.trim();
+  if (!redisUrl) {
+    console.warn("[amap] 台账仅进程内（REDIS_URL 未配置）——与 agent-runtime 各记各的，退役不跨进程");
+    amapLedger = undefined;
+    return amapLedger;
+  }
+  const ledger = createRedisAmapLedger(redisUrl);
+  void ledger.ready().then((mode) => {
+    if (mode === "memory") console.warn("[amap] 台账仅进程内（REDIS_URL 连不上）——与 agent-runtime 各记各的，退役不跨进程");
+  });
+  amapLedger = ledger;
+  return amapLedger;
+}
+
 export function createReviewDeps(): ReviewDeps {
   const prisma = getPrisma();
   const plans = createTripPlanRepository(prisma);
@@ -245,8 +270,16 @@ export function createReviewDeps(): ReviewDeps {
   const owners = createOwnerProfileRepository(prisma);
 
   // 装配与 agent-runtime 同源（`index.ts` 那两行）：无 key 时天气走 Open-Meteo，算路缺省。
-  const amapKey = process.env.AMAP_SERVER_KEY?.trim();
-  setAmapClient(amapKey ? createAmapClient({ key: amapKey }) : undefined);
+  const amapKeys = resolveAmapKeys((k) => process.env[k]);
+  setAmapClient(
+    amapKeys.length > 0
+      ? createAmapClient({
+          key: amapKeys.map((k) => k.key),
+          budget: amapBudgetFromEnv(process.env.AMAP_DAILY_BUDGET),
+          ledger: amapLedgerOnce(),
+        })
+      : undefined,
+  );
   const cmaOn = (process.env.CARLIFE_WEATHER_CMA ?? "on").trim() !== "off";
   setCmaClient(cmaOn ? createCmaClient() : undefined);
 
@@ -259,7 +292,7 @@ export function createReviewDeps(): ReviewDeps {
     },
     weather: async (points, date) => (await weatherTool.call({ points: [...points], date }, toolCtx())).data,
     route: async (origin, destination) => {
-      if (!amapKey && toolCtx().mode === "real") return undefined;
+      if (amapKeys.length === 0 && toolCtx().mode === "real") return undefined;
       try {
         const r = await mapRouteTool.call(
           { origin: { lat: origin.lat, lon: origin.lon, name: origin.name }, destination: { lat: destination.lat, lon: destination.lon, name: destination.name } },

@@ -35,12 +35,29 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9_\-]{1,80}$")
 
 class TrainParams(BaseModel):
     dataset: str = Field(min_length=1, max_length=80)
+    #: yolo11n/s/m.pt、架构 yaml（yolov8s-p2.yaml 等，见 actions.train.ARCH_BASES）、或既有任务 id（继续训）
     base: str = Field(default="yolo11n.pt", max_length=80)
     epochs: int = Field(default=30, ge=1, le=300)
     patience: int = Field(default=10, ge=1, le=100)
     imgsz: Literal[320, 480, 640, 960] = 640
     batch: int = Field(default=16, ge=1, le=64)
     name: str | None = Field(default=None, max_length=60)
+    # ── 几何与色彩增强（M80-12）───────────────────────────────
+    # 2026-09-15 实测的动因：合成器那四道随机化全是**画质退化**（亮度、模糊、噪点、JPEG），
+    # 而 ultralytics 默认把 degrees / perspective / shear 三项全设成 0。
+    # 于是模型从没见过一张歪的、带透视的图——而车主的照片恰恰是手机斜着拍、还可能横过来拍的。
+    # 不传就是 ultralytics 缺省，行为与此前逐字节一致。
+    degrees: float | None = Field(default=None, ge=0.0, le=180.0)
+    perspective: float | None = Field(default=None, ge=0.0, le=0.001)
+    shear: float | None = Field(default=None, ge=0.0, le=45.0)
+    translate: float | None = Field(default=None, ge=0.0, le=0.9)
+    scale: float | None = Field(default=None, ge=0.0, le=0.9)
+    # ⚠️ 缺省 0.5 会把一半训练图左右翻转，而**指示灯不是左右对称的**——
+    # 近光灯的光线朝一个方向，翻过来就不是手册里那个符号了。要关就显式传 0。
+    fliplr: float | None = Field(default=None, ge=0.0, le=1.0)
+    flipud: float | None = Field(default=None, ge=0.0, le=1.0)
+    hsv_v: float | None = Field(default=None, ge=0.0, le=0.9)
+    hsv_s: float | None = Field(default=None, ge=0.0, le=0.9)
 
 
 class ValParams(BaseModel):
@@ -51,6 +68,9 @@ class ValParams(BaseModel):
 class ExportParams(BaseModel):
     model: str = Field(min_length=1, max_length=80)
     format: Literal["onnx"] = "onnx"
+    # 端上推理（ACR-044，tract）要的两个参数：推理边长 = 训练尺寸 960（M80-08 的结论），opset 17 是 tract 稳定覆盖的上限
+    imgsz: int = Field(default=960, ge=320, le=1920)
+    opset: int = Field(default=17, ge=11, le=18)
 
 
 class JobCreate(BaseModel):
@@ -130,7 +150,9 @@ def create_app(paths: Paths | None = None, store: JobStore | None = None, infer:
             p = TrainParams(**body.params)
             if not paths.dataset_yaml(p.dataset).exists():
                 raise HTTPException(404, detail={"error": "dataset_not_found"})
-            if p.base not in ("yolo11n.pt", "yolo11s.pt", "yolo11m.pt") and not catalog.model_weights(paths, ensure_id(p.base)):
+            from .actions.train import ARCH_BASES, BUILTIN_BASES
+
+            if p.base not in BUILTIN_BASES and p.base not in ARCH_BASES and not catalog.model_weights(paths, ensure_id(p.base)):
                 raise HTTPException(404, detail={"error": "base_model_not_found"})
             params = p.model_dump()
         elif body.kind == "val":

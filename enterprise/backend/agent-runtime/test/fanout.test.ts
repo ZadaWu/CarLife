@@ -10,7 +10,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { hasParallelOverlap, overlaps, runFanout, type BranchResult } from "../src/graph/fanout";
-import { extractConstraints, mergeBranches, solve, type TripDraft } from "../src/graph/merge";
+import { mergeBranches, solve, PENDING_STOP, type TripDraft } from "../src/graph/merge";
+import { driveText, leg, legsFrom } from "./helpers/drive-legs";
+import { parseTripLimits } from "../src/graph/intent";
 import { runTripFanout } from "../src/graph/subgraphs/trip";
 import type { ChatStreamer } from "../src/llm";
 
@@ -105,56 +107,66 @@ describe("并行 fan-out", () => {
   });
 });
 
-describe("约束抽取", () => {
-  it("从中文抽出单段时长上限（小时）", () => {
-    const c = extractConstraints(["同行有老人，单段行车不超过2小时"]);
-    assert.equal(c.maxLegMinutes, 120);
+describe("[ADR-012] 数量上限由意图理解给，不从约束文本里解析", () => {
+  it("模型按小时说，归一成分钟", () => {
+    assert.equal(parseTripLimits({ maxLegHours: 2 })?.maxLegMinutes, 120);
+    assert.equal(parseTripLimits({ maxLegHours: 1.5 })?.maxLegMinutes, 90);
+    assert.equal(parseTripLimits({ maxLegHours: "2" })?.maxLegMinutes, 120, "字符串数字也收");
   });
 
-  it("多条约束取最严的那条", () => {
-    const c = extractConstraints(["单段不超过3小时", "带孩子，单段最多90分钟"]);
-    assert.equal(c.maxLegMinutes, 90);
+  it("没给就是没给——不臆造一个上限", () => {
+    assert.equal(parseTripLimits(undefined), undefined);
+    assert.equal(parseTripLimits({}), undefined);
+    assert.equal(parseTripLimits({ maxLegHours: "两小时" }), undefined, "非数字当没给");
   });
 
-  it("抽不到就是抽不到——不臆造一个上限", () => {
-    const c = extractConstraints(["喜欢安静的休息点"]);
-    assert.equal(c.maxLegMinutes, undefined);
+  it("越界的那一项当没给：拿错的上限去拆段比没有上限更糟", () => {
+    assert.equal(parseTripLimits({ maxLegHours: 0 }), undefined);
+    assert.equal(parseTripLimits({ maxLegHours: 99 }), undefined);
+    assert.equal(parseTripLimits({ days: 0 }), undefined);
+    assert.equal(parseTripLimits({ days: 31 }), undefined);
+    assert.equal(parseTripLimits({ minRangeMarginPct: 0 }), undefined);
+    assert.equal(parseTripLimits({ minRangeMarginPct: 101 }), undefined);
+  });
+
+  it("一项合法一项不合法：只丢不合法的那一项", () => {
+    assert.deepEqual(parseTripLimits({ days: 3, maxLegHours: 99 }), { days: 3 });
   });
 });
 
 describe("结构化汇聚（不是文本拼接 —— F-13-02 / F-18-07）", () => {
   it("**超限分段被真的拆开**，不是在文案里提一句「建议休息」", () => {
-    const draft: TripDraft = { legMinutes: [300], stops: [] };
+    const draft: TripDraft = { legs: legsFrom([300]) };
     const r = solve(draft, { maxLegMinutes: 120 });
-    assert.ok(r.draft.legMinutes.length > 1, "300 分钟必须被拆分");
+    assert.ok(r.draft.legs.length > 1, "300 分钟必须被拆分");
     assert.ok(
-      r.draft.legMinutes.every((m) => m <= 120),
-      `每段都应 ≤120，实际 ${JSON.stringify(r.draft.legMinutes)}`,
+      r.draft.legs.every((l) => l.minutes <= 120),
+      `每段都应 ≤120，实际 ${JSON.stringify(r.draft.legs.map((l) => l.minutes))}`,
     );
-    const total = r.draft.legMinutes.reduce((a, b) => a + b, 0);
+    const total = r.draft.legs.reduce((a, l) => a + l.minutes, 0);
     assert.ok(Math.abs(total - 300) < 0.01, "拆分不改变总时长");
   });
 
-  it("拆分后每个新间隔都补了停靠点", () => {
-    const r = solve({ legMinutes: [300], stops: [] }, { maxLegMinutes: 120 });
-    assert.equal(r.draft.stops.length, r.draft.legMinutes.length - 1);
+  it("拆分后每个新间隔都补了占位终点", () => {
+    const r = solve({ legs: legsFrom([300]) }, { maxLegMinutes: 120 });
+    assert.equal(r.draft.legs.filter((l) => l.to.name === PENDING_STOP).length, r.draft.legs.length - 1);
   });
 
   it("续航余量不足时**显式呈现矛盾**，不隐藏（F-13-05）", () => {
-    const r = solve({ legMinutes: [60], stops: [], rangeMarginPct: 5 }, { minRangeMarginPct: 20 });
+    const r = solve({ legs: legsFrom([60]), rangeMarginPct: 5 }, { minRangeMarginPct: 20 });
     assert.equal(r.satisfied, false);
     assert.equal(r.violations.length, 1);
     assert.match(r.violations[0], /5%.*20%/);
   });
 
   it("续航未知时说「未知」，不当作满足", () => {
-    const r = solve({ legMinutes: [60], stops: [] }, { minRangeMarginPct: 20 });
+    const r = solve({ legs: legsFrom([60]) }, { minRangeMarginPct: 20 });
     assert.equal(r.satisfied, false);
     assert.match(r.violations[0], /未知/);
   });
 
   it("约束全满足时 satisfied 为 true 且无 violations", () => {
-    const r = solve({ legMinutes: [90, 100], stops: ["服务区"], rangeMarginPct: 30 }, { maxLegMinutes: 120, minRangeMarginPct: 20 });
+    const r = solve({ legs: legsFrom([90, 100], ["服务区"]), rangeMarginPct: 30 }, { maxLegMinutes: 120, minRangeMarginPct: 20 });
     assert.equal(r.satisfied, true);
     assert.deepEqual(r.violations, []);
   });
@@ -164,24 +176,31 @@ describe("分支合并", () => {
   it("失败分支体现在 missing，不静默吞掉（F-13-04）", () => {
     const r = mergeBranches(
       [
-        { agent: "trip", status: "ok", text: '{"legMinutes":[300],"stops":[]}' },
+        { agent: "trip", status: "ok", text: driveText(legsFrom([300])) },
         { agent: "ownership", status: "timeout", text: "" },
       ],
-      ["单段不超过2小时"],
+      { maxLegMinutes: 120 },
     );
     assert.ok(r.missing.some((m) => m.includes("ownership")), `missing 应含失败分支：${JSON.stringify(r.missing)}`);
     assert.equal(r.satisfied, false, "有缺失时不能声称满足");
     // 但已有分支的约束求解照常进行——降级不等于不干活
-    assert.ok(r.draft.legMinutes.every((m) => m <= 120));
+    assert.ok(r.draft.legs.every((l) => l.minutes <= 120));
   });
 
   it("分支只返回自然语言时记入 missing，**不猜数字**", () => {
     const r = mergeBranches(
       [{ agent: "trip", status: "ok", text: "建议早上出发，路上注意休息。" }],
-      ["单段不超过2小时"],
+      { maxLegMinutes: 120 },
     );
     assert.ok(r.missing.some((m) => m.includes("结构化")));
-    assert.deepEqual(r.draft.legMinutes, [], "抽不到就是空，不编");
+    assert.deepEqual(r.draft.legs, [], "抽不到就是空，不编");
+  });
+
+  it("正文里的段列表过不了逐段校验就当没交——不猜半份", () => {
+    const bad = [leg(1, "outbound", "上海", "A", 60), leg(1, "outbound", "B", "徐州", 60, "overnight")]; // 接续断裂
+    const r = mergeBranches([{ agent: "trip", status: "ok", text: driveText(bad) }], {});
+    assert.deepEqual(r.draft.legs, []);
+    assert.ok(r.missing.some((m) => m.includes("结构化")));
   });
 });
 
@@ -361,7 +380,7 @@ describe("补能评估按能源类型分叉（F-23-09 追随排查）", () => {
     const p = ownershipPrompt(prompts);
     assert.match(p, /燃油车/);
     assert.match(p, /不要给续航余量百分比/);
-    assert.ok(!p.includes('"rangeMarginPct"'), "schema 提示里也不能留这个字段——留着模型会照填");
+    assert.ok(!p.includes("rangeMarginPct"), "schema 提示里也不能留这个字段——留着模型会照填");
   });
 
   it("电车照常问续航余量，且 schema 里有那个字段", async () => {
@@ -369,7 +388,7 @@ describe("补能评估按能源类型分叉（F-23-09 追随排查）", () => {
     await runTripFanout(streamer, { goal: "去黄山", constraints: [], energyType: "bev" });
     const p = ownershipPrompt(prompts);
     assert.match(p, /续航余量百分比/);
-    assert.ok(p.includes('"rangeMarginPct"'));
+    assert.ok(p.includes("rangeMarginPct"));
   });
 
   it("**「不知道」是独立的一档**，不能归到电车或燃油任一侧", async () => {
@@ -378,7 +397,7 @@ describe("补能评估按能源类型分叉（F-23-09 追随排查）", () => {
     const p = ownershipPrompt(prompts);
     assert.match(p, /没有这辆车的能源类型/);
     assert.match(p, /不要假设/);
-    assert.ok(!p.includes('"rangeMarginPct"'));
+    assert.ok(!p.includes("rangeMarginPct"));
     // 查的是**断言式**的那句（"这是一辆燃油车"），不是"燃油车"三个字——
     // 后者在"不要假设它是电车或燃油车"这句否定里也会出现，第一版就是这么误判的。
     assert.ok(!p.includes("这是一辆燃油车"), "不知道时不能断言它是燃油车");

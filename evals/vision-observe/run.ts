@@ -171,6 +171,8 @@ async function runMatch(all: TruthCase[], selected: TruthCase[]): Promise<void> 
   const embedder = createDashScopeEmbedder({ apiKey: process.env.DASHSCOPE_API_KEY, model: process.env.CARLIFE_ICON_EMBED_MODEL || undefined });
   const rows: MatchRow[] = [];
   const negRows: NegRow[] = [];
+  /** 没有图标目录的车型：如实记进报告的「不适用」，不算失败。 */
+  const skippedNoIndex: string[] = [];
   /*
    * 手册图标图片（2026-09-09 起有了）：`data/kb-src/icons/<车型目录>/<symbol_id>.png`。
    * 在这之前这里写死 `iconImage: () => null`，于是**成对核验从来没跑过**，M-V1 恒为 0 而报告把它归因成"没有图片"。
@@ -190,7 +192,16 @@ async function runMatch(all: TruthCase[], selected: TruthCase[]): Promise<void> 
       if (c.negative) continue;
       const bytes = readFileSync(`${HERE}${c.file}`);
       const indexed = await store.countByVehicle(c.vehicle ?? "");
-      if (indexed === 0) throw new Error(`库里没有车型「${c.vehicle}」的图标索引——先 corepack pnpm kb:icons data/kb-src/icons/<车型>-indicators.md`);
+      if (indexed === 0) {
+        /*
+         * 没有这个车型的目录就跳过，不再整条 run 抛掉（M80-09）。
+         * 起因是 storex-01：老款 Model X 的图标与 Model 3 长得就不一样（充电是绿的、近光是白灰的），
+         * 它进真值集是为了量跨车型泛化，本来就不该参与图标匹配。一条这样的样本掀掉整次评测不合理。
+         */
+        process.stderr.write(`${c.id.padEnd(12)} 跳过：库里没有车型「${c.vehicle}」的图标索引\n`);
+        skippedNoIndex.push(`${c.id}（${c.vehicle}）`);
+        continue;
+      }
       for (const it of c.items) {
         if (!it.symbol_id) continue;
         const crop = await extractCrop(bytes, it.bbox, 0.5);
@@ -308,6 +319,7 @@ async function runMatch(all: TruthCase[], selected: TruthCase[]): Promise<void> 
     ],
     notApplicable: [
       ...(negRows.length ? [] : ["负样本误接受率：--neg-grid 0 或没有负样本入选"]),
+      ...(skippedNoIndex.length ? [`库里没有图标目录的车型，已跳过：${skippedNoIndex.join("、")}`] : []),
       "轮胎 / 液体：目录只有警示灯",
     ],
     uncertainty: [{ what: `样本 ${rows.length / 3} 个符号`, basis: "≥30 张后数字才作数" }],

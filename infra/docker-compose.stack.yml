@@ -29,6 +29,8 @@ services:
       context: ..
       dockerfile: infra/images/Dockerfile
       target: migrate
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     environment:
       DATABASE_URL: postgresql://carlife:carlife@postgres:5432/carlife
     depends_on:
@@ -47,6 +49,7 @@ services:
       dockerfile: infra/images/Dockerfile.mock
       args:
         SERVICE: dealer
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     # 固定容器名（同 infra/docker-compose.yml 的 carlife-postgres 一套惯例）：
     # dev 脚本按名字查健康状态（走查 2026-08-29 ③：mock 一律容器起，不再落宿主进程）。
     container_name: carlife-mock-dealer
@@ -68,6 +71,7 @@ services:
       dockerfile: infra/images/Dockerfile.mock
       args:
         SERVICE: cabin
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: carlife-mock-cabin
     environment:
       MOCK_CABIN_PORT: 8793
@@ -100,6 +104,7 @@ services:
       dockerfile: infra/images/Dockerfile.mock
       args:
         SERVICE: repair
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: carlife-mock-repair
     environment:
       MOCK_REPAIR_PORT: 8797
@@ -120,6 +125,7 @@ services:
       dockerfile: infra/images/Dockerfile.mock
       args:
         SERVICE: insurance
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: carlife-mock-insurance
     environment:
       MOCK_INSURANCE_PORT: 8798
@@ -139,6 +145,8 @@ services:
       context: ..
       dockerfile: infra/images/Dockerfile
       target: agent-runtime
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     env_file:
       - ../.env          # DEEPSEEK_API_KEY 等
     environment:
@@ -182,6 +190,8 @@ services:
       context: ..
       dockerfile: infra/images/Dockerfile
       target: gateway
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     env_file:
       - ../.env          # ARK_API_KEY（ASR）等
     environment:

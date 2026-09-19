@@ -130,10 +130,16 @@ export function carryOverHighlights(
   return withoutHighlights(next);
 }
 
-/** 补算要用到的仓储面。**只声明这两个方法**——不 import `@carlife/db`，单测给个假的即可。 */
+/**
+ * 补算要用到的仓储面。**只声明这两个方法**——不 import `@carlife/db`，单测给个假的即可。
+ *
+ * 读的那一半是 `confirmedById` 而**不是 `currentForUser`**（2026-09-18 排查）：
+ * 见下面 `once()` 里那道核对。
+ */
 export interface HighlightsPlanStore {
-  currentForUser(
+  confirmedById(
     userId: string,
+    planId: string,
   ): Promise<{ planId: string; sessionId: string; plan: TripPlanSnapshot } | null>;
   update(
     userId: string,
@@ -172,9 +178,10 @@ export interface HighlightsBackfillOptions {
  *  1. **fire-and-forget**。它要十几秒（M32-01 真跑 11.7 / 12.4 / 14.0 秒），
  *     串进确认那一跳就是"说完确认之后卡十几秒才弹窗"。失败只记一行日志——
  *     确认行程是主动作，不能被一个环境数据的副作用拖垮。
- *  2. **写回前重读**。算的这十几秒里用户完全可能又改了一次行程；
- *     拿手里这份旧快照去 `update` 会把用户刚改的东西覆盖掉。所以以库里最新那份为底，
- *     只加推荐这一栏；期间换了行程或换了目的地就**整个丢弃**这次的结果。
+ *  2. **写回前重读那一行**。算的这十几秒里用户完全可能又改了一次行程；
+ *     拿手里这份旧快照去 `update` 会把用户刚改的东西覆盖掉。所以以库里那一行的最新内容为底，
+ *     只加推荐这一栏；那一行没了 / 被取消，或目的地变了，就**整个丢弃**这次的结果。
+ *     重读按 `planId`，不按"谁是当前行程"——理由在 `once()` 里。
  *  3. **同一程只跑一个**。连着改三次行程会排三个十几秒的任务；
  *     在跑就记一个"再跑一次"，跑完补一轮，中间那几次自然合并掉。
  */
@@ -195,8 +202,19 @@ export function createHighlightsBackfill(
     // 三段全空 = 这次什么都没搜到。**不写**——写进去等于把"没有"存成了一个空对象。
     if (!hasHighlights(highlights)) return;
 
-    const cur = await store.currentForUser(t.userId);
-    if (!cur || cur.planId !== t.planId) return; // 期间换了行程 / 被取消
+    /*
+     * 写回前重读**这一行**（`confirmedById`），不是"当前行程"（2026-09-18 排查）。
+     *
+     * 原来读 `currentForUser` 再比 `planId`。但「当前行程」= 最新一条 confirmed，
+     * 而车主能从列表里载入并变更任何一程（M72-05）：改的不是最新那一程时，
+     * 重读回来的必然是另一份、`planId` 必然对不上，这次搜到的推荐于是被整份丢掉，
+     * 而 `update` 不改 `committedAt`，那一程永远排不回第一名。
+     * 沿途服务那边同一处、同一天一起修（`route-services.ts`）。
+     *
+     * 要核对的是"这一行还在不在、还是不是 confirmed"，以及目的地有没有在这十几秒里变过。
+     */
+    const cur = await store.confirmedById(t.userId, t.planId);
+    if (!cur) return; // 期间被取消 / 不属于这个人 / 没有这一行
     if (!highlightsMatchPlan(highlights, cur.plan)) return; // 期间改了目的地，这份属于旧版本
     await store.update(t.userId, cur.planId, cur.sessionId, {
       ...cur.plan,

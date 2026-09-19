@@ -1,0 +1,87 @@
+name: 部署失败
+description: 按文档装不上、编不过、起不来
+labels: ["bug", "documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        照文档走不通既可能是缺陷，也可能是文档少说了一步——两种都请报上来。
+        先看[排障](https://github.com/ZadaWu/CarLife/blob/main/docs/troubleshooting.md)，
+        那里按「安装与构建 / 启动 / 测试 / 知识库 / 内容审核 / 部署」分了节。
+
+  - type: dropdown
+    id: doc
+    attributes:
+      label: 你照的是哪份文档
+      options:
+        - 逐步部署手册（docs/step-by-step.md）
+        - 安装（docs/installation.md）
+        - 快速体验（docs/quickstart.md）
+        - 部署（docs/deployment.md）
+        - README 的快速开始
+        - 没照文档，自己摸的
+    validations:
+      required: true
+
+  - type: dropdown
+    id: step
+    attributes:
+      label: 卡在哪一步
+      description: 逐步部署手册的步骤编号；照其它文档时选最接近的一项。
+      options:
+        - 步骤 1：安装工具链
+        - 步骤 2：让 Docker 共享仓库目录
+        - 步骤 3：准备 .env
+        - 步骤 4：确认将被停掉或重启的服务
+        - 步骤 5：安装、编译、启动（dev:upgrade）
+        - 步骤 6：验证服务
+        - 步骤 7：打开三个端并登录
+        - 步骤 8：预置演示数据
+        - 跑测试或门禁（check:all）
+        - 容器化部署
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: 命令与完整输出
+      description: |
+        从你敲的那条命令开始，到报错结束，原样贴。**先确认里面没有密钥**——
+        `.env` 的内容、AccessKey、API key 都不要贴。
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      value: |
+        - 操作系统与芯片（如 macOS 15.2 / M2、Ubuntu 24.04 / x86_64）：
+        - 提交（`git rev-parse --short HEAD`）：
+        - Node（`node -v`）：
+        - corepack（`corepack --version`）：
+        - Rust（`rustc -V`）：
+        - Docker（`docker compose version`）：
+        - 磁盘剩余空间：
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已经试过什么
+      description: 包括排障文档里哪一条不管用——那本身就是要修的信息。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 用的是 `corepack pnpm` 而不是裸 `pnpm`
+          required: true
+        - label: Node 版本与 `.nvmrc` 一致
+          required: true
+        - label: 贴出的输出里不含密钥或真实个人信息
+          required: true

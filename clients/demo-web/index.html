@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CarLife · 用车智能体演示</title>
+    <!--
+      运行时配置。容器启动时由 infra/modelscope/entrypoint.sh 生成并覆盖，
+      内容来自创空间设置页的环境变量——所以演示账号口令与上游地址都不进仓库。
+      开发期这个文件不存在，404 后 src/config.ts 回落到默认值。
+    -->
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

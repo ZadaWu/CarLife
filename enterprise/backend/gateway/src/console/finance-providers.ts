@@ -19,6 +19,8 @@
 
 import { createHash, createHmac, randomUUID } from "node:crypto";
 
+import type { AmapApiFamily, AmapPoolSnapshot } from "@carlife/tools";
+
 export type FinanceStatus = "ok" | "unconfigured" | "failed";
 
 /** 余额健康度。阈值见 `finance.ts` 的 `thresholds()`，可用环境变量改。 */
@@ -100,6 +102,11 @@ export interface ProviderDeps {
   timeoutMs: number;
   /** 账期是按"现在"倒推的；注入是为了单测能钉住月份边界。 */
   now: () => Date;
+  /**
+   * 高德 key 池的用量台账快照（M100-03）。缺省 `undefined`——不给时高德那条与从前逐字相同。
+   * **读账不发请求**：池子里有几把 key、各用了多少，全部来自台账，探针仍只打第一把。
+   */
+  amapPool?: () => Promise<AmapPoolSnapshot | undefined>;
 }
 
 /** 供应商侧偶发抖动不该让整页红——但也不该被静默吞掉，所以错误原文进 `error`。 */
@@ -520,6 +527,51 @@ const AMAP_OVER_LIMIT: Record<string, string> = {
   "10014": "服务已达并发上限",
 };
 
+/**
+ * 池子快照 → 明细行。**逐把一行，只打指纹**：账上没有 key 本身，这里也不该有。
+ *
+ * 行的形状：`AMAP_SERVER_KEY_2 · 9e01…` / `place 450/450 (100%) · 退役 14:02`。
+ * 没有预算的族只报次数（`geocode 8`），不编一个占比出来。
+ */
+function amapPoolDetail(pool: AmapPoolSnapshot): FinanceDetail[] {
+  const rows: FinanceDetail[] = [{ label: "池子", value: `${pool.keys.length} 把 key（台账日 ${pool.day}）` }];
+  for (const k of pool.keys) {
+    const parts: string[] = [];
+    for (const [family, n] of Object.entries(k.usage) as Array<[AmapApiFamily, number]>) {
+      const limit = k.budget?.[family];
+      parts.push(limit ? `${family} ${n}/${limit} (${Math.round((k.ratio?.[family] ?? 0) * 100)}%)` : `${family} ${n}`);
+    }
+    if (parts.length === 0) parts.push("今日无调用");
+    parts.push(
+      k.retiredAt === undefined
+        ? "活"
+        : `退役 ${new Date(k.retiredAt + 8 * 3_600_000).toISOString().slice(11, 16)}${k.retiredInfocode ? `（${k.retiredInfocode}）` : ""}`,
+    );
+    rows.push({ label: `${k.name} · ${k.fp}`, value: parts.join(" · ") });
+  }
+  if (pool.source !== "redis") {
+    rows.push({
+      label: "台账",
+      value:
+        pool.source === "none"
+          ? "仅进程内（REDIS_URL 未配置）——上表只有本进程发的"
+          : "仅进程内（Redis 连不上）——上表只有本进程发的",
+    });
+  }
+  const obs = pool.observations[0];
+  if (obs) rows.push({ label: "最近一次复活", value: `${obs.fp} 退役 ${obs.hours.toFixed(1)} 小时后再次可用` });
+  return rows;
+}
+
+/** 有 key 退役 → warn；全退役 → danger；否则沿用探针给的级别。 */
+function amapPoolLevel(pool: AmapPoolSnapshot | undefined, fallback: FinanceLevel): FinanceLevel {
+  if (!pool || pool.keys.length === 0) return fallback;
+  const retired = pool.keys.filter((k) => k.retiredAt !== undefined).length;
+  if (retired === pool.keys.length) return "danger";
+  if (retired > 0) return "warn";
+  return fallback;
+}
+
 export async function amapQuota(deps: ProviderDeps): Promise<FinanceAccount> {
   const started = Date.now();
   const base = {
@@ -532,6 +584,10 @@ export async function amapQuota(deps: ProviderDeps): Promise<FinanceAccount> {
 
   const key = deps.env("AMAP_SERVER_KEY");
   if (!key) return unconfigured(base, "未配置 AMAP_SERVER_KEY", started);
+
+  // 台账读在探针之前，且**读不出来不影响探针**：看不到账是观测缺失，不是故障。
+  const pool = await deps.amapPool?.().catch(() => undefined);
+  const poolDetail = pool ? amapPoolDetail(pool) : [];
 
   try {
     // 高德**没有**查询余量的开放接口（官方原话：配额信息请在控制台-流量分析-配额管理查看）。
@@ -550,11 +606,12 @@ export async function amapQuota(deps: ProviderDeps): Promise<FinanceAccount> {
         // 这里恒为 false，前端据此不显示任何数字——见文件头。
         exact: false,
         durationMs: Date.now() - started,
-        level: "ok",
+        level: amapPoolLevel(pool, "ok"),
         detail: [
           { label: "服务 key 状态", value: "有效" },
           { label: "当日额度", value: "未耗尽（探针调用成功）" },
           { label: "余量查询接口", value: "官方未提供" },
+          ...poolDetail,
         ],
         note: "高德不开放余量查询，只能在控制台-流量分析-配额管理里看当日消耗；此处仅证明 key 当前可用、未触顶",
       };
@@ -570,6 +627,7 @@ export async function amapQuota(deps: ProviderDeps): Promise<FinanceAccount> {
       detail: [
         { label: "infocode", value: code || "-" },
         { label: "info", value: body.info ?? "-" },
+        ...poolDetail,
       ],
       error: overLimit ?? body.info ?? `infocode=${code}`,
       note: overLimit

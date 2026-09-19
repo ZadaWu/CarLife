@@ -6,27 +6,26 @@
 //! （§10「`clients/shared/rust/` 为 mobile 与 cockpit 复用」）。本文件只做 Tauri 侧的
 //! emit 与后台 task 管理——这部分依赖 `AppHandle`，抽不进 crate。
 //!
-//! # 与 cockpit 的关系（二）：播报与 idle 抑制（M65-04 起对齐）
+//! # 与 cockpit 的关系（二）：手机端**没有本地播报**
 //!
-//! 有正文且未静音时，本轮投影出的 `Idle` **不直出**，交给播放结束驱动——否则
-//! turn_end 那一下先把助手打回 idle，下一帧起播又变 speaking，肉眼就是一次闪烁。
-//! 判定抽成 [`speech_plan`]（纯函数，可单测）；播报核在共享 crate `carlife_tts`
-//! （清洗 / 端点缓存 / 代际 / rodio），这里只提供网关地址、设备 JWT 和状态发射器。
-//! 与车机的差别：不播垫场话（`Filler` 仍只透出事件）、无 ducking / AEC / say。
+//! F-02-12 的定调是「车机播报 / 手机静默」。M65-04 曾接过一版共享核 `carlife-tts`
+//! （开关 + 音量），2026-09-17 按产品决定撤掉：手机常在公共场合，出声是打扰，
+//! 而系统音量键又会连着音乐、通知一起动。所以本轮投影出的 `Idle` 直出，
+//! 没有"等播完再回 idle"那一段；`Filler` 仍只透出事件不播。要再接播报，
+//! 共享核还在 `clients/shared/rust/carlife-tts`，接线点是这里的 `handle_envelope`。
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use carlife_core::cache::MessageCache;
-use carlife_core::contract::{AssistantState, ChatRole};
 use carlife_core::contract::samples::sample_envelopes;
 use carlife_core::fanout::{
     apply, BridgeAction, TurnAccumulator, EVENT_ASSISTANT_STATE, EVENT_DIALOG_DELTA,
     EVENT_DIALOG_MESSAGE, EVENT_NET_CONNECTION,
 };
-use carlife_net::{SseClient, SseSignal};
+use carlife_net::{SseClient, SseSignal, UserSseSignal};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ConnectionState {
@@ -37,6 +36,11 @@ pub struct ConnectionState {
 pub struct StreamState {
     pub cache: Arc<MessageCache>,
     active_stop: Mutex<Option<Arc<AtomicBool>>>,
+    /// 账号级事件流的停止位（ACR-033）。
+    ///
+    /// **与 `active_stop` 分开**：会话流每换一次会话就被替换，而这条流与登录态同寿。
+    /// 共用一个的话，每次新建会话都会顺手把账号通道掐掉——现象是"同步时灵时不灵"。
+    user_stop: Mutex<Option<Arc<AtomicBool>>>,
     pub unknown_events: AtomicU64,
     pub cache_errors: AtomicU64,
 }
@@ -46,6 +50,7 @@ impl StreamState {
         Self {
             cache: Arc::new(cache),
             active_stop: Mutex::new(None),
+            user_stop: Mutex::new(None),
             unknown_events: AtomicU64::new(0),
             cache_errors: AtomicU64::new(0),
         }
@@ -58,6 +63,16 @@ impl StreamState {
     pub fn replace_stream(&self) -> Arc<AtomicBool> {
         let stop = Arc::new(AtomicBool::new(false));
         let mut guard = self.active_stop.lock().expect("stream state poisoned");
+        if let Some(prev) = guard.replace(Arc::clone(&stop)) {
+            prev.store(true, Ordering::Relaxed);
+        }
+        stop
+    }
+
+    /// 换一条账号级事件流，旧的置停（ACR-033）。重复调用不会留下两条。
+    pub fn replace_user_stream(&self) -> Arc<AtomicBool> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut guard = self.user_stop.lock().expect("stream state poisoned");
         if let Some(prev) = guard.replace(Arc::clone(&stop)) {
             prev.store(true, Ordering::Relaxed);
         }
@@ -118,58 +133,63 @@ pub fn handle_envelope(
         eprintln!("[mobile] message cache write failed (回源可修复): {err}");
     }
 
-    let tts = app.try_state::<Arc<carlife_tts::TtsState>>();
-    let muted = tts.as_ref().map_or(true, |t| t.is_muted());
-    let plan = speech_plan(&actions, muted);
-
     for action in &actions {
-        if plan.suppress_idle && matches!(action, BridgeAction::AssistantState(AssistantState::Idle)) {
-            continue; // 抑制：由播放结束驱动 idle
-        }
         emit_action(app, action, &state.unknown_events);
-    }
-
-    if let (Some(text), Some(tts)) = (plan.speak, tts) {
-        let (base_url, token) = crate::settings::gateway();
-        let emitter = app.clone();
-        let ctx = carlife_tts::SpeakCtx {
-            base_url,
-            token,
-            on_state: Arc::new(move |st| {
-                if let Err(e) = emitter.emit(EVENT_ASSISTANT_STATE, st) {
-                    eprintln!("[tts] emit state failed: {e}");
-                }
-            }),
-        };
-        carlife_tts::speak(&ctx, &tts, &text);
-    }
-}
-
-/// 这一批 action 要不要播、播什么、要不要压掉 idle。
-///
-/// 纯函数：`handle_envelope` 里能单测的就这一段，播放本身在共享 crate 里另有用例。
-/// 正文取本批里**第一条**助手消息（`MessageAppended` 且 role=Assistant）——
-/// turn_end 一批里正常只有一条；有多条时播第一条，与车机 `events.rs` 同一取法。
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct SpeechPlan {
-    /// 要播的正文；`None` = 本批没有助手正文或已静音。
-    pub speak: Option<String>,
-    /// 是否压掉本批投影出的 `Idle`——**只在真的要播时**为真，否则助手会卡在上一状态。
-    pub suppress_idle: bool,
-}
-
-pub(crate) fn speech_plan(actions: &[BridgeAction], muted: bool) -> SpeechPlan {
-    let reply = actions.iter().find_map(|a| match a {
-        BridgeAction::MessageAppended(m) if matches!(m.role, ChatRole::Assistant) => Some(m.content.clone()),
-        _ => None,
-    });
-    match (reply, muted) {
-        (Some(text), false) => SpeechPlan { speak: Some(text), suppress_idle: true },
-        _ => SpeechPlan { speak: None, suppress_idle: false },
     }
 }
 
 /// 启动真实 SSE 消费循环（后台 task；替换旧流）。
+/// 账号级事件推给 WebView 的事件名（ACR-033）。
+///
+/// **与 `contracts` 的 `ACCOUNT_EVENTS.sessionsChanged`、以及车机端那份是同一个字面量**
+/// （`clients/mobile/test/account-events.test.ts` 钉住）。它不在 `BRIDGE_EVENTS` 里——
+/// 那一组是对话桥，本事件来自另一条流，理由见常量旁的注释。
+pub const EVENT_SESSIONS_CHANGED: &str = "session:list-changed";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionsChangedPayload {
+    pub reason: String,
+}
+
+/// 账号级事件流（ACR-033）：连上 `/v1/events`，收到就让前端整拉会话列表。
+///
+/// 与车机端同形。手机是个人设备、token 自带身份，所以不需要 `x-carlife-session`，
+/// 也没有"换人要重起"这一处——共享层里那段取不到会话时不带头，对这边无影响。
+pub fn spawn_user_events_stream(app: AppHandle, state: Arc<StreamState>, base_url: String) {
+    let stop = state.replace_user_stream();
+    tauri::async_runtime::spawn(async move {
+        // token 现取（M54-09）：这条流比 access token 活得久。
+        let client = SseClient::new_with_token_source(base_url, || crate::settings::gateway().1);
+        client
+            .run_user_events(&stop, |signal| match signal {
+                UserSseSignal::Envelope(env) => {
+                    let carlife_core::contract::UserEvent::SessionsChanged(changed) = env.event;
+                    let _ = app.emit(
+                        EVENT_SESSIONS_CHANGED,
+                        SessionsChangedPayload { reason: format!("{:?}", changed.reason) },
+                    );
+                }
+                UserSseSignal::Unauthorized => {
+                    // 不动 EVENT_NET_CONNECTION：那条说的是**对话**通不通，
+                    // 而这条断了只是列表不自动刷新，对话一切照常。
+                    eprintln!("[sse] 账号事件流被网关拒绝（凭证过期或失效），已停止重连");
+                }
+                UserSseSignal::NoActiveUser => {
+                    // 手机端理论上不会走到这里（token 自带身份）；真走到了说明登录态不对。
+                    eprintln!("[sse] 账号事件流：服务端说没有活跃用户，按长间隔重试");
+                }
+                UserSseSignal::Disabled => {
+                    eprintln!("[sse] 账号事件流被服务端关闭（ACCOUNT_EVENTS_ENABLED=false），按长间隔重试");
+                }
+                UserSseSignal::Connected | UserSseSignal::Disconnected { .. } => {}
+                UserSseSignal::Unparseable => {
+                    state.unknown_events.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+            .await;
+    });
+}
+
 pub fn spawn_session_stream(
     app: AppHandle,
     state: Arc<StreamState>,
@@ -220,50 +240,5 @@ pub fn run_mock_stream(app: &AppHandle, state: &StreamState) {
     let mut acc = TurnAccumulator::default();
     for env in sample_envelopes() {
         handle_envelope(app, state, &env, &mut acc);
-    }
-}
-
-#[cfg(test)]
-mod speech_plan_tests {
-    use super::{speech_plan, SpeechPlan};
-    use carlife_core::contract::{AssistantState, ChatMessage, ChatRole, MessageSource};
-    use carlife_core::fanout::BridgeAction;
-
-    fn msg(role: ChatRole, content: &str) -> BridgeAction {
-        BridgeAction::MessageAppended(ChatMessage {
-            message_id: "m1".into(),
-            session_id: "s1".into(),
-            turn_id: "t1".into(),
-            role,
-            source: MessageSource::Text,
-            content: content.into(),
-            ts: 0,
-            cancelled: None,
-            attachments: None,
-        })
-    }
-    fn idle() -> BridgeAction {
-        BridgeAction::AssistantState(AssistantState::Idle)
-    }
-
-    /// 有正文且未静音：播它，并压掉本批的 idle——否则 turn_end 先打回 idle、起播再变 speaking，一次闪烁。
-    #[test]
-    fn 未静音且有正文_播且压idle() {
-        let plan = speech_plan(&[msg(ChatRole::Assistant, "前方拥堵"), idle()], false);
-        assert_eq!(plan, SpeechPlan { speak: Some("前方拥堵".into()), suppress_idle: true });
-    }
-
-    /// 静音：什么都不播，idle **照常直出**——压了的话助手会卡在上一状态，永远回不到 idle。
-    #[test]
-    fn 静音_不播且不压idle() {
-        let plan = speech_plan(&[msg(ChatRole::Assistant, "前方拥堵"), idle()], true);
-        assert_eq!(plan, SpeechPlan { speak: None, suppress_idle: false });
-    }
-
-    /// 本批没有助手正文（只有用户的 ASR 原文或纯状态）：不播、不压。
-    #[test]
-    fn 无助手正文_不播不压() {
-        assert_eq!(speech_plan(&[msg(ChatRole::User, "去广州塔"), idle()], false), SpeechPlan { speak: None, suppress_idle: false });
-        assert_eq!(speech_plan(&[idle()], false), SpeechPlan { speak: None, suppress_idle: false });
     }
 }

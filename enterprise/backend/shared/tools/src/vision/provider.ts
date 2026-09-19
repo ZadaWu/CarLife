@@ -53,6 +53,17 @@ export interface VisionProvider {
   readonly name: string;
   readonly models: { detect: string; describe: string };
   detect(image: Buffer): Promise<DetectResult>;
+  /**
+   * 第一遍**一个框都没出**时的兜底定位（2026-09-19 用户走查）。可选；两遍同一家时没有这个方法。
+   *
+   * 它兑现的是 ACR-045 写下的那句「云端定位从此只是兜底，不是缺省」——在那之前这句话没有落点，
+   * 端侧检测器零框就是零框。而零框会沿着整条链静默塌掉：没有框 → 没有 crop → 第二遍不跑 →
+   * 手册目录无从匹配 → 车主拿到「照片里没有辨识出指示符号」，而屏幕上明明亮着四盏灯。
+   *
+   * 触发条件严格限定在**零框**，不是"框少了"或"置信低了"：端侧检测器出了框就以它为准
+   * （它在训练分布内比云端准），只有它什么都没说时才问第二个人。
+   */
+  detectFallback?(image: Buffer): Promise<DetectResult>;
   describe(crop: Buffer, ctx: DescribeContext): Promise<Descriptor>;
   verifyPair(userCrop: Buffer, catalogIcon: Buffer): Promise<PairVerdict>;
   /**
@@ -274,7 +285,7 @@ function realProvider(vendor: VisionVendor, env: NodeJS.ProcessEnv): VisionProvi
       const n = Number(raw);
       return raw && Number.isFinite(n) && n > 0 ? n : fallback;
     };
-    return createYoloDetectProvider({ baseURL, model, conf: num(env.CARLIFE_VISION_YOLO_CONF, 0.25), imgsz: num(env.CARLIFE_VISION_YOLO_IMGSZ, 960) });
+    return createYoloDetectProvider({ baseURL, model, conf: num(env.CARLIFE_VISION_YOLO_CONF, 0.3), imgsz: num(env.CARLIFE_VISION_YOLO_IMGSZ, 960) });
   }
   if (vendor === "deepseek") {
     const key = env.DEEPSEEK_API_KEY;
@@ -291,6 +302,9 @@ function realProvider(vendor: VisionVendor, env: NodeJS.ProcessEnv): VisionProvi
  *
  * `verifyPair` 与 `readAlerts` 都跟着 describe——它们和描述是同一种能力（看清一个符号 / 一行小字长什么样），
  * 而与「在整张照片里找出符号在哪」不是一回事。
+ *
+ * **describe 那一家顺带当零框兜底**（`detectFallback`，2026-09-19）：它是个视觉模型，本来就会整图定位，
+ * 只是精度不如专训的检测器，所以平时不用它。零框时不用白不用——那一刻的对照项是"什么都没有"。
  */
 export function composeVisionProvider(detect: VisionProvider, describe: VisionProvider): VisionProvider {
   if (detect === describe) return detect;
@@ -298,11 +312,28 @@ export function composeVisionProvider(detect: VisionProvider, describe: VisionPr
     name: `${detect.name}+${describe.name}`,
     models: { detect: detect.models.detect, describe: describe.models.describe },
     detect: (image) => detect.detect(image),
+    detectFallback: (image) => describe.detect(image),
     describe: (crop, ctx) => describe.describe(crop, ctx),
     verifyPair: (a, b) => describe.verifyPair(a, b),
     // 读警报页也跟着 describe（同一种"看清小字"的能力）；那一家没有就整个不给，上游跳过这一遍。
     ...(describe.readAlerts ? { readAlerts: (image: Buffer) => describe.readAlerts!(image) } : {}),
   };
+}
+
+/**
+ * 检测那一遍的缺省档（ACR-045：云端定位退役）。
+ *
+ * 没显式选时：训练服务与权重都配了 → `yolo`；否则退回 `base`（dashscope / deepseek）并给一句原因——
+ * 云端定位从此只是**兜底**，不是缺省。显式 `CARLIFE_VISION_DETECT_PROVIDER=dashscope` 仍能选回（回滚就这一行）。
+ * 端上带了框（ACR-045 `detections`）时这一遍根本不会被调用，缺省档只影响老端上 / 控制台 / 评测那些不带框的照片。
+ */
+export function defaultDetectVendor(env: NodeJS.ProcessEnv, base: VisionVendor): { vendor: VisionVendor; reason: string } {
+  const explicit = (env.CARLIFE_VISION_DETECT_PROVIDER ?? "").trim();
+  if (explicit) return { vendor: vendorOf(explicit, base), reason: `显式 CARLIFE_VISION_DETECT_PROVIDER=${explicit}` };
+  const trainer = (env.VISION_TRAINER_URL ?? "").trim();
+  const model = (env.CARLIFE_VISION_YOLO_MODEL ?? "").trim();
+  if (trainer && model) return { vendor: "yolo", reason: "缺省：训练服务与权重已配，端侧检测器定位" };
+  return { vendor: base, reason: `云端定位已退役，仅作兜底——缺 ${trainer ? "CARLIFE_VISION_YOLO_MODEL" : "VISION_TRAINER_URL"}，本机暂用 ${base} 定位` };
 }
 
 /** `off` → null（上游直通并写 caveat）；真实档缺密钥 → 抛错，让启动期就发现。 */
@@ -313,7 +344,7 @@ export function createVisionProviderFromEnv(env: NodeJS.ProcessEnv = process.env
     return createFakeVisionProvider({ fixturesDir: env.CARLIFE_VISION_FIXTURES ?? join(process.cwd(), "evals/vision-observe/fixtures/by-sha") });
   }
   const base: VisionVendor = mode === "deepseek" ? "deepseek" : "dashscope";
-  const detect = vendorOf(env.CARLIFE_VISION_DETECT_PROVIDER, base);
+  const detect = defaultDetectVendor(env, base).vendor;
   const describe = vendorOf(env.CARLIFE_VISION_DESCRIBE_PROVIDER, base);
   if (describe === "yolo") throw new VisionProviderError("描述那一遍不能选 yolo——它只会框位置，不会说这是什么");
   // 同一家时只造一个——两遍共用一条连接，`name` 也就不会写成「dashscope+dashscope」。

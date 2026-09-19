@@ -1,0 +1,43 @@
+{
+ "how": "onnx(square letterbox 960), model train-20260917-120344-e7b9",
+ "imgsz": 960,
+ "conf": 0.25,
+ "iou": 0.7,
+ "width": 1512,
+ "height": 2016,
+ "detections": [
+  {
+   "bbox": [
+    296,
+    260,
+    335,
+    279
+   ],
+   "class_id": 9,
+   "name": "parking_lights",
+   "conf": 0.9229
+  },
+  {
+   "bbox": [
+    307,
+    169,
+    341,
+    192
+   ],
+   "class_id": 11,
+   "name": "low_beam",
+   "conf": 0.9048
+  },
+  {
+   "bbox": [
+    303,
+    213,
+    339,
+    238
+   ],
+   "class_id": 14,
+   "name": "auto_high_beam_standby",
+   "conf": 0.8191
+  }
+ ]
+}

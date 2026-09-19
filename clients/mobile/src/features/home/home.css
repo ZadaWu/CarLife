@@ -1,0 +1,309 @@
+/*
+ * 主页 · 功能入口页（施工单 M103-01）。
+ *
+ * 页壳照设置页 `.mset`：绝对铺满、头让 `env(safe-area-inset-top)`、身体自己滚并让底导。
+ * 字号只从 `--m-font-*` 取；圆角只从 `--m-radius-*` 取；一切颜色走 Token——三条守卫
+ * （typography-scale / text-color-tokens / bottom-nav-clear）都在读源码。
+ *
+ * ⚠️ 暖暖的 dock 在 hud.css 里是给 `HudStage` 坐标系写的绝对定位；这里在 `.mh-hero` 作用域下
+ * 把它改成流式（static + 锁高），并把它自带的那张卡（音波 + 提示语）整个收掉——
+ * 本页不提供任何语音入口。**不动 hud.css**，覆盖全部写在这里。
+ */
+
+.mh {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  background: var(--m-page-bg);
+  color: var(--hud-text);
+  font-family: var(--font-ui);
+}
+
+/* 街道纹理：只作气质。压得很淡、不接事件，和登录门同一块零依赖舞台。 */
+.mh-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.22;
+  pointer-events: none;
+}
+.mh-stage .hud-map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mh-scroll {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(14px + env(safe-area-inset-top)) var(--hud-portrait-gutter, 12px) calc(var(--hud-bottom-nav-clear) + 12px);
+}
+
+/* ── 问候行 ─────────────────────────────────────────── */
+.mh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 0;
+}
+.mh-greeting {
+  margin: 0;
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
+  font-weight: var(--m-weight-medium);
+}
+.mh-vehicle {
+  margin: 4px 0 0;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mh-bell {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hud-card-border);
+  border-radius: 999px;
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+  cursor: pointer;
+}
+.mh-bell svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--hud-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── 暖暖 + 提醒卡 ───────────────────────────────────── */
+.mh-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 176px;
+}
+/* dock 在流式布局里：外壳相对、英雄区 static 锁高；光环靠百分比与 aspect-ratio，不用改。 */
+.mh-hero .hud-assistant {
+  position: relative;
+  flex: 0 0 auto;
+  height: 176px;
+  width: auto;
+}
+.mh-hero .hud-assistant__hero {
+  position: static;
+  height: 100%;
+  transform: none;
+}
+/* dock 自带的卡（音波 + 提示语）整个收掉：本页没有语音入口，要说的话在右边的提醒卡里。 */
+.mh-hero .hud-assistant__card { display: none; }
+
+.mh-bubble {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: var(--m-radius-card);
+  background: var(--m-card-bg);
+  border: 1px solid var(--hud-card-border);
+  box-shadow: var(--m-card-shadow);
+}
+/* 小尾巴指向暖暖 */
+.mh-bubble::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--m-card-bg);
+  border-left: 1px solid var(--hud-card-border);
+  border-bottom: 1px solid var(--hud-card-border);
+}
+.mh-bubble__title {
+  display: block;
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
+  font-weight: var(--m-weight-bold);
+}
+.mh-bubble__body {
+  margin: 4px 0 0;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+}
+.mh-bubble__link {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+  color: var(--hud-pin);
+  cursor: pointer;
+}
+
+/* ── 「你可以」+ 两张等大的入口卡 ────────────────────── */
+.mh-label {
+  margin: 4px 4px -4px;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+}
+/* `minmax(0, 1fr)`：卡里有 nowrap 的说明行，纯 `1fr` 会按 min-content 撑开、整行溢出视口
+   （2026-09-18 浏览器 390 宽实测：右卡被裁、底导跟着超宽）。 */
+.mh-entries {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.mh-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 220px;
+  padding: 18px 10px 16px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--m-radius-card);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+  color: var(--hud-text);
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mh-entry:active { background: var(--m-inset-bg); }
+/* 从定稿裁下来的圆盘插画（含浅橙 / 浅蓝底），120pt 与定稿在 390 宽下的比例一致。 */
+.mh-entry__art {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.mh-entry__title {
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
+  font-weight: var(--m-weight-bold);
+}
+/* 一行放不下就减一个词（设计系统 §5.3：不缩字、不取中间值）；省略号只是最后一道保险。 */
+.mh-entry__sub {
+  max-width: 100%;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mh-entry__status {
+  margin-top: auto;
+  padding-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hud-amber);
+}
+/* 程数角标：琥珀底片——红只给「拥堵」与「读不到」，不给计数。 */
+.mh-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--hud-amber);
+  color: var(--hud-text);
+  font-style: normal;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  font-weight: var(--m-weight-bold);
+}
+
+/* ── 车况条：这辆车的三格 ───────────────────────────── */
+.mh-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 12px 6px;
+  border: 1px solid var(--hud-card-border);
+  border-radius: var(--m-radius-card);
+  background: var(--m-card-bg);
+  box-shadow: var(--m-card-shadow);
+}
+.mh-strip__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  min-width: 0;
+}
+.mh-strip__cell + .mh-strip__cell { border-left: 1px solid var(--hud-divider); }
+.mh-strip__caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  color: var(--hud-text-muted);
+  white-space: nowrap;
+}
+.mh-strip__caption svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--hud-pin);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mh-strip__value {
+  font-size: var(--m-font-metric);
+  line-height: var(--m-lh-metric);
+  font-weight: var(--m-weight-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 读不到 / 暂无：字说，小一档、灰——不是把数字染灰。 */
+.mh-strip__value.is-muted {
+  font-size: var(--m-font-body);
+  line-height: var(--m-lh-body);
+  font-weight: var(--m-weight-medium);
+  color: var(--hud-text-muted);
+}
+.mh-strip__unit {
+  margin-left: 3px;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
+  font-weight: var(--m-weight-regular);
+  color: var(--hud-text-muted);
+}

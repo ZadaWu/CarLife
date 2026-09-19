@@ -36,6 +36,8 @@ export type { HistoryQuery } from "./HistoryQuery";
 export type { HistoryPage } from "./HistoryPage";
 export type { AttachmentRef } from "./AttachmentRef";
 export type { AttachmentKind } from "./AttachmentKind";
+export type { ClientDetection } from "./ClientDetection";
+export type { ClientDetections } from "./ClientDetections";
 export type { ThoughtStep } from "./ThoughtStep";
 
 // voice —— 语音会话（FL-02 F-02-13）
@@ -48,3 +50,10 @@ export type { AudioMeta } from "./AudioMeta";
 export type { WakeStatus } from "./WakeStatus";
 export type { SentinelIndication } from "./SentinelIndication";
 export type { SentinelListenState } from "./SentinelListenState";
+
+// user_events —— 账号级事件（ACR-031）。与上面的会话事件是两条通道：
+// 那条按会话订阅、带续传窗口；这条按账号订阅，只说「会话列表变了，重拉一次」。
+export type { UserEventEnvelope } from "./UserEventEnvelope";
+export type { UserEvent } from "./UserEvent";
+export type { SessionsChanged } from "./SessionsChanged";
+export type { SessionsChangedReason } from "./SessionsChangedReason";

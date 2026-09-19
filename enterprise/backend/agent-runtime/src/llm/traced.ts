@@ -27,7 +27,7 @@
  */
 
 import { CancelledError, type SpanStatus } from "../trace";
-import { recordSpan } from "../trace/span";
+import { classifyError, OUTPUT_MAX_CHARS, recordAgentOutput, recordSpan } from "../trace/span";
 import type { ChatStreamer } from "./index";
 
 /**
@@ -54,6 +54,18 @@ function cancelReason(signal: AbortSignal | undefined): string | undefined {
 }
 
 /**
+ * 失败原因（M94-01）。**前缀 `err:` 不是装饰**——取消原因里也有 `timeout`
+ * （分支超时掐流），不加前缀的话"被掐"与"坏了"在回放里落成同一格，
+ * 而这两件事的处置完全相反：前者是编排层的正常动作，后者要去查上游。
+ *
+ * 加这条之前，`failed` 的 detail 一律不填：库里 53 条 `llm.* failed` 全是空 detail，
+ * 2026-09-16 那次 ACP 连接关闭因此在轨迹里没有名字，只能从别的 span 的 reason 绕着推。
+ */
+function failureReason(err: unknown): string {
+  return `err:${classifyError(err)}`;
+}
+
+/**
  * 给任意 `ChatStreamer` 套上耗时埋点。
  *
  * **原样透传 hooks**（工单约束 3）：`threadId` / `agent` 决定 pi 侧落到哪个 ACP 会话，
@@ -67,6 +79,15 @@ export function withLlmSpans(inner: ChatStreamer): ChatStreamer {
     const startedAt = Date.now();
     let firstTokenAt: number | undefined;
     let status: SpanStatus = "ok";
+    /*
+     * 产出文本顺手攒下来（2026-09-15，业务视图的"这个 Agent 答了什么"）。
+     * 只攒到入库上限再多一点就停——一次应答几 KB，攒全没问题；
+     * 上限是防某次流失控时把整段都留在内存里。长度仍按真实 chars 计。
+     */
+    let output = "";
+    let outputChars = 0;
+    /** catch 到的错误要在 finally 里归类，所以存进闭包（M94-01）。 */
+    let failure: unknown;
 
     try {
       for await (const chunk of inner(messages, hooks)) {
@@ -74,28 +95,45 @@ export function withLlmSpans(inner: ChatStreamer): ChatStreamer {
           firstTokenAt = Date.now();
           recordSpan(threadId, `${name}.ttft`, startedAt, firstTokenAt, "ok", { agent });
         }
+        outputChars += chunk.length;
+        if (output.length <= OUTPUT_MAX_CHARS) output += chunk;
         yield chunk;
       }
     } catch (err) {
       // 取消≠失败：提交即收工 / 分支超时 / 用户打断都会掐流，调用本身没有坏。
       // 记成 failed 会让成功的行程 fan-out 每轮三条 llm span 全红（见 isCancellation）。
       status = isCancellation(err, hooks?.signal) ? "cancelled" : "failed";
+      failure = err;
       throw err;
     } finally {
       const endedAt = Date.now();
-      const detail = status === "cancelled" ? cancelReason(hooks?.signal) : undefined;
+      const detail =
+        status === "cancelled" ? cancelReason(hooks?.signal)
+        : status === "failed" ? failureReason(failure)
+        : undefined;
       // **一个 token 都没出来也要发 ttft**，否则"模型全程没开口"这种最糟的情况
       // 在轨迹里恰好是一片空白——而空白与"没走这条路"看起来一样。
       if (firstTokenAt === undefined) {
+        /*
+         * "没开口"与"为什么没开口"是两件事（M94-01）。此前只剩前者：
+         * 有错误时也只落 `no_token`，而那正是最该知道原因的一格。
+         * 空流（status ok）仍是裸 `no_token`——它没有错误可归类。
+         */
+        const ttftDetail =
+          failure !== undefined && status !== "cancelled"
+            ? `no_token:${classifyError(failure)}`
+            : (detail ?? "no_token");
         recordSpan(threadId, `${name}.ttft`, startedAt, endedAt,
           // 开口之前就被取消，不是"模型没开口"——别把打断记成模型的锅。
           status === "cancelled" ? "cancelled" : "failed",
-          { agent, detail: detail ?? "no_token" });
+          { agent, detail: ttftDetail });
       }
       recordSpan(threadId, name, startedAt, endedAt, status, {
         agent,
         ...(detail ? { detail } : {}),
       });
+      // 产出与 span 并列落，成败取消都发：取消的那条带半截文本，业务视图据 status 说清楚。
+      recordAgentOutput(threadId, agent, outputChars > output.length ? output + "…" : output, status);
     }
   };
 }

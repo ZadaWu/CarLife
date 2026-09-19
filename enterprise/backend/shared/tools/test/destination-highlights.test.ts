@@ -371,11 +371,12 @@ test("mock 模式：数据被标注为模拟，且**不带任何出处**", async
   );
 });
 
-test("注册表 ACL：出行与 tour 拿得到，hotel / drive / transit 拿不到", () => {
+test("注册表 ACL：只有出行主 Agent 拿得到；tour 摘掉了（编排层预取），hotel / drive / transit 一直拿不到", () => {
   const has = (agent: Parameters<typeof listForAgent>[0]) =>
     listForAgent(agent).some((t) => t.name === "destination_highlights");
   assert.equal(has("trip"), true);
-  assert.equal(has("tour"), true);
+  // tour 在关键路径上自己搜一次要 4~7 秒外加一次模型往返（turn-c9830c68），现在由编排层并行预取。
+  assert.equal(has("tour"), false);
   assert.equal(has("hotel"), false);
   assert.equal(has("drive"), false);
   assert.equal(has("transit"), false);

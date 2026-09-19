@@ -41,6 +41,8 @@ export interface IconStoreRow {
 export interface IconStore {
   upsertMany(rows: readonly (IconStoreRow & { embedding: number[] })[]): Promise<number>;
   nearest(q: { vector: number[]; k: number; vehicleModel?: string; side?: "manual" | "user"; kind?: "image" | "text" }): Promise<Array<IconStoreRow & { distance: number }>>;
+  /** 可选：按 symbol_id 取一行。没有它时检测器的类别名解析不出语义，只能不说（M80-15）。 */
+  getBySymbol?(q: { symbolId: string; vehicleModel?: string }): Promise<IconStoreRow | null>;
 }
 
 export const DASHSCOPE_EMBED_URL = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding";

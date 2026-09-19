@@ -15,7 +15,7 @@
 # **必须用下面解析出的本地入口**，不能写成 `exec pi`：后者会把业务进程串到
 # 使用者自己的全局 pi，版本、插件和凭据都会随个人环境漂移。
 #
-# 【CARLIFE_PI_MODEL】按进程指定模型与思考档位（形如 `deepseek/deepseek-v4-flash:off`）。
+# 【CARLIFE_PI_MODEL】按进程指定模型与思考档位（形如 `deepseek/deepseek-flash:off`）。
 # 思考档位是**启动参数**，改不了单次调用，所以由 agent-runtime 的连接池按
 # (Agent, 档位) 分进程后从这里传进来（见 acp-client/pool.ts 的 processKey）。
 # 值由 Node 侧读 `.pi/settings.json` 拼出——**模型 id 不在本脚本里硬编**，
@@ -50,8 +50,10 @@ export PI_SKIP_VERSION_CHECK=1
 export PI_OFFLINE=1
 # 【PI_CODING_AGENT_DIR】pi 的 agent 目录（models.json / sessions / auth.json 的所在）指到仓库内的
 # .pi/agent/，而不是使用者的 ~/.pi/agent/。要它是为了 models.json 那份模型覆盖能随仓库走：
-# pi 自带目录把 deepseek-v4-flash 的 low 档标成不支持，请求 low 会被静默抬成 high，
-# 覆盖后 tour-task 才真的以 reasoning_effort=low 跑（见 README「思考档位」）。
+# ① pi 0.84.1 自带目录里**没有 `deepseek-flash`**（只有 `deepseek-v4-flash` / `deepseek-v4-pro`），
+#    而 settings.json 钉的正是它——models.json 把它并进 deepseek 提供方，缺了这份文件 pi 起不来；
+# ② pi 自带目录把 flash 的 low 档标成不支持，请求 low 会被静默抬成 high，
+#    覆盖后 tour-task 才真的以 reasoning_effort=low 跑（见 README「思考档位」）。
 # 副作用：pi 的会话 jsonl 从此落在 .pi/agent/sessions/（已 gitignore），排查模型原话去那里找。
 export PI_CODING_AGENT_DIR="$SCRIPT_DIR/../.pi/agent"
 

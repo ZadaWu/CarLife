@@ -1,0 +1,18 @@
+[package]
+name = "carlife-vision"
+version = "0.1.0"
+edition = "2021"
+
+# 端侧指示灯检测（ACR-044）：把 M80 训出的 yolo11n（ONNX）在端上跑起来，只做「框在哪 + 疑似哪一类」。
+# 两个端（cockpit / mobile）共用一份；解读（名称、级别、含义）仍在云端——这里没有任何一行会写"这意味着什么"。
+#
+# 为什么是 tract 而不是 ONNX Runtime / CoreML：纯 Rust、零 C/C++ 构建，iOS 交叉编译不需要
+# carlife-media 那套 meson/ninja + 上游补丁；单张照片 CPU 推理够用。选型记录在 ACR-044。
+[dependencies]
+tract-onnx = "0.23"
+# 只要 JPEG / PNG 解码 + EXIF 方向：手机竖拍存的是横躺像素 + Orientation 标签，
+# 不转正的话框的坐标系与服务端（`uprightByExif`）差 90°——M80 量错 6/6 的那次教训。
+image = { version = "0.25.6", default-features = false, features = ["jpeg", "png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

@@ -1,0 +1,13 @@
+{"id":"hz-3d","input":"帮我规划一个从上海出发去杭州的三天行程，自驾，带六岁的孩子，每天别安排太满。","days":3,"destination":"杭州","origin":"上海","tags":["city","family","3d"]}
+{"id":"sz-2d","input":"周末从上海自驾去苏州玩两天，带爸妈，想看看园林和古镇。","days":2,"destination":"苏州","origin":"上海","tags":["city","elderly","2d"]}
+{"id":"nj-3d","input":"从上海开车去南京玩三天，主要想逛历史景点，晚上想看看夫子庙。","days":3,"destination":"南京","origin":"上海","tags":["city","history","3d"]}
+{"id":"gz-4d","input":"我们一家四口从上海去广州玩四天，带娃，一定要去一天长隆，其余时间在市区逛。","days":4,"destination":"广州","origin":"上海","tags":["city","suburb-park","family","4d"]}
+{"id":"sh-2d","input":"帮我排一个上海本地两天的行程，从嘉定出发，第一天想去迪士尼，第二天在市区逛逛。","days":2,"destination":"上海","origin":"上海嘉定","tags":["local","suburb-park","2d"]}
+{"id":"nt-zjg-3d","input":"从上海出发去南通、张家港三天，第一天回如东老家看妈妈，后两天在南通市区和张家港转转。","days":3,"destination":"南通","origin":"上海","tags":["cross-city","family","3d"]}
+{"id":"hs-3d","input":"从上海自驾去黄山三天，想上山看日出，顺便逛逛徽州古村落。","days":3,"destination":"黄山","origin":"上海","tags":["mountain","3d"]}
+{"id":"xa-4d","input":"从上海去西安玩四天，坐高铁过去然后在当地打车，想看兵马俑、城墙和回民街。","days":4,"destination":"西安","origin":"上海","tags":["city","history","transit","4d"]}
+{"id":"cd-3d","input":"从上海去成都玩三天，坐飞机过去当地打车，想看熊猫、吃火锅、逛宽窄巷子。","days":3,"destination":"成都","origin":"上海","tags":["city","food","transit","southwest","3d"]}
+{"id":"hrb-3d","input":"从上海坐飞机去哈尔滨玩三天，带六十多岁的爸妈，想看中央大街和圣索菲亚教堂，别走太多路。","days":3,"destination":"哈尔滨","origin":"上海","tags":["city","elderly","transit","northeast","3d"]}
+{"id":"bj-5d","input":"从上海自驾去北京玩五天，故宫、长城、颐和园都想去，每天别太赶。","days":5,"destination":"北京","origin":"上海","tags":["city","history","north","5d"]}
+{"id":"cq-2d","input":"周末从上海飞重庆玩两天，想看洪崖洞夜景、吃火锅、坐一次穿楼的轻轨。","days":2,"destination":"重庆","origin":"上海","tags":["city","food","night","southwest","2d"]}
+{"id":"sh-local-nodays","input":"带爸妈在上海转转，从嘉定出发，想去迪士尼和外滩。","days":2,"destination":"上海","origin":"上海嘉定","tags":["local","elderly","clarify","2d"]}

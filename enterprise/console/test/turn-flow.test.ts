@@ -16,6 +16,7 @@ import {
   layout,
   type TraceEvent,
 } from "../src/pages/trace/timeline";
+import { gapLabel, shownWaitMs, waitLevel, waitText } from "../src/pages/trace/TurnFlow";
 
 const T0 = 1_700_000_000_000;
 
@@ -501,5 +502,205 @@ describe("阶段末尾：吐字是量出来的，不是减出来的", () => {
     assert.equal(f.stages[0].tail.kind, "node");
     assert.equal(f.stages[0].tail.textMs, null);
     assert.equal(f.stages[0].tail.uncoveredMs, 224);
+  });
+});
+
+/**
+ * 真跑 turn-d3372ed7 的行程规划 fan-out 的形状（节点 20022ms ⊃ 四条分支 ⊃ 各自的工具）。
+ *
+ * 这里只留 tour 一条：19961ms 的分支里三次景点搜索互相重叠、总共只占 5.5 秒，
+ * 剩下 13 秒多分成三段空白——首 token 之前 2.7 秒、两轮之间 2.2 秒、
+ * **结尾写那份三天 JSON 10.1 秒**。
+ * 它是"图上一片空白、而空白才是大头"的标准样本，也是**空白藏在第二层**的标准样本：
+ * 节点那一层被分支铺满，一条空白都没有。
+ */
+const TOUR_TURN: TraceEvent[] = [
+  span("node.itineraryPlan", 0, 20022),
+  // 同批还有别的分支，所以节点这一层**不会**被折叠成一次 LLM 调用。
+  span("llm.drive-task", 25, 14377, { agent: "drive-task" }),
+  span("tool.map_route", 1300, 5593, { agent: "drive" }),
+  span("llm.tour-task", 30, 19961, { agent: "tour-task" }),
+  span("llm.tour-task.ttft", 30, 1760, { agent: "tour-task" }),
+  span("tool.spot_search", 2730, 4770, { agent: "tour", detail: "西湖" }),
+  span("tool.spot_search", 2930, 3100, { agent: "tour", detail: "灵隐" }),
+  span("tool.spot_search", 3030, 2400, { agent: "tour", detail: "宋城" }),
+  // 点事件（0ms）落在收尾那段空白中间——真跑里 `sidecar.filler` 就是这么插进来的。
+  span("sidecar.filler", 14000, 0, { agent: "tour" }),
+  span("tool.plan_audit", 9730, 60, { agent: "tour" }),
+  span("tool.weather", 9830, 30, { agent: "tour" }),
+];
+
+describe("空白段", () => {
+  const stage = buildFlow(TOUR_TURN).stages[0]!;
+  const gaps = stage.rows.flatMap((r) => (r.gap ? [r.gap] : []));
+
+  it("**空白要说在哪，不只说有多少**", () => {
+    // 原先这 13 秒多只在末尾记了两个总数（tail），图上仍是空白。
+    // "这一轮慢在哪"因此答不出来——最大的一块恰恰是没画出来的那块。
+    assert.deepEqual(
+      gaps.map((g) => [g.offsetMs, g.durationMs]),
+      // 顺序与 rows 一致：**按树前序**，一条分支连着它自己的空白，
+      // 不是把两条分支的空白按墙钟交叉排（那样读起来像是一条分支在等另一条）。
+      [
+        [25, 1275], // drive：首 token 之前
+        [6893, 7509], // drive：拿到路线之后一路写到收工
+        [30, 2700], // tour：建会话 + 首 token + 发出第一轮调用
+        [7500, 2230], // tour：收到搜索结果之后、发下一轮之前
+        [9860, 10131], // tour：结尾，在写那份三天 JSON
+      ],
+    );
+  });
+
+  it("**空白要逐层算——只算阶段那一层，恰好避开了问题本身**", () => {
+    // fan-out 节点被分支铺满（30ms 的头尾都不到阈值），阶段这一层一条空白都没有；
+    // 要找的十几秒全在 `llm.tour-task` 里面，深度也得跟着它。
+    assert.deepEqual(gaps.map((g) => g.depth), [1, 1, 1, 1, 1]);
+    assert.deepEqual(gaps.map((g) => g.kind), ["llm", "llm", "llm", "llm", "llm"]);
+    // 阶段这一层只剩首尾 56ms——tail 那两行看不见分支内部的十几秒。
+    assert.equal(stage.selfMs, 56);
+  });
+
+  it("**只有最后一段算「在写最终输出」**", () => {
+    // 中间那段是收到工具结果后的思考，和收尾吐字不是一回事；
+    // 两者都叫"生成"会让人以为这一轮写了三次最终答案。
+    assert.deepEqual(gaps.map((g) => g.trailing), [false, true, false, false, true]);
+    assert.equal(gapLabel(gaps[2]!), "模型在想（无工具在跑）");
+    assert.equal(gapLabel(gaps[4]!), "模型在写最终输出");
+    assert.equal(gapLabel({ ...gaps[4]!, kind: "node" }), "编排自身（无子调用）");
+  });
+
+  it("**空白插在它该在的位置上，不是堆在末尾**", () => {
+    // 堆在末尾就又变回了脚注。第一段空白必须排在三次搜索之前。
+    assert.deepEqual(
+      stage.rows.map((r) => (r.gap ? `空白${r.gap.durationMs}` : r.child.name)),
+      [
+        "llm.drive-task",
+        "空白1275",
+        "tool.map_route",
+        "空白7509",
+        "llm.tour-task",
+        "空白2700",
+        "tool.spot_search",
+        "tool.spot_search",
+        "tool.spot_search",
+        "空白2230",
+        "tool.plan_audit",
+        "tool.weather",
+        "空白10131",
+        // 点事件排在它所在的那段空白之后：它不切断空白，也就不再插在中间。
+        "sidecar.filler",
+      ],
+    );
+    // rows 与 children 共享同一批对象，不是两份数据。
+    assert.deepEqual(
+      stage.rows.flatMap((r) => (r.child ? [r.child] : [])),
+      stage.children,
+    );
+  });
+
+  it("**零宽的点事件不切断空白**", () => {
+    // 点事件不占时间，却会把一段连续的空白劈成两半——实测 tour 收尾那 9.5 秒
+    // 被两个 `sidecar.filler` 切成三行，读起来像"想了三次"，
+    // 而它其实是一口气在写那份三天 JSON。
+    assert.deepEqual(gaps.map((g) => g.durationMs).filter((ms) => ms > 9000), [10131]);
+  });
+
+  it("**毫秒级的缝隙不进图**", () => {
+    // 三次搜索之间差着几十上百毫秒的起止，那是采集抖动不是"模型在想"。
+    // 画出来会把一行摊成七行噪音，而它们的时间仍如实计在 selfMs / tail 里。
+    assert.deepEqual(gaps.filter((g) => g.durationMs < 200), []);
+  });
+
+  it("**叶子调用不画空白**", () => {
+    // 整段都是空白等于没有信息，却会给每个叶子（guard.input、tool.* 之流）
+    // 凭空多出一条灰条。
+    const bare = buildFlow([span("guard.input", 0, 258, { detail: "allow" })]).stages[0]!;
+    assert.deepEqual(bare.children, []);
+    assert.deepEqual(bare.rows, []);
+    const leaves = TOUR_TURN.map((e) => String(e.data.name));
+    assert.ok(leaves.includes("tool.weather")); // 叶子确实在这一轮里
+    assert.deepEqual(gaps.filter((g) => g.depth > 1), []);
+  });
+});
+
+describe("排队时间", () => {
+  // 真跑 turn-d3372ed7 的形状：fan-out 起跑 1.3 秒内九个高德请求一起发出，
+  // 闸门 350ms/桶 2，于是这一跳写着 4770ms——其中一大半是在我们自己门口排队。
+  const flow = buildFlow([
+    span("llm.tour-task", 0, 8000, { agent: "tour-task" }),
+    span("tool.spot_search", 700, 4770, { agent: "tour", waitMs: 2100 }),
+    span("tool.weather", 5600, 94, { agent: "tour", waitMs: 0 }),
+    span("tool.route_audit", 5700, 6, { agent: "tour" }), // 老轨迹：没有这个字段
+  ]);
+  const byName = new Map(flow.stages[0]!.children.map((c) => [c.name, c]));
+
+  it("**排队与在途分开**——两者的处置相反，混成一个数就没法判该动哪边", () => {
+    // 等上游只能等；排自己的队是并发策略，调得动。
+    assert.equal(byName.get("tool.spot_search")!.waitMs, 2100);
+    assert.equal(byName.get("tool.spot_search")!.durationMs, 4770);
+  });
+
+  it("**0 不是没量过**", () => {
+    // 服务端每条工具 span 都写 waitMs（含 0）。字段缺失只能是"这一轮跑在埋点之前"，
+    // 那时整条按在途画；把两者混成一谈，老轨迹会被读成"从来没排过队"。
+    assert.equal(byName.get("tool.weather")!.waitMs, 0);
+    assert.equal(byName.get("tool.route_audit")!.waitMs, undefined);
+  });
+
+  it("**排队不许比这一跳还长**", () => {
+    // 计量与计时是两处取的时间（闸门两侧 vs invokeTool 两端），
+    // 读数打架时画出来就是一截溢出边界的条。
+    const over = buildFlow([
+      span("llm.tour-task", 0, 8000, { agent: "tour-task" }),
+      span("tool.spot_search", 700, 400, { agent: "tour", waitMs: 999 }),
+    ]);
+    assert.equal(over.stages[0]!.children[0]!.waitMs, 400);
+  });
+});
+
+describe("排队时间：上图的门槛", () => {
+  it("**1ms 的「排队」不上图**——那是取票过一次 promise 链，不是排队", () => {
+    // 画出来是每条工具都挂一截无意义的浅色，反而把真排了两秒的那几条淹掉。
+    // 数仍然如实落库（模型里还是 1），只是不画。
+    assert.equal(shownWaitMs(1), 0);
+    assert.equal(shownWaitMs(0), 0);
+    assert.equal(shownWaitMs(undefined), 0);
+    assert.equal(shownWaitMs(2100), 2100);
+  });
+});
+
+describe("排队时间：严重程度分档", () => {
+  it("**档位切在 0.5 / 2 / 5 秒上**", () => {
+    // 一轮二三十条工具，实测排队从 6ms 到 5385ms 都有。同一种颜色画出来
+    // 得挨条读数字才知道哪条严重，而这张图存在的理由就是不用读也能看出来。
+    assert.equal(waitLevel(499), "none");
+    assert.equal(waitLevel(500), "mild");
+    assert.equal(waitLevel(1999), "mild");
+    assert.equal(waitLevel(2000), "heavy");
+    assert.equal(waitLevel(4999), "heavy");
+    assert.equal(waitLevel(5000), "severe");
+  });
+
+  it("**没量过与没排队都不挂牌**", () => {
+    // 老轨迹（undefined）不能被画成"没排队"，但也不该挂一块写着 0 的牌子。
+    assert.equal(waitLevel(undefined), "none");
+    assert.equal(waitLevel(0), "none");
+    // 1ms 是取票过一次 promise 链，不是排队（见 shownWaitMs）。
+    assert.equal(waitLevel(1), "none");
+  });
+
+  it("**秒级读秒**——`5385ms` 得心算一下才知道是五秒", () => {
+    assert.equal(waitText(5385), "5.4s");
+    assert.equal(waitText(2168), "2.2s");
+    assert.equal(waitText(940), "940ms");
+  });
+
+  it("真跑 turn-9281ab92 首波的那几条各归各档", () => {
+    // transit_route 5385 / map_route 5350 / spot_search 3694 / hotel_search 1468。
+    // 最堵的两条要落在最高档上——否则"一眼看出最堵的是谁"就没实现。
+    assert.deepEqual(
+      [5385, 5350, 3694, 1468, 6].map(waitLevel),
+      ["severe", "severe", "heavy", "mild", "none"],
+    );
   });
 });

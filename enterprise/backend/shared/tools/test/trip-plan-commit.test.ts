@@ -172,10 +172,11 @@ test("legs：带分段的快照过 schema 落库，读回逐字段相等；不�
     },
   };
   setTripPlanStore(spy);
+  // direction / computedAt 是 M102-01 加的：确认路径按高德覆盖过的段带算时，方向由 buildLegs 写——同样要过 strip。
   const legs = [
-    { day: 1, fromStop: "杭州", toStop: "广州塔", driveMinutes: 95, reason: "rest" as const },
-    { toStop: "待定停靠点", driveMinutes: 100, reason: "rest" as const, pending: true },
-    { fromStop: "待定停靠点", driveMinutes: 40 },
+    { day: 1, fromStop: "杭州", toStop: "广州塔", driveMinutes: 95, reason: "rest" as const, direction: "outbound" as const, computedAt: "2026-09-17T08:00:00.000Z" },
+    { toStop: "待定停靠点", driveMinutes: 100, reason: "rest" as const, pending: true, direction: "outbound" as const },
+    { fromStop: "待定停靠点", driveMinutes: 40, direction: "return" as const },
   ];
   await invokeTool("trip_plan_commit", { userId: "u1", plan: { ...PLAN, legs } }, ctx);
   assert.equal(seen.length, 1);

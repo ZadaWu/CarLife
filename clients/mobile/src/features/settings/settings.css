@@ -20,7 +20,8 @@
 
 .mset-head h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--m-font-title);
+  line-height: var(--m-lh-title);
 }
 
 .mset-body {
@@ -42,16 +43,16 @@
 
 .mset-group h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
   color: var(--hud-text-muted, #6c8bb0);
 }
 
 /* ── 账号（M52-01）：走查要反复换人，"现在是谁"与"怎么出去"都得一眼看到 ── */
 .mset-account {
   margin: 0 0 10px;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-medium);
 }
 
 .mset-logout {
@@ -60,15 +61,15 @@
   border: 1px solid var(--hud-card-border);
   background: transparent;
   color: var(--hud-danger);
-  font-size: 16px;
+  font-size: var(--m-font-title);
 }
 
 /* 开关下面那句解释为什么没打开（M60-01）：麦克风没授权是唯一常见的那种。
    与 hint 分开一个类——hint 描述功能，它描述一次失败。 */
 .mset-note {
   margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--m-font-caption);
+  line-height: var(--m-lh-caption);
   color: var(--hud-danger);
 }
 
@@ -78,20 +79,20 @@
  * 标题与开关放大到手指尺度，退出登录改成琥珀描边（它是次级出口，不是危险动作）。
  * DOM 与分组顺序一字未动。
  * ============================================================ */
-.mset { background: #eaf2fa; }
-.mset-head h1 { font-size: 30px; font-weight: 800; color: var(--hud-text); }
+.mset { background: var(--m-page-bg); }
+.mset-head h1 { font-size: var(--m-font-title); line-height: var(--m-lh-title); font-weight: var(--m-weight-bold); color: var(--hud-text); }
 .mset-body { gap: 16px; }
 
 /* 分组白卡：与档案页、对话页的卡片语言对齐。 */
 .mset-group {
   gap: 12px;
   padding: 18px 16px;
-  border-radius: 24px;
-  background: #fff;
+  border-radius: var(--m-radius-card);
+  background: var(--m-card-bg);
   border: 1px solid var(--hud-card-border);
-  box-shadow: 0 10px 28px rgba(70, 120, 170, 0.10);
+  box-shadow: var(--m-card-shadow);
 }
-.mset-group h2 { font-size: 19px; font-weight: 800; color: var(--hud-text); }
+.mset-group h2 { font-size: var(--m-font-title); font-weight: var(--m-weight-medium); color: var(--hud-text); }
 
 /* 开关行：整行浅底、更高的触达（这是这一页最常按的东西）。 */
 .mset-group .cloc-toggle {
@@ -101,22 +102,22 @@
   background: #f4f8fc;
   border-color: transparent;
 }
-.mset-group .cloc-toggle__label { font-size: 17px; font-weight: 700; }
-.mset-group .cloc-toggle__hint { font-size: 14px; }
-.mset-group .cloc-toggle__knob { width: 60px; height: 34px; }
-.mset-group .cloc-toggle__knob::after { width: 26px; height: 26px; }
+.mset-group .cloc-toggle__label { font-size: var(--m-font-title); font-weight: var(--m-weight-medium); }
+.mset-group .cloc-toggle__hint { font-size: var(--m-font-body); line-height: var(--m-lh-body); }
+.mset-group .cloc-toggle__knob { width: 50px; height: 30px; }
+.mset-group .cloc-toggle__knob::after { width: 22px; height: 22px; }
 .mset-group .cloc-toggle.is-on .cloc-toggle__knob {
   box-shadow: 0 4px 12px rgba(245, 166, 35, 0.45);
 }
 
-.mset-account { font-size: 17px; font-weight: 700; color: var(--hud-text); }
+.mset-account { font-size: var(--m-font-title); font-weight: var(--m-weight-medium); color: var(--hud-text); }
 /* 退出登录：琥珀描边而不是红字——它是"换个人用"，不是危险动作（红只给拥堵与读不到）。 */
 .mset-logout {
   width: 100%;
-  min-height: 50px;
+  min-height: 48px;
   border-radius: 16px;
   border: 1px solid var(--hud-amber);
   color: var(--hud-amber);
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--m-font-title);
+  font-weight: var(--m-weight-bold);
 }

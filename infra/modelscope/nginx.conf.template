@@ -1,0 +1,68 @@
+# 魔搭 Docker 创空间的站点配置模板（ACR-048）。
+#
+# 启动时由 entrypoint.sh 用 envsubst 渲染成 /etc/nginx/conf.d/default.conf。
+# 之所以是模板而不是成品：上游地址与限流阈值都来自创空间设置页的**运行时**环境变量，
+# 这样 ECS 的地址就不用写进公开仓库，改限流也不必重新构建镜像。
+
+# 按来源 IP 限速。zone 必须定义在 server 之外，所以这一段在 entrypoint 里
+# 被插进 http{} 上下文（见 entrypoint.sh 对 nginx.conf 的处理）。
+
+server {
+  # 7860 是平台规定的对外端口，不可改；8080 被平台自己的进程占了，别碰。
+  listen 7860;
+  # IPv6 也要听：容器内 localhost 在 Alpine 上先解析成 ::1，只听 IPv4 的话
+  # 平台的健康探针会拿到 Connection refused，表现是"服务能用但显示不健康"。
+  listen [::]:7860;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # 演示页只发同源 /v1/*，由这里反代到真正的网关。
+  # 这一跳是整个方案的地基：浏览器全程只跟魔搭的 HTTPS 域名说话，
+  # 所以既不撞混合内容阻断，网关也不需要支持 CORS。
+  # 发消息单独设一道更紧的闸。它与其它请求的代价不是一个量级：
+  # 一次发消息触发一整轮 LLM + 工具调用，而登录 / 拉历史只是读一下。
+  # 这道闸是有来由的——给上一版做限流标定时，对同一个会话连发 8 条消息，
+  # 把本机的 agent-runtime 整个打崩了（ACP socket 上一个未捕获的 write EPIPE
+  # 让 Node 进程直接退出）。公网上任何人都能复现那个动作，所以这里先挡住。
+  # 根因在服务端，另有工单跟进；这道闸不是替代品，是公开环境的兜底。
+  #
+  # 正则 location 优先级高于前缀 location，所以它会先于下面的 /v1/ 命中。
+  location ~ ^/v1/session/[^/]+/messages$ {
+    limit_req zone=turn burst=${DEMO_TURN_BURST} nodelay;
+    limit_conn demo_conn ${DEMO_MAX_CONN};
+    include /etc/nginx/snippets/proxy-common.conf;
+  }
+
+  # 其余接口：登录、建会话、开流、确认回执。
+  # 这一跳是整个方案的地基：浏览器全程只跟魔搭的 HTTPS 域名说话，
+  # 所以既不撞混合内容阻断，网关也不需要支持 CORS。
+  location /v1/ {
+    limit_req zone=demo burst=${DEMO_RATE_BURST} nodelay;
+    limit_conn demo_conn ${DEMO_MAX_CONN};
+    include /etc/nginx/snippets/proxy-common.conf;
+  }
+
+  # 诊断端点：平台的边缘到底把哪些东西放进来了。
+  # **只报"有没有"，不回显值**——这是公网可访问的地址，回显 token 等于把它发出去。
+  # 查清哪条通道活着之后就该删掉它。
+  location = /__whoami {
+    default_type application/json;
+    return 200 '{"header":"$has_auth_header","cookie":"$has_auth_cookie","effective":"$has_effective_auth"}';
+  }
+
+  # 带哈希文件名的产物可以永久缓存——名字变了就是新文件。
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+
+  # index.html 与运行时配置绝不能被缓存：旧 index.html 指向上一版的哈希 JS，
+  # 而 config.js 每次启动都可能变（设置页改了环境变量）。
+  location = /index.html { add_header Cache-Control "no-cache"; }
+  location = /config.js  { add_header Cache-Control "no-store"; }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}

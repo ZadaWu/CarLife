@@ -19,6 +19,7 @@
     "db:pii:encrypt": "tsx scripts/migrate-pii-encrypt.ts"
   },
   "dependencies": {
+    "@carlife/guardrails": "workspace:*",
     "@carlife/memory": "workspace:*",
     "@carlife/shared": "workspace:*",
     "@prisma/client": "^6.1.0"

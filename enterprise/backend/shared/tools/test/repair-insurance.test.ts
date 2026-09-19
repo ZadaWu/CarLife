@@ -276,9 +276,9 @@ describe("createRepairAppointmentBackend", () => {
 });
 
 describe("ACL（接线点 10 的镜像断言，权威白名单在 route.test.ts）", () => {
-  it("service 拿到四个新工具；ownership 只拿 repair_history；buying 拿 insurance_policy", () => {
+  it("service 拿到六个工具；ownership 只拿 repair_history；buying 拿 insurance_policy", () => {
     const service = listForAgent("service").map((t) => t.name);
-    for (const n of ["repair_history", "repair_quote", "insurance_policy", "insurance_precheck"]) {
+    for (const n of ["repair_history", "repair_quote", "insurance_policy", "insurance_precheck", "claim_advisor", "claim_checklist"]) {
       assert.ok(service.includes(n), `service 缺 ${n}`);
     }
     const ownership = listForAgent("ownership").map((t) => t.name);
@@ -289,8 +289,8 @@ describe("ACL（接线点 10 的镜像断言，权威白名单在 route.test.ts�
     assert.ok(!listForAgent("trip").some((t) => t.name === "repair_history"));
   });
 
-  it("四个新工具全部只读（sensitive:false）——预约副作用仍只经 appointment", () => {
-    for (const n of ["repair_history", "repair_quote", "insurance_policy", "insurance_precheck"]) {
+  it("六个工具全部只读（sensitive:false）——预约副作用仍只经 appointment（M96-02 扩两个）", () => {
+    for (const n of ["repair_history", "repair_quote", "insurance_policy", "insurance_precheck", "claim_advisor", "claim_checklist"]) {
       const t = listForAgent("service").find((x) => x.name === n);
       assert.equal(t?.sensitive, false, `${n} 不该过权限门`);
     }

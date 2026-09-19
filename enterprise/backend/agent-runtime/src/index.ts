@@ -40,12 +40,17 @@ import {
   setSessionAccessResolver,
 } from "./tools-endpoint";
 import { recordSubmission } from "./branch-submissions";
+import { recordPoiCoords } from "./poi-coords";
 import { publishToTurn } from "./interrupt-bus";
 import * as events from "./events";
 import { toolDisplayName } from "./events/tool-display";
 import type { SessionEvent } from "@carlife/shared";
 import { buildChatGraph, setPreferenceWriter, setEpisodeWriter, setEpisodeReader } from "./graph/supervisor";
+import { SERVICE_ASKS_SYSTEM, serviceAsksEnabled } from "./graph/service-asks";
 import { createCheckpointer } from "./graph/checkpointer";
+import { AnchorPins, createContextCache, setContextCache } from "./context";
+import { readPreferences } from "./context/preferences-reader";
+import { createPreferenceStore } from "./memory-preference-store";
 import { TurnRunner } from "./turn-runner";
 import { createRuntimeServer, setHealthProvider } from "./server";
 import { getToolEndpointStats, setGuardGate } from "./tools-endpoint";
@@ -68,10 +73,13 @@ import { extractProfileFacts } from "./elicitation/extract";
 import { decisiveEnergyFor, parseDistanceKm } from "./graph/energy";
 import { carryOverHighlights, createHighlightsBackfill } from "./graph/highlights";
 import { looksLikeDeparting } from "./graph/elicitation";
-import {
+import { defaultDetectVendor,
   TOOL_REGISTRY,
   createAmapClient,
   createCmaClient,
+  createRedisAmapLedger,
+  amapBudgetFromEnv,
+  resolveAmapKeys,
   setAmapClient,
   setDealerBackend,
   getDealerBackend,
@@ -84,10 +92,6 @@ import {
   setInsuranceBackend,
   getInsuranceBackend,
   createHttpInsuranceBackend,
-  setCalendarBackend,
-  createGoogleCalendarBackend,
-  createCaldavBackend,
-  createFanoutCalendarBackend,
   setCmaClient,
   setDestinationSearch,
   setEnvCache,
@@ -101,8 +105,14 @@ import {
   setTripPlanStore,
   setRouteAuditStore,
   setBranchSubmissionSink,
+  setPoiCoordSink,
   setSearchResultRecorder,
   setRestStopCandidateRecorder,
+  setEnergyConsumptionLookup,
+  setEnergyStopCandidateRecorder,
+  setEnergyStopLookup,
+  setRouteDurationLookup,
+  setRouteDurationRecorder,
   setUsageStore,
   getTool,
   setFreshnessThresholds,
@@ -129,19 +139,27 @@ import { guideBriefIsComplete } from "@carlife/shared";
 import { createGuideBriefRepository } from "@carlife/db";
 import { recordSearchResults } from "./search-results";
 import { recordRestStopCandidates } from "./route-candidates";
+import { peekEnergyStopCandidates, recordEnergyStopCandidates } from "./energy-candidates";
+import { peekEnergyConsumption } from "./energy-consumption";
+import { peekRouteDurations, recordRouteDuration } from "./route-durations";
+import { carryOverServices, createServicesBackfill } from "./graph/route-services";
 import { setMemberStore as setGraphMemberStore } from "./graph/supervisor";
 import { setCompanionFlagStore } from "./graph/companions";
 import { existsSync, readFileSync } from "node:fs";
 import { join as joinPath } from "node:path";
 
-import { createRagClient, loadAlertCatalog } from "@carlife/rag";
-import { createDashScopeEmbedder, createIconImageResolver, decideMatch, recallCandidates, recallFigures } from "@carlife/rag";
+import { semanticsOfRow, createRagClient, datasetIdsFromEnv, loadAlertCatalog } from "@carlife/rag";
+import { createDashScopeEmbedder, createIconImageResolver, createQdrantFigureStore, decideMatch, recallCandidates, recallFigures, type FigureStore } from "@carlife/rag";
+import { createHintAwareMatcher } from "./graph/icon-match";
 import { createIconEmbeddingRepository, createManualFigureRepository, getPrisma as getPrismaForIcons } from "@carlife/db";
 import { createVisionProviderFromEnv } from "@carlife/tools";
 import { setVisionDeps, type IconMatcher } from "./graph/vision";
 import { setFigureDeps, type FigureHitLite } from "./graph/subgraphs/ownership";
+import { pickFigureStore } from "./figure-store-pick";
 import {
   createTripPlanRepository,
+  createOwnerProfileRepository,
+  createWorkingTaskStore,
   createTripRouteAuditRepository,
   createTripRepository,
   createVehicleMemberRepository,
@@ -294,9 +312,17 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       o.status === "failed"
         ? classifyError(o.error)
         : [o.ctx.mode, o.summary].filter(Boolean).join(" · ");
+    /*
+     * `waitMs` **每条都写，包括 0**（M77 走查追修）。
+     *
+     * 0 的意思是"这一跳没排队"，而字段缺失的意思是"这一轮跑在加这个字段之前"——
+     * 两者在页面上要分得开：前者该画成满格的在途，后者只能不画。
+     * 只给排过队的工具写，会让人把老数据读成"没排队"。
+     */
     recordSpan(o.ctx.sessionId, `tool.${o.name}`, o.startedAt, o.endedAt, o.status, {
       agent: o.ctx.agent,
       detail,
+      waitMs: o.waitMs,
     });
     /*
      * 与 span 并列再落一条 `tool_call`（内容记录）：四问之四"数据是真的吗"
@@ -310,10 +336,14 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       mode: o.ctx.mode,
       provider: getTool(o.name)?.tool.provider,
       status: o.status,
+      // 入参与返回值（业务视图）：截断与序列化在 recordToolCall 里，展示前网关脱敏。
+      args: o.args,
+      result: o.result,
+      durationMs: o.endedAt - o.startedAt,
     });
     // 工具进展下行（F-08-05）。与轨迹并列，不是包装：轨迹是给运维看的，
     // 这条是给车主看的，两者的失败互不牵连。
-    publishToolProgress(o.callId, o.name, o.ctx.sessionId, o.status === "ok" ? "succeeded" : "failed");
+    publishToolProgress(o.callId, o.name, o.ctx.sessionId, o.status === "ok" ? "succeeded" : "failed", o.ctx.agent);
   });
 
   /*
@@ -339,8 +369,9 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
     name: string,
     threadId: string,
     status: "started" | "succeeded" | "failed",
+    agent?: string,
   ): void => {
-    const display = toolDisplayName(name);
+    const display = toolDisplayName(name, agent);
     // 表里没有就不发——见 `tool-display.ts`：宁可少一条进度，
     // 也不把函数名摆给车主，更不编一句"正在查询"。
     if (!display) return;
@@ -352,15 +383,15 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   };
 
   setToolStartObserver((o) => {
-    publishToolProgress(o.callId, o.name, o.ctx.sessionId, "started");
+    publishToolProgress(o.callId, o.name, o.ctx.sessionId, "started", o.ctx.agent);
   });
 
   // fake 是离线路径（无 pi、无网络也要能跑单测与 e2e），显式绕过 ACP。
   const useAcp =
     (process.env.CARLIFE_AGENT_RUNTIME ?? "acp") === "acp" && process.env.CARLIFE_LLM !== "fake";
   // **按 Agent 分进程**（见 pool.ts）：工具表是进程级的，共用一个进程就等于
-  // 六个 Agent 共用 supervisor 的工具表——出行分支手上没有 calendar，
-  // 主线后半段结构上不可能发生，而模型只会说"已写入日历"。
+  // 六个 Agent 共用 supervisor 的工具表——出行分支手上没有 `appointment`
+  // （它归购车与售后），共用进程会让它凭空多出一个能替车主下单的工具。
   const acpClient = useAcp ? new AcpClientPool() : undefined;
   // 包一层耗时埋点（TD-08）：**两条路径都包**——ACP 与直连实现的慢法不同，
   // 但"这次调用花了多久、多久才出第一个字"这个问题对两者是同一个。
@@ -383,18 +414,7 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
     // 工具调用从 pi 侧回来时只带 ACP 会话 id。装上反解，工具日志与权限门才拿得到
     // CarLife 的 session_id（F-07-07）——没有它，interrupt 找不到该挂起哪一路 SSE。
     setSessionResolver((acpSessionId) => acpClient.resolveSession(acpSessionId));
-    // 启动自检（F-42-12）：pi 扩展没被加载是**无症状故障**——模型手里零工具、
-    // 转而编造答案，不报错不告警。所以这条检查必须在启动期喊出来，
-    // 而不是等第一次工具调用（那时只会看到"模型没调工具"这种无从下手的现象）。
-    // 不因失败退出：pi 侧问题不该拖垮已能提供文本对话的服务，重连逻辑会持续尝试。
-    void acpClient
-      .selfCheck(() => getToolEndpointStats().describeCalls)
-      .then((r) =>
-        r.ok
-          ? console.log(`[runtime] ACP 自检通过：${r.detail}`)
-          : console.error(`[runtime] ⚠️ ACP 自检未通过：${r.detail}`),
-      )
-      .catch((e) => console.error("[runtime] ACP 自检异常", e));
+    // 启动自检（F-42-12）在下面的 listen 回调里发起——它必须等 HTTP 服务就绪，理由写在那里。
   }
 
   /**
@@ -707,6 +727,8 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   // ⑥ 补能流水的读侧（M26-07）：算实测油耗要它。写侧已注入 enterprise/backend/shared/tools。
   const refuelRepo = createRefuelRepository(prisma);
   const tripPlanRepo = createTripPlanRepository(prisma);
+  /** 常住地（M84-03 的 `home` 段）。与网关那一份是同一个仓储、同一张表，读法不另写。 */
+  const ownerProfileRepoForContext = createOwnerProfileRepository(prisma);
   console.log(
     vehicleCacheBackend
       ? "[vehicle-cache] ④档案读缓存已接入（写后同步失效）"
@@ -744,12 +766,18 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
        * 传的是**裸 repo**：补算完要写回，走包装过的 update 会再触发一次补算与入队。
        */
       const highlights = createHighlightsBackfill(repo);
+      /*
+       * 沿途服务的后台补算（交接文档待执行事项 4）：与推荐同一水管口、同一形态——
+       * 十几秒的副作用，不许拖慢确认那一跳，失败只记一行日志。同样传裸 repo。
+       */
+      const services = createServicesBackfill(repo);
       return {
         ...repo,
         commit: async (userId, sessionId, plan) => {
           const row = await repo.commit(userId, sessionId, plan);
           guideEnqueueOnCommit(plan);
           highlights.schedule({ userId, planId: row.planId, sessionId, plan: row.plan });
+          services.schedule({ userId, planId: row.planId, sessionId, plan: row.plan });
           return row;
         },
         update: async (userId, planId, sessionId, plan) => {
@@ -761,11 +789,14 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
            * 换了目的地立刻清掉——错的推荐比暂时没有推荐糟。
            */
           const prior = await repo.currentForUser(userId);
-          const merged = carryOverHighlights(prior?.planId === planId ? prior.plan : undefined, plan);
+          const priorPlan = prior?.planId === planId ? prior.plan : undefined;
+          // 沿途服务同理：骨架没变就沿用库里那份，变了就清掉等后台重算（错的计数比暂时待查糟）。
+          const merged = carryOverServices(priorPlan, carryOverHighlights(priorPlan, plan));
           const row = await repo.update(userId, planId, sessionId, merged);
           if (row) {
             guideEnqueueOnCommit(merged);
             highlights.schedule({ userId, planId, sessionId, plan: row.plan });
+            services.schedule({ userId, planId, sessionId, plan: row.plan });
           }
           return row;
         },
@@ -776,10 +807,35 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   setRouteAuditStore(createTripRouteAuditRepository(prisma));
   // 分支结论提交通道（M30-01）：①Working 层进程内暂存，轮结束即弃。
   setBranchSubmissionSink({ record: (ctx, tool, payload) => recordSubmission(ctx, tool, payload) });
+  /*
+   * poi_search 坐标登记簿（M77 走查追修）：片区缺口按距离判，不再比中文标签。
+   * 只记真实后端的返回；未注入时缺口判定自动退回老的字符串匹配。
+   */
+  setPoiCoordSink({ record: (ctx, hits) => recordPoiCoords(ctx, hits) });
   // web_search 结果的按轮白名单（M36-01）：出处全等校验的依据，同为①Working 层。
   setSearchResultRecorder({ record: (ctx, results) => recordSearchResults(ctx, results) });
   // map_route 休息点候选的按轮白名单（M66-02）：出发导航的途经点零信任校验依据，同为①Working 层。
   setRestStopCandidateRecorder({ record: (ctx, stops, summary) => recordRestStopCandidates(ctx, stops, summary) });
+  /*
+   * charging / refuel 候选站的按轮白名单（沿途服务数据源交接，待执行事项 3）：
+   * `submit_drive_draft` 交的 energyStops 只认本轮这两个工具返回过的站名，同为①Working 层。
+   * 读取端归不了轮（没有 turnId）就返回 undefined = 不核对，与 recordSubmission 的拒收口径一致。
+   */
+  setEnergyStopCandidateRecorder({ record: (ctx, candidates) => recordEnergyStopCandidates(ctx, candidates) });
+  setEnergyStopLookup(({ sessionId, turnId }) => (turnId ? peekEnergyStopCandidates(sessionId, turnId) : undefined));
+  /*
+   * 百公里能耗口径的按轮注入（turn-9386d1c2）：`energy_gap` 的这一栏不再由模型填。
+   * 写入端在 `graph/supervisor.ts` 的行程节点（与取实测续航同一次取数），同为①Working 层。
+   * 归不了轮就返回 undefined = 这一轮没有口径，工具如实说缺什么——不回落到标称值。
+   */
+  setEnergyConsumptionLookup(({ sessionId, turnId }) => (turnId ? peekEnergyConsumption(sessionId, turnId) : undefined));
+  /*
+   * map_route 每条路的实算时长（ACR-047 第二道，turn-ced08ea1）：
+   * `submit_drive_plan` 交上来的各段之和要与它对得上——拆段只是把同一条路切开，切完总和不变。
+   * 与上面那本同一条口径：归不了轮就返回 undefined = 不核对。
+   */
+  setRouteDurationRecorder({ record: (ctx, route) => recordRouteDuration(ctx, route) });
+  setRouteDurationLookup(({ sessionId, turnId }) => (turnId ? peekRouteDurations(sessionId, turnId) : undefined));
   // 一次性标记（M14-03，F-23-12）：建档引导"只提示一次"的持久承载。
   setUserFlagStore(createUserFlagRepository(prisma));
 
@@ -811,21 +867,27 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       iconImages = createIconImageResolver({
         root: process.env.CARLIFE_ICON_IMAGES_ROOT || new URL("../../../../data/kb-src/icons", import.meta.url).pathname,
       });
-      matchIcon = async ({ crop, descriptor, vehicleModel }) => {
-        const { candidates } = await recallCandidates({ crop, descriptor, vehicleModel, k: 8 }, { embedder, store });
-        return decideMatch(candidates, crop, {
-          /*
-           * 车型串可能是空的：观察节点按 M71-04 的既有形态不从档案取车型（索引里只有一款车）。
-           * 那时**只有在图标目录也恰好只有一款车**时才拿它顶上——这与召回侧的前提是同一条。
-           * 目录里有多款车而档案没说是哪款，就宁可不核验（返回 null → 说「疑似」），不去猜。
-           */
-          iconImage: (symbolId) => {
-            const model = vehicleModel || iconImages?.soleVehicle() || "";
-            return model ? iconImages?.(model, symbolId) ?? null : null;
-          },
-          verifyPair: (a, b) => provider.verifyPair(a, b),
-        });
+      /*
+       * 车型串可能是空的：观察节点按 M71-04 的既有形态不从档案取车型（索引里只有一款车）。
+       * 那时**只有在图标目录也恰好只有一款车**时才拿它顶上——这与召回侧的前提是同一条。
+       * 目录里有多款车而档案没说是哪款，就宁可不核验（返回 null → 说「疑似」），不去猜。
+       */
+      const iconImage = (vehicleModel: string | undefined) => (symbolId: string) => {
+        const model = vehicleModel || iconImages?.soleVehicle() || "";
+        return model ? iconImages?.(model, symbolId) ?? null : null;
       };
+      /*
+       * 召回 → 闸门 → 核验，闸门没过再拿端上类别名直接核验一次（`graph/icon-match.ts` 文件头）。
+       * 依赖显式传入是为了能单测；以前这里是个闭包，"名字从不参与匹配"的缺口藏了两天没人看见。
+       */
+      matchIcon = (args) =>
+        createHintAwareMatcher({
+          recall: (a) => recallCandidates(a, { embedder, store }),
+          decide: (candidates, crop) => decideMatch(candidates, crop, { iconImage: iconImage(args.vehicleModel), verifyPair: (a, b) => provider.verifyPair(a, b) }),
+          getBySymbol: (q) => store.getBySymbol!(q),
+          iconImage: iconImage(args.vehicleModel),
+          verifyPair: (a, b) => provider.verifyPair(a, b),
+        })(args);
     }
     /*
      * 官方警报代码表（M80-10）：本地查表，不走检索——代码是精确键，见 `rag/alert-catalog.ts` 文件头。
@@ -840,7 +902,29 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
      */
     let recallFiguresByCrops: ((crops: Buffer[]) => Promise<FigureHitLite[]>) | undefined;
     if ((process.env.CARLIFE_KB_FIGURES ?? "off") === "on" && process.env.DASHSCOPE_API_KEY) {
-      const figStore = createManualFigureRepository(getPrismaForIcons());
+      /*
+       * 后端二选一（ACR-030 / M81-03）：缺省 pgvector，与现状逐字节相同。
+       *
+       * 两个实现喂的是同一个 `FigureStore` 契约（`upsertMany` / `nearest` / `deleteByDoc`），
+       * 召回算法、相似度门、去重与截断全都在契约之上，所以换后端不动任何判定逻辑。
+       * M81-02 的同条件对照实测两档 20/20 逐位一致、存储层 P50 从 209.8 ms 降到 59.2 ms。
+       *
+       * **Qdrant 不可达时退回 pgvector**：知识库是增强不是必需，但"起不来"是事故。
+       * 两边都没有时 `nearest` 会返回空，上游按"没有这一段"处理（`recallFigures` 的既有纪律）。
+       */
+      const pgStore = createManualFigureRepository(getPrismaForIcons());
+      const qUrl = process.env.QDRANT_URL || "http://127.0.0.1:6333";
+      const picked = await pickFigureStore({
+        wanted: process.env.CARLIFE_KB_FIGURES_STORE,
+        pg: pgStore,
+        probeQdrant: async () => {
+          const store = createQdrantFigureStore({ url: qUrl, apiKey: process.env.QDRANT_API_KEY || undefined });
+          const st = await store.stats();
+          return st ? { store, points: st.points } : null;
+        },
+      });
+      const figStore: FigureStore = picked.store;
+      const storeName = picked.kind === "qdrant" ? `${picked.label}，${qUrl}` : picked.label;
       const figEmbedder = createDashScopeEmbedder({ apiKey: process.env.DASHSCOPE_API_KEY, model: process.env.CARLIFE_ICON_EMBED_MODEL || undefined });
       const figRoot = process.env.CARLIFE_KB_FIGURES_ROOT || new URL("../../../../data/kb-figures", import.meta.url).pathname;
       const recall = async (args: { text?: string; crops?: Buffer[]; k?: number }): Promise<FigureHitLite[]> => {
@@ -867,13 +951,29 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       });
       // 每张 crop 取 24 条：库里几本手册的同一枚图标会并列在前，按车型过滤是在问诊节点做的，这里取少了就没得过滤
       recallFiguresByCrops = (crops) => recall({ crops, k: 24 });
-      const docs = await figStore.docs().catch(() => []);
-      console.log(`[vision] 手册图文索引 on：${docs.length ? docs.map((d) => `${d.doc} ${d.rows} 行`).join("、") : "库里还没有文档（corepack pnpm kb:figures 建索引）"}；图片目录 ${figRoot}`);
+      // 文档清单只有 pgvector 仓储有（`docs()` 不在 FigureStore 契约里）；Qdrant 档在上面已经报了 point 数
+      const docs = figStore === pgStore ? await pgStore.docs().catch(() => []) : [];
+      /*
+       * 规模那一段按后端说各自的话：pgvector 报得出「哪本手册几行」（`docs()` 是它独有的），
+       * Qdrant 档只有 point 总数（已在 label 里）。两档共用一句"库里还没有文档"会自相矛盾——
+       * 明明 label 写着 1534 个 point，后面却说没有文档。
+       */
+      const scale = picked.kind === "qdrant"
+        ? ""
+        : `：${docs.length ? docs.map((d) => `${d.doc} ${d.rows} 行`).join("、") : "库里还没有文档（corepack pnpm kb:figures 建索引）"}`;
+      console.log(`[vision] 手册图文索引 on（后端 ${storeName}）${scale}；图片目录 ${figRoot}`);
     } else {
       setFigureDeps(undefined);
       console.log("[vision] 手册图文索引 off（CARLIFE_KB_FIGURES=on 且有 DASHSCOPE_API_KEY 才接）");
     }
-    setVisionDeps({ provider, matchIcon, lookupAlert: alertCatalog ? (code) => alertCatalog.lookup(code) : undefined, recallFigures: recallFiguresByCrops });
+    setVisionDeps({
+      provider,
+      matchIcon,
+      lookupAlert: alertCatalog ? (code) => alertCatalog.lookup(code) : undefined,
+      recallFigures: recallFiguresByCrops,
+      // 原文说明与图标图片同源同一份目录（2026-09-19）：取不到就是 null，端上少一行说明。
+      ...(iconImages ? { lookupIconMeaning: (symbolId: string, vehicleModel?: string) => iconImages!.meaning(vehicleModel, symbolId) } : {}),
+    });
     console.log(
       alertCatalog
         ? `[vision] 官方警报代码表：${alertCatalog.size} 条（${alertCatalog.fetchedAt} 抓取）——表外的代码一律说「手册里没有收录」`
@@ -883,7 +983,9 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
     // 图标图片解析出 0 个车型 = 这台机器上成对核验不会发生、匹配只能说「疑似」——一眼看得出来，别等真跑才发现
     console.log(
       `[vision] 观察层：${provider ? provider.name : "off"}（检测 ${provider?.models.detect ?? "-"} / 描述 ${provider?.models.describe ?? "-"}）；` +
-        `图标索引 ${matchIcon ? "on" : "off"}；图标图片 ${vehicles.length ? `${vehicles.length} 个车型（${vehicles.join("、")}）` : "无——成对核验不会发生，匹配只能说「疑似」"}`,
+        `图标索引 ${matchIcon ? "on" : "off"}；图标图片 ${vehicles.length ? `${vehicles.length} 个车型（${vehicles.join("、")}）` : "无——成对核验不会发生，匹配只能说「疑似」"}` +
+        // 检测缺省档的来由（ACR-045）：端上带框时这一遍不会被调用；这里说的是老端上 / 控制台那些不带框的照片走哪条
+        (provider ? `；检测档：${defaultDetectVendor(process.env, "dashscope").reason}` : ""),
     );
   } catch (err) {
     console.warn("[vision] 观察层未接入（本轮对话不受影响，带图消息会写 caveat）", err);
@@ -947,6 +1049,18 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
         ? `[env-cache] ⑤环境缓存已接入（${redisUrl}）`
         : "[env-cache] ⑤连接失败，外部调用将全部直连（功能不受影响，只是慢且费配额）",
     );
+    /*
+     * 用户长期状态的快照（M84-03）。**复用 ④ 那个 Redis 后端的构造器**——
+     * 它的接口（get/set(ttl)/del）与 `ContextCacheBackend` 逐字段相同，
+     * 再建一个客户端只是多一条连接。连不上就直连权威源（每轮多几十毫秒，不是故障）。
+     */
+    const ctxBackend = await createRedisVehicleCacheBackend(redisUrl);
+    setContextCache(createContextCache(ctxBackend));
+    console.log(
+      ctxBackend
+        ? "[context] 用户长期状态快照已接入 Redis"
+        : "[context] 快照未接入——每轮直连权威源（功能不受影响，只是慢）",
+    );
   } else {
     console.log("[env-cache] ⑤环境缓存未接入（REDIS_URL 未配置）——外部调用全部直连");
   }
@@ -964,28 +1078,8 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   });
   setEpisodeReader(async (userId, query) => getMemoryClient().recallEpisodes(userId, query, 5));
 
-  setPreferenceStore({
-    async recall(userId, query, limit) {
-      const client = getMemoryClient();
-      try {
-        const r = query
-          ? await client.searchPreference(userId, query, limit)
-          : await client.search(userId, "", { category: "preference" }, limit);
-        return {
-          preferences: (r.results ?? []).map((m) => ({
-            content: String(m.memory ?? ""),
-            score: typeof m.score === "number" ? m.score : undefined,
-            domain: (m.metadata as { domain?: string } | undefined)?.domain,
-            confidence: (m.metadata as { confidence?: number } | undefined)?.confidence,
-          })),
-          degraded: r.degraded === true,
-        };
-      } catch (err) {
-        console.warn("[memory] ③偏好检索失败，按降级上报（不当成「没有偏好」）", err);
-        return { preferences: [], degraded: true };
-      }
-    },
-  });
+  // 有词检索、无词列举（M95-02）——空串不是查询词，不再拿它去做向量检索。
+  setPreferenceStore(createPreferenceStore(getMemoryClient()));
 
   // RAGFlow 是 Cloud 托管，未配置时保持未接入。**不给假数据顶上**：
   // 空结果会被上层当成"说明书里没写这件事"，那是错误信息。
@@ -996,11 +1090,9 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       createRagClient({
         baseUrl: ragBaseUrl,
         apiKey: ragApiKey,
-        datasetIds: {
-          "vehicle-manuals": guardValues.get("RAGFLOW_DATASET_VEHICLE_MANUALS") ?? "",
-          "repair-kb": guardValues.get("RAGFLOW_DATASET_REPAIR_KB") ?? "",
-          "car-catalog": guardValues.get("RAGFLOW_DATASET_CAR_CATALOG") ?? "",
-        },
+        // 从 `DATASETS` 的 `envKey` 派生。读值仍走 `guardValues`（后台配置优先于
+        // 进程环境），只是"有哪几个集"不再手抄一遍。
+        datasetIds: datasetIdsFromEnv((k) => guardValues.get(k)),
       }),
     );
   }
@@ -1011,10 +1103,29 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   // 地图与天气（M10-01）。未配 key 的后果是**两件不同的事**，日志要分开说：
   //   map_route 直接返回"未接入"（没有假路线可编）；
   //   weather 退回 Open-Meteo——还能用，但没有中文天气现象，也不是国内路网口径。
-  const amapKey = guardValues.get("AMAP_SERVER_KEY")?.trim();
-  if (amapKey) setAmapClient(createAmapClient({ key: amapKey }));
+  // key 池（M100-01）：`AMAP_SERVER_KEY`~`_10` 里配了几把就几条车道；用量按 key 指纹记账，按日预算主动挑车道。
+  const amapKeys = resolveAmapKeys((k) => guardValues.get(k));
+  const amapBudget = amapBudgetFromEnv(guardValues.get("AMAP_DAILY_BUDGET"));
+  if (amapKeys.length > 0) {
+    // 台账落 Redis（M100-02）：与 worker / gateway 记同一份账，退役也跨进程可见；没有 Redis 就各记各的。
+    const amapLedger = redisUrl ? createRedisAmapLedger(redisUrl) : undefined;
+    if (amapLedger) {
+      void amapLedger.ready().then((mode) => {
+        if (mode === "memory") console.warn("[amap] 台账仅进程内（REDIS_URL 连不上）——三进程各记各的，退役不跨进程");
+        else console.log(`[amap] 用量台账已落 Redis（${redisUrl}）`);
+      });
+    } else {
+      console.warn("[amap] 台账仅进程内（REDIS_URL 未配置）——三进程各记各的，退役不跨进程");
+    }
+    setAmapClient(createAmapClient({ key: amapKeys.map((k) => k.key), budget: amapBudget, ledger: amapLedger }));
+  }
   console.log(
-    `[map] 高德：${amapKey ? "已接入（weather 走高德，map_route 可用）" : "未接入（weather 退回 Open-Meteo，map_route 不可用）"}`,
+    `[map] 高德：${
+      amapKeys.length > 0
+        ? `已接入（${amapKeys.length} 把 key：${amapKeys.map((k) => `${k.name}=${k.fp}`).join("、")}；` +
+          `日预算 ${Object.entries(amapBudget).map(([f, n]) => `${f}=${n}`).join(",") || "不设限"}；weather 走高德，map_route 可用）`
+        : "未接入（weather 退回 Open-Meteo，map_route 不可用）"
+    }`,
   );
 
   /*
@@ -1118,54 +1229,6 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
   }
 
   /*
-   * 日历后端装配（M43-02，F-31-01/03/07/10）。
-   *
-   * `CARLIFE_CALENDAR_BACKEND = mock | google | caldav | both`，默认 mock。
-   * **显式选了真后端但凭证不齐 → 启动抛错**，不静默回 mock：写日历是用户确认过的
-   * 副作用动作，静默降级会让"确认写入"落到假后端，用户以为写进真日历了。
-   */
-  {
-    const calendarMode = (process.env.CARLIFE_CALENDAR_BACKEND ?? "mock").trim();
-    const needEnv = (key: string): string => {
-      const v = (process.env[key] ?? "").trim();
-      if (!v) throw new Error(`CARLIFE_CALENDAR_BACKEND=${calendarMode} 但缺少 ${key}——配齐凭证或改回 mock`);
-      return v;
-    };
-    const makeGoogle = () =>
-      createGoogleCalendarBackend({
-        clientId: needEnv("GOOGLE_CAL_CLIENT_ID"),
-        clientSecret: needEnv("GOOGLE_CAL_CLIENT_SECRET"),
-        refreshToken: needEnv("GOOGLE_CAL_REFRESH_TOKEN"),
-        calendarId: needEnv("GOOGLE_CAL_CALENDAR_ID"),
-      });
-    const makeCaldav = () =>
-      createCaldavBackend({
-        appleId: needEnv("APPLE_CALDAV_APPLE_ID"),
-        appPassword: needEnv("APPLE_CALDAV_APP_PASSWORD"),
-        calendarUrl: (process.env.APPLE_CALDAV_URL ?? "").trim() || undefined,
-      });
-    if (calendarMode === "google") {
-      setCalendarBackend(makeGoogle());
-      console.log("[calendar] 日历后端：Google（真实写入 + freeBusy 读）");
-    } else if (calendarMode === "caldav") {
-      setCalendarBackend(makeCaldav());
-      console.log("[calendar] 日历后端：iCloud CalDAV（真实写入；读侧未实现，规划时如实跳过冲突检查）");
-    } else if (calendarMode === "both") {
-      setCalendarBackend(
-        createFanoutCalendarBackend([
-          { name: "google", backend: makeGoogle() },
-          { name: "caldav", backend: makeCaldav() },
-        ]),
-      );
-      console.log("[calendar] 日历后端：Google + iCloud CalDAV 双写（一次确认两边可见）");
-    } else if (calendarMode === "mock") {
-      console.log("[calendar] 日历后端：mock（CARLIFE_CALENDAR_BACKEND 未配真实后端，写入是模拟回执）");
-    } else {
-      throw new Error(`CARLIFE_CALENDAR_BACKEND=${calendarMode} 不认识（可选 mock/google/caldav/both）`);
-    }
-  }
-
-  /*
    * 模拟车机舒适域（M24-02）。装配逻辑在 cabin/assemble.ts（可测——M15-01 纪律）。
    * 绑定存④档案（cabinVehicleId），mock 重启悬空由 backend 自动重建重绑。
    */
@@ -1256,6 +1319,23 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       : "[runtime] 表述路径：随主链路（ACP）",
   );
 
+  /*
+   * 问诊轮的配合请求提议（M106-03）：与 narrator 并发的一次直连调用，产出 JSON 由预算器裁决。
+   * 与 narrator 同一个构造条件（只在 ACP 模式下造）：`useAcp=false` 时主 streamer 是直连 / fake，
+   * fake 给不出 JSON，开着只会每个问诊轮多一次注定解析为空的调用。`CARLIFE_SERVICE_ASKS=off` 是回滚口。
+   */
+  const proposer =
+    useAcp && serviceAsksEnabled()
+      ? withLlmSpans(
+          createConfiguredChatStreamer(config, {
+            system: SERVICE_ASKS_SYSTEM,
+            model: answerModel,
+            thinking: thinkingForSite("service-asks"),
+          }),
+        )
+      : undefined;
+  console.log(proposer ? `[runtime] 问诊配合请求提议：开（${answerModel}，与应答并发）` : "[runtime] 问诊配合请求提议：关");
+
   // 意图理解节点在 fake/direct 离线路径下关闭：Fake 模型给不出 JSON，
   // 开着只会每轮多一次无意义调用并稳定走降级分支（确定性测试不该依赖模型能力）。
   // 埋点整条链路都是 fire-and-forget：算单价要读配置（异步），
@@ -1295,6 +1375,7 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       enableIntent: useAcp,
       checkpointer: checkpointerHandle.saver,
       narrator,
+      proposer,
     }),
     Date.now,
     recordUsageWithPricing,
@@ -1493,7 +1574,80 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
     // 裁决审计（M37-04）：内容管线四层的落库记录在 turn-runner 打
     //（管线 onAudit 没有会话归属），action_gate 在上面 guardGate 的 onAudit 打。
     guardAuditor,
+    /*
+     * 上下文装载层（M84-03，ACR-036 §4.9）。
+     *
+     * 八个读取器**全部指向既有权威源**——这里一行取数逻辑都不新写，否则同一个事实
+     * 就有了第二种取法，而两种取法必然在某个边界上分家（④ 的 `odometer_at` 语义就是
+     * 这么被 `updatedAt` 顶替过一次的）。
+     *
+     * 每个读取器都带 `userId`（ADR-011）。`reminders` / `usage` 两段本单先不接——
+     * 前者 `@carlife/db` 还没有导出仓储，后者要跑一次聚合（太贵），
+     * **缺席与"读不到"是两回事**：缺席 = 这一段不投影，不会被渲染成"他没有提醒"。
+     */
+    {
+      readers: {
+        async identity(userId) {
+          const u = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+          // role 先一律按 owner：车辆共享（`vehicle_grants`）下的访客身份留给 ACR-037，
+          // 猜一个会让访客被当成车主，那比不说更糟。
+          return { userId, ...(u?.displayName ? { displayName: u.displayName } : {}), role: "owner" as const };
+        },
+        async vehicle(userId) {
+          const v = (await vehicleStoreForCabin.listByOwner(userId))[0];
+          if (!v) return undefined;
+          return {
+            vin: v.vin,
+            model: v.model,
+            modelYear: v.modelYear,
+            ...(v.energyType ? { energyType: v.energyType } : {}),
+            odometerKm: v.odometerKm,
+            // 「这个里程是什么时候的」——④ 的新鲜度维，缺席是"不知道"不是"很久以前"。
+            ...(v.odometerAt ? { odometerAsOf: new Date(v.odometerAt).getTime() } : {}),
+            ...(v.odometerSource ? { odometerSource: v.odometerSource } : {}),
+            ...(v.maintenanceIntervalKm ? { maintenanceIntervalKm: v.maintenanceIntervalKm } : {}),
+          };
+        },
+        async home(userId) {
+          const p = await ownerProfileRepoForContext.currentForUser(userId);
+          return { city: p.home.city, lat: p.home.lat, lon: p.home.lon };
+        },
+        async companions(userId) {
+          const ms = await memberRepo.listByOwner(userId);
+          // **手机号一个字都不带**：投影层截断，不指望下游记得别渲染它。
+          return ms.map((m) => ({
+            label: m.displayName,
+            ...(m.relation ? { relation: m.relation } : {}),
+            ...(m.ageBand ? { ageBand: m.ageBand } : {}),
+            needs: m.needs ?? [],
+          }));
+        },
+        async trips(userId) {
+          const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+          const rows = await tripPlanRepo.activeForUser(userId, today, 5);
+          return rows.map((r) => ({
+            ref: r.planId,
+            destination: r.plan.destination,
+            days: r.plan.days,
+            ...(r.plan.startDate ? { startDate: r.plan.startDate } : {}),
+            ...(r.plan.nav?.day !== undefined ? { navDay: r.plan.nav.day } : {}),
+          }));
+        },
+        async preferences(userId) {
+          // 走与 `setPreferenceStore` 同一个客户端与同一个 category，不另写一套。
+          // 列举不检索、degraded 抛「读不到」——两条不变量与理由在 `context/preferences-reader.ts`。
+          return readPreferences(getMemoryClient(), userId);
+        },
+      },
+      // 本单只读任务（渲染一行状态）；写在 M84-04。
+      taskReader: createWorkingTaskStore(prisma),
+      pins: new AnchorPins(),
+    },
   );
+  // 记忆后端的首次探活（pgvector 初始化 + embedder 探针）实测 2 s 以上。不在这里预热的话，
+  // 每次重启后第一轮的「偏好」一段必然超 `ASSEMBLE_BUDGET_MS`（300 ms）。失败不阻塞启动：
+  // 读取器会按 degraded 抛出"读不到"，健康视图里也看得到 `lastError`。
+  void getMemoryClient().ensureReady();
   // 运行时形态与风险摘要（M9-05）：把散落各处的降级状态集中暴露成一个视图。
   setHealthProvider(() => {
     const toolStats = getToolEndpointStats();
@@ -1747,6 +1901,16 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
           streamer,
           memberStore: memberRepo,
           listPreferences: (userId) => getMemoryClient().listPreferences(userId),
+          /*
+           * ④车辆档案的能源类型（休息点排序用）。走 `vehicleStoreForCabin` 是因为它
+           * 带着那层缓存；点「开始行程」时这条与偏好、常用人员三路并读，不加时延。
+           * 给了 vin 就认 vin，没给取名下第一辆——与 pretrip 同一条取法。
+           */
+          readEnergyType: async (userId, vin) =>
+            (vin
+              ? await vehicleStoreForCabin.get(vin)
+              : (await vehicleStoreForCabin.listByOwner(userId))[0]
+            )?.energyType,
           onUsage: (sample) =>
             recordUsageWithPricing({
               ...sample,
@@ -1763,6 +1927,27 @@ if (process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js
       ? "deepseek"
       : "fake";
     console.log(`[runtime] listening on ${BIND}:${PORT} (llm=${mode})`);
+    // 启动自检（F-42-12）：pi 扩展没被加载是**无症状故障**——模型手里零工具、
+    // 转而编造答案，不报错不告警。所以这条检查必须在启动期喊出来，
+    // 而不是等第一次工具调用（那时只会看到"模型没调工具"这种无从下手的现象）。
+    // 不因失败退出：pi 侧问题不该拖垮已能提供文本对话的服务，重连逻辑会持续尝试。
+    //
+    // 必须放在 listen 回调里，不能更早：自检会 spawn pi，而 pi 加载扩展的第一件事
+    // 就是回头 fetch 本进程的 /internal/tools/describe（carlife-tools.ts，无重试）。
+    // 曾经放在 listen 之前发起，中间几十个 await（探门店、保险、维修、pg-boss……）
+    // 把窗口撑得足够长，扩展必然撞上 ECONNREFUSED、内层 pi 退出，自检只剩一句
+    // 离根因很远的 "Cannot call write after a stream was destroyed"——pi-acp 还吞掉
+    // pi 的 stderr，扩展那句 fetch failed 根本到不了日志（2026-09-16 定位）。
+    if (acpClient) {
+      void acpClient
+        .selfCheck(() => getToolEndpointStats().describeCalls)
+        .then((r) =>
+          r.ok
+            ? console.log(`[runtime] ACP 自检通过：${r.detail}`)
+            : console.error(`[runtime] ⚠️ ACP 自检未通过：${r.detail}`),
+        )
+        .catch((e) => console.error("[runtime] ACP 自检异常", e));
+    }
     if (!LOOPBACK.has(BIND)) {
       /*
        * `/internal/*` 没有鉴权——它的设计前提是"只有同机的网关会调"

@@ -176,3 +176,15 @@ describe("attachmentRefs", () => {
     assert.deepEqual(attachmentRefs([video()]), [{ attachmentId: "handle_video_aaaaaaa", kind: "video", handle: "handle_video_aaaaaaa", contentType: "video/mp4", bytes: 4 }]);
   });
 });
+
+describe("[F-09-10][AC-09-9] 端上的框透传给 runtime（ACR-045）", () => {
+  it("照片带 detections → 转发体原样带上（坐标不换算）；不带的照片没有这个键", async () => {
+    const det = { width: 300, height: 400, items: [{ bbox: [111, 197, 189, 222] as [number, number, number, number], name: "parking_lights", conf: 0.97 }] };
+    const turns = new TurnService(repo, bus);
+    await turns.accept("s1", "这灯亮了", "text", "u1", undefined, null, [{ ...image(1), detections: det }, image(2)]);
+    await settled();
+    const sent = turnBodies[0].attachments as Array<Record<string, unknown>>;
+    assert.deepEqual(sent[0].detections, det);
+    assert.ok(!("detections" in sent[1]));
+  });
+});

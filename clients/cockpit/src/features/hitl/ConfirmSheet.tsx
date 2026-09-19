@@ -167,6 +167,9 @@ export function ConfirmSheet({ request, busy = false, notice, onDismissNotice, o
           )}
         </header>
 
+        {/* 行程首行（M77 走查追修，2026-09-12）：从哪去哪、几天。标题说的是"要做什么"，这一行说的是"对哪份行程做"。 */}
+        {view.route && <p className="hitl-route">{view.route}</p>}
+
         {/* 体检摘要条（M77-04，Brief §3.2）：三个胶囊一行，3 秒读出"验了几项、几项要看、几项验不了"。 */}
         {view.audit && <AuditSummaryBar summary={view.audit} />}
 

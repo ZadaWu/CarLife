@@ -1,0 +1,136 @@
+/* 业务视图（bz- 前缀）。抽屉内的排版：一行一件事，展开才见细节。 */
+
+.bz h3 { font-size: 12px; margin: 18px 0 6px; color: var(--fg-dim); text-transform: none; }
+
+/* ── 抽屉头部的视图切换 */
+.bz-view-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-right: 8px; }
+.bz-view-switch button {
+  background: transparent; border: none; color: var(--fg-dim); font-size: 12px;
+  padding: 4px 12px; cursor: pointer;
+}
+.bz-view-switch button.is-on { background: var(--accent); color: #fff; }
+.bz-view-switch button:not(.is-on):hover { color: var(--fg); }
+
+/* ── 概览 */
+.bz-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; }
+.bz-overview > div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+.bz-overview > div:first-child { grid-column: 1 / -1; }
+.bz-overview dt { font-size: 11px; color: var(--fg-dim); margin-bottom: 4px; }
+.bz-overview dd { margin: 0; font-size: 13px; line-height: 1.6; }
+.bz-ask { white-space: pre-wrap; }
+.bz-constraints { display: block; font-size: 12px; color: var(--fg-dim); margin-top: 2px; }
+.bz-outcome--ok { color: #3fb950; }
+.bz-outcome--failed, .bz-outcome--denied { color: #f85149; }
+.bz-outcome--cancelled, .bz-outcome--running { color: #d29922; }
+
+/* ── 路径条 */
+.bz-stations { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; align-items: flex-start; }
+.bz-station {
+  flex: 1; min-width: 0; position: relative; padding: 8px 8px 8px 30px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  font-size: 12px; line-height: 1.5;
+}
+.bz-station + .bz-station::before {
+  content: "›"; position: absolute; left: -8px; top: 8px; color: var(--fg-dim); font-size: 14px;
+}
+.bz-station-dot {
+  position: absolute; left: 8px; top: 9px; width: 16px; height: 16px; border-radius: 50%;
+  font-size: 10px; line-height: 16px; text-align: center; color: #fff; background: var(--fg-dim);
+}
+.bz-station--done .bz-station-dot { background: #3fb950; }
+.bz-station--active .bz-station-dot { background: #d29922; animation: bz-pulse 1.2s ease-in-out infinite; }
+.bz-station--failed .bz-station-dot { background: #f85149; }
+.bz-station--skipped { opacity: 0.45; }
+.bz-station--failed { border-color: #f85149; }
+.bz-station-label { display: block; font-weight: 600; }
+.bz-station-meta { display: block; color: var(--fg-dim); font-size: 11px; }
+.bz-station-agents { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.bz-agent-chip {
+  font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid #3fb950; color: #3fb950;
+  white-space: nowrap;
+}
+.bz-agent-chip--failed { border-color: #f85149; color: #f85149; }
+.bz-agent-chip--cancelled, .bz-agent-chip--warn { border-color: #d29922; color: #d29922; }
+.bz-legend { margin-left: 8px; }
+.bz-legend--done { color: #3fb950; }
+.bz-legend--active { color: #d29922; }
+.bz-legend--failed { color: #f85149; }
+.bz-legend--skipped { color: var(--fg-dim); }
+@keyframes bz-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.5); } 50% { box-shadow: 0 0 0 5px rgba(210, 153, 34, 0); } }
+@media (max-width: 720px) { .bz-stations { flex-direction: column; } .bz-station + .bz-station::before { display: none; } }
+
+/* ── 执行流程 */
+.bz-phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bz-phase { border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+.bz-phase--ok { border-left-color: #3fb950; }
+.bz-phase--warn { border-left-color: #d29922; }
+.bz-phase--failed { border-left-color: #f85149; }
+.bz-phase--cancelled { border-left-color: var(--fg-dim); }
+.bz-phase-head { display: flex; align-items: center; gap: 8px; }
+.bz-phase-no {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line);
+  font-size: 11px; line-height: 16px; text-align: center; color: var(--fg-dim);
+}
+.bz-phase-label { font-size: 13px; font-weight: 600; }
+.bz-phase-summary { margin: 6px 0 0 26px; font-size: 13px; line-height: 1.6; }
+.bz-notes { margin: 6px 0 0 26px; padding-left: 16px; font-size: 12px; color: var(--fg-dim); line-height: 1.6; }
+.bz-ms { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.bz-tag {
+  font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-dim);
+  white-space: nowrap;
+}
+.bz-tag--ok { border-color: #3fb950; color: #3fb950; }
+.bz-tag--warn, .bz-tag--cancelled, .bz-tag--mock { border-color: #d29922; color: #d29922; }
+.bz-tag--failed, .bz-tag--bad { border-color: #f85149; color: #f85149; }
+
+/* ── Agent 卡与工具行：details 折叠 */
+.bz-agents, .bz-tools { list-style: none; margin: 8px 0 0 26px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bz-tools { margin-left: 0; }
+.bz-agent, .bz-tool { border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+.bz-agent--failed, .bz-tool--failed { border-color: #f85149; }
+.bz-agent > details > summary, .bz-tool > details > summary {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; cursor: pointer; font-size: 12px;
+  list-style: none;
+}
+.bz-agent > details > summary::-webkit-details-marker, .bz-tool > details > summary::-webkit-details-marker { display: none; }
+.bz-agent > details > summary::before, .bz-tool > details > summary::before {
+  content: "▸"; color: var(--fg-dim); font-size: 11px; transition: transform 0.12s;
+}
+.bz-agent > details[open] > summary::before, .bz-tool > details[open] > summary::before { transform: rotate(90deg); }
+.bz-agent-name { font-weight: 600; font-size: 13px; }
+.bz-seq { margin-left: 6px; font-weight: 400; font-size: 11px; color: var(--fg-dim); }
+.bz-tool-raw { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); }
+.bz-tool-name { font-weight: 600; }
+.bz-tool-summary, .bz-agent-brief { font-size: 11px; color: var(--fg-dim); }
+.bz-agent-body { padding: 4px 12px 12px 24px; border-top: 1px dashed var(--line); }
+.bz-io { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 12px 12px 24px; border-top: 1px dashed var(--line); }
+@media (max-width: 720px) { .bz-io { grid-template-columns: 1fr; } }
+.bz-io-head { font-size: 11px; color: var(--fg-dim); margin: 10px 0 4px; }
+.bz-pre {
+  margin: 0; padding: 8px 10px; max-height: 320px; overflow: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
+}
+
+/* ── 最终回答 */
+.bz-answer {
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+  font-size: 13px; line-height: 1.7; white-space: pre-wrap;
+}
+
+/* ── JSON 表格（jt- 前缀，由 JsonTable 渲染） */
+.jt-wrap { max-width: 100%; overflow: auto; }
+.jt { border-collapse: collapse; font-size: 12px; width: 100%; margin: 2px 0; }
+.jt th, .jt td { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; text-align: left; line-height: 1.5; }
+.jt th { background: var(--panel); color: var(--fg-dim); font-weight: 500; white-space: nowrap; }
+.jt--record th { width: 1%; min-width: 9ch; }
+.jt--rows tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+.jt-no { color: var(--fg-dim); font-family: var(--mono); font-variant-numeric: tabular-nums; width: 1%; }
+.jt-text { white-space: pre-wrap; word-break: break-word; max-width: 48ch; }
+.jt-list { margin: 0; padding-left: 16px; }
+.jt-list > li { margin: 2px 0; }
+.jt-nested > summary { cursor: pointer; color: var(--accent); font-size: 12px; }
+.jt-nested[open] > summary { margin-bottom: 4px; }
+.jt-raw { margin-top: 6px; }
+.jt-raw > summary { cursor: pointer; font-size: 11px; color: var(--fg-dim); }

@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { describeEnvCacheEntry } from "../src/env-cache-summary";
+import { SERVICE_TYPECODES, serviceCacheNamespace, type ServiceCategory } from "../src/route-services";
 
 const noJson = (s: string) => assert.ok(!/[{}"]/.test(s), `像 JSON：${s}`);
 
@@ -92,6 +93,36 @@ describe("describeEnvCacheEntry", () => {
     const c = describeEnvCacheEntry("carlife:env:charging:30.24:120.11:5000", JSON.stringify([{ name: "国网A" }, { name: "蔚来B" }]));
     assert.equal(c.title, "充电站 · 30.24°N 120.11°E 半径 5.0 公里");
     assert.equal(c.summary, "2 个：国网A、蔚来B");
+  });
+
+  it("沿途服务：四类各自成行，标题带类目名与半径；空结果写「没有」而不是 0 项", () => {
+    // 2026-09-16 走查：控制台里找不到这四类的缓存——命名空间按类目拆开后，每类都要能被认出来。
+    const food = describeEnvCacheEntry(
+      "carlife:env:svc-food:30.24:120.11:3000:050000",
+      JSON.stringify([{ name: "外婆家" }, { name: "绿茶" }, { name: "新白鹿" }, { name: "弄堂里" }]),
+    );
+    assert.equal(food.title, "沿途餐饮 · 30.24°N 120.11°E 半径 3.0 公里");
+    assert.equal(food.summary, "4 个：外婆家、绿茶、新白鹿");
+    noJson(food.summary);
+    const wc = describeEnvCacheEntry("carlife:env:svc-restroom:30.24:120.11:3000:200300", "[]");
+    assert.equal(wc.title, "沿途卫生间 · 30.24°N 120.11°E 半径 3.0 公里");
+    assert.equal(wc.summary, "范围内没有卫生间");
+    const park = describeEnvCacheEntry("carlife:env:svc-parking:30.24:120.11:3000:150900", JSON.stringify([{ name: "P1" }]));
+    assert.equal(park.title, "沿途停车场 · 30.24°N 120.11°E 半径 3.0 公里");
+    const ev = describeEnvCacheEntry("carlife:env:svc-charging:30.24:120.11:3000:011100", JSON.stringify([{ name: "国网" }]));
+    assert.equal(ev.title, "沿途充电站 · 30.24°N 120.11°E 半径 3.0 公里");
+    const sa = describeEnvCacheEntry("carlife:env:svc-service_area:30.24:120.11:8000:180301", "[]");
+    assert.equal(sa.title, "沿途服务区 · 30.24°N 120.11°E 半径 8.0 公里");
+    assert.equal(sa.summary, "范围内没有服务区");
+  });
+
+  it("每个沿途服务类目的命名空间都被认得——加类目忘了加标题会退回键名", () => {
+    for (const c of Object.keys(SERVICE_TYPECODES) as ServiceCategory[]) {
+      const key = `carlife:env:${serviceCacheNamespace(c)}:30.24:120.11:3000:${SERVICE_TYPECODES[c]}`;
+      const d = describeEnvCacheEntry(key, "[]");
+      assert.notEqual(d.title, key, `${c} 的命名空间没有人话标题`);
+      assert.ok(d.title.startsWith("沿途"), d.title);
+    }
   });
 
   it("不认识的命名空间与坏值也不吐 JSON；过期的说过期", () => {

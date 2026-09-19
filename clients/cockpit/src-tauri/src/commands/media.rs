@@ -45,22 +45,43 @@ pub async fn create_session() -> Result<String, String> {
 /// 在车辆级 token 上必然撞 400 `active_user_required`；
 /// 这里把"车机要带上上车声明"的判据收成一份，别处不再各写各的。
 pub(crate) async fn create_session_for_device() -> Result<String, String> {
-    if carlife_core::auth::bound_vin().is_some() {
+    let id = if carlife_core::auth::bound_vin().is_some() {
         let Some(declared) = crate::boarding::declared() else {
             // 没声明过就别去撞那个 400——它对用户毫无意义。
             return Err("尚未完成上车声明：请先选择现在是谁在用车".into());
         };
-        return gateway_client()
+        gateway_client()
             .create_session_as(Some(declared))
             .await
             .map(|s| s.session_id)
-            .map_err(|e| e.to_string());
-    }
-    gateway_client()
-        .create_session()
-        .await
-        .map(|s| s.session_id)
-        .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?
+    } else {
+        gateway_client()
+            .create_session()
+            .await
+            .map(|s| s.session_id)
+            .map_err(|e| e.to_string())?
+    };
+    /*
+     * 声明这一段是谁在说话（M54-13）——**这一行原先只在 `device::create_session_as` 里有**。
+     *
+     * 车机端有两条建会话的路：上车选人那条（`device::create_session_as`）声明了，
+     * 聊天这条（`create_session` 命令、PTT 松手现建、409 收编，全走本函数）没有。
+     * 于是从聊天进来的会话，`acting::session()` 还停在上一次上车时那个 id；
+     * 那个会话一旦关掉，`GatewayClient` 默认头带的就是个**已关闭的会话**，
+     * 网关回查补不出身份（车辆级 token 本身不代表任何人），
+     * 结果是所有按人查的路由一律 401。
+     *
+     * 症状离根因很远：车机照常能聊天（聊天走的是新会话 id，不看这个头），
+     * 只有 60 秒一轮的 `GET /v1/trip-plan/current` 静默 401——
+     * 主页的行程列表就此冻在上一次拿到的那一份，新订的行程永远不出现，
+     * 而端上不报错、日志也只有一行 401。2026-09-15 真跑：
+     * 今早新建会话之后车机轮询 21 次全 401，同期"人"身份 11 次全 200。
+     *
+     * 放在这个唯一实现里而不是各调用点：本函数的存在理由就是"判据收成一份"。
+     */
+    carlife_core::acting::set_session(&id);
+    Ok(id)
 }
 
 /// 结束这段对话（施工单 M22-03）——车主点了「退下」。
@@ -700,5 +721,57 @@ mod phase_tests {
         assert!(!claim_start(&mut p));
         assert_eq!(take_for_stop(&mut p), StopTake::Took(11));
         assert_eq!(take_for_stop(&mut p), StopTake::NotRecording);
+    }
+}
+
+#[cfg(test)]
+mod session_declared_tests {
+    //! 建会话必须**同时**声明「这台车机此刻代表谁」（真跑 2026-09-15）。
+    //!
+    //! 车机端有两条建会话的路：上车选人那条（`device::create_session_as`）声明了，
+    //! 聊天这条（`create_session` 命令 / PTT 松手现建 / 409 收编，全走
+    //! `create_session_for_device`）没有。于是从聊天进来的会话，`acting::session()`
+    //! 还停在上一次上车时那个 id；那个会话被空闲清扫（30 分钟）关掉之后，
+    //! `GatewayClient` 的默认头带的就是个已关闭的会话，网关回查补不出身份
+    //! （车辆级 token 本身不代表任何人），所有按人查的路由一律 401。
+    //!
+    //! 症状离根因很远：聊天照常能用（它用的是新会话 id，不看这个头），
+    //! 只有 60 秒一轮的 `GET /v1/trip-plan/current` 静默 401——主页行程列表
+    //! 就此冻在上一次拿到的那份，新订的行程永远不出现，端上不报错。
+    //! 真跑取证：今早新建会话之后车机轮询 21 次全 401，同期「人」身份 11 次全 200。
+    //!
+    //! 判据是"这一行在不在"，所以用源码断言：跑真流程要起网关，而这条在 CI 里恒定可跑。
+
+    const MEDIA: &str = include_str!("media.rs");
+    const DEVICE: &str = include_str!("device.rs");
+
+    #[test]
+    fn 建会话的唯一实现要声明会话() {
+        assert!(
+            MEDIA.contains("carlife_core::acting::set_session(&id);"),
+            "create_session_for_device 必须声明会话——聊天、PTT、409 收编三条路都走它"
+        );
+    }
+
+    #[test]
+    fn 上车那条路照旧声明() {
+        assert!(
+            DEVICE.contains("carlife_core::acting::set_session(&created.session_id);"),
+            "上车选人那条原本就有，别在重构里把它丢了"
+        );
+    }
+
+    #[test]
+    fn 绑车分支不能提前返回() {
+        // 绑车那条正是车机上唯一会走的一条；它 early-return 就等于只声明了一半。
+        let body = MEDIA
+            .split("pub(crate) async fn create_session_for_device")
+            .nth(1)
+            .expect("函数还在");
+        let end = body.find("\n}\n").expect("函数体完整");
+        assert!(
+            !body[..end].contains("return gateway_client()"),
+            "绑车分支直接 return 的话，车机上这条路就不会声明会话了"
+        );
     }
 }

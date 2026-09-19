@@ -5,10 +5,12 @@ import assert from "node:assert/strict";
 import { before, after, describe, it } from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { createInsuranceServer } from "../src/index";
+import { assertValueAddedServices, createInsuranceServer, POLICIES } from "../src/index";
 import { classifyItem } from "../src/classify";
+import { forecastPremium, COMMERCIAL_NCD_FACTORS, COMPULSORY_FACTORS } from "../src/ncd";
 
 const VIN_EV = "DEM00SEED0M0DELY1";
+const VIN_ICE = "DEM00SEED0MAL1BU1";
 const VIN_EXPIRED = "EXP1REDSEEDVIN001";
 
 let base = "";
@@ -121,5 +123,139 @@ describe("POST /claims/precheck", () => {
     const { code, body } = await post("/claims/precheck", { vin: VIN_EV });
     assert.equal(code, 400);
     assert.equal(body.error, "quote_items_required");
+  });
+});
+
+describe("POST /premium/forecast（M96-02：再报一次案，次年保费变多少）", () => {
+  it("在保 VIN：增量 = 报了的次年保费 − 不报的次年保费（第一次出险的代价是丢掉折扣），回显业务主键", async () => {
+    const { code, body } = await post("/premium/forecast", { vin: VIN_EV });
+    assert.equal(code, 200);
+    // EV 种子：年保费 6800、本年度 0 次出险 → 再报一次按 1 次档，商业险 1.0、交强险无人伤 1.0；
+    // 不报则商业险 0.85、交强险 0.9：6800 × (0.8 × 0.85 + 0.2 × 0.9) = 5848。
+    assert.equal(body.currentPremium, 6800);
+    assert.equal(body.claimsAfterThis, 1);
+    assert.equal(body.commercialFactor, COMMERCIAL_NCD_FACTORS[1]);
+    assert.equal(body.compulsoryFactor, COMPULSORY_FACTORS.claimNoInjury);
+    assert.equal(body.nextYearIfNoClaim, 5848);
+    assert.equal(body.nextYearPremium, 6800);
+    assert.equal(body.delta, 952, "与今年比是 0，与不报比才是真实代价");
+    assert.equal(body.delta, body.nextYearPremium - body.nextYearIfNoClaim);
+    assert.match(body.ruleNote, /本年度已出险 0 次，再报一次按 1 次档/);
+    assert.match(body.ruleNote, /增量 = 报案后次年保费 − 不报的次年保费/);
+    assert.match(body.ruleNote, /分开浮动/);
+    assert.equal(body.disclaimer, "模拟测算，实际以保险公司核定为准");
+    assert.equal(body.provenance, "simulated");
+    // 业务主键回显（设计定稿 D15）：算的是哪一家、哪个渠道、哪个 SKU、哪一年签的。
+    assert.equal(body.plan.channel, "brand-broker");
+    assert.equal(body.plan.sku, "SLCX-NEV-CD-500");
+    assert.equal(body.contractYear, 2026);
+    assert.deepEqual(body.vehicle, { brand: "Tesla", model: "Model Y", modelYear: 2023 });
+  });
+
+  it("0 / 1 / 2 / 3 次四档 nextYearPremium 单调不减；有人伤交强险因子更高", () => {
+    const base = POLICIES.find((p) => p.vin === VIN_EV)!;
+    const series = [0, 1, 2, 3].map(
+      (n) => forecastPremium({ policy: { ...base, claimsThisPolicyYear: n } }).nextYearPremium,
+    );
+    for (let i = 1; i < series.length; i++) {
+      assert.ok(series[i] >= series[i - 1], `第 ${i} 档 ${series[i]} 低于前一档 ${series[i - 1]}`);
+    }
+    const noInjury = forecastPremium({ policy: base, injury: false });
+    const injury = forecastPremium({ policy: base, injury: true });
+    assert.ok(injury.compulsoryFactor > noInjury.compulsoryFactor);
+    assert.ok(injury.nextYearPremium > noInjury.nextYearPremium);
+  });
+
+  it("ICE 种子已出险 1 次：再报一次按 2 次档上浮；3 次及以上标拒保风险", async () => {
+    const { body } = await post("/premium/forecast", { vin: VIN_ICE });
+    assert.equal(body.claimsThisPolicyYear, 1);
+    assert.equal(body.claimsAfterThis, 2);
+    assert.equal(body.commercialFactor, COMMERCIAL_NCD_FACTORS[2]);
+    assert.ok(body.delta > 0, "第二次出险应上浮");
+    assert.equal(body.renewalRisk, false);
+    const base = POLICIES.find((p) => p.vin === VIN_ICE)!;
+    const risky = forecastPremium({ policy: { ...base, claimsThisPolicyYear: 2 } });
+    assert.equal(risky.renewalRisk, true);
+    assert.match(risky.ruleNote, /拒保或加费/);
+  });
+
+  it("保单没记年保费：只给因子不给金额，ruleNote 说明", () => {
+    const base = POLICIES.find((p) => p.vin === VIN_EV)!;
+    const r = forecastPremium({ policy: { ...base, annualPremium: undefined } });
+    assert.equal(r.currentPremium, 0);
+    assert.equal(r.nextYearPremium, 0);
+    assert.equal(r.delta, 0);
+    assert.match(r.ruleNote, /未记年保费/);
+  });
+
+  it("脱保 VIN → 400 no_active_policy；同输入两次响应逐字相同", async () => {
+    const { code, body } = await post("/premium/forecast", { vin: VIN_EXPIRED });
+    assert.equal(code, 400);
+    assert.equal(body.error, "no_active_policy");
+    const a = await post("/premium/forecast", { vin: VIN_EV, injury: true });
+    const b = await post("/premium/forecast", { vin: VIN_EV, injury: true });
+    assert.deepEqual(a.body, b.body);
+  });
+});
+
+describe("保单载明的增值服务（ACR-043 / M101-03）", () => {
+  it("EV 保单带三项，且每项 used ≤ total", () => {
+    const p = POLICIES.find((x) => x.policyId === "PL-EV-2026-001")!;
+    const list = p.valueAddedServices!;
+    assert.equal(list.length, 3);
+    assert.deepEqual(
+      list.map((s) => s.code).sort(),
+      ["annual_inspection_agent", "car_wash", "roadside_rescue"],
+    );
+    const rescue = list.find((s) => s.code === "roadside_rescue")!;
+    assert.equal(rescue.total, 3);
+    assert.equal(rescue.used, 1);
+    assert.equal(rescue.periodKind, "policy_year");
+    assert.ok(rescue.conditions.length > 0, "条件不是备注，是权益成立的前提");
+    for (const s of list) assert.ok((s.used ?? 0) <= (s.total ?? 0));
+  });
+
+  it("燃油车保单带一项、已到期那张不带——旧种子缺省仍合法", () => {
+    assert.equal(POLICIES.find((x) => x.policyId === "PL-ICE-2026-001")!.valueAddedServices!.length, 1);
+    assert.equal(POLICIES.find((x) => x.policyId === "PL-EXP-2024-001")!.valueAddedServices, undefined);
+  });
+
+  it("**种子写坏了要在启动时炸**：used 超过 total / code 不在表内 / periodKind 表外", () => {
+    const base = {
+      code: "roadside_rescue" as const,
+      name: "道路救援",
+      quotaKind: "count" as const,
+      total: 2,
+      used: 0,
+      periodKind: "policy_year" as const,
+      conditions: [],
+    };
+    const bad = [
+      { ...base, used: 3 },
+      { ...base, code: "free_coffee" },
+      { ...base, periodKind: "monthly_no_carryover" },
+      { ...base, total: -1 },
+      { ...base, conditions: "单程 100 公里内" },
+    ];
+    for (const s of bad) {
+      assert.throws(
+        () => assertValueAddedServices({ policyId: "PL-X", valueAddedServices: [s] } as never),
+        /PL-X/,
+        `这条本该在启动时炸：${JSON.stringify(s)}`,
+      );
+    }
+  });
+
+  it("unlimited 不该带 total——「不限次又只有 2 次」是自相矛盾的种子", () => {
+    assert.throws(
+      () =>
+        assertValueAddedServices({
+          policyId: "PL-Y",
+          valueAddedServices: [
+            { code: "designated_driver", name: "代驾", quotaKind: "unlimited", total: 2, periodKind: "policy_year", conditions: [] },
+          ],
+        } as never),
+      /unlimited 不该有 total/,
+    );
   });
 });

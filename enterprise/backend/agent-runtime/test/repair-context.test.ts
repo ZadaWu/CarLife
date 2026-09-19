@@ -15,10 +15,12 @@ import {
 } from "../src/graph/subgraphs/ownership";
 
 describe("repairContextNeeds 意图门", () => {
+  const none = { history: false, quote: false, claim: false, materials: false, entitlement: false };
+
   it("修过什么 → history；报价 → quote；保险能报多少 → claim", () => {
-    assert.deepEqual(repairContextNeeds("我这辆车最近修过什么"), { history: true, quote: false, claim: false });
-    assert.deepEqual(repairContextNeeds("正在修的那单报价多少"), { history: false, quote: true, claim: false });
-    assert.deepEqual(repairContextNeeds("这次维修保险能报多少"), { history: false, quote: false, claim: true });
+    assert.deepEqual(repairContextNeeds("我这辆车最近修过什么"), { ...none, history: true });
+    assert.deepEqual(repairContextNeeds("正在修的那单报价多少"), { ...none, quote: true });
+    assert.deepEqual(repairContextNeeds("这次维修保险能报多少"), { ...none, claim: true });
   });
 
   it("理赔命中时不重复给 quote 块（预检自带报价单）", () => {
@@ -27,8 +29,8 @@ describe("repairContextNeeds 意图门", () => {
     assert.equal(n.quote, false);
   });
 
-  it("普通用车问题三门全关——别的问题带上维修块是噪音", () => {
-    assert.deepEqual(repairContextNeeds("这车冬天续航掉得正常吗"), { history: false, quote: false, claim: false });
+  it("普通用车问题五门全关——别的问题带上维修块是噪音", () => {
+    assert.deepEqual(repairContextNeeds("这车冬天续航掉得正常吗"), none);
   });
 });
 

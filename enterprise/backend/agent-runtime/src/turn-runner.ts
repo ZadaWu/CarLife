@@ -14,11 +14,16 @@ import { randomUUID } from "node:crypto";
 import type { MessageSource, SessionEvent } from "@carlife/shared";
 import { closePair, countFillerDrop, registerPair, type PairSessionLike } from "./sidecar/pair-session";
 import { sweepTurn } from "./branch-submissions";
+import { sweepPoiCoords } from "./poi-coords";
+import { sweepEnergyStopCandidates } from "./energy-candidates";
+import { sweepEnergyConsumption } from "./energy-consumption";
+import { sweepRouteDurations } from "./route-durations";
 import type { FillerWriter } from "./sidecar/l1";
 import { emitFiller } from "./sidecar/speak";
 
 import { registerTurnSink } from "./interrupt-bus";
 import { registerTurnCancel } from "./turn-cancel";
+import { PhotoTurnRegistry } from "./photo-turns";
 /*
  * 地名解析（M18-09）。
  *
@@ -72,6 +77,17 @@ export interface TurnInput {
 }
 
 import type { GuardPipeline } from "./guard/pipeline";
+import {
+  buildContextTrace,
+  contextLayerMode,
+  contextTraceNotLoaded,
+  loadTurnContext,
+  observeServed,
+  type ActiveTasks,
+  type ContextTraceData,
+  type ServedBlock,
+  type TurnContextDeps,
+} from "./context";
 import { attachmentNote, isPhotoInput, isVideoInput, type TurnAttachmentInput } from "./graph/media";
 import type { ElicitationService } from "./elicitation/service";
 import { createStreamRedactor, createModerationSession } from "@carlife/guardrails";
@@ -86,6 +102,45 @@ const RETRACT_REPLACEMENT = "这条回答我收回了——内容没有通过安
 const RETRACT_REASON = "输出内容未通过安全检查";
 /** 审核不可用时同样撤回（output fail-closed，§8.2），但原因要说得不一样。 */
 const RETRACT_UNAVAILABLE = "内容审核暂时不可用，出于谨慎已收回本次回答";
+
+/**
+ * 审核挂了时给用户看的那句话。
+ *
+ * **不能复用 `RETRACT_REPLACEMENT`**：那句话说的是"你的内容没通过检查"，
+ * 而这里的事实是"我们的检查没跑成"。把后者说成前者，是在把系统故障
+ * 栽给用户——他会照着那句话去改自己的说法，改多少遍都一样收回
+ * （2026-09-18/19 实测连撤 8 轮，屏幕上全是"没有通过安全检查"，
+ * 而审计里一条 block 都没有，全是 fail-closed）。
+ */
+const RETRACT_UNAVAILABLE_REPLACEMENT =
+  "这条回答我先收回了——安全检查没能跑完，不是你的问题。稍等一下再问一次吧。";
+
+/**
+ * 把审核异常压成一行可读的原因。
+ *
+ * `AliyunGuardError` 带着 `code`/`retryable`，而它们正是"该改配置还是该重试"
+ * 的唯一判据（408 权限/欠费、588 限流、-1 网络或超时）。只打 message 的话，
+ * 三者在日志里长得一模一样。
+ *
+ * **message 必须截断**：`SignatureDoesNotMatch` 的报文里附着服务端算出来的
+ * 待签名串，而那串里编码着**送审的正文本身**和 AccessKeyId。原样写进
+ * `guard_audit_logs.reason`，等于把助手回复的明文和一把密钥 id 抄进审计表——
+ * 而审计表存在的意义恰恰是"记下发生了什么，而不是记下内容"。
+ * 截到 120 字够用：`SignatureDoesNotMatch` 的有效信息在第一句就说完了。
+ */
+const GUARD_ERROR_MESSAGE_MAX = 120;
+
+function describeGuardError(err: unknown): string {
+  const e = err as { name?: string; code?: unknown; retryable?: unknown; message?: string } | null;
+  if (!e || typeof e !== "object") return String(err).slice(0, GUARD_ERROR_MESSAGE_MAX);
+  const parts = [e.name ?? "Error"];
+  if (e.code !== undefined) parts.push(`code=${String(e.code)}`);
+  if (e.retryable !== undefined) parts.push(`retryable=${String(e.retryable)}`);
+  const raw = e.message ?? String(err);
+  const msg =
+    raw.length > GUARD_ERROR_MESSAGE_MAX ? `${raw.slice(0, GUARD_ERROR_MESSAGE_MAX)}…（已截断）` : raw;
+  return `${parts.join(" ")} — ${msg}`;
+}
 
 /**
  * ①Working 的 thread 映射存储（施工单 M4-06）。
@@ -121,6 +176,8 @@ export type TraceSink = (event: {
 
 export class TurnRunner {
   private threads = new Map<string, ThreadInfo>();
+  /** 同会话里「带照片的轮还在跑」的登记——纯文字追问先等它，见 `photo-turns.ts` 文件头。 */
+  private photoTurns = new PhotoTurnRegistry();
 
   constructor(
     private graph: ChatGraph,
@@ -163,6 +220,18 @@ export class TurnRunner {
         durationMs: number;
       }): void;
     },
+    /**
+     * 上下文装载层（M84-03，ACR-036 §4.9）。缺省即不装载——`CARLIFE_CONTEXT_LAYER=off`
+     * 时三条链路的 prompt 逐字等于从前，离线与单测路径零开销。
+     *
+     * 挂在这一层而不是图里，与 `elicitation` 同一条理由：**"谁去把事实取来"是 harness 的职责**，
+     * 节点只该读它拿到的东西。节点自己查库正是今天 `itineraryNode` 里那三段
+     * 「没有会话内草案时去 trip_plan_list 查一下」的由来——补丁打在错的层上。
+     *
+     * **排在参数列表最后**：插在中间会把既有调用点的位置参数整体错位，而 TypeScript
+     * 在两个都是可选对象参数时未必拦得住。
+     */
+    private contextDeps?: TurnContextDeps,
   ) {}
 
   /**
@@ -300,6 +369,65 @@ export class TurnRunner {
       this.threadStore ? "pg" : "memory",
     );
 
+    /*
+     * ①.5 上下文装载（M84-03，ACR-036 §4.9）。
+     *
+     * 位置有讲究：**thread 解析之后、内容管线与图执行之前**。要 threadId 才能钉锚定块；
+     * 要在图执行之前，因为节点拿到的必须是装好的事实而不是一个"待会儿去查"的承诺。
+     *
+     * 整跳受 `assembleUserContext` 的 300 ms 预算约束，且任一段失败只让那一段标"读不到"。
+     * 装载本身失败（不该发生）也不阻塞：退回 undefined，各节点走老路径——
+     * 上下文是增强不是必需，与 ②③记忆同一条纪律。
+     */
+    const ctxStartedAt = this.now();
+    let turnContext: Awaited<ReturnType<typeof loadTurnContext>>;
+    /*
+     * 上下文的轨迹落点（会话页「查看上下文」）。三样东西在这里备好、轮末一并落：
+     * 装载完成时的任务快照（写穿会就地改 `turnContext.tasks`）、各 Agent 实际取走的块
+     * （经 `observeServed` 包一层记下来）、以及"没装载"的两种原因（关着 / 抛错）。
+     */
+    let contextTrace: ContextTraceData | undefined;
+    let tasksBefore: ActiveTasks = {};
+    let servedBlocks: () => ServedBlock[] = () => [];
+    if (this.contextDeps) {
+      try {
+        const loaded = await loadTurnContext(this.contextDeps, {
+          ...(input.userId !== undefined ? { userId: input.userId } : {}),
+          threadId,
+          now: this.now(),
+        });
+        if (loaded) {
+          this.span(input.sessionId, input.turnId, "context.load", ctxStartedAt, "ok", loaded.mode);
+          // 草案是可序列化的（契约要求），structuredClone 拿到的就是"模型看到的那份"。
+          tasksBefore = structuredClone(loaded.tasks);
+          const observed = observeServed(loaded);
+          turnContext = observed.ctx;
+          servedBlocks = observed.served;
+        } else {
+          contextTrace = contextTraceNotLoaded("off", threadId);
+        }
+      } catch (err) {
+        console.error("[turn-runner] 上下文装载失败，本轮走老路径", err);
+        this.span(input.sessionId, input.turnId, "context.load", ctxStartedAt, "failed");
+        contextTrace = contextTraceNotLoaded(contextLayerMode(), threadId, this.now() - ctxStartedAt);
+      }
+    }
+    const ctxLoadMs = this.now() - ctxStartedAt;
+    /*
+     * 上下文落点：紧挨着 `turn_end` 之前发，两条出口（输入被拦的提前 return、finally）各调一次。
+     * 轮末才知道各 Agent 取走了什么、任务状态被写成了什么。失败与取消的那一轮更要看它——
+     * "模型当时手上有什么"往往就是答案。装载层没配（`contextDeps` 缺席，离线测试路径）
+     * 就一条都不落，别把"没配"说成"关着"。
+     */
+    const pointContext = (): void => {
+      if (!this.contextDeps) return;
+      const data =
+        turnContext !== undefined
+          ? buildContextTrace({ ctx: turnContext, tasksBefore, served: servedBlocks(), loadMs: ctxLoadMs })
+          : (contextTrace ?? contextTraceNotLoaded("off", threadId));
+      this.point(input.sessionId, input.turnId, "context", data);
+    };
+
     const assistantMessageId = `msg-${input.turnId}-${randomUUID().slice(0, 8)}`;
 
     // 输入侧内容管线（§8.1/§8.2）。**在图执行之前**——被拦下的输入
@@ -349,6 +477,7 @@ export class TurnRunner {
         yield events.turnEnd(input.turnId, assistantMessageId);
         // 这条提前 return 也要收口：不收的话被输入管线拦下的那一轮
         // 在轨迹上永远"还在跑"，而它恰恰是最早就结束的一轮。
+        pointContext();
         this.point(input.sessionId, input.turnId, "turn_end", { outcome: "input_denied" });
         return;
       }
@@ -412,6 +541,8 @@ export class TurnRunner {
     let failure: unknown;
     /** 本轮是被打断的（M33-01）。与 `failure` 互斥——见下面 `.catch` 里的理由。 */
     let cancelled = false;
+    /** 带照片的轮在这里登记的收口函数；finally 里调（`photo-turns.ts`）。 */
+    let endPhotoTurn: (() => void) | undefined;
     /**
      * 本轮真正推向用户的文字量（应答 delta + 垫场话），turn_end 落轨迹。
      * 它是 TTS 成本估算的计费量：端上合成的就是这些字。数在 `push` 漏斗上
@@ -607,6 +738,20 @@ export class TurnRunner {
     const photos = (input.attachments ?? []).filter(isPhotoInput);
     const video = (input.attachments ?? []).find(isVideoInput);
     const note = attachmentNote(photos.length, video);
+    /*
+     * 同会话里带照片的那一轮还在跑时，紧跟着的纯文字追问先等它收口（2026-09-18，turn-6f2bf4b1）。
+     * 等完再 invoke，读到的检查点里才有那一轮的消息与照片观察；观察节点随后把它沿用下来
+     * （`graph/vision.ts`）。只等带照片的轮、且封顶——理由在 `photo-turns.ts` 文件头。
+     */
+    if (photos.length > 0) {
+      endPhotoTurn = this.photoTurns.begin(input.sessionId, input.turnId);
+    } else {
+      const waitStartedAt = this.now();
+      const w = await this.photoTurns.waitFor(input.sessionId);
+      if (w.waited) {
+        this.span(input.sessionId, input.turnId, "turn.wait_photo_turn", waitStartedAt, w.timedOut ? "failed" : "ok", `等 ${w.turnId} · ${w.ms} ms${w.timedOut ? " · 到上限未收口，照常开跑" : ""}`);
+      }
+    }
     void this.graph
       .invoke(
         {
@@ -635,6 +780,8 @@ export class TurnRunner {
           configurable: {
             thread_id: threadId,
             userId: input.userId,
+            // 这一轮的上下文（M84-03）。undefined = 装载层关着，各节点走老路径。
+            ...(turnContext ? { turnContext } : {}),
             /*
              * 同一个 signal 的第二个去处：图节点调 streamer 时往下透传给 ACP。
              * 断在这里的话，上层取消了而底层还在烧（TD-08 那个 60 秒僵尸调用）。
@@ -676,10 +823,16 @@ export class TurnRunner {
              */
             resolveElicitation:
               this.elicitation && input.userId
-                ? async (ctx: { agent?: string; answered: boolean }) =>
+                ? async (ctx: { agent?: string; answered: boolean; questionBudgetLeft?: number }) => {
+                    /*
+                     * 本轮的问题位已经被问诊追问用完（M106-02）：**在 `pretripOf` 之前**返回。
+                     * `pretripOf` 会把这次行程记成「已经问过一次」（AC-54-1 的一次性），
+                     * 位数为 0 时还去调它，出发前那一问就被一张芯片题静默吃掉了。
+                     */
+                    if (ctx.questionBudgetLeft !== undefined && ctx.questionBudgetLeft <= 0) return undefined;
                     // 没有 userId 就不问：体检必须带用户维度（跨用户混算是严重事故），
                     // 而"问一句无主的话"比不问更糟。
-                    this.elicitation!.next({
+                    return this.elicitation!.next({
                       sessionKey: input.sessionId,
                       userId: input.userId!,
                       vin: undefined,
@@ -693,7 +846,9 @@ export class TurnRunner {
                       pretrip: this.elicitation!.pretripOf
                         ? await this.elicitation!.pretripOf(input.userId!, input.content)
                         : undefined,
-                    })
+                      ...(ctx.questionBudgetLeft !== undefined ? { questionBudgetLeft: ctx.questionBudgetLeft } : {}),
+                    });
+                  }
                 : undefined,
             emit: {
               /*
@@ -733,8 +888,17 @@ export class TurnRunner {
                       durationMs: this.now() - turnStartedAt,
                     });
                   })
-                  .catch(() => {
-                    /* 失败留给 finish() 统一按 fail 模式处理，这里不重复撤回 */
+                  .catch((err: unknown) => {
+                    /*
+                     * 撤回由 finish() 统一按 fail 模式处置，这里不重复撤回——
+                     * 但**必须说出来**。原来是一个空 catch，于是"审核挂了"这件事
+                     * 在日志里一个字都没有，只剩 finish() 那句笼统的
+                     * "审核不可用"，而它不带原因：排查时既不知道是超时、限流
+                     * 还是账号问题，也不知道挂了几片。
+                     */
+                    console.warn(
+                      `[guardrails] output:stream 送审失败（turn=${input.turnId}）：${describeGuardError(err)}`,
+                    );
                   });
                 if (check) pendingChecks.push(check);
               },
@@ -792,15 +956,25 @@ export class TurnRunner {
                 durationMs: this.now() - turnStartedAt,
               });
             }
-          } catch {
+          } catch (err: unknown) {
             retracted = true;
-            push(events.retract(input.turnId, RETRACT_REPLACEMENT, RETRACT_UNAVAILABLE));
+            const why = describeGuardError(err);
+            /*
+             * 撤回文案走"审核没跑成"那一句，**不是** RETRACT_REPLACEMENT。
+             * 两者的区别对用户不是措辞问题：一句让他改说法，另一句让他等一下。
+             */
+            push(events.retract(input.turnId, RETRACT_UNAVAILABLE_REPLACEMENT, RETRACT_UNAVAILABLE));
+            console.warn(
+              `[guardrails] output fail-closed 撤回（turn=${input.turnId}）：${why}`,
+            );
             this.guardAuditor?.record({
               sessionId: input.sessionId,
               turnId: input.turnId,
               layer: "output_moderation",
               decision: "deny",
-              reason: "审核不可用，按 fail-closed 撤回",
+              // 原因带上真实异常：只写"审核不可用"时，审计里那条记录
+              // 回答不了"为什么不可用"，而那正是唯一需要回答的问题。
+              reason: `审核不可用，按 fail-closed 撤回：${why}`,
               durationMs: this.now() - turnStartedAt,
             });
           }
@@ -873,12 +1047,22 @@ export class TurnRunner {
       closePair(input.turnId);
       // 分支提交暂存区同理（M30-01）：轮都结束了，这一轮的提交与完成信号已无消费者。
       sweepTurn(input.sessionId, input.turnId);
+      // poi_search 坐标登记簿同理（M77 走查追修）：只服务本轮的片区缺口判定。
+      sweepPoiCoords(input.sessionId, input.turnId);
+      // charging / refuel 候选站登记簿同理：只服务本轮 energyStops 的来源核对。
+      sweepEnergyStopCandidates(input.sessionId, input.turnId);
+      sweepEnergyConsumption(input.sessionId, input.turnId);
+      // map_route 实算时长登记簿同理：只服务本轮各段之和的核对（ACR-047）。
+      sweepRouteDurations(input.sessionId, input.turnId);
       /*
        * 轮次收口**必须在 finally 里**，与上面两件事同一个理由：
        * 提前 return（turn_end 事件）、图执行抛错、上游取消，三条路都要走到。
        * 只在成功路径上发的话，失败的那一轮在轨迹上永远"还在跑"——
        * 而那正是最需要看清它停在哪一步的一轮。
        */
+      // 带照片的轮收口：放行在等它的纯文字追问。必须在 finally——跑挂了、被打断了也要放行。
+      endPhotoTurn?.();
+      pointContext();
       this.point(input.sessionId, input.turnId, "turn_end", {
         // 三态而不是两态（M33-01）：**"被打断"和"跑挂了"必须在轨迹上分得开**，
         // 否则大屏的失败率会把每一次用户打断算成一次故障。
@@ -934,6 +1118,17 @@ export class TurnRunner {
       loan: snapshot.values?.loanPlan ?? null,
       insurance: snapshot.values?.insurancePlan ?? null,
     };
+  }
+
+  /**
+   * 拍照问诊报告只读查询（M104-01）——不触发图执行、不改检查点。
+   * 「还没问过诊」是常态：`report: null`。线程过期也是 null（报告随线程 24h 轮换）。
+   */
+  async diagnosisState(sessionId: string): Promise<{ report: unknown }> {
+    const info = await this.resolveThread(sessionId);
+    if (!info || info.expiresAtMs <= this.now()) return { report: null };
+    const snapshot = await this.graph.getState({ configurable: { thread_id: info.threadId } });
+    return { report: snapshot.values?.diagnosis ?? null };
   }
 
   async workingState(sessionId: string): Promise<{

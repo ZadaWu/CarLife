@@ -20,7 +20,12 @@ export interface VehicleView {
    */
   myRole?: "owner" | "driver" | "passenger";
   maintenance: Array<{ at: number; odometerKm: number; items: string; source: string }>;
-  repairs: Array<{ at: number; odometerKm: number; symptom: string; source: string }>;
+  /**
+   * `resolution` 是服务端留档时写的处置摘要；问诊留档（F-20-13）的那条以我们自己写的固定前缀
+   * `【低风险】` / `【中风险】` / `【高风险】` 开头（`service.ts` 的 `RISK_LABEL`）——主页卡按前缀取等级，
+   * 比对的是自己的字面，不是模型输出。
+   */
+  repairs: Array<{ at: number; odometerKm: number; symptom: string; source: string; resolution?: string }>;
   /** 保养推算（服务端 forecastMaintenance 计算随档案带出；建档响应里可能缺席）。 */
   forecast?: {
     remainingKm: number;

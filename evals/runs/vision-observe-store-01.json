@@ -1,0 +1,191 @@
+{
+  "suite": "vision-observe",
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "at": "2026-09-14T14:09:45.564Z",
+  "metrics": [
+    {
+      "id": "V-R1",
+      "name": "单目标召回（全部类别）",
+      "value": "0.0%",
+      "denom": "0/3",
+      "note": "IoU ≥ 0.5 一对一配对"
+    },
+    {
+      "id": "V-R2",
+      "name": "警示灯召回",
+      "value": "0.0%",
+      "denom": "0/3"
+    },
+    {
+      "id": "V-F1",
+      "name": "误检数",
+      "value": "1",
+      "note": "未配上真值的预测项"
+    },
+    {
+      "id": "V-B1",
+      "name": "bbox 平均 IoU（已配对）",
+      "value": "无法计算",
+      "denom": "0 对"
+    },
+    {
+      "id": "V-S1",
+      "name": "形状一致率",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-C1",
+      "name": "颜色一致率（模型报告 vs 真值）",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "M71-02 起加「代码定色 vs 真值」一行"
+    },
+    {
+      "id": "V-C2",
+      "name": "颜色一致率——红色样本",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "Sprint 判定 2 要求 100%"
+    },
+    {
+      "id": "V-C3",
+      "name": "代码定色一致率（像素 vs 真值）",
+      "value": "本档位不适用",
+      "note": "只在 --via adapter 下有值；系统最终采用的就是这一列的颜色"
+    },
+    {
+      "id": "V-C4",
+      "name": "代码定色一致率——红色样本",
+      "value": "本档位不适用"
+    },
+    {
+      "id": "V-T1",
+      "name": "状态（点亮/未点亮）一致率",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-T2",
+      "name": "状态一致率——警示灯",
+      "value": "无法计算",
+      "denom": "0/0",
+      "note": "Sprint 判定 3 要求零错"
+    },
+    {
+      "id": "V-X1",
+      "name": "文字命中率（如字母 A）",
+      "value": "无法计算",
+      "denom": "0/0"
+    },
+    {
+      "id": "V-E1",
+      "name": "元素集合 Jaccard（警示灯，均值）",
+      "value": "无法计算",
+      "denom": "0 项"
+    },
+    {
+      "id": "V-Q1",
+      "name": "cut_off_sides 准确率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-Q2",
+      "name": "item_count 自检一致率",
+      "value": "100.0%",
+      "denom": "1/1"
+    },
+    {
+      "id": "V-L1",
+      "name": "literal 禁词违规数",
+      "value": "0"
+    },
+    {
+      "id": "V-V1",
+      "name": "词表越界数",
+      "value": "0"
+    },
+    {
+      "id": "V-U1",
+      "name": "不可解析张数",
+      "value": "0",
+      "denom": "1 张"
+    },
+    {
+      "id": "V-N1",
+      "name": "负样本高置信警示灯报出数",
+      "value": "本档位不适用",
+      "note": "误接受率在 --match（M71-03）里量"
+    }
+  ],
+  "results": [
+    {
+      "id": "store-01",
+      "negative": false,
+      "unparseable": null,
+      "vocabErrors": 0,
+      "truthCount": 3,
+      "predCount": 1,
+      "matched": 0,
+      "wlTruth": 3,
+      "wlMatched": 0,
+      "extra": 1,
+      "ious": [],
+      "shape": {
+        "n": 0,
+        "agree": 0
+      },
+      "color": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCode": {
+        "n": 0,
+        "agree": 0
+      },
+      "colorCodeRed": {
+        "n": 0,
+        "agree": 0
+      },
+      "state": {
+        "n": 0,
+        "agree": 0
+      },
+      "stateWarn": {
+        "n": 0,
+        "agree": 0
+      },
+      "text": {
+        "n": 0,
+        "hit": 0
+      },
+      "elementsJaccard": [],
+      "cutOffMatch": true,
+      "itemCountConsistent": true,
+      "forbiddenViolations": 0,
+      "negativeAlarms": 0,
+      "reasons": [
+        "漏检：green lamp straight_lines（warning_light，bbox 169,658,191,692）",
+        "漏检：gray lamp straight_lines（warning_light，bbox 215,660,238,696）",
+        "漏检：green lamp straight_lines（warning_light，bbox 261,664,277,701）",
+        "误检：「灰色 斜向 明暗分界」（other，bbox 305,169,341,192）"
+      ]
+    }
+  ],
+  "raw": {
+    "store-01": {
+      "ms": 1343,
+      "text": "{\"frame\":{\"quality\":{\"blur\":false,\"dark\":false,\"glare\":false,\"partial\":false,\"occluded\":false},\"cut_off_sides\":[],\"cutOffSource\":\"model\",\"item_count\":1,\"unreadable\":false},\"items\":[{\"category\":\"other\",\"shape\":\"other\",\"color\":\"gray\",\"state\":\"unknown\",\"text\":[],\"elements\":[\"none\"],\"literal\":\"灰色 斜向 明暗分界\",\"confidence\":0.2,\"quality\":{\"blur\":true,\"glare\":false,\"partial\":true},\"undeterminable\":[\"shape\",\"state\",\"elements_detail\",\"text\",\"similar_symbols\"],\"bbox\":[305,169,341,192],\"colorByModel\":\"gray\",\"colorByPixels\":\"gray\",\"colorAgreement\":\"agree\"}],\"model\":{\"detect\":\"yolo:train-20260910-112355-4d28\",\"describe\":\"deepseek-flash\"},\"timings\":{\"detectMs\":158,\"describeMs\":1185,\"totalMs\":1343},\"notes\":[]}"
+    }
+  },
+  "latencyMs": [
+    1343
+  ],
+  "root": "<repo>/"
+}

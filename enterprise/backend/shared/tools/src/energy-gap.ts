@@ -7,6 +7,9 @@
  * 余量只能由车主口述（§4.6：**实时余量不是它的数据源**）。
  * 这样它可以被完整单测，也不会在工具层制造第二条取数路径。
  *
+ * 其中能耗那一栏**不经模型**：它不在 `energyGapSchema` 里，由编排层按轮注入
+ * （见下面的 `EnergyConsumptionLookup`）。余量仍由模型填——那句话只有车主说得出。
+ *
  * # 一个数都不许写死
  *
  * 需求描述里那句"500 公里消耗 80 升"是**举例**，不是可以硬编码的值——
@@ -82,6 +85,22 @@ export interface EnergyGapData {
  */
 const SPREAD: Record<"measured" | "rated", number> = { measured: 0.12, rated: 0.25 };
 
+/**
+ * 百公里能耗的合理上界，按单位分。它只管一件事：**拦住"满电续航被当成能耗"**。
+ *
+ * turn-9386d1c2 里模型把 ⑥ 的满电续航 428km 填成了百公里能耗。续航是几百公里量级，
+ * 两档上界都在它下面，所以这一类不管配哪个单位都会被拦下。
+ *
+ * **它拦不住另一类**：同一轮模型换算重试，交了 93.46%/100km——那是整段 400km 的总电耗，
+ * 数值落在上界之内，一路算出四倍的需求量进了 `submit_range_assessment`，全程零报错。
+ * 那一类没有阈值拦得住，只能靠这一栏根本不经模型（见下面的 `EnergyConsumptionLookup`）。
+ * 这道闸是给注入没覆盖到的路径兜底的，不是主防线。
+ *
+ * 判据取物理下限而不是"常见值"：`%` 超过 100 等于满电跑不到一百公里；`L` 这一档与 ⑥
+ * 聚合侧的 `MAX_PLAUSIBLE_L_PER_100KM` 是同一个数，**改一处要改另一处**。
+ */
+const MAX_PLAUSIBLE_PER_100KM: Record<EnergyUnit, number> = { L: 40, "%": 100 };
+
 const round = (n: number, d = 1): number => {
   const f = 10 ** d;
   return Math.round(n * f) / f;
@@ -100,6 +119,17 @@ export function computeEnergyGap(args: EnergyGapArgs): EnergyGapData {
     // 没有能耗口径就**不给需求量**，只说清缺什么（AC-54-4 末条）。
     missing.push("这辆车的百公里能耗（⑥ 实测与厂商标称都拿不到）");
     return { basis, missing };
+  }
+  const ceiling = MAX_PLAUSIBLE_PER_100KM[c.unit];
+  if (c.value > ceiling) {
+    // 抛而不是静默当没给：**要让传的人看见**，与单位不一致那条同一条纪律。
+    throw new ToolError(
+      "energy_gap",
+      "invalid",
+      `百公里能耗 ${c.value}${c.unit} 超出物理上界 ${ceiling}${c.unit}——` +
+        "传进来的多半是满电续航或整段总消耗量，不是每百公里的消耗量",
+      false,
+    );
   }
 
   const unit = c.unit;
@@ -160,6 +190,41 @@ export function computeEnergyGap(args: EnergyGapArgs): EnergyGapData {
   return { demand, demandRange, remaining, gap, refillCount, unit, sufficient, basis };
 }
 
+/**
+ * 能耗口径的按轮读取端（形态照抄 `energy-stop-candidates.ts` 的 `EnergyStopLookup`）。
+ *
+ * # 为什么这一栏不由模型填
+ *
+ * ⑥ 给的是**满电续航 km**，这里要的是**百公里消耗量**，中间那次换算此前没人定义，
+ * 只能由模型心算。turn-9386d1c2 里它算了两次、两次都错：先把 428km 当成 428L/100km
+ * （单位闸门拦下），再换算成 93.46%/100km（那是整段 400km 的总量，需求量因此放大四倍）。
+ *
+ * 权威源是编排层——`energyType` 在 ④、实测续航与加油流水在 ⑥，两样它这一轮都已经取过。
+ * 所以按 ADR-012「向已经知道它的那一方要」，
+ * 这一栏从 schema 里撤掉，改由编排层按 `(sessionId, turnId)` 注入。
+ *
+ * 三种返回各有含义，与 `EnergyStopLookup` 同一口径：
+ * - `undefined`：没接（离线 / 单测 / 归不了轮）——退回入参里的那一份（通常也没有）；
+ * - 有值：编排层这一轮算出来的口径，**它胜过入参**。
+ */
+export type EnergyConsumptionLookup = (ctx: {
+  sessionId: string;
+  turnId?: string;
+}) => EnergyGapArgs["consumption"] | undefined;
+
+let consumptionLookup: EnergyConsumptionLookup | undefined;
+
+export function setEnergyConsumptionLookup(fn: EnergyConsumptionLookup | undefined): void {
+  consumptionLookup = fn;
+}
+
+export function lookupEnergyConsumption(ctx: {
+  sessionId: string;
+  turnId?: string;
+}): EnergyGapArgs["consumption"] | undefined {
+  return consumptionLookup?.(ctx);
+}
+
 export const energyGapTool: ExternalTool<EnergyGapArgs, EnergyGapData> = defineExternalTool<
   EnergyGapArgs,
   EnergyGapData
@@ -167,8 +232,10 @@ export const energyGapTool: ExternalTool<EnergyGapArgs, EnergyGapData> = defineE
   name: "energy_gap",
   provider: "carlife-calc",
   timeoutMs: 2_000,
-  async real(args) {
-    return computeEnergyGap(args);
+  async real(args, ctx) {
+    // 能耗口径不在 schema 里（理由见 `EnergyConsumptionLookup`）：这一轮的那份由编排层注入。
+    const injected = lookupEnergyConsumption({ sessionId: ctx.sessionId, turnId: ctx.turnId });
+    return computeEnergyGap(injected ? { ...args, consumption: injected } : args);
   },
   /**
    * mock：一个**不够**的例子。

@@ -34,8 +34,17 @@ import { defineExternalTool, ToolError, type ExternalTool } from "./external";
 export interface WeatherArgs {
   /** 沿途取样点；出行规划按路线分段取点后传入（`map_route` 的 `sampledPoints` 可直接喂进来） */
   points: Array<{ name: string; lat: number; lon: number }>;
-  /** 目标日期（YYYY-MM-DD）；省略取今天 */
+  /** 目标日期（YYYY-MM-DD）；省略取今天。与 `dates` 二选一，两个都给时以 `dates` 为准 */
   date?: string;
+  /**
+   * 一次问多天（M77 走查追修）。**几乎是免费的**：逆地理与预报都按行政区缓存，
+   * 高德一次 `forecast` 本来就返回今天起 4 天、气象局 7 天，多取几天只是从同一份
+   * 响应里多读几条，不多打一个上游请求。
+   *
+   * 加它是因为轮数比耗时更贵：三天行程原来要 tour 连问三次，每次之间夹一轮模型
+   * "读结果、决定下一步"（真跑 turn-98a133c8：8 轮里有 2 轮就是在逐天问天气）。
+   */
+  dates?: string[];
 }
 
 /** 实况观测（中国气象局）。**只在查询日期是今天时出现**。 */
@@ -104,6 +113,21 @@ const ENDPOINT = "https://api.open-meteo.com/v1/forecast";
 
 /** 高德预报窗口：`casts` 返回今天 + 之后 3 天，共 4 条（实测）。 */
 const AMAP_FORECAST_DAYS = 4;
+/**
+ * 气象局**增强层**的时间预算（M77 走查追修）。
+ *
+ * 真跑 turn-98a133c8：一次 weather 花了 5.5 秒，逐跳量下来是气象局对**上海那一个站**的
+ * 实况请求要 5.6 秒（同一接口舟山站只要几十毫秒），而高德那五个请求全并行、加起来不到 200ms。
+ * 它是公开接口、无 key、无 SLA，某些站就是慢。
+ *
+ * 结构上的问题不在它慢，在它被**串行 await 在高德之前**：一个代码注释自己写着
+ * "挂了只少几个字段"的增强层，把必需的那层整个压在后面。改成并行 + 预算之后，
+ * 超时只丢体感/湿度/预警那几栏，基础预报照常。
+ *
+ * 超时后那次请求**不取消**：它还在飞，回来会把 ⑤缓存填上，下一次就是毫秒级命中。
+ */
+const CMA_ENRICH_BUDGET_MS = 1_500;
+
 /** 中国气象局 `daily` 返回 7 天（含今天，实测）。 */
 const CMA_FORECAST_DAYS = 7;
 
@@ -185,7 +209,7 @@ async function fetchOne(
 async function fetchAllViaAmap(
   amap: AmapClient,
   points: WeatherArgs["points"],
-  date: string,
+  dates: readonly string[],
   signal?: AbortSignal,
 ): Promise<WeatherSegment[]> {
   /*
@@ -224,11 +248,18 @@ async function fetchAllViaAmap(
     ),
   );
 
-  return points.map((p, i) => {
+  return dates.flatMap((date) =>
+    points.map((p, i) => {
     const regeo = regeos[i];
     const cast = forecasts.get(regeo.adcode)?.casts.find((c) => c.date === date);
     if (!cast) {
-      // 走到这里说明高德在窗口内也没给这一天——是数据问题，不是我们的判断问题。
+      /*
+       * 高德在窗口内也没给这一天。
+       *
+       * **只问一天时照旧抛错**——那是数据问题，调用方该知道；
+       * 一次问多天时抛错会把好的那几天一起废掉，所以只把这一天标成取不到（下面 `missingSeg`）。
+       */
+      if (dates.length > 1) return missingSeg(p, date, regeo.city);
       throw new ToolError(
         "weather",
         "upstream",
@@ -249,7 +280,45 @@ async function fetchAllViaAmap(
       sources: ["amap:forecast"],
       unavailable: [],
     } satisfies WeatherSegment;
+    }),
+  );
+}
+
+/**
+ * 给一个"有它更好、没它也行"的请求一段预算，到点就当它没回来。
+ *
+ * **不取消它**：让它继续飞完，结果会落进 ⑤缓存，下一次直接命中。
+ * 取消掉等于每次都从零开始付那笔慢。
+ */
+async function withBudget<T>(task: Promise<T[]> | undefined, ms: number): Promise<T[]> {
+  if (!task) return [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<T[]>((resolve) => {
+    timer = setTimeout(() => resolve([]), ms);
+    timer.unref?.();
   });
+  try {
+    return await Promise.race([task, budget]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** 某一天取不到时的空档段：**有这一天，但没有数据**，与"没问过这一天"要能分得开。 */
+function missingSeg(p: WeatherArgs["points"][number], date: string, city?: string | null): WeatherSegment {
+  return {
+    name: p.name,
+    date,
+    tempMinC: null,
+    tempMaxC: null,
+    precipitationMm: null,
+    weatherCode: null,
+    condition: null,
+    windPower: null,
+    city: city ?? null,
+    sources: [],
+    unavailable: [`该取样点在 ${date} 没有可用预报`],
+  } satisfies WeatherSegment;
 }
 
 // ── 中国气象局：详情增强 ──────────────────────────────────────
@@ -398,9 +467,10 @@ function toAlarm(a: CmaAlarm): WeatherAlarm {
 function baseFromCma(
   points: WeatherArgs["points"],
   hits: Array<{ view: CmaView; distanceKm: number } | undefined>,
-  date: string,
+  dates: readonly string[],
 ): WeatherSegment[] {
-  return points.map((p, i) => {
+  return dates.flatMap((date) =>
+    points.map((p, i) => {
     const hit = hits[i];
     const day = hit?.view.daily.find((d) => d.date === date);
     return {
@@ -416,7 +486,8 @@ function baseFromCma(
       sources: day ? ["cma:forecast"] : [],
       unavailable: day ? [] : [`该取样点在 ${date} 没有可用预报`],
     } satisfies WeatherSegment;
-  });
+    }),
+  );
 }
 
 // ── 窗口判定 ─────────────────────────────────────────────────
@@ -452,51 +523,96 @@ export const weatherTool: ExternalTool<WeatherArgs, WeatherSegment[]> = defineEx
     if (args.points.length === 0) {
       throw new ToolError("weather", "invalid", "points 不能为空", false);
     }
-    const date = args.date ?? today();
+    // 一次可以问多天（M77 走查追修）：去重、排序，`dates` 优先于 `date`。
+    const dates = [...new Set((args.dates?.length ? args.dates : [args.date ?? today()]).map((d) => d.trim()).filter(Boolean))].sort();
     const amap = getAmapClient();
     const cma = getCmaClient();
+
+    /*
+     * 气象局**先发不先等**（M77 走查追修）。它在高德窗口内只是增强层，
+     * 却长期被串行 await 在高德之前——见 `CMA_ENRICH_BUDGET_MS` 的说明。
+     * 这里先把它发出去，谁等它、等多久由下面两条路各自决定。
+     */
+    const cmaAhead = cma ? fetchCmaViews(cma, args.points, ctx.signal).catch(() => []) : undefined;
 
     // 没有高德就走 Open-Meteo 那一路（无 key 兜底，字段本来就全）。
     if (!amap) {
       // 沿途多点是**工具内并发**（一个 Agent 自己并行调），不是跨 Agent 协作（§11 注）。
-      const base = await Promise.all(args.points.map((p) => fetchOne(p, date, ctx.signal)));
-      if (!cma) return base;
-      // Open-Meteo 已有紫外线/能见度/降雪，CMA 只补实况与预警。
-      const hits = await fetchCmaViews(cma, args.points, ctx.signal).catch(() => []);
+      const [base, hits] = await Promise.all([
+        Promise.all(dates.flatMap((d) => args.points.map((p) => fetchOne(p, d, ctx.signal)))),
+        // Open-Meteo 这一路 CMA 同样只是增强（紫外线/能见度/降雪它自己就有），给预算。
+        withBudget(cmaAhead, CMA_ENRICH_BUDGET_MS),
+      ]);
+      if (!hits.length) return base;
       return base.map((seg, i) =>
-        enrichWithCma(seg, hits[i], date, daysFromToday(date) === 0),
+        enrichWithCma(seg, hits[i % args.points.length], seg.date, daysFromToday(seg.date) === 0),
       );
     }
 
-    const offset = daysFromToday(date);
-    const inAmapWindow = offset >= 0 && offset < AMAP_FORECAST_DAYS;
-    const inCmaWindow = offset >= 0 && offset < CMA_FORECAST_DAYS;
+    /*
+     * ── 超窗不是错误，是"这一天我们盖不到"（M77 走查追修）───────────────────
+     *
+     * 从前这里 **throw**：两天真跑里 34 次，全是"车主要的日子在预报窗口之外"这种
+     * 完全正常的情形（下周二出发、中秋那三天）。抛错会进模型的工具循环——它看到的是
+     * 一次失败，多半要再想一轮、换个日期重查，于是每次都多烧一轮往返。
+     *
+     * 而这个工具**早就有**表达"这一天没数据"的形状：`missingSeg`。第 259 行那条注释
+     * 已经把纪律写明了——"一次问多天时抛错会把好的那几天一起废掉，所以只把这一天标成取不到"。
+     * 超窗与那里说的是同一类，只是原因不同，所以照它办。
+     *
+     * 顺带修掉第二个毛病：窗口原先按**最远那天**判（`Math.max`），于是问
+     * [明天, 第 10 天] 会把明天那条好数据一起抛掉。现在逐天分，能给的照给。
+     *
+     * 说明文字保留原来那句「**不要据此推测那天的天气**」——它是防编造的关键，
+     * 换成正常返回之后更要写在 `unavailable` 里，模型才看得见。
+     */
+    const maxWindow = cma ? Math.max(AMAP_FORECAST_DAYS, CMA_FORECAST_DAYS) : AMAP_FORECAST_DAYS;
+    const covers = (d: string): boolean => {
+      const o = daysFromToday(d);
+      return o >= 0 && o < maxWindow;
+    };
+    const covered = dates.filter(covers);
+    const uncovered = dates.filter((d) => !covers(d));
+    const outOfWindowReason =
+      `超出预报窗口：高德覆盖今天起 ${AMAP_FORECAST_DAYS} 天` +
+      `（至 ${addDays(today(), AMAP_FORECAST_DAYS - 1)}）` +
+      (cma
+        ? `，中国气象局覆盖 ${CMA_FORECAST_DAYS} 天（至 ${addDays(today(), CMA_FORECAST_DAYS - 1)}）`
+        : "，中国气象局未接入") +
+      "。**不要据此推测那天的天气**，临近再查";
+    const outOfWindowSegs = uncovered.flatMap((d) =>
+      args.points.map((p) => ({ ...missingSeg(p, d), unavailable: [outOfWindowReason] })),
+    );
+    // 一天都盖不到：如实返回全部空档段，**不抛错**——"查不到"是结论，不是故障。
+    if (covered.length === 0) return outOfWindowSegs;
 
-    if (!inAmapWindow && !(cma && inCmaWindow)) {
-      throw new ToolError(
-        "weather",
-        "invalid",
-        `查不到 ${date} 的天气：高德预报覆盖今天起 ${AMAP_FORECAST_DAYS} 天` +
-          `（至 ${addDays(today(), AMAP_FORECAST_DAYS - 1)}）` +
-          (cma
-            ? `，中国气象局覆盖 ${CMA_FORECAST_DAYS} 天（至 ${addDays(today(), CMA_FORECAST_DAYS - 1)}）`
-            : "，中国气象局未接入") +
-          "。**不要据此推测那天的天气**",
-        false,
-      );
-    }
+    const offsets = covered.map((d) => daysFromToday(d));
+    // 用哪一路按**能盖到的那几天里最远的**判：高德窗口内走高德，否则气象局当主干。
+    const offset = Math.max(...offsets);
+    const inAmapWindow = offset < AMAP_FORECAST_DAYS;
 
-    const hits = cma
-      ? await fetchCmaViews(cma, args.points, ctx.signal).catch(() => [])
-      : [];
+    /*
+     * 高德窗口内：两边**并行**，气象局只给 `CMA_ENRICH_BUDGET_MS` 的预算——它补的那几栏没有也能用。
+     * 窗口外（第 5~7 天）：气象局是**主干**，没有它就没有基础预报，必须等满（工具级 8s 超时兜着）。
+     */
+    const [base, hits] = inAmapWindow
+      ? await Promise.all([
+          fetchAllViaAmap(amap, args.points, covered, ctx.signal),
+          withBudget(cmaAhead, CMA_ENRICH_BUDGET_MS),
+        ])
+      : await (async () => {
+          const h = await (cmaAhead ?? Promise.resolve([]));
+          return [baseFromCma(args.points, h, covered), h] as const;
+        })();
 
-    // 高德窗口内用高德出基础预报；窗口外（第 5~7 天）改由气象局出。
-    const base = inAmapWindow
-      ? await fetchAllViaAmap(amap, args.points, date, ctx.signal)
-      : baseFromCma(args.points, hits, date);
-
-    if (!cma) return base;
-    return base.map((seg, i) => enrichWithCma(seg, hits[i], date, offset === 0));
+    if (!hits.length) return [...base, ...outOfWindowSegs];
+    // segment 按 dates × points 铺开，取样点索引要对回去才不会张冠李戴。
+    return [
+      ...base.map((seg, i) =>
+        enrichWithCma(seg, hits[i % args.points.length], seg.date, daysFromToday(seg.date) === 0),
+      ),
+      ...outOfWindowSegs,
+    ];
   },
 
   // mock 的数据要"看起来像但一眼能认出是假的"：固定值 + 由 source.kind=mock 标注。

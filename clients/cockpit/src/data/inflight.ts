@@ -68,3 +68,19 @@ export function createInflight(): Inflight {
 export const INFLIGHT_BOOTSTRAP = "session:bootstrap";
 /** 显式新建一段对话（「新建对话」按钮、「退下」之后、会话过期重发）。 */
 export const INFLIGHT_NEW_SESSION = "session:new";
+/**
+ * 上车声明整段探测（`BoardingGate` 的挂载 effect）。
+ *
+ * **与 `INFLIGHT_BOOTSTRAP` 是两回事，别合并。** App 的引导只复用不新建
+ * （M50-02），车机唯一会建出会话的启动路径是这道门——探测末尾的
+ * `create_session_as` 发一次就是一个会话。闸挡在 `probe()` 的**进入处**：
+ * 挡在里面那句 `create_session_as` 上不够，两次运行走的是同一串 await
+ * （device_role → bound_vin → boarding_declared），先跑的那次若在后跑的那次
+ * 到达之前就拿到了 201，闸早已释放，照样建出两个。
+ */
+export const INFLIGHT_BOARDING_PROBE = "boarding:probe";
+/**
+ * 建会话并声明谁在用（`create_session_as`）。按声明的人分键——
+ * 「访客」与「车主」是两个不同的诉求，合并会让后到的那次拿到别人的身份。
+ */
+export const INFLIGHT_DECLARE = "session:declare";

@@ -17,6 +17,7 @@ import {
   createDeepSeekVisionProvider,
   createFakeVisionProvider,
   createVisionProviderFromEnv,
+  defaultDetectVendor,
   extractJsonObject,
   sha8,
   visionModeFromEnv,
@@ -125,6 +126,25 @@ describe("[F-20-03][AC-20-1] DeepSeek provider 与两遍混搭（M80-05）", () 
     assert.ok(b.calls[0].url.includes("deepseek"));
   });
 
+  /*
+   * 零框兜底（2026-09-19）：describe 那一家本来就是个会整图定位的视觉模型，只是精度不如专训的检测器。
+   * 第一遍什么都没框到时那一刻的对照项是"什么都没有"，不用白不用 ——
+   * 这也是 ACR-045 写下的「云端定位从此只是兜底」头一次有落点。
+   */
+  it("两家混搭时 describe 那一家兼任零框兜底；同一家时不装这个方法", async () => {
+    const a = fakeFetch([{ content: DETECT_OK }]);
+    const b = fakeFetch([{ content: DETECT_OK }]);
+    const mixed = composeVisionProvider(
+      createDashScopeVisionProvider({ apiKey: "k", fetch: a.fetch }),
+      createDeepSeekVisionProvider({ apiKey: "k2", fetch: b.fetch }),
+    );
+    await mixed.detectFallback!(IMG);
+    assert.equal(a.calls.length, 0, "兜底不该回头再问第一家");
+    assert.equal(b.calls.length, 1);
+    const same = createDashScopeVisionProvider({ apiKey: "k", fetch: a.fetch });
+    assert.equal(composeVisionProvider(same, same).detectFallback, undefined, "同一家没有第二个人可问");
+  });
+
   it("env：CARLIFE_VISION=deepseek 缺密钥就抛；两遍可各指一家；同一家时不套壳", () => {
     assert.throws(() => createVisionProviderFromEnv({ CARLIFE_VISION: "deepseek" }), /DEEPSEEK_API_KEY/);
     assert.equal(createVisionProviderFromEnv({ CARLIFE_VISION: "deepseek", DEEPSEEK_API_KEY: "k" })?.name, "deepseek");
@@ -167,5 +187,23 @@ describe("[F-20-03][AC-20-1] fake provider 与 env 选档", () => {
     assert.throws(() => createVisionProviderFromEnv({ CARLIFE_VISION: "dashscope" }), /DASHSCOPE_API_KEY/);
     assert.equal(createVisionProviderFromEnv({ DASHSCOPE_API_KEY: "k", CARLIFE_VISION_DESCRIBE_MODEL: "x" })?.models.describe, "x");
     assert.equal(visionModeFromEnv({ CARLIFE_VISION: "weird" }), "dashscope");
+  });
+});
+
+describe("[F-20-03][AC-20-1] 检测缺省档：云端定位退役（ACR-045）", () => {
+  it("训练服务与权重都配了 → 缺省 yolo；缺一样 → 退回 base 并说明是兜底；显式选了就按显式的", () => {
+    const both = defaultDetectVendor({ VISION_TRAINER_URL: "http://localhost:8799", CARLIFE_VISION_YOLO_MODEL: "train-x" }, "dashscope");
+    assert.equal(both.vendor, "yolo");
+    const noModel = defaultDetectVendor({ VISION_TRAINER_URL: "http://localhost:8799" }, "dashscope");
+    assert.equal(noModel.vendor, "dashscope");
+    assert.match(noModel.reason, /退役.*CARLIFE_VISION_YOLO_MODEL/);
+    assert.equal(defaultDetectVendor({}, "deepseek").vendor, "deepseek");
+    assert.equal(defaultDetectVendor({ CARLIFE_VISION_DETECT_PROVIDER: "dashscope", VISION_TRAINER_URL: "http://x", CARLIFE_VISION_YOLO_MODEL: "m" }, "dashscope").vendor, "dashscope");
+  });
+
+  it("createVisionProviderFromEnv：配了训练服务与权重、没显式选 → 检测是 yolo、描述仍是 base", () => {
+    const p = createVisionProviderFromEnv({ DASHSCOPE_API_KEY: "k", VISION_TRAINER_URL: "http://localhost:8799", CARLIFE_VISION_YOLO_MODEL: "train-x" });
+    assert.equal(p?.name, "yolo+dashscope");
+    assert.equal(createVisionProviderFromEnv({ DASHSCOPE_API_KEY: "k" })?.name, "dashscope", "什么都没配 → 兜底仍是云端");
   });
 });

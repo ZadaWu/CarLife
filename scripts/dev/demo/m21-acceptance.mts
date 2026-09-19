@@ -19,7 +19,7 @@
  * RAGFlow 缺省时出处栏为空，**这是如实降级，不算失败**。
  */
 
-import { createRagClient } from "../../../enterprise/backend/shared/rag/src/index";
+import { createRagClient, datasetIdsFromEnv } from "../../../enterprise/backend/shared/rag/src/index";
 import {
   createHttpDealerBackend,
   setDealerBackend,
@@ -44,11 +44,7 @@ if (process.env.RAGFLOW_BASE_URL && process.env.RAGFLOW_API_KEY) {
     createRagClient({
       baseUrl: process.env.RAGFLOW_BASE_URL,
       apiKey: process.env.RAGFLOW_API_KEY,
-      datasetIds: {
-        "vehicle-manuals": process.env.RAGFLOW_DATASET_VEHICLE_MANUALS ?? "",
-        "repair-kb": process.env.RAGFLOW_DATASET_REPAIR_KB ?? "",
-        "car-catalog": process.env.RAGFLOW_DATASET_CAR_CATALOG ?? "",
-      },
+      datasetIds: datasetIdsFromEnv(),
     }),
   );
 } else {

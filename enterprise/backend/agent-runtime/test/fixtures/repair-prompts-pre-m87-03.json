@@ -1,0 +1,9 @@
+{
+  "note": "M87-03 改动前 planRepairs 四种追发的 prompt 快照（无骨架；PLAN / CTX / 四份 report 见 audit-repair.test.ts） ｜ drive 项于 ACR-047（2026-09-18）按 submit_drive_plan 重生成；其余三条仍是 M87-03 之前的原样。",
+  "prompts": {
+    "hotel": "体检发现这些天还没有住宿：第1天「云龙区」、第2天「泉山区」。\n\n请为**每一天**用 hotel_search 补 2-3 个真实酒店候选（name 逐字取自 hotel_search、address 带上、**area 必填**且填该片区名），\n\n然后以一次 `submit_hotels` 调用收尾，只提交本轮新查的候选；查不到也要提交空 hotels 并在 findings 说明。\n\n（约束）",
+    "drive": "体检发现这些段的停靠点还没定：第 2 段（汉文化景区 → 待定停靠点，约 100 分）。请沿这一段路线用 map_route / poi_search 给出**具体**停靠点（服务区或可下车活动且有卫生间的地方），其余分段与时长保持不变。\n\n体检发现最后一段没有回到出发地「杭州」——请把返程段补上。\n\n算完**必须以一次 `submit_drive_plan` 工具调用收尾**提交完整的 legs / energyStops（分钟数取自 map_route，禁止编造；回程只放一份，最后一段 to.kind 填 origin）。\n\n（约束）",
+    "tourDaily": "体检发现：第1天累计行车约 600 分，超过全天上限 540 分。\n\n请把这些天的景点**拆到相邻天或减少一处**，让当天行车回到上限以内；其余天保持不变，每个景点仍带 estStart / estEnd。\n\n排完**必须以一次 `submit_tour_days` 工具调用收尾**提交逐天骨架。\n\n（约束）",
+    "tourDays": "体检发现：要 3 天只排了 2 天。缺的是第 3 天。\n\n请把这几天补齐后**再交一份完整的逐天骨架**（已经排好的天原样带上，不要只交补的那几天）。哪天不安排游玩（回家、休整、纯赶路）也要单独占一天、写清那天做什么。\n\n每个景点仍带 estStart / estEnd；排完**必须以一次 `submit_tour_days` 工具调用收尾**。\n\n（约束）"
+  }
+}

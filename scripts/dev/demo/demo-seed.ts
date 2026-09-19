@@ -99,7 +99,18 @@ export function buildTrips(now: number): SeedTrip[] {
     const weekday = new Date(dayStart).getDay();
     const isWeekend = weekday === 0 || weekday === 6;
 
-    // 工作日通勤两段；周末一段长途，隔周才有。
+    /*
+     * 工作日通勤两段；周末一段长途，隔周才有。
+     *
+     * **长途那一段是这份数据里唯一带实测续航的**，所以它的落点不能碰运气。
+     * 原条件是 `isWeekend && d % 14 < 2`：d∈{0,1,14,15,28,29,42,43} 只落在**两个固定的星期几**上
+     * （相差 14 天即同一星期几），播种那天是周几就决定了它们是不是周末——
+     * 七天里有五天播种会一条长途都生成不出来，于是 `observedRangeKm` 一条也没有，
+     * 而现象离根因极远：助手一本正经地说"这辆车没有可用的实测续航数据，请出发前看仪表"。
+     * 2026-09-02（周三）播的那份就是零条（89 条流水、0 条实测续航）。
+     *
+     * 现在按「第几个 7 天窗口」定：每个整窗恰含一个周六，隔窗取一次，与播种日是周几无关。
+     */
     const legs: Array<Omit<SeedTrip, "id">> = [];
     const temp = 27 + ((d * 7) % 11); // 27~37℃，夏天
     if (!isWeekend) {
@@ -119,7 +130,7 @@ export function buildTrips(now: number): SeedTrip[] {
         roadType: "city",
         ambientTempC: temp - 2,
       });
-    } else if (d % 14 < 2) {
+    } else if (weekday === 6 && Math.floor(d / 7) % 2 === 0) {
       const out = dayStart + 9 * 3_600_000;
       legs.push({
         startedAt: out,

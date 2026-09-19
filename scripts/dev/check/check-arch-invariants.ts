@@ -389,6 +389,251 @@ const checks: Check[] = [
   },
 
   {
+    id: "research-pure",
+    title: "@carlife/research 是零 IO 纯函数库；研究面不出企业侧",
+    rule:
+      "ARCH-001 / ACR-034：分析单位、来源护照、四道门、置信、ODS 是研究面唯一需要被反复复核的东西——" +
+      "它们一旦和库/模型/HTTP 绑在一起，复核就变成「起个库、连个模型、跑二十分钟」，于是没人复核",
+    run() {
+      const v: Violation[] = [];
+      const isComment = (line: string) => /^\s*(\/\/|\*|\/\*)/.test(line);
+
+      // ① 纯函数库不许碰 IO 与模型。`node:crypto` 是例外（sha256 指纹，纯计算）。
+      const FORBIDDEN = [/^@carlife\/db$/, /^@carlife\/guardrails$/, /^ai$/, /^@langchain\//, /^@prisma\//, /^pg$/];
+      for (const f of ts("enterprise/backend/shared/research/src")) {
+        for (const { spec, line } of imports(read(f))) {
+          if (FORBIDDEN.some((re) => re.test(spec))) {
+            v.push({ file: rel(f), line, detail: `纯函数库引了带 IO 的依赖：${spec}` });
+          }
+        }
+      }
+
+      /*
+       * ② 研究面是**企业内部**的东西，不出端。
+       * 车主的端拿到它没有任何用处，但会把跨用户聚合的类型与常量打进客户端产物；
+       * mocks 引它则违反"假第三方与业务包零依赖"（同 mock-dealer-isolation 那条）。
+       */
+      for (const dir of ["mocks", "clients"]) {
+        if (!existsSync(join(ROOT, dir))) continue;
+        for (const f of ts(dir)) {
+          read(f)
+            .split("\n")
+            .forEach((line, i) => {
+              if (isComment(line)) return;
+              if (/@carlife\/research/.test(line)) {
+                v.push({ file: rel(f), line: i + 1, detail: `端侧 / 假第三方引了研究面：${line.trim().slice(0, 80)}` });
+              }
+            });
+        }
+      }
+      return v;
+    },
+  },
+
+  {
+    id: "acp-substrate-pure",
+    title: "@carlife/acp 只认识协议；目录一律由 AcpApp 给，不自己推",
+    rule:
+      "ACR-035：底座要同时服务车主面与用研面，而 ADR-011 禁止用研面 import 车主面。" +
+      "底座引了业务包，用研面就间接拿到了车主面的工具表与仓储——**而那不报错**",
+    run() {
+      const v: Violation[] = [];
+      const DIR = "enterprise/backend/shared/acp/src";
+      // 目录还不存在时空转（照 research-pure 的写法）——分步搬家时前几步这里是空的。
+      if (!existsSync(join(ROOT, DIR))) return v;
+
+      /*
+       * ① 底座不认识业务。
+       *
+       * `@carlife/tools` 是这几条里最硬的一条：引了它，用研面的模型手里就多出
+       * 车主面的全部工具（订单、日历、车控……），而**没有任何报错**——
+       * `pool.ts` 的文件头记着同一类事故：六个 Agent 共用了 supervisor 的工具表，
+       * 全程零报错，只能靠真跑一遍看工具有没有被调到才发现。
+       */
+      const FORBIDDEN = [
+        /^@carlife\/tools$/,
+        /^@carlife\/db$/,
+        /^@carlife\/memory$/,
+        /^@carlife\/guardrails$/,
+        /^@prisma\//,
+        /^@langchain\//,
+      ];
+      for (const f of ts(DIR)) {
+        for (const { spec, line } of imports(read(f))) {
+          if (FORBIDDEN.some((re) => re.test(spec))) {
+            v.push({ file: rel(f), line, detail: `底座引了业务包：${spec}——它该由 AcpApp 注入` });
+          }
+        }
+      }
+
+      /*
+       * ② 底座不许自己推断"我旁边有什么目录"。
+       *
+       * 这一条不直观，所以理由写全：搬家前后**层数恰好一样**
+       * （`agent-runtime/src/acp-client/` 与 `shared/acp/src/` 上溯三级都到
+       * `enterprise/backend/`），于是 `../../../pi-agents` 照搬过去**回归会全绿**、
+       * `smoke:acp` 也会过——因为车主面本来就该指向 `pi-agents/`。
+       *
+       * 缺陷要等第二个应用（用研面）接上来才发作，形态是
+       * **「用研面加载了车主面的 .pi/extensions 与 prompts」**：工具表和提示词都是别人的，
+       * 而且没有任何报错。所以判据不能是"回归绿"，只能是这一条静态规则。
+       */
+      for (const f of ts(DIR)) {
+        read(f)
+          .split("\n")
+          .forEach((line, i) => {
+            if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+            if (/import\.meta\.url/.test(line)) {
+              v.push({
+                file: rel(f),
+                line: i + 1,
+                detail: "底座里出现 import.meta.url——目录只能由 AcpApp 的 piDir / promptsDir 给",
+              });
+            }
+          });
+      }
+      return v;
+    },
+  },
+
+  {
+    id: "research-isolation",
+    title: "research-runtime 不 import 车主进程的仓储与工具",
+    rule:
+      "ARCH-001：研究面之所以另起一个进程，就是因为 agent-runtime 的仓储一律带用户键，" +
+      "跨用户聚合不能进那个进程。引进来等于把无键读和带键读混在同一个进程里，而混错的那一次没有任何现象",
+    run() {
+      const v: Violation[] = [];
+      const DIR = "enterprise/backend/research-runtime/src";
+      // 目录还不存在时空转：本规则先于服务落地（M82-01 早于 M82-04）。
+      if (!existsSync(join(ROOT, DIR))) return v;
+
+      const FORBIDDEN = [/^@carlife\/agent-runtime/, /^@carlife\/tools/, /^@carlife\/memory/];
+      for (const f of ts(DIR)) {
+        for (const { spec, line } of imports(read(f))) {
+          if (FORBIDDEN.some((re) => re.test(spec))) {
+            v.push({ file: rel(f), line, detail: `研究进程引了车主进程的包：${spec}` });
+          }
+        }
+      }
+      return v;
+    },
+  },
+
+  {
+    id: "research-tools-ro",
+    title: "@carlife/research-tools 全只读、零 sensitive、不认识协议",
+    rule:
+      "ACR-038 步 2 / 设计稿 §6：Challenger 是唯一带工具循环的 Agent——模型自己决定调什么、调几次，" +
+      "而它的任务是「去找反驳自己方的证据」。一个能写的工具在这个位置上，等于让一个被要求挑刺的模型" +
+      "有权改动被挑的东西，且**没有任何现象**：库被改了，挑战记录照样长得像一条正常记录",
+    run() {
+      const v: Violation[] = [];
+      const DIR = "enterprise/backend/shared/research-tools/src";
+      // 目录还不存在时空转（照 acp-substrate-pure 的写法）——分步搬家时前几步这里是空的。
+      if (!existsSync(join(ROOT, DIR))) return v;
+
+      const isComment = (line: string) => /^\s*(\/\/|\*|\/\*)/.test(line);
+
+      /*
+       * ① 工具表不认识协议，也不认识车主面。
+       *
+       * `@carlife/tools` 最硬：引了它，用研面的模型手里就多出车主面的全部工具
+       * （订单、日历、车控……），而**零报错**——`pool.ts` 文件头记着同一类事故。
+       * `@carlife/acp` 则是反方向的耦合：工具表被 tools-endpoint 与直连垫片**两条**
+       * 路径消费，认识了协议就只剩 ACP 一条路能用，而回滚方案正是那条直连路径。
+       */
+      const FORBIDDEN = [
+        /^@carlife\/tools$/,
+        /^@carlife\/agent-runtime/,
+        /^@carlife\/memory$/,
+        /^@carlife\/acp$/,
+      ];
+      for (const f of ts(DIR)) {
+        for (const { spec, line } of imports(read(f))) {
+          if (FORBIDDEN.some((re) => re.test(spec))) {
+            v.push({ file: rel(f), line, detail: `研究工具表引了不该认识的包：${spec}` });
+          }
+        }
+      }
+
+      /*
+       * ② 整包源码里没有写操作。
+       *
+       * 这条原先是 `research-runtime/test/challenge.test.ts` 里扫一个文件的一段断言。
+       * 搬成规则是因为「只读」这句话是对**整条路径**说的，不是对一个文件说的：
+       * M85-05 把这四个工具第二次接了出去（证据矩阵直调），当时就漏在扫描范围之外。
+       * 关键字与那段断言逐字相同，只是范围扩到整个包。
+       */
+      const WRITE_OPS = ["insertMany", "upsert", "deleteMany", "\\.record\\(", "\\.create\\(", "update\\("];
+      for (const f of ts(DIR)) {
+        read(f)
+          .split("\n")
+          .forEach((line, i) => {
+            // 注释里提到写操作是我们希望多写的（"这里为什么不写库"），不算违规。
+            if (isComment(line)) return;
+            for (const w of WRITE_OPS) {
+              if (new RegExp(w).test(line)) {
+                v.push({
+                  file: rel(f),
+                  line: i + 1,
+                  detail: `研究工具里出现了写操作 ${w.replace(/\\/g, "")}：${line.trim().slice(0, 80)}`,
+                });
+              }
+            }
+          });
+      }
+
+      /*
+       * ③ 零 sensitive。
+       *
+       * 研究工具不接权限门（设计稿 §6）：`describeForPi` 恒发 `sensitive: false`。
+       * 出现一个 `sensitive: true` 的后果不是"被拦住"，是**没人拦**——
+       * research-runtime 的 tools-endpoint 根本没接 `/internal/guard/check`，
+       * 那个标记会被原样发给 pi 然后被忽略，看起来像加了一道门。
+       */
+      for (const f of ts(DIR)) {
+        read(f)
+          .split("\n")
+          .forEach((line, i) => {
+            if (isComment(line)) return;
+            if (/sensitive\s*:\s*true/.test(line)) {
+              v.push({
+                file: rel(f),
+                line: i + 1,
+                detail: "研究工具声明了 sensitive: true——用研面没有权限门，这个标记会被静默忽略",
+              });
+            }
+          });
+      }
+      return v;
+    },
+  },
+
+  {
+    id: "context-state-write-in-harness",
+    title: "图节点不许自己写任务状态——状态只经事件、由 harness 落库",
+    rule:
+      "ACR-036 §4.9：`TurnRunner` 装载上下文、`emitTask` 写穿，图节点只发事件。" +
+      "节点直接拿仓储改 `working_tasks`，就会出现两条写路径与两套版本号，而乐观并发的 WHERE 从此随机不命中——" +
+      "表现是「写了但没保存」且不报错。今天 `itineraryNode` 里那三段自己去 trip_plan_list 查库的兜底，就是补丁打在错的层上的先例",
+    run() {
+      const v: Violation[] = [];
+      const DIR = "enterprise/backend/agent-runtime/src/graph";
+      if (!existsSync(join(ROOT, DIR))) return v;
+      for (const f of ts(DIR)) {
+        const src = read(f);
+        for (const { spec, line } of imports(src)) {
+          if (/^@carlife\/db$/.test(spec) && /createWorkingTaskStore/.test(src)) {
+            v.push({ file: rel(f), line, detail: "图节点引了任务状态的写接口：createWorkingTaskStore" });
+          }
+        }
+      }
+      return v;
+    },
+  },
+
+  {
     id: "mock-dealer-isolation",
     title: "模拟系统（经销商/车机舒适域/语音合成）不依赖本仓业务包",
     rule: "M19-01 D1：它们是**假装成第三方**的独立进程，唯一价值是能被当场 kill 掉演示降级；引了业务包就不再是外部系统",

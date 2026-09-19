@@ -24,7 +24,17 @@
  * 在 `tour-task` 上实测比 off 更糟（推演从正文挪进思考块、token 三倍），只给应答会话做对照实验用。
  */
 
-export type ThinkingLevel = "off" | "low" | "high";
+/*
+ * `ThinkingLevel` 与**后缀规则**已上移进 `@carlife/acp`（M85-09 步 3，ACR-035）。
+ *
+ * 只上移了这两样。ACR-035 把这条耦合写成「纯映射表，无业务」，而下面的
+ * `PI_NARRATING_ANSWER_SESSIONS` 是**车主面的五个 Agent 名字**——
+ * 整个搬进底座的话，用研面哪天起了一个叫 `service` 的会话就会吃到这里的实验开关，
+ * 而那不报错。理由写全在 `shared/acp/src/thinking.ts` 的文件头。
+ */
+export type { ThinkingLevel } from "@carlife/acp";
+
+import { defaultThinkingFor, type ThinkingLevel } from "@carlife/acp";
 
 /**
  * 直连侧（AI SDK / 裸 HTTP）调用点的档位。**加调用点先加这里**，测试会按源码扫描核对。
@@ -39,6 +49,7 @@ export type ThinkingLevel = "off" | "low" | "high";
  * | `probe` | off | 连通性探针，`maxTokens` 8，思考纯白烧 |
  * | `web-search` | off | DeepSeek Anthropic 兼容端点的联网搜索，输出被代码解析（实测关掉后 `server_tool_use` 照常） |
  * | `judge` | high | 评测裁判要推理；显式写出来，不靠隐式默认 |
+ * | `service-asks` | off | 问诊轮的配合请求提议（M106-03）：与 narrator 并发、产出 JSON 给代码解析；它晚回来就等于没提 |
  */
 export const DIRECT_CALL_SITES = {
   "main-direct": "high",
@@ -49,6 +60,7 @@ export const DIRECT_CALL_SITES = {
   probe: "off",
   "web-search": "off",
   judge: "high",
+  "service-asks": "off",
 } as const satisfies Record<string, ThinkingLevel>;
 
 export type DirectCallSite = keyof typeof DIRECT_CALL_SITES;
@@ -58,12 +70,22 @@ export function thinkingForSite(site: DirectCallSite): ThinkingLevel {
 }
 
 /**
- * pi 侧按会话名单独钉档位的例外表。**只放实测证明"改了会更快且不退化"的会话**——目前为空。
+ * pi 侧按会话名单独钉档位的例外表。**key 是会话名（带 `-task`），写规范名等于没写且不报错**——
+ * `piThinkingLevelFor` 收到的是会话名；`thinking-policy.test.ts` 断言每个 key 都以 `-task` 结尾。
+ *
+ * - `tour-plan-task: high`（M86-03，ACR-037；设计定稿 §3，产品拍板）：多天行程 Plan 层的语义裁决会话。
+ *   它是 `-task` 后缀里唯一开思考的：产出虽然给代码解析，但活是"两个博物馆别排同一天、门票绑日、
+ *   夜游压轴"这类取舍，不是抄表；60 s 独立超时 + 不合法即回落 1b 骨架兜住"出不出得来"，
+ *   思考只影响"对不对"。`acp/pool.ts` 的 processKey 是 `tour-plan:high`，与 `tour:off` 各自独立进程。
  *
  * 试过一次 `tour-task: "low"`（turn-c0ea193e → turn-8ddc78e7，2026-09-03）：DeepSeek 上 low 没有把推演压短，
  * 只是把它从正文挪进思考块，token 烧了三倍，撤回。正文过长的真因是 tour.md 让模型在正文里做取舍，要修的是提示词。
  */
-const PI_OVERRIDES: Readonly<Record<string, ThinkingLevel>> = {};
+export const PI_OVERRIDES: Readonly<Record<string, ThinkingLevel>> = {
+  "tour-plan-task": "high",
+  // 装配体检修复的裁决（M86-05）：与 tour-plan 同一理由——产出给代码解析，但判断本身要推演。
+  "trip-review-task": "high",
+};
 
 /** 只表述、不规划的五个应答会话——M70-03 的 low 对照实验只对它们生效（`trip` / `buying` 要做规划，不参与）。 */
 export const PI_NARRATING_ANSWER_SESSIONS = ["supervisor", "ownership", "service", "cabin", "test-drive"] as const;
@@ -79,7 +101,13 @@ export const PI_NARRATING_ANSWER_SESSIONS = ["supervisor", "ownership", "service
 export function piThinkingLevelFor(agent: string, env: NodeJS.ProcessEnv = process.env): ThinkingLevel {
   const pinned = PI_OVERRIDES[agent];
   if (pinned) return pinned;
-  if (/-(task|intent)$/.test(agent)) return "off";
+  /*
+   * 后缀规则由底座给（`defaultThinkingFor`）。它判 off 时就是 off——
+   * 与原来那行 `if (/-(task|intent)$/.test(agent)) return "off"` 同一个位置、同一个结果：
+   * 实验开关只作用于应答会话，而应答会话没有这两个后缀。
+   */
+  const base = defaultThinkingFor(agent);
+  if (base === "off") return base;
   const experiment = env.CARLIFE_PI_ANSWER_THINKING;
   if (
     (experiment === "off" || experiment === "low" || experiment === "high") &&

@@ -83,7 +83,17 @@ export type Descriptor = z.infer<typeof DescriptorSchema>;
  * 整图一遍就能给出描述（M71-01 的提示词就是这么要的），第二遍按 `describePass` 决定要不要重描。
  */
 export const DetectedItemSchema = DescriptorSchema.partial()
-  .extend({ category: CategorySchema, bbox: BBoxSchema, confidence: z.number().min(0).max(1) })
+  .extend({
+    category: CategorySchema,
+    bbox: BBoxSchema,
+    confidence: z.number().min(0).max(1),
+    /**
+     * 检测器自己给的类别名（手册目录的 symbol_id），**候选不是结论**（M80-15）。
+     * 端侧检测器 2026-09-17 在白底实拍上名字 22/25 对，而目录匹配在远拍上本来就对不上；
+     * 所以名字进链路，但只走「疑似」这条口：匹配失败时它是「最接近的」，匹配成功时以目录为准。
+     */
+    symbolHint: z.string().optional(),
+  })
   .strict();
 export type DetectedItem = z.infer<typeof DetectedItemSchema>;
 
@@ -105,6 +115,8 @@ export const ObservedItemSchema = DescriptorSchema.extend({
   colorByModel: ColorSchema,
   colorByPixels: ColorSchema,
   colorAgreement: z.enum(["agree", "disagree", "unknown"]),
+  /** 检测器给的类别名，原样带下去（见 `DetectedItemSchema.symbolHint`）。 */
+  symbolHint: z.string().optional(),
 }).strict();
 export type ObservedItem = z.infer<typeof ObservedItemSchema>;
 
@@ -131,3 +143,38 @@ export type PhotoObservation = z.infer<typeof PhotoObservationSchema>;
 
 export const PairVerdictSchema = z.object({ verdict: z.enum(["same", "different", "unsure"]) }).strict();
 export type PairVerdict = z.infer<typeof PairVerdictSchema>["verdict"];
+
+/**
+ * 端上带上来的框（ACR-045）：ACR-044 的 `carlife-vision` 在手机 / 车机上跑 YOLO 后，随消息一起发的结果。
+ *
+ * - `bbox` 是 **按 EXIF 转正后** 那张图的 0–1000 归一化框，与 `BBox` 同形。端上（tract 前处理）与
+ *   服务端（`uprightByExif` 后裁图）都在转正后的坐标系里，中间的网关只透传、不换算。
+ * - `name` 是检测器的类别名。它进链路只作 `symbolHint`（M80-15）：目录对上以目录为准，没对上说「疑似」。
+ * - 上限 24 条与 `observePhoto` 的 `maxItems` 同一个数；再多是噪音不是灯。
+ */
+export const ClientDetectionSchema = z
+  .object({
+    bbox: BBoxSchema,
+    name: z.string().min(1).max(64),
+    conf: z.number().min(0).max(1),
+  })
+  .strict();
+export type ClientDetection = z.infer<typeof ClientDetectionSchema>;
+
+export const ClientDetectionsSchema = z
+  .object({
+    /** 转正后的像素尺寸；只作留痕与自检（框已归一化，不用它换算）。 */
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    items: z.array(ClientDetectionSchema).max(24),
+    /** 端上推理耗时（毫秒），可选，进 trace。 */
+    inferMs: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type ClientDetections = z.infer<typeof ClientDetectionsSchema>;
+
+/** 端上的框 → 观察层第一遍的结果。frame 留空（端上不判裁边），类别一律 warning_light（检测器只训过警示灯）。 */
+export function clientDetectionsToResult(det: ClientDetections): DetectResult {
+  const items = det.items.map((d) => ({ category: "warning_light" as const, bbox: d.bbox, confidence: d.conf, symbolHint: d.name }));
+  return DetectResultSchema.parse({ frame: { quality: {}, cut_off_sides: [], item_count: items.length }, items });
+}

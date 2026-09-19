@@ -5,15 +5,15 @@
  * 一个都没匹配到就退到该车（或车主全部车辆）登记为乘客的人——**宁可多停不可少停**，
  * 但出处要如实：caveat 写明"未指定本次同行者，按已登记的常用乘客带入"。
  *
- * 单段上限的数值不在这里解析：`MEMBER_NEEDS.hint` 的原文交给 `merge.ts` 的 `extractConstraints`
- * （行程规划用的同一个正则），两处口径一致。
+ * 单段上限的数值**直接读 `MEMBER_NEEDS.maxLegMinutes`**（ADR-012）。此前是把 `hint` 那句
+ * 中文原文交给 `merge.ts` 的正则再解析出 90——而那句话是我们自己写的，数字本来就在手上，
+ * 解析自己写的句子是最没必要的一种解析：改一个字（「90 分钟」写成「一个半小时」）就悄悄失效。
  */
 
-import type { MemberNeed, NavPlanConstraint } from "@carlife/shared";
+import { MEMBER_NEEDS, type MemberNeed, type NavPlanConstraint } from "@carlife/shared";
 import type { MemberStore, VehicleMember } from "@carlife/memory";
 
 import { constraintsFromMembers, matchCompanions, type CompanionConstraint } from "./companions";
-import { extractConstraints } from "./merge";
 
 export interface NavConstraintsResult {
   constraints: NavPlanConstraint[];
@@ -23,6 +23,9 @@ export interface NavConstraintsResult {
 }
 
 export const UNSPECIFIED_PARTY_CAVEAT = "未指定本次同行者，按已登记的常用乘客带入约束";
+
+/** 命中的需求去重（顺序即首次出现顺序）。 */
+const needsOf = (raw: readonly CompanionConstraint[]): MemberNeed[] => [...new Set(raw.map((c) => c.need))];
 
 /** 同一条约束来自几个人时合并出处：`{text, from:["妈","小宝"]}`。 */
 export function groupConstraints(list: readonly CompanionConstraint[]): NavPlanConstraint[] {
@@ -56,8 +59,12 @@ export function navConstraintsFromMembers(
   }
   const raw = constraintsFromMembers(matched);
   const constraints = groupConstraints(raw);
-  const { maxLegMinutes } = extractConstraints(constraints.map((c) => c.text));
-  const needs = [...new Set(raw.map((c) => c.need))];
+  // 取所有命中需求里最严的那个上限（ADR-012）：读词表的数字，不解析 hint 的句子。
+  const caps = needsOf(raw)
+    .map((k) => MEMBER_NEEDS.find((d) => d.key === k)?.maxLegMinutes)
+    .filter((n): n is number => typeof n === "number");
+  const maxLegMinutes = caps.length > 0 ? Math.min(...caps) : undefined;
+  const needs = needsOf(raw);
   return { constraints, ...(maxLegMinutes !== undefined ? { maxLegMinutes } : {}), needs, caveats };
 }
 

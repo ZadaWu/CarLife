@@ -1,5 +1,5 @@
-export { VISION_VOCAB, PhotoObservationSchema, DetectResultSchema, DescriptorSchema, ObservedItemSchema, BBoxSchema } from "./schema";
-export type { BBox, Category, Color, Descriptor, DetectResult, ObservedItem, PairVerdict, PhotoObservation } from "./schema";
+export { VISION_VOCAB, PhotoObservationSchema, DetectResultSchema, DescriptorSchema, ObservedItemSchema, BBoxSchema, ClientDetectionSchema, ClientDetectionsSchema, clientDetectionsToResult } from "./schema";
+export type { BBox, Category, Color, ClientDetection, ClientDetections, Descriptor, DetectResult, ObservedItem, PairVerdict, PhotoObservation } from "./schema";
 export { FORBIDDEN_LITERAL, violatesForbidden } from "./forbidden";
 export { dominantColor, hueBucket, rgbToHsv, MIN_SATURATED_PIXELS, SATURATION_MIN, VALUE_MIN } from "./color";
 export type { DominantColor, ColorHistogram } from "./color";
@@ -10,6 +10,7 @@ export {
   composeVisionProvider,
   createFakeVisionProvider,
   createVisionProviderFromEnv,
+  defaultDetectVendor,
   visionModeFromEnv,
   extractJsonObject,
   sha8,
@@ -33,6 +34,7 @@ export { ALERTS_PROMPT, ALERT_CODE_RE, AlertEntrySchema, AlertReadingSchema, EMP
 export type { AlertEntry, AlertReading } from "./alerts";
 export { createYoloDetectProvider, toNormalizedBBox } from "./yolo";
 export type { YoloDetectOptions } from "./yolo";
-export { observePhoto, cropRegion, renderBoxes, extractCrop } from "./observe";
+export { observePhoto, cropRegion, renderBoxes, extractCrop, uprightByExif, withClientDetections } from "./observe";
+export { mergeAdjacentSameClass, MERGE_MARGIN_RATIO } from "./merge-boxes";
 export type { ObserveOptions, PixelRect } from "./observe";
 export { DETECT_PROMPT, DESCRIBE_PROMPT, VERIFY_PROMPT } from "./prompts";

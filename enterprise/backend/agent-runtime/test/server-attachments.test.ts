@@ -42,3 +42,13 @@ describe("isTurnAttachmentsBody", () => {
     assert.equal(isTurnAttachmentsBody([{ kind: "audio", handle: "h", contentType: "audio/wav", bytesBase64: "x" }]), false);
   });
 });
+
+describe("端上的框（ACR-045）", () => {
+  const det = { width: 300, height: 400, items: [{ bbox: [111, 197, 189, 222], name: "parking_lights", conf: 0.97 }] };
+  it("照片带合法 detections 过；bbox 不单调 / 多余字段 / 名字为空 拒整轮", () => {
+    assert.equal(isTurnAttachmentsBody([{ ...image(1, "image"), detections: det }]), true);
+    assert.equal(isTurnAttachmentsBody([{ ...image(1), detections: { ...det, items: [{ bbox: [500, 500, 400, 600], name: "x", conf: 0.5 }] } }]), false);
+    assert.equal(isTurnAttachmentsBody([{ ...image(1), detections: { ...det, extra: 1 } }]), false);
+    assert.equal(isTurnAttachmentsBody([{ ...image(1), detections: { ...det, items: [{ bbox: [1, 1, 2, 2], name: "", conf: 0.5 }] } }]), false);
+  });
+});

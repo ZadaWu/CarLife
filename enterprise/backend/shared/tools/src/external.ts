@@ -35,6 +35,13 @@ export class ToolError extends Error {
     readonly category: "timeout" | "upstream" | "unconfigured" | "invalid",
     message: string,
     readonly retryable = false,
+    /**
+     * 上游自己给的错误码（高德是 infocode）。**结构化带着，不要让上层拿正则去扒
+     * message**——「被限流」和「高德说没有这个地方」得分开处理，而分辨它们的依据
+     * 只有这个码（同一条 catch 里两者长得一模一样，这正是 HUD 上某天悄悄少几个点
+     * 的根因）。
+     */
+    readonly code?: string,
   ) {
     super(`[${tool}] ${message}`);
     this.name = "ToolError";

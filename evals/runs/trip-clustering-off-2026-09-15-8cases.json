@@ -1,0 +1,219 @@
+{
+  "layer": "off",
+  "fake": false,
+  "model": "deepseek-flash",
+  "at": "2026-09-15T11:44:32.879Z",
+  "total": 8,
+  "selected": 8,
+  "command": "corepack pnpm eval:trip-clustering -- -- --layer off",
+  "results": [
+    {
+      "id": "hz-3d",
+      "input": "帮我规划一个从上海出发去杭州的三天行程，自驾，带六岁的孩子，每天别安排太满。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 24520,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 8,
+        "total": 8
+      },
+      "score": {
+        "points": 8,
+        "misassigned": 1,
+        "radiusKm": 1.4819464086996756,
+        "separationKm": 6.42303785137593,
+        "perDay": [
+          1,
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "sz-2d",
+      "input": "周末从上海自驾去苏州玩两天，带爸妈，想看看园林和古镇。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 26509,
+      "mode": "skeleton",
+      "plannedDays": 2,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 7,
+        "total": 8
+      },
+      "score": {
+        "points": 7,
+        "misassigned": 2,
+        "radiusKm": 4.0632765163386795,
+        "separationKm": 8.562461271068717,
+        "perDay": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "nj-3d",
+      "input": "从上海开车去南京玩三天，主要想逛历史景点，晚上想看看夫子庙。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 32597,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 3,
+      "coverage": {
+        "withCoord": 12,
+        "total": 12
+      },
+      "score": {
+        "points": 12,
+        "misassigned": 2,
+        "radiusKm": 2.180400588714489,
+        "separationKm": 3.767082545984826,
+        "perDay": [
+          4,
+          4,
+          4
+        ]
+      }
+    },
+    {
+      "id": "gz-4d",
+      "input": "我们一家四口从上海去广州玩四天，带娃，一定要去一天长隆，其余时间在市区逛。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 67560,
+      "mode": "skeleton",
+      "plannedDays": 4,
+      "searchCalls": 3,
+      "coverage": {
+        "withCoord": 12,
+        "total": 12
+      },
+      "score": {
+        "points": 12,
+        "misassigned": 1,
+        "radiusKm": 1.1333119290319569,
+        "separationKm": 8.48480929043356,
+        "perDay": [
+          5,
+          4,
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sh-2d",
+      "input": "帮我排一个上海本地两天的行程，从嘉定出发，第一天想去迪士尼，第二天在市区逛逛。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 22474,
+      "mode": "skeleton",
+      "plannedDays": 1,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 3,
+        "total": 3
+      }
+    },
+    {
+      "id": "nt-zjg-3d",
+      "input": "从上海出发去南通、张家港三天，第一天回如东老家看妈妈，后两天在南通市区和张家港转转。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 32470,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 8,
+        "total": 8
+      },
+      "score": {
+        "points": 8,
+        "misassigned": 0,
+        "radiusKm": 0.9287716018716121,
+        "separationKm": 35.567396343413094,
+        "perDay": [
+          5,
+          3
+        ]
+      }
+    },
+    {
+      "id": "hs-3d",
+      "input": "从上海自驾去黄山三天，想上山看日出，顺便逛逛徽州古村落。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 38504,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 3,
+      "coverage": {
+        "withCoord": 13,
+        "total": 14
+      },
+      "score": {
+        "points": 13,
+        "misassigned": 3,
+        "radiusKm": 5.70324498649908,
+        "separationKm": 28.071781803343402,
+        "perDay": [
+          4,
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "id": "xa-4d",
+      "input": "从上海去西安玩四天，坐高铁过去然后在当地打车，想看兵马俑、城墙和回民街。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 37497,
+      "mode": "skeleton",
+      "plannedDays": 4,
+      "searchCalls": 15,
+      "coverage": {
+        "withCoord": 11,
+        "total": 14
+      },
+      "score": {
+        "points": 11,
+        "misassigned": 1,
+        "radiusKm": 1.5343248100166902,
+        "separationKm": 17.327057065198225,
+        "perDay": [
+          3,
+          3,
+          3,
+          2
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "counted": [
+      "hz-3d",
+      "sz-2d",
+      "nj-3d",
+      "gz-4d",
+      "nt-zjg-3d",
+      "hs-3d",
+      "xa-4d"
+    ],
+    "excluded": [
+      "sh-2d"
+    ],
+    "points": 71,
+    "misassigned": 10,
+    "misassignedPct": 14.084507042253522,
+    "radiusKm": 2.4321824058817403,
+    "separationKm": 15.457660881545394
+  }
+}

@@ -19,6 +19,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
 
+import type { AmapPoolSnapshot } from "@carlife/tools";
+
 import {
   aliyunBills,
   amapQuota,
@@ -220,6 +222,104 @@ describe("供应商适配器", () => {
       ),
     );
     assert.match(account.note ?? "", /不能互换/);
+  });
+
+  /*
+   * [F-43-05] key 池逐把列出（M100-03）。
+   *
+   * 三件要钉的事：池子的状态**只来自台账**（探针请求数不变，仍是 1 次）、
+   * 明细里只有指纹没有 key、退役会把整条的级别抬起来。
+   */
+  const poolOf = (
+    keys: Array<{ name: string; fp: string; used: number; retiredAt?: number }>,
+    source: "redis" | "memory" | "none" = "redis",
+  ): AmapPoolSnapshot => ({
+    day: "2026-08-26",
+    source,
+    observations: [],
+    keys: keys.map((k) => ({
+      name: k.name,
+      fp: k.fp,
+      usage: { place: k.used },
+      budget: { place: 450 },
+      ratio: { place: k.used / 450 },
+      ...(k.retiredAt === undefined ? {} : { retiredAt: k.retiredAt, retiredInfocode: "10044" }),
+    })),
+  });
+  const withPool = (env: Record<string, string>, pool: AmapPoolSnapshot | undefined, handler: Parameters<typeof depsOf>[1]): ProviderDeps => ({
+    ...depsOf(env, handler),
+    amapPool: async () => pool,
+  });
+
+  it("高德：池子逐把一行、只打指纹，退役把级别抬到 warn，探针仍只发 1 次", async () => {
+    let calls = 0;
+    const account = await amapQuota(
+      withPool(
+        { AMAP_SERVER_KEY: FAKE_KEY },
+        poolOf([
+          { name: "AMAP_SERVER_KEY", fp: "5f2c1a9b", used: 123 },
+          { name: "AMAP_SERVER_KEY_2", fp: "9e014d77", used: 450, retiredAt: Date.UTC(2026, 7, 26, 6, 2) },
+        ]),
+        () => {
+          calls += 1;
+          return jsonRes({ status: "1", info: "OK", infocode: "10000" });
+        },
+      ),
+    );
+    assert.equal(calls, 1, "池子状态只读台账，不因为多几把 key 就多探几次");
+    assert.equal(account.level, "warn", "有 key 退役 → warn");
+    const labels = account.detail.map((d) => d.label);
+    assert.ok(labels.includes("AMAP_SERVER_KEY · 5f2c1a9b"), `逐把一行，实际 ${labels.join(" | ")}`);
+    assert.ok(labels.includes("AMAP_SERVER_KEY_2 · 9e014d77"));
+    const first = account.detail.find((d) => d.label === "AMAP_SERVER_KEY · 5f2c1a9b");
+    assert.equal(first?.value, "place 123/450 (27%) · 活");
+    const dead = account.detail.find((d) => d.label === "AMAP_SERVER_KEY_2 · 9e014d77");
+    assert.match(dead?.value ?? "", /place 450\/450 \(100%\) · 退役 14:02（10044）/);
+    assert.ok(!JSON.stringify(account).includes(FAKE_KEY), "明细里只有指纹，不得出现 key");
+  });
+
+  it("高德：全部退役 → danger；台账仅进程内要明说", async () => {
+    const all = await amapQuota(
+      withPool(
+        { AMAP_SERVER_KEY: FAKE_KEY },
+        poolOf([
+          { name: "AMAP_SERVER_KEY", fp: "5f2c1a9b", used: 450, retiredAt: Date.UTC(2026, 7, 26, 6) },
+          { name: "AMAP_SERVER_KEY_2", fp: "9e014d77", used: 450, retiredAt: Date.UTC(2026, 7, 26, 6) },
+        ]),
+        () => jsonRes({ status: "1", info: "OK", infocode: "10000" }),
+      ),
+    );
+    assert.equal(all.level, "danger");
+
+    const local = await amapQuota(
+      withPool(
+        { AMAP_SERVER_KEY: FAKE_KEY },
+        poolOf([{ name: "AMAP_SERVER_KEY", fp: "5f2c1a9b", used: 3 }], "none"),
+        () => jsonRes({ status: "1", info: "OK", infocode: "10000" }),
+      ),
+    );
+    assert.equal(local.level, "ok");
+    assert.match(local.detail.find((d) => d.label === "台账")?.value ?? "", /仅进程内/);
+  });
+
+  it("高德：探针失败时也带池子明细；amapPool 缺省或抛错时与从前逐字相同", async () => {
+    const failed = await amapQuota(
+      withPool(
+        { AMAP_SERVER_KEY: FAKE_KEY },
+        poolOf([{ name: "AMAP_SERVER_KEY", fp: "5f2c1a9b", used: 450, retiredAt: Date.UTC(2026, 7, 26, 6) }]),
+        () => jsonRes({ status: "0", info: "DAILY_QUERY_OVER_LIMIT", infocode: "10003" }),
+      ),
+    );
+    assert.equal(failed.status, "failed");
+    assert.ok(failed.detail.some((d) => d.label === "AMAP_SERVER_KEY · 5f2c1a9b"));
+
+    const plain = await amapQuota(depsOf({ AMAP_SERVER_KEY: FAKE_KEY }, () => jsonRes({ status: "1", info: "OK", infocode: "10000" })));
+    const threw = await amapQuota({
+      ...depsOf({ AMAP_SERVER_KEY: FAKE_KEY }, () => jsonRes({ status: "1", info: "OK", infocode: "10000" })),
+      amapPool: () => Promise.reject(new Error("redis down")),
+    });
+    assert.deepEqual(threw.detail, plain.detail, "台账读不出来不影响这一栏，更不该让它失败");
+    assert.equal(threw.level, plain.level);
   });
 });
 

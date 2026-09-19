@@ -38,6 +38,13 @@ export interface TripPlanQuery {
   startFrom?: string;
   /** 出发日上界（含）。 */
   startTo?: string;
+  /**
+   * **这一天落在行程期内**（`startDate <= covers <= endDate`），`YYYY-MM-DD`。
+   *
+   * 与 startFrom / startTo 不同：那两个比的是出发日。车主说「9 月 26 号那条」时，
+   * 一份 9/25 出发的三天行程按出发日一天都对不上，按覆盖才对得上。
+   */
+  covers?: string;
   minDays?: number;
   maxDays?: number;
   /** 默认只看 `confirmed`——取消掉的与被改掉的对"我有哪些行程"是噪音。 */
@@ -85,6 +92,17 @@ export interface TripPlanRepository {
   /** 最新一条 confirmed；没有返回 null。 */
   currentForUser(userId: string): Promise<CommittedTripPlan | null>;
   /**
+   * 按 id 读一份**仍然 confirmed** 的行程；不存在 / 不属于这个人 / 已取消都返回 null。
+   *
+   * 与 `currentForUser` 的差别正是后台补算的命门（2026-09-18 排查）：「当前行程」是
+   * 最新一条 confirmed，而车主能从列表里载入并变更**任何一程**（M72-05）。
+   * 沿途服务与目的地推荐的补算在写回前要核对"这十几秒里行程换了吗"，从前拿
+   * `currentForUser` 核对，于是只要改的不是最新那一程，算完的结果一律被判成
+   * "期间换了行程"整份丢弃——四格永远停在「待查」，而每改一次照样烧掉几十次高德请求。
+   * 要核对的是**这一行还在不在**，不是它排第几，所以补算改读这条。
+   */
+  confirmedById(userId: string, planId: string): Promise<CommittedTripPlan | null>;
+  /**
    * 未取消的行程，**按相对今天的临近程度**排序，返回整份快照。
    *
    * 排序三档：进行中（今天在起止日之间）→ 未来（出发日越近越前）→ 已结束（越近越前）。
@@ -109,7 +127,8 @@ export interface TripPlanRepository {
   /**
    * 「活动」行程（M72-01）：confirmed 且（结束日 >= 今天，或没定日期）。
    * 与 `query` 的区别只在**不带已结束的**——主页列表与每日核查都不该看它们。
-   * 排序沿用「进行中 → 未来 → 未定日期」。
+   * 排序见 `orderActive`：进行中 → 未来 → 未定日期 → 已结束（`endDate` 列还空着的老行，
+   * SQL 那一层拦不住，所以让它们排末尾）。
    */
   activeForUser(userId: string, today?: string, limit?: number): Promise<CommittedTripPlan[]>;
   /**
@@ -149,19 +168,43 @@ function toDomain(r: Row): CommittedTripPlan {
 export const ACTIVE_ALL_DEFAULT_LIMIT = 500;
 
 /**
- * 活动行程的排序（M72-01）：进行中（出发日 <= 今天）按出发日升序 → 未来按出发日升序 → 没定日期按确认时间降序。
- * 与 `query` 的三档同一口径，只是少了"已结束"那档；在内存里排是因为这一档的总量本来就小
- * （一个人同时挂着的未来行程数得过来），不值得三条 SQL。
+ * 行上的结束日。`endDate` 列比 `startDate` 晚加，老行的它是 `null`——
+ * 那时按快照的天数补算，而不是当作"没有结束日"（后者等于宣布这一程永远还在前面）。
+ */
+function rowEndDate(r: Row): string | undefined {
+  if (r.endDate) return r.endDate;
+  const days = (r.plan as TripPlanSnapshot | null)?.days ?? 1;
+  return endDateOf(r.startDate ?? undefined, days);
+}
+
+/**
+ * 活动行程的排序（M72-01）：进行中（出发日 <= 今天且没走完）按出发日升序 → 未来按出发日升序
+ * → 没定日期按确认时间降序 → **已结束的沉到末尾**（最近结束的在前）。
+ * 在内存里排是因为这一档的总量本来就小（一个人同时挂着的未来行程数得过来），不值得几条 SQL。
+ *
+ * 末尾那一档本该是空的，实际不是（2026-09-16 走查）：`activeForUser` 的
+ * `endDate IS NULL` 分支为的是放行"没定日期"的行程，可它同时放行了**老行**——
+ * 那些早就走完、只是 `endDate` 列还空着的行程。而它们的出发日最早，按出发日升序恰好
+ * 排在第一位，于是车机主页默认展示的"列表首条"永远钉着一份已结束的行程，地图跟着收起。
+ * 所以这里自己把结束日补出来（`rowEndDate`），已结束的一律让位——但**不剔除**：
+ * 车主还要能在列表里点开走完的那一程看路线。
  */
 export function orderActive(rows: readonly Row[], today: string): CommittedTripPlan[] {
-  const ongoing = rows.filter((r) => r.startDate !== null && r.startDate <= today);
-  const upcoming = rows.filter((r) => r.startDate !== null && r.startDate > today);
-  const undated = rows.filter((r) => r.startDate === null);
+  const ended = (r: Row) => {
+    const end = rowEndDate(r);
+    return end !== undefined && end < today;
+  };
+  const live = rows.filter((r) => !ended(r));
+  const finished = rows.filter(ended);
+  const ongoing = live.filter((r) => r.startDate !== null && r.startDate <= today);
+  const upcoming = live.filter((r) => r.startDate !== null && r.startDate > today);
+  const undated = live.filter((r) => r.startDate === null);
   const byStart = (a: Row, b: Row) => (a.startDate ?? "").localeCompare(b.startDate ?? "");
   ongoing.sort(byStart);
   upcoming.sort(byStart);
   undated.sort((a, b) => b.committedAt.getTime() - a.committedAt.getTime());
-  return [...ongoing, ...upcoming, ...undated].map(toDomain);
+  finished.sort((a, b) => byStart(b, a));
+  return [...ongoing, ...upcoming, ...undated, ...finished].map(toDomain);
 }
 
 /**
@@ -311,6 +354,15 @@ export function createTripPlanRepository(prisma: PrismaClient): TripPlanReposito
       return row ? toDomain(row as Row) : null;
     },
 
+    async confirmedById(userId, planId) {
+      // userId 与 status 一起进 where：与 `cancelById` / `update` 同一条纪律——
+      // 只按 planId 找就是"知道 id 就能读别人的行程"；已取消的也不该再被补算写回。
+      const row = await prisma.tripPlan.findFirst({
+        where: { id: planId, userId, status: "confirmed" },
+      });
+      return row ? toDomain(row as Row) : null;
+    },
+
     async list(userId, limit, today) {
       return this.query(userId, { limit }, today);
     },
@@ -380,6 +432,24 @@ export function createTripPlanRepository(prisma: PrismaClient): TripPlanReposito
                 ...(q.startFrom ? { gte: q.startFrom } : {}),
                 ...(q.startTo ? { lte: q.startTo } : {}),
               },
+            }
+          : {}),
+        /*
+         * `covers`：**这一天落在行程期内**（M77 走查追修）。
+         *
+         * 与 startFrom / startTo 是两回事，后者比的是**出发日**。车主说「9 月 26 号那条」时，
+         * 他指的多半是"那天我在这趟行程里"，而不是"那天出发"——一份 9/25 出发的三天行程
+         * 覆盖 25、26、27 三天，按出发日一天都对不上。
+         *
+         * `endDate` 为空的老行是历史数据（那一列比 startDate 晚加），退化成只比出发日，
+         * 不把它们整个排除掉——查不到比多查一条难排查得多。
+         */
+        ...(q.covers
+          ? {
+              AND: [
+                { startDate: { lte: q.covers } },
+                { OR: [{ endDate: { gte: q.covers } }, { endDate: null, startDate: q.covers }] },
+              ],
             }
           : {}),
         ...(q.minDays !== undefined || q.maxDays !== undefined

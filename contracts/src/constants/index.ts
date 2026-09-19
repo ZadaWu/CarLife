@@ -22,10 +22,16 @@ export const MAX_CAPTURE_DURATION_MS = 60000;
 // ---------------------------------------------------------------------------
 
 /**
- * DeepSeek 当前统一使用的非推理模型。
- * 各服务与旁路不得各自维护默认值。
+ * DeepSeek 当前统一使用的对话模型。各服务与旁路不得各自维护默认值。
+ *
+ * 2026-09-15 起写**正式名** `deepseek-flash`（V4.1 Flash）。此前写的是 `deepseek-v4-flash`，
+ * 而 9/10 起那个名字被 DeepSeek 服务端别名到 V4.1 Flash（请求 `deepseek-v4-flash`、响应
+ * `model=deepseek-flash`，`/models` 里也只剩 `deepseek-flash` 与 `deepseek-v4-pro`）——
+ * pi 与直连两条路都在不知情的情况下换了模型，四条腿的输出量同时塌了 10~30 倍
+ * （内部文档 §1）。
+ * 别名迟早撤，这里不再靠它。pi 侧的同一个事实在 `enterprise/backend/pi-agents/.pi/settings.json`。
  */
-export const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
+export const DEFAULT_DEEPSEEK_MODEL = "deepseek-flash";
 
 const DEPRECATED_DEEPSEEK_MODEL = "deepseek-chat";
 
@@ -128,6 +134,30 @@ export const BRIDGE_EVENTS = {
   dialogTitle: "dialog:title",
   /** payload: UpdateBranch（M37-01，分支起止；failed/timeout 出"部分结果"标识，**不进历史**） */
   dialogBranch: "dialog:branch",
+} as const;
+
+/**
+ * 账号级通道推给 WebView 的事件名（ACR-032）。
+ *
+ * # 为什么不在 `BRIDGE_EVENTS` 里
+ *
+ * 那一组是**对话桥**：Rust 把会话流（`/v1/session/:id/stream`）的事件 fan-out 给
+ * WebView，两端 `bridge/index.ts` 逐字相同、且必须订满那一组的每一个键
+ * （`clients/mobile/test/bridge-parity.test.ts` 是这条承诺的守卫）。
+ *
+ * 本事件来自**另一条流**（`/v1/events`，按账号订阅），生命周期也不同——它跨会话存活，
+ * 换会话不换它。把它塞进 `BRIDGE_EVENTS` 等于声称它是对话桥的一员，
+ * 于是那道守卫会要求对话桥去订一个不属于它的东西。分开是让类型说出这件事，
+ * 而不是在守卫里开一个例外。
+ */
+export const ACCOUNT_EVENTS = {
+  /**
+   * payload: `{ reason: string }`。语义是「**别的端**动了你的会话列表，整拉一次」。
+   *
+   * 刻意**不带会话摘要**：带上会诱导端上做增量合并，而乱序与漏更新都是从那里来的。
+   * `reason` 只进日志，端上不按它分支。
+   */
+  sessionsChanged: "session:list-changed",
 } as const;
 
 /**

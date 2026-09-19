@@ -5,15 +5,15 @@
  * 而不是"所有车型都没有资料"。后者是在替知识库断言一件我们此刻不知道的事，
  * 而端上两句话的含义完全不同。
  *
- * 另外盯缓存：算一次要向 RAGFlow 打三次 listDocuments，
- * 建档页一进来可能并发几次，没有去重就是三倍到九倍的外部调用。
+ * 另外盯缓存：算一次要向 RAGFlow 把每个数据集各打一次 listDocuments，
+ * 建档页一进来可能并发几次，没有去重就是几倍的外部调用。
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import express from "express";
 
-import type { DatasetKey, DocumentStatus, RagClient } from "@carlife/rag";
+import { DATASETS, type DatasetKey, type DocumentStatus, type RagClient } from "@carlife/rag";
 
 import { createCoverageProvider, createVehicleCatalogRouter, knowledgeFor } from "../src/http/vehicle-catalog";
 
@@ -114,10 +114,14 @@ describe("GET /v1/vehicle-catalog", () => {
     let calls = 0;
     const { app, provider } = appWith(fakeRag({ onCall: () => void calls++ }));
     await Promise.all([get(app, "/v1/vehicle-catalog"), get(app, "/v1/vehicle-catalog")]);
-    // 三个数据集 × 一轮 = 3；并发去重没生效的话会是 6。
-    assert.equal(calls, 3);
+    /*
+     * 这里守的是**并发去重**：一轮 = 每个数据集各一次，没去重就是两倍。
+     * 数字从 `DATASETS` 现算，不写字面量——写死 3 的那一版在 `insurance-kb`
+     * 进库（M96-01）当天就过期了，而它一直被 TD-55 的红挡在 `-r test` 后面没人看见。
+     */
+    assert.equal(calls, DATASETS.length);
     await provider.get();
-    assert.equal(calls, 3);
+    assert.equal(calls, DATASETS.length, "TTL 内又打了一轮——缓存没命中");
   });
 });
 

@@ -4,6 +4,8 @@ services:
       context: ..
       dockerfile: infra/images/Dockerfile
       target: worker
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     env_file:
       - ../.env
     environment:

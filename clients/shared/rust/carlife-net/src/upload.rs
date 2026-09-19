@@ -7,7 +7,9 @@
 //! 重试策略（工单边界）：网络错误/5xx **一次**自动重试后上抛；
 //! 完整退避与离线队列归 FL-05（M2-04/后续），此处不做。
 
-use carlife_core::contract::{AudioMeta, MessageSource};
+use std::collections::BTreeMap;
+
+use carlife_core::contract::{AudioMeta, ClientDetections, MessageSource};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -479,6 +481,21 @@ impl GatewayClient {
         source: MessageSource,
         attachments: &[String],
     ) -> Result<AcceptedTurn, NetError> {
+        self.send_text_with_detections(session_id, content, source, attachments, &BTreeMap::new()).await
+    }
+
+    /// 同上，另带端上检测结果（ACR-046）：`detections` 按附件句柄索引，只放检测已完成的照片。
+    /// 为空时请求体与 `send_text_with_attachments` 逐字相同——开关关着的端上零差异。
+    /// 句柄必须在 `attachments` 里：网关对不在本轮附件里的键整轮 400（`attachment_invalid`），这里不静默过滤，
+    /// 调用方组装错了要在测试里红，而不是在线上悄悄少一张框。
+    pub async fn send_text_with_detections(
+        &self,
+        session_id: &str,
+        content: &str,
+        source: MessageSource,
+        attachments: &[String],
+        detections: &BTreeMap<String, ClientDetections>,
+    ) -> Result<AcceptedTurn, NetError> {
         let source = match source {
             MessageSource::Voice => "voice",
             MessageSource::Text => "text",
@@ -494,6 +511,9 @@ impl GatewayClient {
         });
         if !attachments.is_empty() {
             body["attachments"] = serde_json::json!(attachments);
+        }
+        if !detections.is_empty() {
+            body["detections"] = serde_json::to_value(detections).map_err(|e| NetError::BadResponse(format!("detections 序列化失败：{e}")))?;
         }
         let res = self
             .http
@@ -701,6 +721,24 @@ impl GatewayClient {
         let res = self
             .http
             .get(format!("{}/v1/session/{}/buying", self.base_url, session_id))
+            .header("authorization", format!("Bearer {}", self.token))
+            .send()
+            .await
+            .map_err(net_err)?;
+        if res.status().as_u16() != 200 {
+            return Err(failure_from(res).await);
+        }
+        res.text()
+            .await
+            .map_err(|e| NetError::BadResponse(e.to_string()))
+    }
+
+    /// 拍照问诊报告（`GET /v1/session/:id/diagnosis` 原样 JSON，M104-02）。
+    /// 与 `fetch_buying` 同一条纪律：原样透传，Rust 不解析——契约真相源在 TS/shared。
+    pub async fn fetch_diagnosis(&self, session_id: &str) -> Result<String, NetError> {
+        let res = self
+            .http
+            .get(format!("{}/v1/session/{}/diagnosis", self.base_url, session_id))
             .header("authorization", format!("Bearer {}", self.token))
             .send()
             .await
@@ -1543,6 +1581,65 @@ mod tests {
 
         let raw = rx.recv().unwrap();
         assert!(raw.contains(r#""fillerEnabled":true"#), "{raw}");
+    }
+
+    /// ACR-046：端上的框按附件句柄索引，跟 `attachments` 一起上行；字段名与形状对齐服务端 zod（ACR-045）。
+    #[tokio::test]
+    async fn 文本上行带端上检测结果() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let base = spawn_raw_stub("202 Accepted", r#"{"turnId":"t1"}"#, tx);
+        let mut det = BTreeMap::new();
+        det.insert(
+            "handle_aaaaaaaa".to_string(),
+            ClientDetections {
+                width: 3024,
+                height: 4032,
+                items: vec![carlife_core::contract::ClientDetection { bbox: [111, 197, 189, 222], name: "parking_lights".into(), conf: 0.5 }],
+                infer_ms: Some(312),
+            },
+        );
+        GatewayClient::new(base, "demo-token")
+            .send_text_with_detections("sess-1", "", MessageSource::Text, &["handle_aaaaaaaa".to_string()], &det)
+            .await
+            .expect("send ok");
+
+        let raw = rx.recv().unwrap();
+        // 桩把请求头与体拼在一起、中间不留空行：体是最后一个以 `{` 开头的 JSON 对象
+        let body: serde_json::Value = serde_json::from_str(&raw[raw.find("{\"").unwrap()..]).unwrap();
+        assert_eq!(body["attachments"], serde_json::json!(["handle_aaaaaaaa"]));
+        assert_eq!(
+            body["detections"],
+            serde_json::json!({ "handle_aaaaaaaa": { "width": 3024, "height": 4032, "inferMs": 312,
+                "items": [{ "bbox": [111, 197, 189, 222], "name": "parking_lights", "conf": 0.5 }] } }),
+            "{raw}"
+        );
+    }
+
+    #[tokio::test]
+    async fn 没有检测结果时请求体里没有_detections_键() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let base = spawn_raw_stub("202 Accepted", r#"{"turnId":"t1"}"#, tx);
+        GatewayClient::new(base, "demo-token")
+            .send_text_with_attachments("sess-1", "看看", MessageSource::Text, &["handle_aaaaaaaa".to_string()])
+            .await
+            .expect("send ok");
+        let raw = rx.recv().unwrap();
+        assert!(raw.contains(r#""attachments":["handle_aaaaaaaa"]"#), "{raw}");
+        assert!(!raw.contains("detections"), "开关关着的端上请求体必须与今天逐字相同：{raw}");
+    }
+
+    #[tokio::test]
+    async fn 空框也照发_服务端据此说未识别到() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let base = spawn_raw_stub("202 Accepted", r#"{"turnId":"t1"}"#, tx);
+        let mut det = BTreeMap::new();
+        det.insert("handle_aaaaaaaa".to_string(), ClientDetections { width: 10, height: 10, items: vec![], infer_ms: None });
+        GatewayClient::new(base, "demo-token")
+            .send_text_with_detections("sess-1", "", MessageSource::Text, &["handle_aaaaaaaa".to_string()], &det)
+            .await
+            .expect("send ok");
+        let raw = rx.recv().unwrap();
+        assert!(raw.contains(r#""detections":{"handle_aaaaaaaa":{"height":10,"items":[],"width":10}}"#), "{raw}");
     }
 
     /// 音频体是 raw PCM，塞不进 JSON —— 所以走请求头。

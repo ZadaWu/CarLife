@@ -94,6 +94,58 @@ describe("withLlmSpans：取消≠失败", () => {
     assert.equal(spanOf(events, "llm.trip")!.status, "failed");
   });
 
+  /*
+   * [F-13-08] M94-01：失败也要说出原因。
+   *
+   * 加这条之前 `failed` 的 detail 一律不填——库里 53 条 llm failed 全是空 detail，
+   * 2026-09-16 那次 ACP 连接关闭因此在轨迹里没有名字。
+   */
+  it("失败带 detail，且与取消的值域不重叠（err: 前缀）", async () => {
+    const events = collect();
+    const boom = Object.assign(new Error("upstream said no"), { status: 502 });
+    const inner: ChatStreamer = async function* () {
+      yield "半";
+      throw boom;
+    };
+    await assert.rejects(() => drain(withLlmSpans(inner)([], { agent: "hotel-task", threadId: "s" })));
+    const main = spanOf(events, "llm.hotel-task")!;
+    assert.equal(main.status, "failed");
+    assert.equal(main.detail, "err:http_5xx");
+
+    // 取消侧的值域（submitted / timeout / cancelled）不带前缀，两边分得开。
+    const ac = new AbortController();
+    ac.abort("timeout");
+    const cancelled: ChatStreamer = async function* () {
+      throw new CancelledError("本轮已取消");
+    };
+    await assert.rejects(() =>
+      drain(withLlmSpans(cancelled)([], { agent: "drive-task", threadId: "s", signal: ac.signal })),
+    );
+    const d = spanOf(events, "llm.drive-task")!;
+    assert.equal(d.detail, "timeout", "取消原因不加前缀");
+    assert.ok(!d.detail!.startsWith("err:"), "被掐≠坏掉，两者在回放里必须分得开");
+  });
+
+  it("一个 token 都没出且是失败：ttft 记 no_token:<归类>，不再只剩 no_token", async () => {
+    const events = collect();
+    const inner: ChatStreamer = async function* () {
+      throw new Error("ECONNRESET");
+    };
+    await assert.rejects(() => drain(withLlmSpans(inner)([], { agent: "tour-task", threadId: "s" })));
+    const ttft = spanOf(events, "llm.tour-task.ttft")!;
+    assert.equal(ttft.status, "failed");
+    assert.equal(ttft.detail, "no_token:network");
+  });
+
+  it("空流（成功但一个字都没有）仍是裸 no_token——它没有错误可归类", async () => {
+    const events = collect();
+    const inner: ChatStreamer = async function* () {
+      // 什么都不 yield
+    };
+    await drain(withLlmSpans(inner)([], { agent: "quiet", threadId: "s" }));
+    assert.equal(spanOf(events, "llm.quiet.ttft")!.detail, "no_token");
+  });
+
   it("成功路径一个字都不变：ok、无 detail", async () => {
     const events = collect();
     const inner: ChatStreamer = async function* () {

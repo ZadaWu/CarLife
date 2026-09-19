@@ -69,3 +69,62 @@ test("lodging 只认两个枚举；脏值丢弃、空 note 剥掉", () => {
   assert.equal(sanitizeLodging({ strategy: "checkin-tonight" }), undefined);
   assert.equal(sanitizeLodging(undefined), undefined);
 });
+
+/*
+ * 办入住的时段窗口（turn-ced08ea1 走查：「到如家商旅酒店的时间页没说」）。
+ *
+ * 纪律与景点时段同源但**丢的粒度不同**：那边整天一票制，这边只丢这一对——
+ * 策略与行李处置那句话是独立可用的信息，不该被一个坏时段废掉。
+ */
+test("办入住窗口：合法就留，缺一半/形状不对/首尾倒置一律当没给", () => {
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "12:00", estEnd: "12:40" }), {
+    strategy: "checkin-midday",
+    estStart: "12:00",
+    estEnd: "12:40",
+  });
+  // 只给一头 = 没有窗口
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "12:00" }), {
+    strategy: "checkin-midday",
+  });
+  // 形状不对
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "12点", estEnd: "12:40" }), {
+    strategy: "checkin-midday",
+  });
+  // 首尾倒置 / 相等
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "12:40", estEnd: "12:00" }), {
+    strategy: "checkin-midday",
+  });
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "12:00", estEnd: "12:00" }), {
+    strategy: "checkin-midday",
+  });
+});
+
+test("**坏窗口不拖垮整个 lodging**——策略与行李那句话照旧留着", () => {
+  assert.deepEqual(
+    sanitizeLodging({ strategy: "checkin-midday", note: "行李放车上", estStart: "25:00", estEnd: "26:00" }),
+    { strategy: "checkin-midday", note: "行李放车上" },
+  );
+});
+
+test("办入住不能排到当天第一个景点之后——那种窗口是错的，落脚行会被画到景点后面", () => {
+  assert.deepEqual(
+    sanitizeLodging({ strategy: "checkin-midday", estStart: "12:00", estEnd: "12:40" }, "13:30"),
+    { strategy: "checkin-midday", estStart: "12:00", estEnd: "12:40" },
+  );
+  // 结束晚于第一个景点的开始 → 丢窗口
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "13:00", estEnd: "14:00" }, "13:30"), {
+    strategy: "checkin-midday",
+  });
+  // 正好卡在第一个景点开始那一刻 = 合法（紧接着就走）
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "13:00", estEnd: "13:30" }, "13:30"), {
+    strategy: "checkin-midday",
+    estStart: "13:00",
+    estEnd: "13:30",
+  });
+  // 上界本身不可信（整天时段被判非法）时不参与判定
+  assert.deepEqual(sanitizeLodging({ strategy: "checkin-midday", estStart: "13:00", estEnd: "14:00" }, "13点半"), {
+    strategy: "checkin-midday",
+    estStart: "13:00",
+    estEnd: "14:00",
+  });
+});

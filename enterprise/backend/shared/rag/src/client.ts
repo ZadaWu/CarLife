@@ -13,13 +13,28 @@
  * 不由 LLM 生成**——让模型"写出处"等于让它编出处（F-16-09）。
  */
 
-import { datasetFor, datasetsForAgent, type DatasetKey } from "./datasets";
+import { catalogModels } from "@carlife/shared";
+
+import { datasetFor, datasetsForAgent, type DatasetDef, type DatasetKey } from "./datasets";
 
 export interface RetrievedChunk {
   content: string;
-  /** 出处：文档名 + 位置。**没有它这条 chunk 不该被使用**。 */
-  source: { document: string; location?: string };
+  /**
+   * 出处：文档名 + 位置 + **来自哪个集**。**没有它这条 chunk 不该被使用**。
+   *
+   * `dataset` 是 ACR-042 加的：一次检索可以跨多个集（`service` 缺省同查维修手册与
+   * 车险条款），调用级记一个集名就会张冠李戴——读者看到"出处：示范条款"却不知道
+   * 旁边那条来自保养手册。
+   */
+  source: { document: string; location?: string; dataset: DatasetKey };
   score: number;
+  /**
+   * 数据来源标注（F-24-11），**跟着 chunk 走不跟着调用走**。
+   *
+   * 同一次跨集检索里可以同时有 `public`（厂商手册、示范条款）与 `simulated`
+   * （自写的流程整理稿）。整段打一个标签，不是把真的说成假的，就是把假的说成真的。
+   */
+  provenance: DatasetDef["provenance"];
 }
 
 /**
@@ -40,7 +55,16 @@ export interface RetrievalTuning {
 }
 
 export interface RetrieveArgs {
-  dataset: DatasetKey;
+  /** 单集检索。与 `datasets` 二选一——都给时以 `datasets` 为准，都不给抛错。 */
+  dataset?: DatasetKey;
+  /**
+   * 多集检索（ACR-042）：一次调用跨集召回。
+   *
+   * RAGFlow 的 `/api/v1/retrieval` 本来就收 `dataset_ids` 数组，四个集同一个
+   * embedding（bge-m3），分数直接可比——在我们这一侧发 N 次再按分数合并，
+   * 是把它已经做过的事多花 N−1 次往返再做一遍。
+   */
+  datasets?: readonly DatasetKey[];
   query: string;
   /** **返回条数**。映射到 RAGFlow 的 `page_size`，不是它的 `top_k`。 */
   topK?: number;
@@ -212,6 +236,37 @@ function assertOk(body: unknown): unknown {
   return body;
 }
 
+/**
+ * 这个集里、这辆车**看得见**哪些文档（ACR-042）。判据按集的作用域分叉：
+ *
+ *   per-model  只有这辆车的文档可见；一篇都没有就抛——那是"我们根本没在这辆车的
+ *              资料里找"，不是"知识库里没这内容"，更不能退回全库（F-23-07 的取向）。
+ *   shared     文件名不含任何目录车型的对所有车可见（行业级示范条款）；含车型的
+ *              只对那款车可见（特斯拉专属的出险注意事项）。零可见**不是错误**，
+ *              它只是说这辆车在这个集里没有专属内容，行业内容照常给。
+ *
+ * 判"文件名含不含车型"用的是与检索侧同一个 `documentMatchesModel`，
+ * 与 `coverage.ts` 同源——两边分叉的那一半正好是用户会撞上的那一半。
+ */
+export function documentIdsFor(
+  def: DatasetDef,
+  docs: readonly DocumentStatus[],
+  vehicleModel: string,
+  models: readonly string[] = catalogModels(),
+): string[] {
+  if (def.scope === "per-model") {
+    const mine = docs.filter((d) => documentMatchesModel(d.name, vehicleModel));
+    if (mine.length === 0) throw new NoDocumentsForModelError(vehicleModel, def.key);
+    return mine.map((d) => d.documentId);
+  }
+  const visible = docs.filter((d) => {
+    if (documentMatchesModel(d.name, vehicleModel)) return true;
+    // 不含任何目录车型 = 行业级，对所有车可见。
+    return !models.some((m) => documentMatchesModel(d.name, m));
+  });
+  return visible.map((d) => d.documentId);
+}
+
 export interface RagClient {
   retrieve(args: RetrieveArgs): Promise<RetrievedChunk[]>;
   /**
@@ -357,25 +412,43 @@ export function createRagClient(cfg: RagflowConfig): RagClient {
     },
 
     async retrieve(args) {
-      // **跨数据集访问在调用层被拒**（AC-24-8），不依赖 prompt 约束。
-      const allowed = datasetsForAgent(args.agent).some((d) => d.key === args.dataset);
-      if (!allowed) {
-        throw new DatasetAccessError(`Agent ${args.agent} 无权检索数据集 ${args.dataset}`);
+      const keys = args.datasets ?? (args.dataset ? [args.dataset] : []);
+      if (keys.length === 0) throw new Error("retrieve 必须指定 dataset 或 datasets");
+
+      // **跨数据集访问在调用层被拒**（AC-24-8），不依赖 prompt 约束。逐个集查，
+      // 多集里混进一个没权限的就整次拒绝——不悄悄把它剔掉再查剩下的。
+      const allowedKeys = new Set(datasetsForAgent(args.agent).map((d) => d.key));
+      for (const key of keys) {
+        if (!allowedKeys.has(key)) {
+          throw new DatasetAccessError(`Agent ${args.agent} 无权检索数据集 ${key}`);
+        }
       }
 
-      const def = datasetFor(args.dataset);
-      const datasetId = cfg.datasetIds[def.key];
-      if (!datasetId) throw new Error(`数据集 ${def.key} 未配置 id（${def.envKey}）`);
+      const defs = keys.map((k) => datasetFor(k));
+      const datasetIds = defs.map((def) => {
+        const id = cfg.datasetIds[def.key];
+        if (!id) throw new Error(`数据集 ${def.key} 未配置 id（${def.envKey}）`);
+        return id;
+      });
+      /** RAGFlow 回的 chunk 带 `dataset_id`，用它把每条认回自己的集（实测 2026-09-16）。 */
+      const keyById = new Map(datasetIds.map((id, i) => [id, defs[i]!]));
 
-      // 车型限定：把检索面缩到这辆车自己的文档上（F-23-07）。
+      // 车型限定：把检索面缩到这辆车看得见的文档上（F-23-07 + ACR-042 作用域）。
+      //
+      // ⚠️ **`document_ids` 是全局过滤，不是按集过滤**（实测 2026-09-16：两个集只列
+      // 其中一个集的 doc id，另一个集被整个压掉）。所以多集限定车型时，**每个**集
+      // 都要把自己可见的文档显式列出来，漏了那个集就等于没查。
       let documentIds: string[] | undefined;
       if (args.vehicleModel) {
-        const docs = await this.listDocuments(args.dataset, args.agent);
-        const mine = docs.filter((d) => documentMatchesModel(d.name, args.vehicleModel!));
-        // **匹配不到就抛，不退回全库**——退回等于绕开限定，
-        // 而绕开的表现是"返回了别的车型的内容且带着出处"。
-        if (mine.length === 0) throw new NoDocumentsForModelError(args.vehicleModel, def.key);
-        documentIds = mine.map((d) => d.documentId);
+        const perDataset = await Promise.all(
+          defs.map(async (def) =>
+            documentIdsFor(def, await this.listDocuments(def.key, args.agent), args.vehicleModel!),
+          ),
+        );
+        documentIds = perDataset.flat();
+        // 全部集都没有可见文档：空数组会被 RAGFlow 当成"不过滤"，那正好是退回全库。
+        // 直接返回零命中——**宁可没资料也不要别的车的资料**。
+        if (documentIds.length === 0) return [];
       }
 
       const ctrl = new AbortController();
@@ -385,7 +458,7 @@ export function createRagClient(cfg: RagflowConfig): RagClient {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiKey}` },
           body: JSON.stringify({
-            dataset_ids: [datasetId],
+            dataset_ids: datasetIds,
             ...(documentIds ? { document_ids: documentIds } : {}),
             question: args.query,
             // **`page_size` 才是返回条数**，`top_k` 是向量召回的候选池大小（默认 1024）。
@@ -404,16 +477,46 @@ export function createRagClient(cfg: RagflowConfig): RagClient {
         });
         if (!res.ok) throw new Error(`RAGFlow HTTP ${res.status}`);
         const body = assertOk(await res.json()) as {
-          data?: { chunks?: Array<{ content?: string; document_keyword?: string; similarity?: number; positions?: unknown }> };
+          data?: {
+            chunks?: Array<{
+              content?: string;
+              document_keyword?: string;
+              similarity?: number;
+              positions?: unknown;
+              dataset_id?: string;
+            }>;
+          };
         };
-        return (body.data?.chunks ?? [])
-          .map((c) => ({
-            content: c.content ?? "",
-            source: { document: c.document_keyword ?? "未知文档", location: formatPosition(c.positions) },
-            score: c.similarity ?? 0,
-          }))
+        let unmapped = 0;
+        const out = (body.data?.chunks ?? [])
+          .map((c): RetrievedChunk | undefined => {
+            // 单集时 chunk 不带 dataset_id 也认得出来（只有一个候选）；多集时认不出就丢，
+            // **不猜**——猜错的表现是把条款标成手册，而它看起来完全正常。
+            const def = c.dataset_id ? keyById.get(c.dataset_id) : defs.length === 1 ? defs[0] : undefined;
+            if (!def) {
+              unmapped += 1;
+              return undefined;
+            }
+            return {
+              content: c.content ?? "",
+              source: {
+                document: c.document_keyword ?? "未知文档",
+                location: formatPosition(c.positions),
+                dataset: def.key,
+              },
+              score: c.similarity ?? 0,
+              provenance: def.provenance,
+            };
+          })
           // 没有出处的 chunk 直接丢弃——带不出处的引用等于编造（F-16-09）。
-          .filter((c) => c.content.trim().length > 0 && c.source.document !== "未知文档");
+          .filter(
+            (c): c is RetrievedChunk =>
+              c !== undefined && c.content.trim().length > 0 && c.source.document !== "未知文档",
+          );
+        if (unmapped > 0) {
+          console.warn(`[rag] ${unmapped} 条 chunk 的 dataset_id 认不回数据集，已丢弃（${keys.join("/")}）`);
+        }
+        return out;
       } finally {
         clearTimeout(timer);
       }

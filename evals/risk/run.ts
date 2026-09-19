@@ -415,7 +415,7 @@ async function main(): Promise<void> {
           metricsVersion: METRICS_VERSION,
           total: all.length,
           selected: selected.length,
-          model: covNow.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+          model: covNow.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
           command: replayCommand("eval:risk", args),
           score: riskScore(`风险拦截 · ${covNow.real ? "全护栏" : "仅本地层"}`, outcomes),
           outcomes,
@@ -729,7 +729,7 @@ async function main(): Promise<void> {
         tier: cov.real
           ? `全护栏（real LLM）· 审核层${cov.moderation ? "已接入" : "未接入"}`
           : `仅本地层（fake LLM）· 审核层${cov.moderation ? "已接入" : "未接入"}`,
-        model: cov.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+        model: cov.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
         total: all.length,
         selected: selected.length,
         at,
@@ -760,7 +760,7 @@ async function main(): Promise<void> {
           // M55-01：抽样口径的载体——汇总报告靠 selected/total 分辨"部分运行"（旧产物无此字段视为全量）。
           total: all.length,
           selected: selected.length,
-          model: cov.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash") : "fake",
+          model: cov.real ? (process.env.DEEPSEEK_MODEL ?? "deepseek-flash") : "fake",
           command: replayCommand("eval:risk", args),
           score: riskScore(`风险拦截 · ${cov.real ? "全护栏" : "仅本地层"}`, outcomes),
           outcomes,

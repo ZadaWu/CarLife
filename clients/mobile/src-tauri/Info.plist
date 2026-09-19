@@ -25,5 +25,15 @@
   </array>
   <key>NSMicrophoneUsageDescription</key>
   <string>按住助手说话时录制您的语音指令；开启设置页的「语音唤醒」后，会持续监听以识别唤醒词「暖暖」（未唤醒的语音判定后即弃）。该开关默认关闭。</string>
+  <!-- 相机与相册（M104-06）：拍照问诊的快门是 `<input type=file accept="image/*" capture="environment">`，
+       系统相机由 WebView 代为拉起——**代拉起也算本进程在用相机**，少了这条声明，真机上点快门的表现是
+       「App 直接退出」（2026-09-18 iPhone 16 Pro Max 实测），与文件头记的麦克风那次是同一种坏法：
+       不是不弹框，是 TCC 把进程杀掉，端上什么日志都留不下。
+       相册那条：不带 capture 的同款 input 在 iOS 上弹的 action sheet 里**同样有「拍照」**，
+       且系统图库选择器（PHPicker）虽是跨进程、理论上不要授权，仍按最小声明原则一并写明用途。 -->
+  <key>NSCameraUsageDescription</key>
+  <string>用于「拍照问诊」：拍下仪表警示灯、轮胎、漏液或车身的照片，交给助手对照车主手册判断。照片随这一轮提问上传，不做人脸识别、不长期留存在本机。</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>用于从相册里选一张已经拍好的车辆照片交给助手判断。只读取你本次选中的那一张，不扫描整个相册。</string>
 </dict>
 </plist>

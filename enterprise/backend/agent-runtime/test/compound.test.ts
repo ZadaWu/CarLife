@@ -41,7 +41,13 @@ function fullState(): State {
     solverDegraded: true,
     tripPlan: { status: "skeleton", destination: "杭州", days: 2, skeleton: [], caveats: [] },
     pendingCancel: { candidates: [{ id: "p1", label: "x" }] },
+    // M90-01：澄清门"问过没有"归 itinerary 那条 lane。
+    tripClarify: { asked: true, destinations: ["杭州"] },
     consultation: { symptom: "异响" },
+    // M104-01：问诊报告只由主图 answer 节点写，不进任何 lane 白名单——lane 里都不该看到它。
+    diagnosis: { threadId: "t", at: "2026-09-18T00:00:00.000Z", risk: { level: "low" } },
+    // M101-04：出险事实归售后那条 lane——别的 lane 看不到它。
+    claimFacts: { estimatedLossCny: 2000, accidentType: "single_vehicle", updatedAt: "2026-09-16T00:00:00.000Z" },
     costPlan: { at: 1 },
     buyingPlan: { candidates: [], eliminated: [], universe: [], constraints: {}, unclassifiedDocs: 0, at: 1 },
     trimPlan: { at: 1 },
@@ -133,8 +139,9 @@ describe("[F-11-06][AC-11-5] resultKeyOf 覆盖全部 ROUTE_TARGETS", () => {
 });
 
 describe("[F-11-04][AC-11-3] laneChannelsOf 白名单——与各节点函数 2026-09-04 的读集逐一相等", () => {
-  it("itineraryPlan", () => assert.deepEqual([...laneChannelsOf("itineraryPlan")], ["tripPlan", "pendingCancel"]));
-  it("ownershipDual", () => assert.deepEqual([...laneChannelsOf("ownershipDual")], ["consultation", "repairBookingPlan"]));
+  it("itineraryPlan", () => assert.deepEqual([...laneChannelsOf("itineraryPlan")], ["tripPlan", "pendingCancel", "tripClarify"]));
+  it("ownershipDual（M101-04 起含 claimFacts：预取要沿用上一轮的估损与事故类型）", () =>
+    assert.deepEqual([...laneChannelsOf("ownershipDual")], ["consultation", "repairBookingPlan", "claimFacts"]));
   it("buyingCatalog（购车读 testDrivePlan：约刚才比的那款）", () =>
     assert.deepEqual([...laneChannelsOf("buyingCatalog")], ["buyingPlan", "costPlan", "trimPlan", "loanPlan", "insurancePlan", "testDrivePlan"]));
   it("testDriveFlow", () => assert.deepEqual([...laneChannelsOf("testDriveFlow")], ["testDrivePlan"]));

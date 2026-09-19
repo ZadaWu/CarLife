@@ -20,6 +20,12 @@ WORKDIR /app
 
 # 依赖层先行：package.json 不变时命中缓存
 COPY mocks/${SERVICE}/package.json ./
+# ── 构建期可换 npm 源（缺省不换）；理由与边界见 infra/images/Dockerfile 里同名的那段。
+# 这里是纯 npm，不经 corepack，所以只需要 ~/.npmrc 这一处。
+# ⚠️ mock 没有 package-lock.json，换源就没有锁文件级的完整性校验；
+# 它的依赖只有 tsx 与 typescript 两个 devDep，这是刻意接受的范围。
+ARG NPM_REGISTRY=""
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
 RUN npm install --no-audit --no-fund
 
 # 源码 + 种子数据（data/ 里的 stores.json / models.json 是服务的一部分）

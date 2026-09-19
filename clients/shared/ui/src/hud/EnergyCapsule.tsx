@@ -10,7 +10,8 @@
 
 import type { EnergySummary, LiveEnergy, TripLeg } from "@carlife/shared";
 
-import { durationLabel } from "./StatusBar";
+/* 从 `metric-text.ts` 引，不从 `StatusBar` 引：后者顶上挂着七张车机切图的 PNG。 */
+import { METRIC_UNAVAILABLE, durationLabel } from "./metric-text";
 
 // 契约在 `@carlife/shared`（端云唯一真相源）。这里只转出，方便既有的
 // `import { type EnergySummary } from "@carlife/ui"` 不必改。
@@ -23,9 +24,17 @@ export interface EnergyCapsuleProps {
    * 「预计里程」「预计用时」两格只认它，缺席显示「暂无」——`summary.distanceKm` 是 mock 快照里的常数。
    */
   leg?: TripLeg;
-  /** 数据是否正在更新（弱网降级：保留最近有效值 + 标记，不空白）。 */
+  /**
+   * 拉不到数据（`freshness.stale`：上一跳没连上网关 / 服务没起）。
+   * 与车机状态栏同一条（`StatusBar.tsx` 文件头）：里程 / 用时两格的值位改写「服务暂不可用」，
+   * **不再浮一句「数据更新中」**。剩余电量那一格不吃它——它走车辆信号那一路，自己有「读不到」态。
+   */
   stale?: boolean;
-  /** 最近一次有效更新时间，stale 时展示。 */
+  /**
+   * 最近一次有效更新时间。
+   * ⚠️ 现在**没有任何地方显示它**：那枚「数据更新中 · 刚刚」的徽标已经去掉（见 `stale`）。
+   * 留着这个 prop 是因为两端都在传；要用它得先想清楚摆哪儿——竖屏那条胶囊没有空位。
+   */
   updatedAt?: string;
 }
 
@@ -88,8 +97,10 @@ function LiveMetric({ summary }: { summary: EnergySummary }) {
   );
 }
 
-export function EnergyCapsule({ summary, leg, stale, updatedAt }: EnergyCapsuleProps) {
+export function EnergyCapsule({ summary, leg, stale }: EnergyCapsuleProps) {
   const road = leg?.road;
+  /* 连不上时两格一律走这一态；连得上才谈"这一格有没有数据"。 */
+  const down = stale === true;
   return (
     <section
       className={`hud-card hud-energy${stale ? " is-stale" : ""}`}
@@ -115,7 +126,11 @@ export function EnergyCapsule({ summary, leg, stale, updatedAt }: EnergyCapsuleP
           />
         </svg>
         <span className="hud-energy__caption">预计里程</span>
-        {leg ? (
+        {down ? (
+          <span className="hud-energy__value hud-energy__value--none hud-energy__value--down">
+            {METRIC_UNAVAILABLE}
+          </span>
+        ) : leg ? (
           <span className="hud-energy__figure">
             <span className="hud-energy__value">{leg.distanceKm}</span>
             <span className="hud-energy__unit">km</span>
@@ -134,7 +149,10 @@ export function EnergyCapsule({ summary, leg, stale, updatedAt }: EnergyCapsuleP
       {/*
         第三格从「预计需 N%」换成「预计用时」（2026-09-11，对齐车机状态栏）：
         预计需电量在两端都没有数据源，那个 21% 是 mock 快照里的常数；用时是高德算的。
-        路况折进这一格的说明里（「高速 畅通」），手机的一条胶囊放不下第四格。
+        路况没有第四格可放，跟在这一格里，但**是自己一行**，不并进说明。
+        并进说明的那一版是「预计用时 · 高速 畅通」——一格只有约 100pt，这句话必折行，
+        而折点落在「高速」与「畅通」中间，一个词被拆到两行（2026-09-13 手机实拍）。
+        现在的三行与中间那格同构：说明 / 数值 / 补充（那格是「≈177 km」）。
         「拥堵」走红——红色纪律点名允许的两个判定之一；缓行走 warn。
       */}
       <div className="hud-energy__metric">
@@ -142,31 +160,26 @@ export function EnergyCapsule({ summary, leg, stale, updatedAt }: EnergyCapsuleP
           <circle cx="12" cy="12" r="9" fill="none" stroke="var(--hud-pin)" strokeWidth="2" />
           <path d="M12 7v5l3.5 2" fill="none" stroke="var(--hud-pin)" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <span className="hud-energy__caption">
-          预计用时
-          {road && (
-            <span
-              className={`hud-energy__road${road.status === "拥堵" ? " is-jam" : road.status === "缓行" ? " is-slow" : ""}`}
-            >
-              {" "}
-              · {road.label} {road.status}
-            </span>
-          )}
-        </span>
-        {leg ? (
+        <span className="hud-energy__caption">预计用时</span>
+        {down ? (
+          <span className="hud-energy__value hud-energy__value--none hud-energy__value--down">
+            {METRIC_UNAVAILABLE}
+          </span>
+        ) : leg ? (
           <span className="hud-energy__figure">
             <span className="hud-energy__value">{durationLabel(leg.durationMin)}</span>
           </span>
         ) : (
           <span className="hud-energy__value hud-energy__value--none">暂无</span>
         )}
+        {!down && road && (
+          <span
+            className={`hud-energy__road${road.status === "拥堵" ? " is-jam" : road.status === "缓行" ? " is-slow" : ""}`}
+          >
+            {road.label} · {road.status}
+          </span>
+        )}
       </div>
-
-      {stale && (
-        <span className="hud-energy__stale">
-          数据更新中{updatedAt ? ` · ${updatedAt}` : ""}
-        </span>
-      )}
     </section>
   );
 }

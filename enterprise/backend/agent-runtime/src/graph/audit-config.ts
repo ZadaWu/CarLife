@@ -24,6 +24,19 @@ export function auditBudgetMs(): number {
   return envInt("CARLIFE_PLAN_AUDIT_BUDGET_MS", 90_000);
 }
 
+/**
+ * 连续多少轮没压下 blocker 就停手（M94-03）。
+ *
+ * **2 不是"不降即停"的保守版，是实测出来的那个数。** 离线复算库里 44 个可复算的 turn
+ * （111 轮，`scripts/dev/check/replay-audit-rounds.mts`）：`1` 省下 58% 的轮数，却让其中
+ * 18 个 turn 的最终结果比跑满更差——第一轮重排后先变差、第二轮收回来是这条链路的常态；
+ * `2` 只省 6%，且只影响 1 个 turn。
+ * 想省时间就调大 `MAX_ROUNDS` 或收紧 `BUDGET_MS`，别把这个数调成 1。
+ */
+export function auditStallRounds(): number {
+  return envInt("CARLIFE_PLAN_AUDIT_STALL_ROUNDS", 2);
+}
+
 export function driveDailyMaxMin(): number {
   return envInt("CARLIFE_DRIVE_DAILY_MAX_MIN", 540);
 }

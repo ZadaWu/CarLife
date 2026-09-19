@@ -124,11 +124,15 @@ test("transit_route：单档失败不拖垮整体；全空才报错", async () =
   await assert.rejects(() => broken.call({ fromCity: "上海", toCity: "拉萨" }, ctx), /查询未成功/);
 });
 
-test("registry：ACL 裁剪——poi_search 归 hotel/tour，buying/cabin 看不见", () => {
+test("registry：ACL 裁剪——景点归 spot_search(tour)、酒店归 hotel_search(hotel)，多类别的 poi_search 两者都看不见", () => {
   const poi = getTool("poi_search");
+  const spot = getTool("spot_search");
+  const hotel = getTool("hotel_search");
   const transit = getTool("transit_route");
-  assert.ok(poi && transit);
-  assert.ok(poi.agents.includes("hotel") && poi.agents.includes("tour"));
+  assert.ok(poi && spot && hotel && transit);
+  assert.ok(!poi.agents.includes("hotel") && !poi.agents.includes("tour"), "tour/hotel 不该再拿到多类别搜索");
+  assert.ok(spot.agents.includes("tour") && !spot.agents.includes("hotel"));
+  assert.ok(hotel.agents.includes("hotel") && !hotel.agents.includes("tour"));
   assert.ok(!poi.agents.includes("buying") && !poi.agents.includes("cabin"));
   assert.ok(transit.agents.includes("transit") && transit.agents.includes("drive"));
   // 描述里必须带住诚实边界——pi 注入时这是模型唯一能看到的说明。

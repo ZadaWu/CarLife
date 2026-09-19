@@ -29,9 +29,8 @@ carlife-telemetry = { path = "../../../clients/shared/rust/carlife-telemetry" }
 # 哨兵监听的纯逻辑层（M60-01）：唤醒词表、对话窗口、降级闸与车机端**共用一份**。
 # 复制一份的结局是"同一句话在车上有用、在手机上没反应"，且不会有任何报错。
 carlife-voice = { path = "../../../clients/shared/rust/carlife-voice" }
-# 暖暖播报的共享核（M65-04）：清洗 / 端点缓存 / 代际 / rodio 播放。此前手机端没有任何出声路径，
-# 设置页的「出声播报」开关只写一个布尔、无人读——见 events.rs 文件头。
-carlife-tts = { path = "../../../clients/shared/rust/carlife-tts" }
+# 端侧指示灯检测（ACR-044）：tract 跑 yolo11n，纯 Rust。
+carlife-vision = { path = "../../../clients/shared/rust/carlife-vision" }
 # 出发卡「开始导航」开外链（与车机同一支同一版本）：WKWebView 会静默吞掉 target=_blank。
 tauri-plugin-opener = "2.5.4"
 

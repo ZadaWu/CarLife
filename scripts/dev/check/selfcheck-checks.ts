@@ -19,6 +19,10 @@
  */
 
 import { getPrisma, createTripRepository, createVehicleRepository } from "@carlife/db";
+import { resolveEmbedderConfig } from "@carlife/memory";
+// 走相对路径而不是 `@carlife/rag`：根 package.json 没有这个依赖，
+// pnpm 严格 node_modules 下按包名解析必然 ERR_MODULE_NOT_FOUND（同 kb 脚本的写法）。
+import { datasetIdsFromEnv } from "../../../enterprise/backend/shared/rag/src/index";
 import { dataFreshnessTool, setUsageStore, setVehicleStore } from "@carlife/tools";
 
 import type { CheckDef } from "./selfcheck";
@@ -198,18 +202,16 @@ export const CHECKS: readonly CheckDef[] = [
   },
   {
     layer: "L2",
-    name: "RAGFlow 三数据集",
+    // 名字不写死数量：这条检查曾经叫"三数据集"、也只查三个，而库里已经有四个——
+    // 第四个漏配时它照样报绿（2026-09-16 网关那处漏抄就是这么滑过去的）。
+    name: "RAGFlow 数据集 id",
     remedy: "corepack pnpm probe:ragflow 看具体哪一集出问题；解析未完成时检索不到那些文档",
     async run() {
-      const ids = {
-        "vehicle-manuals": process.env.RAGFLOW_DATASET_VEHICLE_MANUALS,
-        "repair-kb": process.env.RAGFLOW_DATASET_REPAIR_KB,
-        "car-catalog": process.env.RAGFLOW_DATASET_CAR_CATALOG,
-      };
-      const missing = Object.entries(ids).filter(([, v]) => !v?.trim()).map(([k]) => k);
+      const ids = datasetIdsFromEnv();
+      const missing = Object.entries(ids).filter(([, v]) => !v.trim()).map(([k]) => k);
       if (missing.length) return { ok: false, detail: `未配置数据集 id：${missing.join("、")}` };
       if (!process.env.RAGFLOW_API_KEY?.trim()) return { ok: false, detail: "RAGFLOW_API_KEY 未配置" };
-      return { ok: true, detail: "三个数据集 id 与 key 就位（解析状态见 probe:ragflow）" };
+      return { ok: true, detail: `${Object.keys(ids).length} 个数据集 id 与 key 就位（解析状态见 probe:ragflow）` };
     },
   },
   {
@@ -274,15 +276,33 @@ export const CHECKS: readonly CheckDef[] = [
     layer: "L2",
     name: "Mem0 embedder",
     remedy:
-      "起 Ollama 并拉模型：ollama pull nomic-embed-text。缺它 ②③⑥ 记忆写不进去，" +
+      "缺省档（openai / DashScope）：在 .env 填 DASHSCOPE_API_KEY 或 MEM0_EMBEDDING_API_KEY；" +
+      "Ollama 档：起 Ollama 并 ollama pull nomic-embed-text。缺它 ②③⑥ 记忆写不进去，" +
       "而双路的第二路会退化成'没有你的用车数据'",
     async run() {
-      const base = process.env.MEM0_EMBEDDING_BASE_URL ?? "http://localhost:11434";
-      const want = process.env.MEM0_EMBEDDING_MODEL ?? "nomic-embed-text";
-      const r = (await getJson(`${base}/api/tags`)) as { models?: Array<{ name?: string }> };
-      const names = (r.models ?? []).map((m) => m.name ?? "");
-      const hit = names.some((n) => n.startsWith(want));
-      return hit ? { ok: true, detail: `${base} 有 ${want}` } : { ok: false, detail: `${base} 没有 ${want}（现有：${names.join("、") || "无"}）` };
+      // 与 runtime 同一份缺省（M95-01）：这里再抄一遍 URL / 模型名，两处迟早漂移。
+      const { provider, config } = resolveEmbedderConfig();
+      const base = config.baseURL ?? "";
+      const want = String(config.model ?? "");
+      if (provider === "ollama") {
+        const r = (await getJson(`${base}/api/tags`)) as { models?: Array<{ name?: string }> };
+        const names = (r.models ?? []).map((m) => m.name ?? "");
+        const hit = names.some((n) => n.startsWith(want));
+        return hit ? { ok: true, detail: `${base} 有 ${want}` } : { ok: false, detail: `${base} 没有 ${want}（现有：${names.join("、") || "无"}）` };
+      }
+      if (!config.apiKey) {
+        return { ok: false, detail: `${provider} 档缺 key：MEM0_EMBEDDING_API_KEY / DASHSCOPE_API_KEY 都没有` };
+      }
+      // 真调一次（一段极短文本）：接不上、key 无效、模型不存在、维度不受支持四种都在这一跳暴露。
+      const r = (await getJson(`${base}/embeddings`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify({ model: want, input: ["自检"], dimensions: config.embeddingDims, encoding_format: "float" }),
+      })) as { data?: Array<{ embedding?: number[] }> };
+      const got = r.data?.[0]?.embedding?.length ?? 0;
+      return got === config.embeddingDims
+        ? { ok: true, detail: `${base} · ${want} · ${got} 维` }
+        : { ok: false, detail: `${base} · ${want} 返回 ${got} 维，MEM0_EMBEDDING_DIMS=${config.embeddingDims}` };
     },
   },
   {

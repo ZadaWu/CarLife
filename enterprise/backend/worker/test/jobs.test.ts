@@ -24,6 +24,7 @@ import {
 } from "../src/memory-decay";
 import { runVehicleReminder, type ReminderDeps } from "../src/vehicle-reminder";
 import { runKbSync, type KbSyncDeps } from "../src/kb-sync";
+import { DATASETS } from "@carlife/rag";
 
 const NOW = 1_770_000_000_000;
 const DAY = 86_400_000;
@@ -246,7 +247,9 @@ describe("kb-sync：解析状态而非文件传输", () => {
       ctx,
       deps([{ documentId: "d1", name: "手册.pdf", status: "failed", error: "切分方法不支持" }]),
     );
-    assert.equal(r.failures.length, 3, "三个数据集各一条（测试桩对每个数据集返回同一份）");
+    // 按 DATASETS.length 断而不写死 3 / 4：加第四集（ACR-040）时这里红过一次，
+    // 而它红的原因只是"集数变了"，不是 kb-sync 的行为变了。
+    assert.equal(r.failures.length, DATASETS.length, "每个数据集各一条（测试桩对每个数据集返回同一份）");
     assert.match(r.failures[0], /手册\.pdf 解析失败：切分方法不支持/);
   });
 
@@ -276,12 +279,12 @@ describe("kb-sync：解析状态而非文件传输", () => {
       deps([{ documentId: "d1", name: "好的.pdf", status: "succeeded", chunkCount: 42 }]),
     );
     assert.deepEqual(r.failures, []);
-    assert.equal(r.processed, 3);
+    assert.equal(r.processed, DATASETS.length);
   });
 
   it("整个数据集拉取失败单独成一条告警（与文档级失败区分）", async () => {
     const r = await runKbSync(ctx, deps([], { list: async () => { throw new Error("401 未授权"); } }));
-    assert.equal(r.failures.length, 3);
+    assert.equal(r.failures.length, DATASETS.length);
     assert.match(r.failures[0], /状态拉取失败：401 未授权/);
   });
 });

@@ -63,6 +63,41 @@ function stamp(): string {
   );
 }
 
+/**
+ * **迁移自管、schema 表达不了**的数据库对象（施工单 M82-01）。
+ *
+ * Prisma 的 `@@index(type: …)` 只认 BTree / Hash / Gist / Gin / SpGist / Brin，
+ * **没有 Hnsw**，而且 `Unsupported("vector(…)")` 列压根不进它的索引模型
+ * （实测 `Unknown index type: Hnsw`）。于是向量近邻索引只能手写在迁移 SQL 里，
+ * 而 `migrate diff` 一看 schema 里没有它，每次都要求 `DROP INDEX`——
+ * **`db:migrate:check` 会永远红，且红的理由是"请删掉那个让检索能跑的索引"。**
+ *
+ * 这与本脚本开头那条"三方自管表不进入比较"是同一个问题的同一种解法：
+ * 比较的双方里有一方表达不了的东西，就把它排除在比较之外。
+ * 区别只在于三方表靠"不在迁移历史里"天然排除，索引在迁移历史里，得显式列名。
+ *
+ * ⚠️ 只放**索引**，且必须逐个列名。放表名或用通配会把真正的漂移一起吞掉。
+ */
+const RAW_SQL_INDEXES: readonly string[] = [
+  // M82-01：research_embeddings 的 1024 维余弦 HNSW。维度上限 2000（ACR-030）
+  "research_embeddings_hnsw",
+];
+
+/**
+ * 把 diff 里"删掉手写索引"的那些语句摘掉。
+ *
+ * Prisma 的 `--script` 输出是一块注释 + 一条语句，块间空行分隔，
+ * 所以按空行切块、整块判断——只按行删会留下一行孤零零的 `-- DropIndex`。
+ */
+function stripRawSqlIndexDrops(sql: string): string {
+  const blocks = sql.split(/\n\s*\n/);
+  const kept = blocks.filter((block) => {
+    const m = /^\s*DROP INDEX\s+"([^"]+)"\s*;\s*$/m.exec(block);
+    return !(m && RAW_SQL_INDEXES.includes(m[1]));
+  });
+  return kept.join("\n\n").trim();
+}
+
 function main(): void {
   const arg = process.argv[2];
   const checkOnly = arg === "--check";
@@ -73,13 +108,15 @@ function main(): void {
     process.exit(2);
   }
 
-  const sql = prisma([
-    "migrate", "diff",
-    "--from-migrations", "prisma/migrations",
-    "--to-schema-datamodel", SCHEMA,
-    "--shadow-database-url", shadowUrl(),
-    "--script",
-  ]).trim();
+  const sql = stripRawSqlIndexDrops(
+    prisma([
+      "migrate", "diff",
+      "--from-migrations", "prisma/migrations",
+      "--to-schema-datamodel", SCHEMA,
+      "--shadow-database-url", shadowUrl(),
+      "--script",
+    ]).trim(),
+  );
 
   // Prisma 无变更时输出的是这句注释，不是空串。
   const empty = sql.length === 0 || /^--\s*This is an empty migration\.?$/m.test(sql);

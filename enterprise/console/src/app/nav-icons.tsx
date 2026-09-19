@@ -161,6 +161,49 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M9 20h6M12 16v4" {...P} />
     </>
   ),
+  // 证据矩阵：网格，其中一格被填实（"某个需求 × 某个场景"那一格）
+  "/research/evidence-matrix": (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="1.5" {...P} />
+      <path d="M4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16" {...P} />
+      <rect x="9.3" y="9.3" width="5.4" height="5.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // 重要度×表现度：两条轴 + 一条象限分割 + 两个散点
+  "/research/importance-performance": (
+    <>
+      <path d="M4 20V4M4 20h16" {...P} />
+      <path d="M4 12h16M12 4v16" {...P} strokeDasharray="2 2" />
+      <circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16.5" cy="15.5" r="1.6" {...P} />
+    </>
+  ),
+  // 情绪×任务地图：一张脸 + 两条流向右侧的连线
+  "/research/emotion-job-map": (
+    <>
+      <circle cx="7.5" cy="12" r="4.5" {...P} />
+      <path d="M6 10.5h.01M9 10.5h.01" {...P} strokeWidth={2} />
+      <path d="M5.8 14c.9.8 2.5.8 3.4 0" {...P} />
+      <path d="M12.5 9.5c3 0 3 -3 6.5 -3M12.5 14.5c3 0 3 3 6.5 3" {...P} />
+    </>
+  ),
+  // 人群分群图谱：三个大小不同的圆 + 相连的虚线（群大小 + 群间相似度）
+  "/research/segment-atlas": (
+    <>
+      <circle cx="7" cy="8.5" r="3.5" {...P} />
+      <circle cx="17" cy="10" r="2.2" {...P} />
+      <circle cx="12" cy="17.5" r="2.8" {...P} />
+      <path d="M10.4 9.2 14.9 9.7M8.6 11.6 10.6 15M15.6 12 13.6 15.2" {...P} strokeDasharray="1.5 2" />
+    </>
+  ),
+  // 趋势与信号：一条折线 + 一根事件竖标（本页最要紧的就是"变化旁边有没有一次变更"）
+  "/research/trend-signal": (
+    <>
+      <path d="M3 16l4-4 3 2.5L14 8l3 2.5L21 6" {...P} />
+      <path d="M14 3v18" {...P} strokeDasharray="2 2" strokeWidth={1.2} />
+      <circle cx="14" cy="8" r="1.8" fill="currentColor" stroke="none" />
+    </>
+  ),
 };
 
 /** 没有对应图标时渲染空占位——**保持缩进对齐**，缺一个图标不该让那一行整体左移。 */

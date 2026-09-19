@@ -118,6 +118,39 @@ pub enum AttachmentKind {
     Video,
 }
 
+/// 端上检测出的一枚框（ACR-046；服务端消费见 ACR-045）。
+///
+/// `bbox` 是**按 EXIF 转正后**那张图的 0–1000 归一化 `[x0, y0, x1, y1]`（整数、单调），与服务端 `BBox` 同形——
+/// 端上 `carlife-vision` 与服务端裁图（`uprightByExif` 之后）都在转正后的坐标系里，中间不换算。
+/// `name` 是检测器的类别名：服务端只把它当 `symbolHint`（手册目录对上以目录为准，没对上说「疑似」）。
+/// 服务端的 zod 校验（`ClientDetectionsSchema`）：名字 1–64 字、置信 0–1、每张 ≤ 24 条。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClientDetection {
+    pub bbox: [u16; 4],
+    pub name: String,
+    pub conf: f32,
+}
+
+/// 一张照片的端上检测结果（ACR-046），随 `/messages` 体的 `detections`（按附件句柄索引）上行。
+///
+/// `items` 为空也要发：端上跑过、没框到，服务端据此说「未识别到指示灯」并给补拍提示，
+/// **不回落云端定位**（ACR-044 产品决定）。检测没跑完的照片不带——服务端自己框。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClientDetections {
+    /// 转正后的像素尺寸（只作留痕与自检，框已归一化）。
+    pub width: u32,
+    pub height: u32,
+    pub items: Vec<ClientDetection>,
+    /// 端上推理耗时（毫秒），进服务端 trace。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub infer_ms: Option<u64>,
+}
+
 /// 思考步骤占位（FL-03 F-03-04 后续消费；对话层默认折叠展示）。
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

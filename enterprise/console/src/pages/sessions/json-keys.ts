@@ -1,0 +1,196 @@
+/**
+ * JSON 键的业务说法（2026-09-15，业务视图把入参 / 出参 / 结论渲染成表格时用）。
+ *
+ * # 为什么是控制台里的一张手工表
+ *
+ * 键的真相源在 `enterprise/backend/shared/tools`：入参是 zod schema（一部分带 `.describe`，
+ * 但那些描述是写给模型的，如「**必填**：酒店全名（含门店后缀）」，当不了表头），
+ * 出参是 TS 接口（没有任何描述）。控制台不依赖那个包（会把 DB / RAG 客户端一起拖进浏览器包），
+ * 所以这里维护一张短说法表。
+ *
+ * # 查不到就只显示英文，不编
+ *
+ * 显示形态是「中文(英文)」：中文给业务人员认，英文留给与研发对账。查不到的键**只显示英文**——
+ * 错的中文比英文更误导。提交通道（`submit_*`）的键是业务人员最常看的「交回的结论」，
+ * `json-keys.test.ts` 从 registry.ts 源码抽出这些键逐个核对，上游加了字段这里没跟就红。
+ */
+
+const KEY_LABEL: Record<string, string> = {
+  // ── 通用
+  name: "名称",
+  id: "编号",
+  address: "地址",
+  city: "城市",
+  cityName: "城市",
+  district: "区县",
+  area: "片区",
+  location: "位置",
+  lat: "纬度",
+  lon: "经度",
+  lng: "经度",
+  distanceM: "距离(米)",
+  distanceKm: "距离(公里)",
+  date: "日期",
+  startDate: "起始日期",
+  day: "第几天",
+  days: "天数",
+  note: "备注",
+  reason: "理由",
+  findings: "补充发现",
+  kind: "类型",
+  type: "类型",
+  status: "状态",
+  score: "得分",
+  rating: "评分",
+  price: "价格",
+  estPrice: "估算价格",
+  priceEstimate: "估算价格",
+  ownerNamed: "车主点名",
+  query: "查询词",
+  limit: "条数上限",
+  radiusM: "半径(米)",
+  candidates: "候选",
+  items: "条目",
+  data: "数据",
+  summary: "概述",
+  text: "文本",
+  source: "来源",
+  sources: "来源",
+  sourceUrl: "来源链接",
+  sourceTitle: "来源标题",
+  sourceDate: "来源日期",
+  provenance: "数据出处",
+  count: "数量",
+  total: "合计",
+  unit: "单位",
+  value: "数值",
+  ok: "成功",
+  error: "错误",
+  message: "说明",
+  // ── 行程：酒店 / 玩法 / 大交通 / 自驾
+  hotels: "酒店候选",
+  lodging: "住宿",
+  spots: "景点",
+  spot: "景点",
+  theme: "主题",
+  destination: "目的地",
+  destinations: "目的地",
+  origin: "出发地",
+  indoor: "室内",
+  rainBackup: "雨天备选",
+  estStart: "预计开始",
+  estEnd: "预计结束",
+  strategy: "策略",
+  mustSee: "必玩",
+  trains: "车次",
+  flightAdvice: "航班建议",
+  durationHint: "耗时提示",
+  worthIt: "是否值得",
+  legDays: "去程天数",
+  legMinutes: "单段分钟数",
+  returnDays: "返程天数",
+  returnMinutes: "返程分钟数",
+  stops: "途经点",
+  returnStops: "返程途经点",
+  energyStops: "补能点",
+  rangeMarginPct: "续航余量(%)",
+  waypoints: "途经点",
+  atMinute: "第几分钟到",
+  driveMinutes: "驾驶分钟数",
+  legs: "路段",
+  skeleton: "骨架",
+  constraints: "约束",
+  violations: "违反的约束",
+  missing: "缺失项",
+  // ── 导游
+  routeAdvice: "路线建议",
+  transportAdvice: "交通建议",
+  arrivalAdvice: "到达建议",
+  platform: "平台",
+  parking: "停车",
+  toGate: "到入口",
+  distanceToGateMeters: "到入口距离(米)",
+  charging: "充电",
+  refuel: "加油",
+  entries: "条目",
+  // ── 天气
+  weatherCode: "天气代码",
+  condition: "天气",
+  tempMinC: "最低温(℃)",
+  tempMaxC: "最高温(℃)",
+  precipitationMm: "降水(毫米)",
+  humidityPct: "湿度(%)",
+  windPower: "风力",
+  visibilityKm: "能见度(公里)",
+  uvIndexMax: "紫外线指数",
+  snowfallCm: "降雪(厘米)",
+  nightWeather: "夜间天气",
+  reportTime: "发布时间",
+  // ── 路线
+  durationS: "耗时(秒)",
+  durationMin: "耗时(分钟)",
+  tollYuan: "过路费(元)",
+  tollDistanceM: "收费里程(米)",
+  trafficLights: "红绿灯数",
+  steps: "步骤",
+  points: "取样点",
+  // ── 车辆 / 用车 / 售后 / 购车
+  vin: "车架号",
+  vehicleModel: "车型",
+  model: "车型",
+  models: "车型",
+  trim: "配置",
+  odometerKm: "里程(公里)",
+  energy: "能源类型",
+  vehiclePrice: "车价",
+  annualKm: "年行驶里程",
+  years: "年限",
+  downPayment: "首付",
+  months: "期数",
+  seats: "座位数",
+  storeId: "门店编号",
+  storeName: "门店",
+  slotId: "时段编号",
+  slots: "可约时段",
+  startAt: "开始时间",
+  orderId: "订单号",
+  stationId: "站点编号",
+  stationName: "站点",
+  station: "站点",
+  stationDistanceKm: "站点距离(公里)",
+  partsFee: "配件费",
+  symptom: "症状",
+  resolution: "处理结果",
+  contact: "联系方式",
+  phone: "电话",
+  // ── 提交通道（submit_*：交回的结论，业务人员最常看的一栏）
+  repairs: "追发的修复项",
+  branch: "分支",
+  instruction: "指令",
+  accept: "可以交付",
+  attention: "请车主看",
+  unverifiable: "验不了的项",
+  repaired: "本轮修好的",
+  caveats: "注意事项",
+  // ── 知识库
+  chunks: "命中片段",
+  document: "文档",
+  dataset: "知识库",
+  topK: "取前 N 条",
+  // ── 成员 / 偏好
+  memberId: "成员编号",
+  memberName: "成员",
+  userId: "用户编号",
+  preference: "偏好",
+  who: "谁",
+};
+
+/** 「中文(英文)」；查不到就只给英文。 */
+export function labelOfKey(key: string): string {
+  const zh = KEY_LABEL[key];
+  return zh ? `${zh}(${key})` : key;
+}
+
+export function hasKeyLabel(key: string): boolean {
+  return key in KEY_LABEL;
+}

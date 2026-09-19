@@ -46,7 +46,14 @@ export type TraceKind =
   /** 行程确认/取消的裁决与结果（M13-02）——回放页要能看到"这一轮定下来了没有"。 */
   | "commit"
   | "turn_end"
-  | "span";
+  | "span"
+  /** 一次 LLM 调用的产出文本（2026-09-15）——与 `prompt` 成对，业务视图据此展示"这个 Agent 答了什么"。 */
+  | "agent_output"
+  /**
+   * 这一轮装载的两级状态与各 Agent 实际拿到的锚定块 / 尾区（2026-09-15，ACR-036 的可观测面）。
+   * 每轮一条，落在 `turn_end` 之前；会话页的「查看上下文」读它。载荷见 `context/trace.ts`。
+   */
+  | "context";
 
 /**
  * 一跳的耗时（施工单 TD-08 / FL-44 F-44-04）。
@@ -92,6 +99,18 @@ export interface SpanData extends Record<string, unknown> {
    * **仍然写入**——丢掉的话，"为什么少了一跳"就再也查不出来了。
    */
   keyFallback?: true;
+  /**
+   * `durationMs` 里有多少是**排我们自己的限速队**（`@carlife/tools` 的 `wait-meter`）。
+   *
+   * 为什么不能只看 `durationMs`：真跑 turn-d3372ed7 的 fan-out 起跑 1.3 秒内
+   * 九个高德请求一起发出，闸门 350ms/桶 2，于是 `tool.spot_search` 写着 4770ms——
+   * 而那 4.77 秒里上游只算了一部分，其余是在我们自己门口排队。
+   * 两者处置相反：等上游只能等，排自己的队是并发策略，调得动。
+   *
+   * 只有经过限速闸的工具会带上它（今天只有高德那一族）；
+   * **没等就是 0，量不到才是 undefined**——两者不能混。
+   */
+  waitMs?: number;
 }
 
 export function spanData(
@@ -99,7 +118,7 @@ export function spanData(
   startedAt: number,
   endedAt: number,
   status: SpanStatus,
-  extra?: { agent?: string; detail?: string; keyFallback?: true },
+  extra?: { agent?: string; detail?: string; keyFallback?: true; waitMs?: number },
 ): SpanData {
   return {
     name,
@@ -111,6 +130,8 @@ export function spanData(
     ...(extra?.agent !== undefined ? { agent: extra.agent } : {}),
     ...(extra?.detail !== undefined ? { detail: extra.detail } : {}),
     ...(extra?.keyFallback ? { keyFallback: true as const } : {}),
+    // 0 也要写：那是"这一跳没排队"，与"这一跳没量过"是两回事。
+    ...(extra?.waitMs !== undefined ? { waitMs: Math.max(0, Math.round(extra.waitMs)) } : {}),
   };
 }
 

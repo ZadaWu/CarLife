@@ -1,5 +1,10 @@
 /**
- * 手机端「人员档案」二级页（施工单 M14-12，定稿 `.../vertical/*-person.png`）。
+ * 手机端「人员档案」（施工单 M14-12，定稿 `.../vertical/*-person.png`）。
+ *
+ * 2026-09-12 起它不再是二级页，而是档案页顶部两个 tab 中的一个（页壳、吸顶 tab 条
+ * 与滚动容器都归 `./index.tsx`）。所以这里**不自带页壳，也不画标题与返回键**——
+ * 自带的话就是页里套页：两层 `.own-page` 都是 `position:absolute; inset:0`，
+ * 里层会盖住外层的 tab 条。
  *
  * 契约与红线沿用 M17 那一批：名单端点是 M17-04 的、按人画像是 M17-02 的、
  * 称呼不进日志是 M17-03 的。增删改直接复用 `MembersSection`——**搬页不改逻辑**，
@@ -36,11 +41,11 @@ import "./ownership.css";
 
 export interface PeopleProfileProps {
   vehicle: VehicleView;
+  /** 只用来选人像素材（light / dark 两套）；页壳的主题类在外层。 */
   theme: "light" | "dark";
-  onBack: () => void;
 }
 
-export function PeopleProfilePage({ vehicle, theme, onBack }: PeopleProfileProps) {
+export function PeopleProfilePage({ vehicle, theme }: PeopleProfileProps) {
   const [prefs, setPrefs] = useState<PreferenceState>({ kind: "loading" });
   /** 只用来渲染画像卡与头像；增删改仍在 `MembersSection` 里，两处不共享状态。 */
   const [roster, setRoster] = useState<MemberListState>({ kind: "loading" });
@@ -65,13 +70,7 @@ export function PeopleProfilePage({ vehicle, theme, onBack }: PeopleProfileProps
   }, [vehicle.vin, active?.id]);
 
   return (
-    <div className={`own-page own-page--${theme}`} aria-label="人员档案">
-      <header className="own-head own-head--sub">
-        <button type="button" className="own-back" onClick={onBack}>
-          ‹ 车辆档案
-        </button>
-        <h2 className="own-title">人员档案</h2>
-      </header>
+    <>
       {/* 车辆只作上下文，不展开任何车辆字段 */}
       <p className="own-subline">
         <span className="own-chip">关联车辆：{vehicle.model}</span>
@@ -116,7 +115,7 @@ export function PeopleProfilePage({ vehicle, theme, onBack }: PeopleProfileProps
           <small>称呼不会写入日志或对外工具；删除人员会一并删掉 TA 的画像，行程记录保留但不再归属。</small>
         </div>
       </section>
-    </div>
+    </>
   );
 }
 

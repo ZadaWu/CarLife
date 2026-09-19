@@ -34,8 +34,19 @@ import { IdentityVehiclesPage } from "../pages/identity/vehicles";
 import { IdentityVehicleDetailPage } from "../pages/identity/vehicle-detail";
 import { IdentityDevicesPage } from "../pages/identity/devices";
 import { Forbidden } from "./Forbidden";
+import { EvidenceMatrixPage } from "../pages/research/evidence-matrix";
+import { ImportancePerformancePage } from "../pages/research/importance-performance";
+import { EmotionJobMapPage } from "../pages/research/emotion-job-map";
+import { SegmentAtlasPage } from "../pages/research/segment-atlas";
+import { TrendSignalPage } from "../pages/research/trend-signal";
 
 type BootState = "loading" | "anonymous" | "ready";
+
+/**
+ * 用户研究五页（M71 定形态、M82-08 / M82-09 落地）。路径与侧栏 `Layout.tsx` 的
+ * `NavItem.to`、设计文档 `内部文档`
+ * **三处同名**——由路径能找到 Brief，由 Brief 能找到路由，不必再维护一张对照表。
+ */
 
 export function App(): JSX.Element {
   const [state, setState] = useState<BootState>("loading");
@@ -120,6 +131,18 @@ export function App(): JSX.Element {
             <Route path="/identity/vehicles/:vin" element={<IdentityVehicleDetailPage />} />
             <Route path="/identity/devices" element={<IdentityDevicesPage />} />
             <Route path="/evals/:jobId/:tier" element={<EvalJobPage />} />
+            {/*
+              用户研究（M71 定形态）：五个读数页，共享 `pages/research/shell/` 的壳
+              （观察总体 / 四道硬门常驻）。**这一组全是只读的**——研究面的写动作
+              （锁 codebook / 升级 / 售后放行）目前只有 M82-06 的服务端端点，
+              控制台没有入口，是 2026-09-13 的范围裁决。
+            */}
+            <Route path="/research" element={<Navigate to="/research/evidence-matrix" replace />} />
+            <Route path="/research/evidence-matrix" element={<EvidenceMatrixPage />} />
+            <Route path="/research/importance-performance" element={<ImportancePerformancePage />} />
+            <Route path="/research/emotion-job-map" element={<EmotionJobMapPage />} />
+            <Route path="/research/segment-atlas" element={<SegmentAtlasPage />} />
+            <Route path="/research/trend-signal" element={<TrendSignalPage />} />
             <Route path="*" element={<div className="page"><h1>页面不存在</h1></div>} />
           </Routes>
         </Layout>

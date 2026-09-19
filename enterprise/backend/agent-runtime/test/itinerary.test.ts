@@ -23,7 +23,14 @@ import {
 import { parseIntent } from "../src/graph/intent";
 import { buildChatGraph } from "../src/graph/supervisor";
 import type { ChatStreamer } from "../src/llm";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 import type { BranchResult } from "../src/graph/fanout";
+
+/*
+ * 这些用例走的是 M86 之前的 fan-out 路径，Plan 层显式关掉（M87-05 之后缺省是 `plan`）。
+ * 不关的话 `maybeRunPlanLayer` 会去调 `city_districts` / `spot_search`——`CARLIFE_TOOLS` 缺省 real，单测就打真网络了。
+ */
+process.env.CARLIFE_TRIP_PLAN_LAYER = "off";
 
 const intent = (goal: string) => ({ goal, constraints: [], context: "", riskBoundary: "" });
 
@@ -141,7 +148,7 @@ test("骨架汇聚：tour 主干 + hotel 挂天 + 估算标注由代码补", () 
         trains: [{ no: "G253(上海虹桥-广州南)", durationMin: 503, costYuan: 883 }],
         flightAdvice: { durationHint: "约2.5小时", priceEstimate: "约800-1400元" },
       }),
-      ok("drive-task", { legMinutes: [300, 400], stops: ["服务区A"] }),
+      { ...ok("drive-task", {}), submission: { legs: legsFrom([300, 400], ["服务区A"]) } },
     ],
     INPUT,
     ["drive", "hotel", "tour", "transit"],
@@ -177,7 +184,8 @@ test("分支超时 → missing + solverDegraded；成功分支照常入骨架", 
 test("细化轮：局部覆盖——没重跑的分支字段原样保留", () => {
   const skeleton = mergeItinerary(
     [
-      ok("tour-task", { destination: "广州", days: [{ day: 1, theme: "亲子", area: "番禺", spots: ["长隆"] }] }),
+      // 第 2 天是返程日（M77 走查追修）：最后一天回家不挂酒店，被断言的第 1 天才不是最后一天。
+      ok("tour-task", { destination: "广州", days: [{ day: 1, theme: "亲子", area: "番禺", spots: ["长隆"] }, { day: 2, theme: "返程", area: "返程", spots: [] }] }),
       ok("hotel-task", { hotels: [{ name: "长隆酒店", area: "番禺", estPrice: "约800/晚（估算）" }] }),
       ok("transit-task", { trains: [{ no: "G253", durationMin: 503, costYuan: 883 }] }),
     ],
@@ -206,6 +214,7 @@ test("细化轮 tour 重排骨架：酒店按天号接回来，不能跟着被�
         days: [
           { day: 1, theme: "亲子", area: "番禺", spots: ["长隆"] },
           { day: 2, theme: "城央", area: "天河", spots: ["广州塔"] },
+          { day: 3, theme: "返程", area: "返程", spots: [] },
         ],
       }),
       ok("hotel-task", {
@@ -233,6 +242,7 @@ test("细化轮 tour 重排骨架：酒店按天号接回来，不能跟着被�
         days: [
           { day: 1, theme: "亲子", area: "番禺", spots: ["长隆", "香江野生动物园"] },
           { day: 2, theme: "城央", area: "天河", spots: ["广州塔", "正佳极地海洋世界"] },
+          { day: 3, theme: "返程", area: "返程", spots: [] },
         ],
       }),
     ],

@@ -51,3 +51,64 @@ describe("顶部日期条", () => {
     assert.ok(html.includes("进行中 · 第 2 天"));
   });
 });
+
+/**
+ * [F-18-15][AC-18-11] 工具按钮与下拉菜单（M83-02）。
+ *
+ * 两条判据值得单独守：**缺省不渲染**（手机端也用这个组件，CSS 藏起来的按钮仍然点得到），
+ * 以及**展开时必须有遮罩**（没有它，菜单在 HUD 上收不起来——HUD 没有"外面"）。
+ */
+const renderTools = (e: TripPlanListEntry, menuOpen: boolean, showTools = true) =>
+  renderToStaticMarkup(
+    createElement(TripDateBanner, {
+      entry: e,
+      today: "2026-09-17",
+      onClose: () => {},
+      showTools,
+      menuOpen,
+      onToggleMenu: () => {},
+      onOpenDetail: () => {},
+    }),
+  );
+
+describe("顶部日期条的工具菜单", () => {
+  it("缺省不渲染工具按钮：手机端不传 showTools，DOM 里就不该有它", () => {
+    const html = render(entry("2026-09-19"));
+    assert.ok(!html.includes("hud-datebar__tools"));
+    assert.ok(!html.includes("hud-datebar__menu"));
+  });
+
+  it("showTools 且未展开：有按钮、aria-expanded=false、没有菜单也没有遮罩", () => {
+    const html = renderTools(entry("2026-09-19"), false);
+    assert.ok(html.includes("hud-datebar__tools"));
+    assert.ok(html.includes('aria-expanded="false"'));
+    assert.ok(html.includes('aria-haspopup="menu"'));
+    assert.ok(!html.includes("hud-datebar__menu"));
+    assert.ok(!html.includes("hud-datebar__scrim"));
+    assert.ok(!html.includes("is-menu-open"));
+  });
+
+  it("展开：菜单只有「行程详情」一项，遮罩在场，整条带 is-menu-open", () => {
+    const html = renderTools(entry("2026-09-19"), true);
+    assert.ok(html.includes('role="menu"'));
+    assert.equal(html.split('role="menuitem"').length - 1, 1, "v1 只有一项");
+    assert.ok(html.includes("行程详情"));
+    assert.ok(html.includes("hud-datebar__scrim"), "没有遮罩菜单就收不起来");
+    assert.ok(html.includes('aria-expanded="true"'));
+    assert.ok(html.includes("hud-datebar__tools is-open"));
+    assert.ok(html.includes("hud-card hud-datebar is-menu-open"));
+  });
+
+  it("菜单展开不动既有内容：日期、目的地、× 一字不变", () => {
+    const html = renderTools(entry("2026-09-19"), true);
+    assert.ok(html.includes("<b>9/19 周六</b>"));
+    assert.ok(html.includes("青岛 · 3 天 · 2 天后出发"));
+    assert.ok(html.includes('aria-label="取消选中"'));
+  });
+
+  it("showTools=false 时即使 menuOpen 也不展开（两道兜底里的组件那道）", () => {
+    const html = renderTools(entry("2026-09-19"), true, false);
+    assert.ok(!html.includes("hud-datebar__menu"));
+    assert.ok(!html.includes("hud-datebar__scrim"));
+  });
+});

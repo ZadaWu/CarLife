@@ -22,6 +22,7 @@
  */
 
 import { getAmapClient, type AmapPoi, type LngLat } from "./amap";
+import { recordEnergyStopCandidates } from "./energy-stop-candidates";
 import { ENV_TTL, envCacheKey, roundCoord, withEnvCache } from "./env-cache";
 import { defineExternalTool, ToolError, type ExternalTool } from "./external";
 
@@ -141,6 +142,35 @@ export function planChargeStops(
   return stops;
 }
 
+/**
+ * 路线上累计里程 `atKm` 处的位置：在两个相邻取样点之间**按里程线性插值**，不吸附到最近的取样点。
+ *
+ * # 为什么不再吸附（交接文档缺陷 3）
+ *
+ * `map_route` 的取样点上限 8 个，352km 的路约每 50km 一个；吸附到最近点的插点位置误差可达 ±25km，
+ * 73 次真实调用里 12 次 route 只传了起终点——那时插点直接落在起点或终点的城区里。
+ * 两点之间的弦与高速的走向相差有限，插值出来的搜索中心比端点近得多；而加密取样点会连带
+ * 把 `weather` 的逆地理与气象站查询也翻倍（它吃的是同一份 `sampledPoints`），这里不动它。
+ *
+ * `cum` 是各取样点的累计里程（与 `route` 一一对应，首项 0）。`atKm` 越界时钳到两端。
+ */
+export function pointAlongRoute(
+  route: ReadonlyArray<{ name?: string; lat: number; lon: number }>,
+  cum: readonly number[],
+  atKm: number,
+): { lat: number; lon: number } {
+  const last = route.length - 1;
+  if (atKm <= 0 || last === 0) return { lat: route[0]!.lat, lon: route[0]!.lon };
+  if (atKm >= cum[last]!) return { lat: route[last]!.lat, lon: route[last]!.lon };
+  let i = 1;
+  while (i < last && cum[i]! < atKm) i += 1;
+  const a = route[i - 1]!;
+  const b = route[i]!;
+  const span = cum[i]! - cum[i - 1]!;
+  const t = span > 0 ? (atKm - cum[i - 1]!) / span : 0;
+  return { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
+}
+
 /** 从 POI 名称里解析功率档位。解析不出返回 undefined——**不猜**。 */
 export function parsePowerKw(name: string): number | undefined {
   const m = name.match(/(\d{2,3})\s*kw/i);
@@ -235,12 +265,8 @@ export function createChargingTool(backend: ChargingBackend): ExternalTool<Charg
       const stops: ChargingStop[] = [];
 
       for (const p of planned) {
-        // 找到累计里程最接近插点位置的取样点
-        let idx = 0;
-        for (let i = 1; i < cum.length; i += 1) {
-          if (Math.abs(cum[i] - p.atKm) < Math.abs(cum[idx] - p.atKm)) idx = i;
-        }
-        const at = args.route[idx];
+        // 插点位置按里程在取样点之间插值（交接文档缺陷 3）：不再吸附到最近的取样点，见 pointAlongRoute。
+        const at = pointAlongRoute(args.route, cum, p.atKm);
         const pois = await backend.around(at, args.radiusM ?? 5_000, ctx.signal);
 
         const candidates: ChargingStation[] = [];
@@ -267,27 +293,40 @@ export function createChargingTool(backend: ChargingBackend): ExternalTool<Charg
         stops.push({ atKm: p.atKm, arriveSoc: p.arriveSoc, candidates });
       }
 
+      // 候选进按轮登记簿：`submit_drive_draft` 交上来的站名只认这里出现过的（见 energy-stop-candidates.ts）。
+      recordEnergyStopCandidates(
+        ctx,
+        stops.flatMap((s) => s.candidates.map((c) => ({ name: c.name, lat: c.lat, lon: c.lon, kind: "charging" as const }))),
+      );
+
       return { stops, needsCharging: true, rejected, queueUnknown: true, queueNotice: QUEUE_NOTICE };
     },
 
-    mock: (args) => {
+    mock: (args, ctx) => {
       const planned = planChargeStops(300, args.rangeKm || 400, args.startSoc || 0.9);
+      const stops = planned.map((p) => ({
+        atKm: p.atKm,
+        arriveSoc: p.arriveSoc,
+        candidates: [
+          {
+            id: "mock-cs-1",
+            name: "模拟充电站（120kW）",
+            address: "模拟地址",
+            lat: 0,
+            lon: 0,
+            detourM: 800,
+            powerKw: 120,
+          },
+        ],
+      }));
+      // mock 路径同样登记（与 map_route 同一理由）：否则 `CARLIFE_TOOLS=mock` 下模型抄的
+      // 「模拟充电站」会被当成编造退回，本地走查分不清是模型错还是环境错。
+      recordEnergyStopCandidates(
+        ctx,
+        stops.flatMap((s) => s.candidates.map((c) => ({ name: c.name, lat: c.lat, lon: c.lon, kind: "charging" as const }))),
+      );
       return {
-        stops: planned.map((p) => ({
-          atKm: p.atKm,
-          arriveSoc: p.arriveSoc,
-          candidates: [
-            {
-              id: "mock-cs-1",
-              name: "模拟充电站（120kW）",
-              address: "模拟地址",
-              lat: 0,
-              lon: 0,
-              detourM: 800,
-              powerKw: 120,
-            },
-          ],
-        })),
+        stops,
         needsCharging: planned.length > 0,
         rejected: [],
         queueUnknown: true,

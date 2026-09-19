@@ -23,7 +23,7 @@ import { randomUUID } from "node:crypto";
 
 import type { MemberNeed, NavPlan, NavPlanConstraint, NavPlanOrigin, NavRouteStrategy } from "@carlife/shared";
 import { MEMBER_NEEDS } from "@carlife/shared";
-import type { MemberStore } from "@carlife/memory";
+import { ENERGY_LABEL, type MemberStore, type VehicleEnergyType } from "@carlife/memory";
 import type { RestStop, RouteSummary } from "@carlife/tools";
 
 import { runFanout, type BranchResult, type FanoutOptions } from "../fanout";
@@ -44,6 +44,14 @@ export interface NavPlanInput {
   constraints: NavPlanConstraint[];
   maxLegMinutes?: number;
   needs: readonly MemberNeed[];
+  /**
+   * ④车辆档案里的能源类型。`undefined` = 没读到，那就不写进提示词、也不让模型填。
+   *
+   * 它只影响 `map_route` 怎么排休息点（纯电/插电把只有油枪的服务区排到最后、
+   * 并标出场区里有没有充电桩）。**读不到不是错**——多一条编出来的能源类型，
+   * 比少一条排序依据糟得多。
+   */
+  energy?: VehicleEnergyType;
   /** 进分支之前就已经知道的提醒（起点估算、名单没读到…），原样带进方案。 */
   caveats: string[];
 }
@@ -79,6 +87,13 @@ export function navPrompt(input: NavPlanInput): string {
     );
   } else {
     lines.push("没有同行者硬约束：不传 maxLegMinutes；总时长在两小时以内就提交空 waypoints。");
+  }
+  if (input.energy !== undefined) {
+    lines.push(
+      `车辆能源类型：**${ENERGY_LABEL[input.energy]}**（来自车辆档案）——调 map_route 时 **energy 传 \`${input.energy}\`**。` +
+        "它决定沿途休息点怎么排：纯电/插电会把只有油枪的「高速加油站服务区」排到最后，" +
+        "并在 restStops[].charging 标出场区里有没有充电桩。",
+    );
   }
   if (input.constraints.length > 0) {
     lines.push("同行者的需要（来自已登记的常用人员档案）：");
@@ -268,6 +283,13 @@ export interface NavPlanDeps {
   listPreferences?: (userId: string) => Promise<{ results?: Array<{ memory?: unknown; metadata?: unknown }>; degraded?: boolean }>;
   onUsage?: ChatStreamHooks["onUsage"];
   now?: () => Date;
+  /**
+   * ④车辆档案读取，只要能源类型这一项。不注入 = 不往下传 energy，与接线前逐字相同。
+   *
+   * 与 `listPreferences` 同一形状：nav 只需要这一个字段，注入整个 VehicleStore
+   * 会让这条分支平白依赖上一整套车辆读写。
+   */
+  readEnergyType?: (userId: string, vin?: string) => Promise<VehicleEnergyType | undefined>;
   /** 测试注入：分支预算。生产不传（55 s）。 */
   timeoutMs?: number;
 }
@@ -293,6 +315,34 @@ async function readRoutePreference(deps: NavPlanDeps, userId: string) {
   }
 }
 
+/**
+ * 能源类型读取的硬顶（ms）。与 ③偏好同一条纪律：读不到就按"没有"走，不拖住整条分支。
+ *
+ * 车辆档案走 PG（生产上还带一层缓存），毫秒级；这个数是防挂不是预算。
+ */
+export const ENERGY_READ_TIMEOUT_MS = 2_000;
+
+async function readEnergyType(
+  deps: NavPlanDeps,
+  userId: string,
+  vin?: string,
+): Promise<VehicleEnergyType | undefined> {
+  if (!deps.readEnergyType) return undefined;
+  try {
+    return await Promise.race([
+      deps.readEnergyType(userId, vin),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("energy read timeout")), ENERGY_READ_TIMEOUT_MS),
+      ),
+    ]);
+  } catch (err) {
+    // 读不到不是错，也不进 caveats：车主不需要知道"我们没读到能源类型"，
+    // 它对方案的影响只是休息点的排序少了一维。
+    console.warn("[nav-plan] ④车辆档案能源类型读取失败，休息点按默认口径排", err);
+    return undefined;
+  }
+}
+
 function originCaveats(o: NavPlanOrigin): string[] {
   if (o.source === "home") return ["起点按常住地估算（没有最近的定位）；导航本身仍以高德定位为准"];
   if (typeof o.ageMinutes === "number" && o.ageMinutes > 10) return [`起点是 ${Math.round(o.ageMinutes)} 分钟前的定位`];
@@ -307,9 +357,11 @@ function coalesceKey(req: NavPlanRequestInput, strategy: string, constraintTexts
 }
 
 export async function runNavPlan(deps: NavPlanDeps, req: NavPlanRequestInput): Promise<NavPlan> {
-  const [pref, cons] = await Promise.all([
+  // 三路并读：能源类型多一路不加时延，串起来才会。
+  const [pref, cons, energy] = await Promise.all([
     readRoutePreference(deps, req.userId),
     resolveNavConstraints(deps.memberStore, req.userId, req.party, req.vin),
+    readEnergyType(deps, req.userId, req.vin),
   ]);
   const defaulted = cons.maxLegMinutes === undefined;
   const input: NavPlanInput = {
@@ -320,6 +372,7 @@ export async function runNavPlan(deps: NavPlanDeps, req: NavPlanRequestInput): P
     constraints: cons.constraints,
     maxLegMinutes: cons.maxLegMinutes ?? DEFAULT_LEG_MINUTES,
     needs: cons.needs,
+    ...(energy !== undefined ? { energy } : {}),
     caveats: [
       ...originCaveats(req.origin),
       ...(pref.reason === DEGRADED_ROUTE_REASON ? [DEGRADED_ROUTE_REASON] : []),

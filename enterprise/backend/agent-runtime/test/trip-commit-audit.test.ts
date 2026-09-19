@@ -13,6 +13,7 @@ import { GuardGate, type GuardCheckRequest } from "../src/guard/http-endpoint";
 import { setGuardGate } from "../src/tools-endpoint";
 import { buildChatGraph } from "../src/graph/supervisor";
 import type { ChatStreamer } from "../src/llm";
+import { driveText, legsFrom } from "./helpers/drive-legs";
 
 /** 两天行程、hotel 分支只给一家候选（第 2 天沿用）、drive 给一段 400 分——体检会有 leg blocker（安全上限 180）。 */
 const fakeStreamer: ChatStreamer = async function* (_m, hooks) {
@@ -27,7 +28,7 @@ const fakeStreamer: ChatStreamer = async function* (_m, hooks) {
   }
   if (agent === "drive-task") {
     // 修复轮要它补停靠点时也只回同一句：占位留着 → 确认轮体检会有 stop blocker，正好验"未消解不阻塞"
-    yield '{"legMinutes":[400],"stops":[],"findings":[]}';
+    yield driveText(legsFrom([400]));
     return;
   }
   if (agent.endsWith("-task")) {

@@ -1,0 +1,333 @@
+{
+  "layer": "off",
+  "fake": false,
+  "model": "deepseek-flash",
+  "at": "2026-09-15T16:13:45.011Z",
+  "total": 12,
+  "selected": 12,
+  "command": "corepack pnpm eval:trip-clustering -- -- --layer off",
+  "results": [
+    {
+      "id": "hz-3d",
+      "input": "帮我规划一个从上海出发去杭州的三天行程，自驾，带六岁的孩子，每天别安排太满。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 25522,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 9,
+        "total": 10
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 3,
+        "radiusKm": 4.996627522552085,
+        "separationKm": 7.211496962928842,
+        "perDay": [
+          4,
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "id": "sz-2d",
+      "input": "周末从上海自驾去苏州玩两天，带爸妈，想看看园林和古镇。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 23470,
+      "mode": "skeleton",
+      "plannedDays": 2,
+      "searchCalls": 4,
+      "coverage": {
+        "withCoord": 10,
+        "total": 10
+      },
+      "score": {
+        "points": 10,
+        "misassigned": 2,
+        "radiusKm": 4.183219563371134,
+        "separationKm": 4.251380765729895,
+        "perDay": [
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "id": "nj-3d",
+      "input": "从上海开车去南京玩三天，主要想逛历史景点，晚上想看看夫子庙。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 25465,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 4,
+      "coverage": {
+        "withCoord": 9,
+        "total": 10
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 1,
+        "radiusKm": 1.0516342094315485,
+        "separationKm": 4.05470899898517,
+        "perDay": [
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "id": "gz-4d",
+      "input": "我们一家四口从上海去广州玩四天，带娃，一定要去一天长隆，其余时间在市区逛。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 56509,
+      "mode": "skeleton",
+      "plannedDays": 4,
+      "searchCalls": 5,
+      "coverage": {
+        "withCoord": 10,
+        "total": 11
+      },
+      "score": {
+        "points": 10,
+        "misassigned": 1,
+        "radiusKm": 1.784324675831499,
+        "separationKm": 9.113550331676796,
+        "perDay": [
+          3,
+          3,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "sh-2d",
+      "input": "帮我排一个上海本地两天的行程，从嘉定出发，第一天想去迪士尼，第二天在市区逛逛。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 17448,
+      "mode": "skeleton",
+      "plannedDays": 2,
+      "searchCalls": 6,
+      "coverage": {
+        "withCoord": 5,
+        "total": 5
+      },
+      "score": {
+        "points": 5,
+        "misassigned": 0,
+        "radiusKm": 1.329863231229516,
+        "separationKm": 18.033583975709206,
+        "perDay": [
+          1,
+          4
+        ]
+      }
+    },
+    {
+      "id": "nt-zjg-3d",
+      "input": "从上海出发去南通、张家港三天，第一天回如东老家看妈妈，后两天在南通市区和张家港转转。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 35488,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 7,
+      "coverage": {
+        "withCoord": 9,
+        "total": 10
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 0,
+        "radiusKm": 3.171692471756359,
+        "separationKm": 49.04763416326207,
+        "perDay": [
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "id": "hs-3d",
+      "input": "从上海自驾去黄山三天，想上山看日出，顺便逛逛徽州古村落。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 25475,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 4,
+      "coverage": {
+        "withCoord": 9,
+        "total": 9
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 2,
+        "radiusKm": 7.391060020282682,
+        "separationKm": 27.226380707430256,
+        "perDay": [
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "id": "xa-4d",
+      "input": "从上海去西安玩四天，坐高铁过去然后在当地打车，想看兵马俑、城墙和回民街。",
+      "days": 4,
+      "status": "ok",
+      "durationMs": 21454,
+      "mode": "skeleton",
+      "plannedDays": 4,
+      "searchCalls": 3,
+      "coverage": {
+        "withCoord": 14,
+        "total": 15
+      },
+      "score": {
+        "points": 14,
+        "misassigned": 1,
+        "radiusKm": 1.4052289726073657,
+        "separationKm": 17.728557725936447,
+        "perDay": [
+          3,
+          3,
+          4,
+          4
+        ]
+      }
+    },
+    {
+      "id": "cd-3d",
+      "input": "从上海去成都玩三天，坐飞机过去当地打车，想看熊猫、吃火锅、逛宽窄巷子。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 19483,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 6,
+      "coverage": {
+        "withCoord": 8,
+        "total": 8
+      },
+      "score": {
+        "points": 8,
+        "misassigned": 2,
+        "radiusKm": 2.808980536280927,
+        "separationKm": 3.317220181763922,
+        "perDay": [
+          2,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "id": "hrb-3d",
+      "input": "从上海坐飞机去哈尔滨玩三天，带六十多岁的爸妈，想看中央大街和圣索菲亚教堂，别走太多路。",
+      "days": 3,
+      "status": "ok",
+      "durationMs": 27478,
+      "mode": "skeleton",
+      "plannedDays": 3,
+      "searchCalls": 4,
+      "coverage": {
+        "withCoord": 8,
+        "total": 8
+      },
+      "score": {
+        "points": 8,
+        "misassigned": 1,
+        "radiusKm": 1.7737778375494575,
+        "separationKm": 4.053899994492382,
+        "perDay": [
+          3,
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "id": "bj-5d",
+      "input": "从上海自驾去北京玩五天，故宫、长城、颐和园都想去，每天别太赶。",
+      "days": 5,
+      "status": "ok",
+      "durationMs": 89585,
+      "mode": "skeleton",
+      "plannedDays": 5,
+      "searchCalls": 6,
+      "coverage": {
+        "withCoord": 9,
+        "total": 9
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 1,
+        "radiusKm": 1.7803452369729618,
+        "separationKm": 31.79324863597705,
+        "perDay": [
+          1,
+          4,
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "cq-2d",
+      "input": "周末从上海飞重庆玩两天，想看洪崖洞夜景、吃火锅、坐一次穿楼的轻轨。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 32502,
+      "mode": "skeleton",
+      "plannedDays": 2,
+      "searchCalls": 4,
+      "coverage": {
+        "withCoord": 9,
+        "total": 10
+      },
+      "score": {
+        "points": 9,
+        "misassigned": 2,
+        "radiusKm": 2.9652344138402205,
+        "separationKm": 4.626091269176256,
+        "perDay": [
+          3,
+          6
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "counted": [
+      "hz-3d",
+      "sz-2d",
+      "nj-3d",
+      "gz-4d",
+      "sh-2d",
+      "nt-zjg-3d",
+      "hs-3d",
+      "xa-4d",
+      "cd-3d",
+      "hrb-3d",
+      "bj-5d",
+      "cq-2d"
+    ],
+    "excluded": [],
+    "points": 109,
+    "misassigned": 16,
+    "misassignedPct": 14.678899082568808,
+    "radiusKm": 2.8868323909754796,
+    "separationKm": 15.038146142755691
+  }
+}

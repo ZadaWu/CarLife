@@ -65,6 +65,22 @@ pub fn __reset() {
 /// **锁不跨 await**：命中判断与写回各自取一次锁，中间那次网络调用不持锁。
 /// 写成"锁着去发请求"的话，一次网关卡顿会把所有想说话的任务一起挂住，
 /// 现象是助手集体哑掉——而根因在一个名字里带 config 的文件里。
+/// 同步读缓存里的**流式播报开关**（M77 走查追修第二步）。
+///
+/// **只读缓存、不发请求**：它在 SSE 的同步分发路径上被调用（每条 delta 都要问一次），
+/// 那里不能 await，更不能每条 delta 打一次网关。
+///
+/// 缓存还空着（本次启动还没播过任何一句）时回 `false`——保守方向是"按老样子
+/// 等整段再播"。第一次播报会把缓存填上，之后就准了；用一次慢换"绝不擅自改变
+/// 播报形状"，这笔账划算。
+pub fn stream_speech_cached() -> bool {
+    CACHE
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().map(|(cfg, _)| cfg.stream_speech))
+        .unwrap_or(false)
+}
+
 pub async fn effective() -> Option<TtsRuntimeConfig> {
     if let Some(cfg) = cached(false) {
         return Some(cfg);
@@ -86,10 +102,12 @@ pub async fn effective() -> Option<TtsRuntimeConfig> {
                 // 换端点是**要留痕的**：事后对账时"这段时间到底在用哪个引擎"
                 // 只能靠这一行。计费与不计费的分界就在这里。
                 eprintln!(
-                    "[tts] 合成端点更新：{}（{}）{}",
+                    "[tts] 合成端点更新：{}（{}）{}，边收边播 {}",
                     cfg.engine,
                     cfg.url,
-                    if cfg.billed { " ⚠️ 按合成字数计费" } else { "" }
+                    if cfg.billed { " ⚠️ 按合成字数计费" } else { "" },
+                    // 排查"改了开关怎么还是老样子"时，第一眼要能看到端上收到的是哪一档。
+                    if cfg.stream_speech { "开" } else { "关" }
                 );
             }
             *CACHE.lock().expect("tts endpoint cache poisoned") = Some((cfg.clone(), Instant::now()));
@@ -137,6 +155,7 @@ mod tests {
             resource_id: "seed-tts-2.0".into(),
             speaker: "zh_female_vv_uranus_bigtts".into(),
             billed: false,
+            stream_speech: false,
             refresh_ms,
         }
     }

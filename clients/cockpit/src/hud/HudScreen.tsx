@@ -28,6 +28,7 @@ import {
   TipsCard,
   TripCalendarCard,
   TripDateBanner,
+  TripDetailDrawer,
   spriteFor,
   type HudTripMapProps,
   type ListenState,
@@ -40,8 +41,9 @@ import {
 export type { HudNavProps, HudTripMapProps } from "@carlife/ui";
 
 import { CabinArrivalDemo } from "../features/cabin/CabinArrivalDemo";
-import type { TripPlanLeg, TripPlanListEntry, TripPlanSnapshot } from "@carlife/shared";
+import type { TripPlanLeg, TripPlanListEntry, TripPlanSnapshot, TripStructureEdit } from "@carlife/shared";
 import { EnRouteReminderCard, useEnRouteReminders, type EnRouteEvent, type ReminderDensity } from "@carlife/ui";
+import type { ServiceCategoryKey } from "@carlife/ui";
 import { isHighlightsPage, type HudSnapshot } from "../data/types";
 
 export interface HudScreenProps {
@@ -111,6 +113,35 @@ export interface HudScreenProps {
     onOpenReview: (planId: string) => void;
     /** 顶部日期条的 ×：回未选中态。 */
     onClearSelection: () => void;
+    /**
+     * 胶囊上的工具菜单（M83-02）。状态在 `App`——抽屉与"换了一程就收起"都要读它，
+     * 藏在组件里上层就够不着了。
+     */
+    detailMenuOpen?: boolean;
+    onToggleDetailMenu?: () => void;
+    /** 菜单项「行程详情」：打开右侧抽屉（M83-03）。 */
+    onOpenDetail?: () => void;
+    /** 行程详情抽屉（M83-03）：开没开、看第几天、能不能进编辑态。 */
+    detailOpen?: boolean;
+    detailDay?: number;
+    onSelectDetailDay?: (day: number) => void;
+    onCloseDetail?: () => void;
+    /** 沿途服务选中了哪几类（M93-05）：抽屉画选中态、地图画点位，同一份状态喂两边。 */
+    selectedServices?: readonly ServiceCategoryKey[];
+    onToggleService?: (key: ServiceCategoryKey) => void;
+    canEditDetail?: boolean;
+    /** 编辑态（M83-04）：状态与变更集都在页面层。 */
+    detailEditing?: boolean;
+    detailEdits?: readonly TripStructureEdit[];
+    onChangeDetailEdits?: (next: TripStructureEdit[]) => void;
+    onStartDetailEdit?: () => void;
+    onCancelDetailEdit?: () => void;
+    onSaveDetailEdits?: (edits: readonly TripStructureEdit[]) => void;
+    detailSaving?: boolean;
+    detailSaveDisabledReason?: string;
+    detailConfirmDiscard?: boolean;
+    onConfirmDiscardDetail?: () => void;
+    onKeepEditingDetail?: () => void;
   };
   /**
    * 我的座驾（新版 UI 的屏底状态栏）：车型名 + 形象图。形象由档案页的活动车辆决定
@@ -299,8 +330,47 @@ export function HudScreen({
    */
   const dateBanner =
     trips && selectedTrip && !tripMap?.nav ? (
-      <TripDateBanner entry={selectedTrip} today={trips.today} onClose={trips.onClearSelection} />
+      <TripDateBanner
+        entry={selectedTrip}
+        today={trips.today}
+        onClose={trips.onClearSelection}
+        showTools
+        menuOpen={trips.detailMenuOpen ?? false}
+        onToggleMenu={trips.onToggleDetailMenu}
+        onOpenDetail={trips.onOpenDetail}
+      />
     ) : null;
+  /*
+   * 行程详情抽屉（M83-03）：与 `windowCard` / `tripsCard` / `dateBanner` 同一条纪律——
+   * **只写一处、用两处**。它盖在提示卡窗之上，轮播由 App 在打开期间暂停。
+   * 跟车时仍可打开（可看不可改）——与日期条不同，那一条让位给跟车顶栏是因为占同一带。
+   */
+  const detailDrawer =
+    trips && selectedTrip && trips.detailOpen ? (
+      <TripDetailDrawer
+        // 画的是**选中那一程**的快照，不是 App 的当前行程——两者在多程时不是一回事。
+        plan={selectedTrip.plan}
+        entry={selectedTrip}
+        selectedDay={trips.detailDay ?? 1}
+        onSelectDay={trips.onSelectDetailDay ?? (() => {})}
+        onClose={trips.onCloseDetail ?? (() => {})}
+        canEdit={trips.canEditDetail ?? true}
+        editing={trips.detailEditing ?? false}
+        edits={trips.detailEdits ?? []}
+        onChangeEdits={trips.onChangeDetailEdits}
+        onStartEdit={trips.onStartDetailEdit}
+        onCancelEdit={trips.onCancelDetailEdit}
+        onSave={trips.onSaveDetailEdits}
+        saving={trips.detailSaving ?? false}
+        saveDisabledReason={trips.detailSaveDisabledReason}
+        selectedServices={trips.selectedServices}
+        onToggleService={trips.onToggleService}
+        confirmDiscard={trips.detailConfirmDiscard ?? false}
+        onConfirmDiscard={trips.onConfirmDiscardDetail}
+        onKeepEditing={trips.onKeepEditingDetail}
+      />
+    ) : null;
+
   const stageClass = selectedTrip ? "hud-stage--trip-selected" : hasTrips ? "hud-stage--has-trips" : undefined;
 
   /*
@@ -316,8 +386,19 @@ export function HudScreen({
    * 它接替了右下角的能量胶囊。预计里程 / 用时 / 道路情况只认 `snapshot.leg`
    * （出发地 → 今天第一站的高德规划，网关每轮带来）；没有就三格「暂无」。
    */
+  /*
+   * 编辑态时底栏「开始行程」降为禁用（M83-04）：一屏只有一个主行动，
+   * 那一刻的主行动是抽屉里的「保存调整」。
+   */
   const statusBar = (
-    <StatusBar summary={energy} leg={leg} stale={freshness.stale} vehicle={vehicle} onStart={startTrip} />
+    <StatusBar
+      summary={energy}
+      leg={leg}
+      stale={freshness.stale}
+      vehicle={vehicle}
+      onStart={startTrip}
+      startDisabled={trips?.detailEditing === true}
+    />
   );
 
   // ── 真实地图行程模式（M13-06）：真实坐标标注 + 路线动画 + 逐日切换。
@@ -331,6 +412,8 @@ export function HudScreen({
           showDayBadge={tripMap.showDayBadge}
           closeLoop={tripMap.closeLoop}
           planKey={tripMap.planKey}
+          focusDay={tripMap.focusDay}
+          servicePois={tripMap.servicePois}
           animated={!freshness.stale}
           navKey={tripMap.nav?.key}
           navSpeedup={tripMap.nav?.speedup}
@@ -381,6 +464,7 @@ export function HudScreen({
         {dateBanner}
         {tripsCard}
         {windowCard}
+        {detailDrawer}
         {statusBar}
         <AssistantDock
           sprite={sprites.assistant}
@@ -482,6 +566,7 @@ export function HudScreen({
       {dateBanner}
       {tripsCard}
       {windowCard}
+      {detailDrawer}
 
       {statusBar}
 

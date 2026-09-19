@@ -25,6 +25,13 @@ import type { ProfileFactSource } from "@carlife/shared";
 
 import { defineExternalTool, ToolError, type ExternalTool } from "./external";
 
+/** 一条补能流水的读出形态。与 `@carlife/memory` 的 `RefuelRecord` 结构一致（那边算油耗只用这三栏）。 */
+export interface RefuelRecordRow {
+  at: number;
+  liters: number;
+  odometerKm: number;
+}
+
 /** 存储抽象。Prisma 实现在 `@carlife/db`（`createRefuelRepository`）。 */
 export interface RefuelLogStore {
   append(input: {
@@ -35,6 +42,19 @@ export interface RefuelLogStore {
     odometerKm: number;
     source: ProfileFactSource;
   }): Promise<{ id: string }>;
+  /**
+   * 区间读，给油侧的能耗口径用（`measuredEnergyPer100km` 的输入）。
+   *
+   * **可选**：真实仓储（`createRefuelRepository`）本来就有这个方法，而单测里那些
+   * 只实现 `append` 的写入桩不必跟着改。拿不到流水时油侧口径缺席——
+   * 与「没有数据」同一档，不是回落到某个标称值。
+   */
+  range?(
+    userId: string,
+    fromMs: number,
+    toMs: number,
+    vin?: string,
+  ): Promise<readonly RefuelRecordRow[]>;
 }
 
 export interface RefuelLogArgs {

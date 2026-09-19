@@ -90,7 +90,6 @@ export interface Coverage {
  */
 export const SENSITIVE_TOOLS: readonly string[] = [
   "appointment",
-  "calendar",
   "trip_plan_commit",
   "trip_plan_cancel",
   "trip_plan_update",

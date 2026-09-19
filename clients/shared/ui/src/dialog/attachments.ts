@@ -13,6 +13,7 @@ import {
   normalizeMime,
   type AttachmentKind,
   type AttachmentRef,
+  type ClientDetections,
 } from "@carlife/shared";
 
 export type PendingStatus = "uploading" | "ready" | "failed";
@@ -31,6 +32,59 @@ export interface PendingAttachment {
   previewUrl?: string;
   /** 视频时长（毫秒），元数据读得到时才有；用来提示"超过 1 分钟只分析前 60 秒"。 */
   durationMs?: number;
+  /** 端上检测（ACR-044）：开关打开、且端提供了 `detect` 时，照片选进来就跑一遍。本 ACR 只在端上显示，不上行。 */
+  detect?: PendingDetect;
+}
+
+/**
+ * 端上检测的一枚框（ACR-044）。`bbox` 是**按 EXIF 转正后坐标系**的 0–1000 归一化 `[x0, y0, x1, y1]`，
+ * 与服务端观察层同形；`name` 只是检测器的类别标签——名称与级别的最终判定在服务端（ACR-025），端上不解读。
+ */
+export interface OnDeviceDetection {
+  bbox: [number, number, number, number];
+  class_id: number;
+  name: string;
+  conf: number;
+}
+export interface OnDeviceDetectResult {
+  width: number;
+  height: number;
+  detections: OnDeviceDetection[];
+  infer_ms: number;
+}
+export interface PendingDetect {
+  status: "running" | "done" | "failed";
+  result?: OnDeviceDetectResult;
+  error?: string;
+}
+
+/** 端上框灯开关（ACR-044 第 3 步）。缺省关：关着时端与服务端行为与没有这功能时完全一样。 */
+export const ON_DEVICE_VISION_KEY = "carlife.vision.onDevice";
+export function onDeviceVisionEnabled(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(ON_DEVICE_VISION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setOnDeviceVisionEnabled(on: boolean): void {
+  try {
+    if (on) globalThis.localStorage?.setItem(ON_DEVICE_VISION_KEY, "1");
+    else globalThis.localStorage?.removeItem(ON_DEVICE_VISION_KEY);
+  } catch {
+    /* 非浏览器环境 */
+  }
+}
+
+/** 待发条上那一行字：「端上框到 3 盏（210 ms）：low_beam 84%、…」。给验机的人看的，措辞不下结论。 */
+export function detectSummary(d: PendingDetect | undefined): string | null {
+  if (!d) return null;
+  if (d.status === "running") return "端上找灯中…";
+  if (d.status === "failed") return `端上检测失败：${d.error ?? "未知错误"}`;
+  const r = d.result;
+  if (!r) return null;
+  if (r.detections.length === 0) return `端上没框到指示灯（${r.infer_ms} ms）`;
+  return `端上框到 ${r.detections.length} 盏（${r.infer_ms} ms）：${r.detections.map((x) => `${x.name} ${Math.round(x.conf * 100)}%`).join("、")}`;
 }
 
 /**
@@ -101,6 +155,32 @@ export function attachmentLabel(ref: Pick<AttachmentRef, "kind" | "bytes" | "dur
 export function readyHandles(pending: readonly PendingAttachment[]): string[] | null {
   if (pending.some((p) => p.status !== "ready" || !p.ref)) return null;
   return pending.map((p) => p.ref!.handle);
+}
+
+/** 与服务端 `ClientDetectionsSchema` 同一个上限（ACR-045）：再多是噪音，且超了整轮 400。 */
+export const MAX_DETECTIONS_PER_PHOTO = 24;
+
+/**
+ * 随消息上行的端上检测结果（ACR-046），按附件句柄索引；没有可带的返回 undefined（请求体与今天相同）。
+ *
+ * - 只收**已上传且检测已完成**的照片。检测还在跑 / 失败的不带、也不等——服务端对不带框的照片自己框。
+ * - 检测完成但一盏没框到：照带空 `items`，服务端据此说"未识别到指示灯"并给补拍提示（不回落云端，ACR-044）。
+ * - 发之前按服务端 schema 的约束整理：丢掉退化框（x1 ≤ x0 或 y1 ≤ y0）、名字截到 64 字、置信夹到 0–1、
+ *   按置信取前 24 条——一枚坏框不该让整轮 400。
+ */
+export function readyDetections(pending: readonly PendingAttachment[]): Record<string, ClientDetections> | undefined {
+  const out: Record<string, ClientDetections> = {};
+  for (const p of pending) {
+    const r = p.detect?.status === "done" ? p.detect.result : undefined;
+    if (p.kind !== "image" || p.status !== "ready" || !p.ref || !r) continue;
+    const items = r.detections
+      .filter((d) => d.bbox.length === 4 && d.bbox.every((v) => Number.isInteger(v) && v >= 0 && v <= 1000) && d.bbox[2] > d.bbox[0] && d.bbox[3] > d.bbox[1] && d.name.length > 0)
+      .sort((a, b) => b.conf - a.conf)
+      .slice(0, MAX_DETECTIONS_PER_PHOTO)
+      .map((d) => ({ bbox: d.bbox, name: d.name.slice(0, 64), conf: Math.min(1, Math.max(0, d.conf)) }));
+    out[p.ref.handle] = { width: r.width, height: r.height, items, inferMs: r.infer_ms };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** 帧序图的说明（给"这段视频助手看了什么"的辅助文案），与服务端参数同一份。 */

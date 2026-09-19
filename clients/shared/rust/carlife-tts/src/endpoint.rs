@@ -103,6 +103,7 @@ mod tests {
             resource_id: "seed-tts-2.0".into(),
             speaker: "zh_female_vv_uranus_bigtts".into(),
             billed: false,
+            stream_speech: false,
             refresh_ms,
         }
     }

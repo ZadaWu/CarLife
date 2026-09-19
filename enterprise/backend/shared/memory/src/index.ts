@@ -6,6 +6,20 @@ export {
   type MemoryCategoryId,
 } from "./taxonomy";
 
+export { applyMem0TelemetryDefault, MEM0_TELEMETRY_DEFAULT } from "./mem0-telemetry";
+
+export {
+  resolveEmbedderConfig,
+  resetEmbedderWarnings,
+  DASHSCOPE_EMBEDDING_BASE_URL,
+  DASHSCOPE_EMBEDDING_MODEL,
+  OLLAMA_EMBEDDING_BASE_URL,
+  OLLAMA_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_DIMS,
+  type EmbedderSettings,
+  type EmbedderEnv,
+} from "./embedder-config";
+
 export {
   CarLifeMemoryClient,
   getMemoryClient,

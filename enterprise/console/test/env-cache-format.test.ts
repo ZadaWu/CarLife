@@ -58,6 +58,14 @@ describe("键的解析", () => {
     assert.equal(nsLabel("dest-highlights"), "目的地推荐");
     assert.equal(nsLabel("brand-new"), "brand-new");
   });
+
+  it("沿途服务四类各一个命名空间，胶囊上分得开（2026-09-16 走查：面板里找不到它们）", () => {
+    assert.equal(nsLabel("svc-food"), "沿途服务 · 餐饮");
+    assert.equal(nsLabel("svc-restroom"), "沿途服务 · 卫生间");
+    assert.equal(nsLabel("svc-parking"), "沿途服务 · 停车场");
+    assert.equal(nsLabel("svc-charging"), "沿途服务 · 充电站");
+    assert.equal(nsLabel("svc-service_area"), "沿途服务 · 高速服务区");
+  });
 });
 
 describe("人话格式", () => {

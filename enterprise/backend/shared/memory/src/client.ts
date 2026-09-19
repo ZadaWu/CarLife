@@ -30,8 +30,12 @@
  * 记忆化修掉了，并原生支持 connectionString。
  */
 
+// 必须是本文件第一条 import：mem0ai/oss 在求值时读一次 MEM0_TELEMETRY（M95-04），顺序换了就白设。
+import "./mem0-telemetry";
 import { Memory } from "mem0ai/oss";
 import { resolveDeepSeekModel } from "@carlife/shared";
+
+import { resolveEmbedderConfig } from "./embedder-config";
 
 import type {
   MemoryConfig,
@@ -169,15 +173,9 @@ function resolveVectorStore(): MemoryConfig["vectorStore"] {
 function defaultConfig(): MemoryConfig {
   return {
     version: "v1.2",
-    // 本地 Ollama embedding：不出网、无 API key。维度必须与向量库 dimension 一致。
-    embedder: {
-      provider: process.env.MEM0_EMBEDDING_PROVIDER ?? "ollama",
-      config: {
-        model: process.env.MEM0_EMBEDDING_MODEL ?? "nomic-embed-text",
-        baseURL: process.env.MEM0_EMBEDDING_BASE_URL ?? "http://localhost:11434",
-        embeddingDims: Number(process.env.MEM0_EMBEDDING_DIMS ?? 768),
-      },
-    },
+    // embedding 缺省走 DashScope text-embedding-v4（M95-01），供应商与 key 的取法见 embedder-config.ts。
+    // 维度必须与 resolveVectorStore() 的 dimension 一致——两处都读 MEM0_EMBEDDING_DIMS。
+    embedder: resolveEmbedderConfig(),
     vectorStore: resolveVectorStore(),
     // Mem0 用 LLM 从对话里抽取事实。我们大多数写入走 `infer: false`（自己管
     // metadata），LLM 因此只在少数推断路径上被用到。

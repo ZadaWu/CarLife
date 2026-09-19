@@ -611,6 +611,57 @@ export function createSystemStatusRouter(deps: SystemStatusDeps): Router {
           } satisfies ServiceReport),
         ),
 
+        /*
+         * research-runtime（ACR-034 / M82-07）。
+         *
+         * **URL 空是 `idle` 不是 `down`**：研究面由两个开关兜底、缺省关着，
+         * 「这个部署没启用它」不是故障。把它算进故障数会让大屏常年挂着一条红，
+         * 而红久了就没人看了。
+         */
+        (async (): Promise<ServiceReport> => {
+          const base = { id: "research-runtime", label: "research-runtime 用户研究", group: "core" } as const;
+          const url = (values.get("RESEARCH_RUNTIME_URL") ?? "").trim();
+          if (!url) {
+            return {
+              ...base,
+              state: "idle",
+              detail: "未配置 RESEARCH_RUNTIME_URL——本部署没有启用研究面，属未启用不属故障",
+              hint: "要启用：后台配置页填 http://localhost:8800，并 corepack pnpm dev:restart research-runtime",
+            };
+          }
+          const endpoint = probeOriginForHost(new URL(url).origin, host);
+          const probe = await httpProbe(fetchImpl, `${endpoint}/health`);
+          if (!probe.reachable || probe.status !== 200) {
+            return {
+              ...base,
+              endpoint,
+              url: `${endpoint}/health`,
+              state: "down",
+              detail: probe.error ?? `HTTP ${probe.status ?? "无响应"}`,
+              hint: restartHint("research-runtime"),
+            };
+          }
+          // 队列注册情况与 codebook 版本带到卡上——缺 DASHSCOPE_API_KEY 时
+          // embed 会是 false，那是"这一档没接"而不是"服务坏了"。
+          let body: { queue?: Record<string, boolean>; codebook?: { version?: string; locked?: boolean } } = {};
+          try {
+            body = JSON.parse(probe.body ?? "{}") as typeof body;
+          } catch {
+            // 探活回了非 JSON：仍算 ok（端口在应答），只是卡上少一行细节。
+          }
+          const queues = Object.entries(body.queue ?? {})
+            .map(([k, v]) => `${k}${v ? "" : "(未接)"}`)
+            .join(" ");
+          return {
+            ...base,
+            endpoint,
+            url: `${endpoint}/health`,
+            state: "ok",
+            latencyMs: probe.latencyMs,
+            detail: `codebook v${body.codebook?.version ?? "?"}${body.codebook?.locked ? "（已锁）" : "（未锁）"}；队列 ${queues || "无"}`,
+          };
+        })(),
+
         // worker：先问端口（进程此刻在不在），端口不通再退回留痕（任务最近跑过没有）
         (async (): Promise<ServiceReport> => {
           const base = {

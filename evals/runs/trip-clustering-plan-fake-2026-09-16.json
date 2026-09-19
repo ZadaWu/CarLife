@@ -1,0 +1,36 @@
+{
+  "layer": "plan",
+  "fake": true,
+  "model": "fake",
+  "at": "2026-09-16T03:30:58.667Z",
+  "total": 13,
+  "selected": 1,
+  "command": "corepack pnpm eval:trip-clustering -- -- --layer plan --fake --only sh-local-nodays",
+  "results": [
+    {
+      "id": "sh-local-nodays",
+      "input": "带爸妈在上海转转，从嘉定出发，想去迪士尼和外滩。",
+      "days": 2,
+      "status": "ok",
+      "durationMs": 1496,
+      "clarified": false,
+      "searchCalls": 0,
+      "coverage": {
+        "withCoord": 0,
+        "total": 0
+      }
+    }
+  ],
+  "summary": {
+    "counted": [],
+    "excluded": [
+      "sh-local-nodays"
+    ],
+    "points": 0,
+    "misassigned": 0
+  },
+  "repair": {
+    "casesWithRepair": 0,
+    "blockersLeftTotal": 0
+  }
+}
