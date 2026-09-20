@@ -259,6 +259,7 @@ import {
 import { runCabinContext, runCabinControl } from "./subgraphs/cabin";
 import { runFanout } from "./fanout";
 import { failureFollowup } from "./failure-followup";
+import { GENERAL_SCOPE_NOTE, generalScopeEnabled } from "./general-scope";
 import { noteNodeStart } from "../trace/live";
 import { clipForTrace, OUTPUT_MAX_CHARS } from "../trace/span";
 import { cabinTaskPrompt, cabinTaskResult, MUTATING_CABIN_TOOLS, type PrefetchedCaps } from "./cabin-task";
@@ -3129,8 +3130,11 @@ export function buildChatGraph(streamer: ChatStreamer, opts: BuildGraphOptions =
      */
     const turnCtx = configurable?.turnContext;
     const turnBlock = turnCtx?.turnFor(target);
+    // 作答范围只挂在**落到 general、且没有求解结果**的那一路——其余路由的尾区逐字不变（理由见 general-scope.ts）。
+    const scopeNote = target === "supervisor" && !solved && generalScopeEnabled() ? GENERAL_SCOPE_NOTE : undefined;
     const tail = [
       turnBlock,
+      scopeNote,
       solved ? `【编排层已完成的求解结果，请据此作答，不要另行推算】\n${solved}` : undefined,
     ]
       .filter((s): s is string => Boolean(s))

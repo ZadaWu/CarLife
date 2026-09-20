@@ -58,19 +58,40 @@ export interface PendingDetect {
   error?: string;
 }
 
-/** 端上框灯开关（ACR-044 第 3 步）。缺省关：关着时端与服务端行为与没有这功能时完全一样。 */
+/**
+ * 端上框灯开关（ACR-044 第 3 步）。
+ *
+ * **缺省开**（ACR-050，2026-09-20）。验机期缺省关，为的是"关着时与没有这功能完全一样"；
+ * 产品形态定下来之后是反过来的：装在手机 / iPad / Mac 上的端自己框（同一份 ONNX，release 构建约 200 ms），
+ * 只有做不了端上检测的环境（网页演示版）才交给服务端的 vision-infer。
+ * 显式关过的人保持关：关写的是 "0"，不是删键——删键分不清"从没碰过"与"碰过又关了"。
+ *
+ * 检测慢或失败都不挡发送：`readyDetections` 只收已完成的，其余照片不带框，服务端自己框。
+ */
 export const ON_DEVICE_VISION_KEY = "carlife.vision.onDevice";
+
+/**
+ * 本环境有没有端上检测。网页演示版（ACR-049 的垫片）没有——`vision_detect` 是原生模型，垫片明确拒绝。
+ * 垫片装上时在 globalThis 上留这个记号；用全局记号而不是模块内变量，是因为垫片走子路径
+ * `@carlife/ui/web-shim`、对话层走包根，打包后未必是同一个模块实例。
+ */
+export const NO_ON_DEVICE_VISION_MARK = "__CARLIFE_NO_ON_DEVICE_VISION__";
+export function onDeviceVisionAvailable(): boolean {
+  return (globalThis as Record<string, unknown>)[NO_ON_DEVICE_VISION_MARK] !== true;
+}
+
 export function onDeviceVisionEnabled(): boolean {
+  if (!onDeviceVisionAvailable()) return false;
   try {
-    return globalThis.localStorage?.getItem(ON_DEVICE_VISION_KEY) === "1";
+    return globalThis.localStorage?.getItem(ON_DEVICE_VISION_KEY) !== "0";
   } catch {
-    return false;
+    // 读不了偏好（隐私模式等）按缺省走
+    return true;
   }
 }
 export function setOnDeviceVisionEnabled(on: boolean): void {
   try {
-    if (on) globalThis.localStorage?.setItem(ON_DEVICE_VISION_KEY, "1");
-    else globalThis.localStorage?.removeItem(ON_DEVICE_VISION_KEY);
+    globalThis.localStorage?.setItem(ON_DEVICE_VISION_KEY, on ? "1" : "0");
   } catch {
     /* 非浏览器环境 */
   }

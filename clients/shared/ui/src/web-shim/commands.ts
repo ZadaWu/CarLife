@@ -94,8 +94,8 @@ const REJECTED: Record<string, string> = {
   switch_device_role: "演示版固定为私人身份",
   create_session_as: "成员声明属于车机设备身份，演示版以私人身份运行",
   vehicle_members: "成员声明属于车机设备身份，演示版以私人身份运行",
-  upload_attachment: "附件上传走 Rust 的分片通道，演示版暂未提供",
-  fetch_attachment: "附件取件走 Rust 的原始 IPC，演示版暂未提供",
+  // upload_attachment / fetch_attachment 不在这里：它们在 index.ts 的对话核心里实现
+  // （网关本来就是原始 body + 头部元数据，浏览器的 fetch 直接能发，见 attachments.ts）。
   vision_detect: "端上视觉检测是原生模型，演示版不提供",
   net_diag: "网络诊断读的是本机路由表，只在原生端",
   export_en_route_log: "途中日志在本机文件系统，只在原生端",

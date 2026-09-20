@@ -1,5 +1,5 @@
 /**
- * [F-09-07][AC-9-1] [F-20-15][AC-20-1] 拍照问诊 · 拍照页（施工单 M104-03）。读源码不渲染（本包无 jsdom）。
+ * [F-09-07][AC-09-1] [F-20-15][AC-20-1] 拍照问诊 · 拍照页（施工单 M104-03）。读源码不渲染（本包无 jsdom）。
  *
  * 守的是：快门与「相册」在**用户手势栈里**直接 click 隐藏的 input（不经 setState 后 effect——那正是 M103-02
  * 在 iOS 上可能不弹的原因）；拍完以空文字 + 一枚句柄发出；失败留在页上；没有上传端口就禁用不假装。
@@ -13,7 +13,7 @@ const CSS = readFileSync(new URL("../src/features/service/service.css", import.m
 const APP = readFileSync(new URL("../src/app/index.tsx", import.meta.url), "utf8");
 const count = (s: string, n: string) => s.split(n).length - 1;
 
-describe("[F-09-07][AC-9-1] 两枚 input：都收图片，恰好一枚直开相机", () => {
+describe("[F-09-07][AC-09-1] 两枚 input：都收图片，恰好一枚直开相机", () => {
   it('恰好两枚 <input type="file"，accept="image/*"，一枚 capture="environment"', () => {
     assert.equal(count(SRC, '<input ref='), 2);
     assert.equal(count(SRC, 'accept="image/*"'), 2);

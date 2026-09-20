@@ -18,6 +18,10 @@ describe("端上框灯：开关在设置页，对话页现读", () => {
     assert.match(SETTINGS, /useState<boolean>\(\(\) => onDeviceVisionEnabled\(\)\)/);
   });
 
+  it("没有端上检测的环境（网页演示版）整组不显示——那里它是一枚拨了没用的开关（ACR-050）", () => {
+    assert.match(SETTINGS, /\{onDeviceVisionAvailable\(\) && \(\s*<section className="mset-group">\s*<h2>端上框灯<\/h2>/);
+  });
+
   it("对话页选文件时现读，不缓存成 state", () => {
     assert.match(DIALOG, /if \(kind === "image" && onDeviceVisionEnabled\(\)\) startDetect/);
     assert.equal(/const \[onDevice, setOnDevice\]/.test(DIALOG), false, "缓存成 state 的话设置页改完这一轮不生效");

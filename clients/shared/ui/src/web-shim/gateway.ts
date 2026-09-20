@@ -15,6 +15,8 @@ export class GatewayError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** 响应体原文。网关的拒绝带面向用户的 `reason`（F-09-10），丢了它界面只剩一个状态码。 */
+    readonly body: string = "",
   ) {
     super(message);
   }
@@ -110,7 +112,7 @@ export class Gateway {
       await this.ensureLogin();
       res = await send();
     }
-    if (!res.ok) throw new GatewayError(path + " → " + res.status, res.status);
+    if (!res.ok) throw new GatewayError(path + " → " + res.status, res.status, await res.text().catch(() => ""));
     return res;
   }
 

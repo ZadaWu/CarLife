@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { TURN_ATTACHMENT_LIMITS, type AttachmentRef, type ChatMessage } from "@carlife/shared";
 
-import { DialogScreen, attachmentLabel, checkPendingAdd, detectSummary, durationHint, formatBytes, kindOfFile, kindOfMime, onDeviceVisionEnabled, readyDetections, readyHandles, MAX_DETECTIONS_PER_PHOTO, type DialogScreenProps, type PendingAttachment } from "../src/dialog";
+import { DialogScreen, attachmentLabel, checkPendingAdd, detectSummary, durationHint, formatBytes, kindOfFile, kindOfMime, onDeviceVisionAvailable, onDeviceVisionEnabled, setOnDeviceVisionEnabled, NO_ON_DEVICE_VISION_MARK, ON_DEVICE_VISION_KEY, readyDetections, readyHandles, MAX_DETECTIONS_PER_PHOTO, type DialogScreenProps, type PendingAttachment } from "../src/dialog";
 
 const pending = (kind: "image" | "video", status: PendingAttachment["status"] = "ready", i = 0): PendingAttachment => ({
   id: `p${kind}${i}`,
@@ -120,8 +120,42 @@ describe("端上框灯（ACR-044）", () => {
     assert.match(s, /框到 1 盏（210 ms）：low_beam 84%/);
     assert.doesNotMatch(s, /故障|请立即|联系/);
   });
-  it("开关缺省关（没有 localStorage 也不炸）", () => {
-    assert.equal(onDeviceVisionEnabled(), false);
+  it("开关缺省开（ACR-050；没有 localStorage 也不炸）", () => {
+    assert.equal(onDeviceVisionEnabled(), true);
+  });
+  it("显式关过的保持关：关写的是 \"0\" 不是删键——删键分不清「从没碰过」与「碰过又关了」", () => {
+    const g = globalThis as { localStorage?: unknown };
+    const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) },
+    });
+    try {
+      assert.equal(onDeviceVisionEnabled(), true, "从没碰过 = 缺省开");
+      setOnDeviceVisionEnabled(false);
+      assert.equal(store.get(ON_DEVICE_VISION_KEY), "0");
+      assert.equal(onDeviceVisionEnabled(), false);
+      setOnDeviceVisionEnabled(true);
+      assert.equal(onDeviceVisionEnabled(), true);
+      // 旧版本打开过的人存的是 "1"，照旧是开
+      store.set(ON_DEVICE_VISION_KEY, "1");
+      assert.equal(onDeviceVisionEnabled(), true);
+    } finally {
+      if (before) Object.defineProperty(globalThis, "localStorage", before);
+      else delete g.localStorage;
+    }
+  });
+  it("没有端上检测的环境（网页演示版）恒为关，哪怕偏好里写着开", () => {
+    const g = globalThis as Record<string, unknown>;
+    g[NO_ON_DEVICE_VISION_MARK] = true;
+    try {
+      assert.equal(onDeviceVisionAvailable(), false);
+      assert.equal(onDeviceVisionEnabled(), false);
+    } finally {
+      delete g[NO_ON_DEVICE_VISION_MARK];
+    }
+    assert.equal(onDeviceVisionAvailable(), true);
   });
   it("开关不在输入条里（M104 起搬去设置页）；也没有任何自测入口（车机不选文件，FL-06）", () => {
     const base: DialogScreenProps = { messages: [], streaming: null, connection: "open", onSendText: async () => {} } as unknown as DialogScreenProps;

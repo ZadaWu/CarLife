@@ -9,13 +9,14 @@
  * 暗色文字链，看上去像禁用状态，实际使用中没人点得到（已修）。
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 
 /** 每页条数。50 是一屏扫得完、又不至于翻太多次的折中。 */
 const PAGE_SIZE = 20;
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../../api";
+import { IdentityContext } from "../../app/identity";
 import { AudioButton } from "./AudioButton";
 import { RouteCompare } from "./RouteCompare";
 // 轨迹抽屉（研发 / 业务两个视图）在 ./TraceDrawer；本文件只负责会话列表与对话流。
@@ -43,6 +44,8 @@ interface SessionRow {
   turnCount: number;
   firstMessageAt: number | null;
   lastMessageAt: number | null;
+  /** 清理时刻（M108，软删除）；`null` / 缺席 = 没被清理过。 */
+  deletedAt?: string | null;
   /** 这条会话最新的行程摘要（网关按会话前缀带上）；缺省 = 这条对话没落成行程。 */
   trip?: SessionTrip;
 }
@@ -81,6 +84,8 @@ function SessionList(): JSX.Element {
    * 只有车主端把它们藏起来（见 `userSessionPage` 的注释）。
    */
   const [nonEmpty, setNonEmpty] = useState(false);
+  /** 清理状态筛选（M108）：`""` 未清理（缺省）/ `include` 含已清理 / `only` 只看已清理。 */
+  const [deleted, setDeleted] = useState<"" | "include" | "only">("");
   const [error, setError] = useState<string | null>(null);
   /**
    * 分页游标栈。
@@ -96,10 +101,10 @@ function SessionList(): JSX.Element {
 
   const cursor = stack[stack.length - 1];
 
-  const filters = { userId, sessionId: keyword, title, since, until, nonEmpty };
+  const filters = { userId, sessionId: keyword, title, since, until, nonEmpty, deleted: deleted || undefined };
   const load = useCallback(() => {
     const q = sessionQuery(
-      { userId, sessionId: keyword, title, since, until, nonEmpty },
+      { userId, sessionId: keyword, title, since, until, nonEmpty, deleted: deleted || undefined },
       { limit: String(PAGE_SIZE) },
     );
     if (cursor) q.set("cursor", cursor);
@@ -115,7 +120,7 @@ function SessionList(): JSX.Element {
       })
       .catch((e: unknown) => setError(e instanceof ApiError ? e.code : String(e)))
       .finally(() => setLoading(false));
-  }, [userId, keyword, title, since, until, nonEmpty, cursor]);
+  }, [userId, keyword, title, since, until, nonEmpty, deleted, cursor]);
 
   useEffect(() => {
     load();
@@ -130,6 +135,65 @@ function SessionList(): JSX.Element {
   const resetPaging = () => {
     setStack([undefined]);
     setNext(null);
+  };
+
+  /*
+   * ── 清理与恢复（M108-04）。**软删除**：只是让会话从列表里退场，任何东西都没删，
+   * 所以界面一律说「清理 / 恢复」，不说「删除」——叫删除会让人以为找不回来。
+   * 只有 admin 看得到这三个入口；接口那一侧也只认 admin（ops 会拿到 403）。
+   */
+  const identity = useContext(IdentityContext);
+  const isAdmin = identity?.role === "admin";
+  /** 正在处理的那一行（按钮禁用）；`"*"` = 正在清理全部。 */
+  const [busy, setBusy] = useState<string | null>(null);
+  /** 「清理全部」的确认框：`total` 来自服务端的 dryRun，不是这一页的条数。 */
+  const [confirmAll, setConfirmAll] = useState<{ total: number } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const act = (key: string, run: () => Promise<string | null>): void => {
+    setBusy(key);
+    setError(null);
+    setNotice(null);
+    run()
+      .then((msg) => {
+        if (msg) setNotice(msg);
+        // 成功后重新拉当前页，不在本地拼列表——这一页少了一条之后该补谁进来，只有服务端知道。
+        load();
+      })
+      .catch((e: unknown) => setError(e instanceof ApiError ? e.code : String(e)))
+      .finally(() => setBusy(null));
+  };
+  const cleanOne = (id: string): void =>
+    act(id, async () => {
+      await api.post(`/console/sessions/${encodeURIComponent(id)}/clean`);
+      return null;
+    });
+  const restoreOne = (id: string): void =>
+    act(id, async () => {
+      await api.post(`/console/sessions/${encodeURIComponent(id)}/restore`);
+      return null;
+    });
+  // 只问个数、不动任何东西——所以不走 `act`（那条成功后会重拉列表，这里没有东西变）。
+  const askCleanAll = (): void => {
+    setError(null);
+    setNotice(null);
+    api
+      .post<{ total: number }>("/console/sessions/clean-all", { dryRun: true })
+      .then((r) => setConfirmAll({ total: r.total }))
+      .catch((e: unknown) => setError(e instanceof ApiError ? e.code : String(e)));
+  };
+  const cleanAll = (): void => {
+    setConfirmAll(null);
+    act("*", async () => {
+      const r = await api.post<{ cleaned: number; remaining: number }>(
+        "/console/sessions/clean-all",
+        { confirm: "all" },
+      );
+      resetPaging();
+      return r.remaining > 0
+        ? `已清理 ${r.cleaned} 条，还剩 ${r.remaining} 条——一次最多清 1 万条，再点一次「清理全部」。`
+        : `已清理 ${r.cleaned} 条。需要找回时选「只看已清理」再点恢复。`;
+    });
   };
 
   return (
@@ -220,6 +284,24 @@ function SessionList(): JSX.Element {
           />
           <span>只看说过话的（隐藏空白对话）</span>
         </label>
+        {/*
+          被清理的会话（M108，软删除）缺省不在列表里。三态而不是一个勾：
+          「连它们一起看」与「只看它们」是两个用途——前者是核对，后者是找回清错的那条。
+        */}
+        <label className="ss-field">
+          <span>清理状态</span>
+          <select
+            value={deleted}
+            onChange={(e) => {
+              setDeleted(e.target.value as "" | "include" | "only");
+              resetPaging();
+            }}
+          >
+            <option value="">未清理</option>
+            <option value="include">含已清理</option>
+            <option value="only">只看已清理</option>
+          </select>
+        </label>
         <button type="button" className="ss-btn" onClick={load}>
           查询
         </button>
@@ -234,13 +316,45 @@ function SessionList(): JSX.Element {
               setSince("");
               setUntil("");
               setNonEmpty(false);
+              setDeleted("");
               resetPaging();
             }}
           >
             清空
           </button>
         ) : null}
+        {isAdmin ? (
+          <button
+            type="button"
+            className="ss-btn ss-btn--danger"
+            disabled={busy !== null}
+            onClick={askCleanAll}
+            title="把全部会话从列表里清理掉（软删除，可恢复）"
+          >
+            清理全部…
+          </button>
+        ) : null}
       </div>
+
+      {confirmAll ? (
+        <div className="ss-confirm" role="alertdialog" aria-label="确认清理全部会话">
+          <p>
+            将清理<b> {confirmAll.total} </b>条会话（全部未清理的，不受上面筛选条件影响）。
+            <br />
+            这是软删除：会话、消息、轨迹一条都不会删，只是不再出现在车主端与这里的列表里；
+            清理的同时会话会被关闭，不能再接着说。之后可在「只看已清理」里逐条恢复。
+          </p>
+          <div className="ss-confirm-actions">
+            <button type="button" className="ss-btn ss-btn--danger" onClick={cleanAll}>
+              确认清理 {confirmAll.total} 条
+            </button>
+            <button type="button" className="ss-btn ss-btn--ghost" onClick={() => setConfirmAll(null)}>
+              取消
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {notice ? <p className="ss-note">{notice}</p> : null}
 
       {error ? <p className="ss-error">{error}</p> : null}
       {!rows ? (
@@ -251,6 +365,7 @@ function SessionList(): JSX.Element {
           {title.trim() ? "（标题是首轮之后才生成的，还没起名的会话搜不到。）" : ""}
           {/* 空结果时说清是哪条筛掉的——否则"这个用户一条会话都没有"与"他的会话都是空白的"长得一模一样。 */}
           {nonEmpty ? "（已隐藏空白对话：建了但一句没说的那些。）" : ""}
+          {deleted === "" ? "（被清理的会话缺省不显示，可在「清理状态」里选含已清理。）" : ""}
         </p>
       ) : (
         <div className="ss-list">
@@ -266,7 +381,7 @@ function SessionList(): JSX.Element {
             return (
               <div
                 key={s.sessionId}
-                className="ss-row"
+                className={`ss-row${s.deletedAt ? " is-deleted" : ""}`}
                 onClick={open}
                 tabIndex={0}
                 role="link"
@@ -284,6 +399,11 @@ function SessionList(): JSX.Element {
                     <span className="ss-row-title ss-row-title--none">（还没起名）</span>
                   )}
                   <span className="ss-row-id">{s.sessionId}</span>
+                  {s.deletedAt ? (
+                    <span className="ss-deleted-chip" title="软删除：会话与消息都还在，可恢复">
+                      已清理 · {new Date(s.deletedAt).toLocaleString()}
+                    </span>
+                  ) : null}
                   {/* 定了行程的对话在列表上就能认出来，不用逐条点进去 */}
                   {s.trip && (
                     <span
@@ -308,6 +428,22 @@ function SessionList(): JSX.Element {
                 <span className="ss-row-time">
                   {s.lastMessageAt ? new Date(s.lastMessageAt).toLocaleString() : "—"}
                 </span>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="ss-btn ss-btn--ghost ss-row-act"
+                    disabled={busy !== null}
+                    onClick={(e) => {
+                      // 行本身是个链接；不拦的话点「清理」会同时跳进详情页。
+                      e.stopPropagation();
+                      if (s.deletedAt) restoreOne(s.sessionId);
+                      else cleanOne(s.sessionId);
+                    }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {busy === s.sessionId ? "处理中…" : s.deletedAt ? "恢复" : "清理"}
+                  </button>
+                ) : null}
                 <span className="ss-row-cta">查看详情 →</span>
               </div>
             );

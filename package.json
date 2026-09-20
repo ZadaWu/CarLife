@@ -105,6 +105,7 @@
     "probe:tour-clustering": "tsx scripts/dev/probe/tour-day-clustering.mts",
     "probe:trip-live": "tsx scripts/dev/probe/trip-live-evidence.mts",
     "probe:weather": "tsx scripts/dev/probe/weather-probe.mts",
+    "probe:vision-infer": "tsx scripts/dev/probe/vision-infer-probe.mts",
     "rag:eval": "tsx scripts/dev/kb/rag-eval.mts",
     "selfcheck:clean": "tsx scripts/dev/check/selfcheck.ts --clean",
     "selfcheck": "tsx scripts/dev/check/selfcheck.ts",

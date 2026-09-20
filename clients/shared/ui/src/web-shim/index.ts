@@ -28,6 +28,8 @@
 
 import { BRIDGE_EVENTS, type ChatMessage, type EventEnvelope, type HistoryPage } from "@carlife/shared";
 
+import { NO_ON_DEVICE_VISION_MARK } from "../dialog/attachments";
+import { fetchAttachment, RAW_IPC_COMMANDS, uploadAttachment, type InvokeOptionsLike } from "./attachments";
 import { createLocalState, handleCommand, ShimRejected } from "./commands";
 import { Gateway, type Credentials } from "./gateway";
 import { project, TurnAccumulator } from "./project";
@@ -39,6 +41,7 @@ export { shimCoverage, ShimRejected } from "./commands";
 export { Gateway, GatewayError, AUTH_HEADER } from "./gateway";
 export { browserMicPermission, createBrowserRecorder, encodePcmS16le, resampleTo16k, type Recorder } from "./voice";
 export { createSpeaker, parseTtsNdjson, type Speaker } from "./speech";
+export { bytesOf, RAW_IPC_COMMANDS, uploadFailureText, type InvokeOptionsLike } from "./attachments";
 
 type Args = Record<string, unknown>;
 
@@ -46,8 +49,8 @@ export interface WebShimDeps {
   /** `@tauri-apps/api/mocks` 的 `mockIPC` */
   /**
    * 参数类型放宽到 unknown：Tauri 的 `InvokeArgs` 还允许是字节数组（原始 IPC，
-   * 附件上传走的那条）。垫片只认对象形参，其它形态一律按空参数处理——
-   * 走原始 IPC 的那几个命令本来就在拒绝清单里。
+   * 附件上传走的那条）。字节原样递给 `dispatch`，由它分辨——别在这一层归一成 `{}`，
+   * 那样照片在进门那一刻就没了。
    */
   mockIPC: (cb: (cmd: string, args?: unknown) => unknown, options?: { shouldMockEvents?: boolean }) => void;
   /** `@tauri-apps/api/event` 的 `emit` */
@@ -241,7 +244,15 @@ export function createShim(deps: WebShimDeps) {
     return page.messages;
   }
 
-  async function dispatch(cmd: string, args: Args = {}): Promise<unknown> {
+  /**
+   * `rawArgs` 多数时候是对象形参；原始 IPC 的命令（附件上传）递进来的是字节。
+   * `options` 是 `invoke` 的第三个参数——mockIPC 不转发它，由 `installWebShim` 补递。
+   */
+  async function dispatch(cmd: string, rawArgs: unknown = {}, options?: InvokeOptionsLike): Promise<unknown> {
+    const args: Args =
+      rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs) && !ArrayBuffer.isView(rawArgs) && !(rawArgs instanceof ArrayBuffer)
+        ? (rawArgs as Args)
+        : {};
     switch (cmd) {
       // ── 身份 ──────────────────────────────────────────────
       case "auth_status":
@@ -271,11 +282,22 @@ export function createShim(deps: WebShimDeps) {
         return null;
       case "send_text_message": {
         // **不做本地乐观插入**：用户气泡由 SSE 的 prompt 事件回流（与原生端同一条纪律）
+        // 附件句柄与端上框：缺省 / 空 = 请求体与纯文字那一版逐字节相同（与 Rust 的 send_text_with_detections 同一条纪律）
+        const handles = Array.isArray(args.attachments) ? args.attachments : [];
+        const detections = args.detections && typeof args.detections === "object" ? (args.detections as Record<string, unknown>) : {};
         const r = await gw.json<{ turnId: string }>("POST", "/v1/session/" + encodeURIComponent(String(args.sessionId)) + "/messages", {
           content: String(args.content ?? ""),
+          ...(handles.length ? { attachments: handles } : {}),
+          ...(Object.keys(detections).length ? { detections } : {}),
         });
         return r.turnId;
       }
+
+      // ── 附件（照片 / 视频）────────────────────────────────
+      case "upload_attachment":
+        return uploadAttachment(gw, rawArgs, options);
+      case "fetch_attachment":
+        return fetchAttachment(gw, args.handle);
       case "resume_interrupt":
         await gw.request("POST", "/v1/session/" + encodeURIComponent(String(args.sessionId)) + "/resume", {
           json: { interruptId: args.interruptId, approved: args.approved === true },
@@ -380,10 +402,25 @@ export function createShim(deps: WebShimDeps) {
  */
 export async function installWebShim(deps: WebShimDeps): Promise<void> {
   const shim = createShim(deps);
-  deps.mockIPC(
-    (cmd, args) => shim.dispatch(cmd, args && typeof args === "object" && !Array.isArray(args) && !ArrayBuffer.isView(args) ? (args as Args) : {}),
-    { shouldMockEvents: true },
-  );
+  /*
+   * 声明"本环境没有端上检测"（ACR-050）。端上框灯缺省是开的，而 `vision_detect` 在垫片里是明确拒绝的——
+   * 不声明的话每张照片都会先白跑一次注定失败的检测，设置页还会摆着一枚拨了没用的开关。
+   * 照片因此不带框上行，由服务端的 vision-infer 定位。必须在 React 渲染之前：设置页挂载时就读它。
+   */
+  (globalThis as Record<string, unknown>)[NO_ON_DEVICE_VISION_MARK] = true;
+  deps.mockIPC((cmd, args) => shim.dispatch(cmd, args), { shouldMockEvents: true });
+  /*
+   * mockIPC 装上的 `invoke(cmd, args, _options)` **不转发第三个参数**，而附件上传的
+   * 会话号 / MIME / 文件名全在 `options.headers` 里。所以在它之上再包一层：
+   * 只有点了名的命令改走这里，其余（含 `plugin:event|*` 的事件模拟）原样交回 mockIPC。
+   * 经 globalThis 取——本模块不直接依赖 window，单测里没有这个对象时整段跳过。
+   */
+  type InvokeFn = (cmd: string, args?: unknown, options?: InvokeOptionsLike) => Promise<unknown>;
+  const internals = (globalThis as { __TAURI_INTERNALS__?: { invoke?: InvokeFn } }).__TAURI_INTERNALS__;
+  const mocked = internals?.invoke;
+  if (internals && mocked) {
+    internals.invoke = (cmd, args, options) => (RAW_IPC_COMMANDS.has(cmd) ? shim.dispatch(cmd, args, options) : mocked(cmd, args, options));
+  }
   // 先把演示账号登录好：`auth_status` 是同步语义的命令，端上拿到 authenticated=false 就会弹登录门
   await shim.gateway.login().catch(() => undefined);
 }

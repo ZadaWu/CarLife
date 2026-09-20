@@ -36,6 +36,7 @@
 
 import { createVehicleRepository, getPrisma } from "@carlife/db";
 import { getMemoryClient } from "@carlife/memory";
+import { createCabinClient, createHttpCabinBackend, type CabinBindingStore, type CabinClient } from "@carlife/tools";
 
 // ── 可识别前缀：reset 的唯一依据 ────────────────────────────
 
@@ -377,6 +378,62 @@ async function seedPostgres(now: number): Promise<StepResult[]> {
   return out;
 }
 
+// ── 车机绑定：默认演示车必须是"已绑定" ──────────────────────
+//
+// 绑定只有两个入口：档案页那颗「绑定车机」按钮，和这里。早先只有前一个——
+// 本机那条绑定是某次走查时手点出来的，于是"演示车能调空调"成了一件**只在点过按钮的
+// 那个库里成立**的事。2026-09-19 线上 ECS 重灌数据后没人点，公开演示站的表现是
+// 电量读不到、座舱指令全部回"这辆车还没绑定车机"；而 mock-cabin 健康、网关 200、
+// 日志里一条错都没有，第一反应是去查"mock 是不是没部署"。
+//
+// 只绑默认车（Model Y）。迈锐宝刻意留成未绑定——「未绑定 → 绑定」这条引导
+// 本身是要演的（AC-49-8），两辆都绑上就没地方演了。
+//
+// ⚠️ `MOCK_CABIN_URL` 必须指向**目标库那套服务**用的同一个 mock-cabin。
+// 拿本机的 mock 给线上库建号，写回去的是一个线上 mock 不认识（或属于别的车）的 id。
+// 前者会被 CabinClient 的悬空重建自愈，后者不会。
+
+/**
+ * 绑一辆车并报告结果。**抽出来是为了能被断言**：绑不上必须是 `ok: false`——
+ * 这一步存在的全部理由，就是不让"没绑上"再静默一次。
+ */
+export async function bindSeedCabin(client: Pick<CabinClient, "bind">, vin: string): Promise<StepResult> {
+  try {
+    const r = await client.bind(vin);
+    return {
+      name: "车机绑定",
+      ok: true,
+      detail: `${vin} → ${r.vehicleId}${r.rebuilt ? "（车机侧已重建）" : ""}；网关的档案缓存最多滞后 60 秒`,
+    };
+  } catch (err) {
+    return {
+      name: "车机绑定",
+      ok: false,
+      detail: `${vin} 没绑上：${err instanceof Error ? err.message : String(err)}——mock-cabin 起了吗（dev:status）？`,
+    };
+  }
+}
+
+async function seedCabinBinding(): Promise<StepResult[]> {
+  const url = (process.env.MOCK_CABIN_URL ?? "").trim();
+  if (!url) {
+    // 没接车机的环境里 seed 不该红；但要说出来——"跳过"和"绑上了"在下游长得不一样。
+    return [{ name: "车机绑定", ok: true, detail: "跳过：MOCK_CABIN_URL 未配，演示车保持未绑定（电量与座舱指令会如实报未绑定）" }];
+  }
+  const prisma = getPrisma();
+  // 与网关装配的那份同形（gateway/src/index.ts）：绑定回写落在④档案的 cabin_vehicle_id。
+  const store: CabinBindingStore = {
+    async load(vin) {
+      const v = await prisma.vehicle.findUnique({ where: { vin }, select: { model: true, cabinVehicleId: true } });
+      return v ? { model: v.model, cabinVehicleId: v.cabinVehicleId ?? undefined } : null;
+    },
+    async save(vin, cabinVehicleId) {
+      await prisma.vehicle.update({ where: { vin }, data: { cabinVehicleId } });
+    },
+  };
+  return [await bindSeedCabin(createCabinClient(createHttpCabinBackend(url), store), VIN_EV)];
+}
+
 async function seedMemory(now: number): Promise<StepResult[]> {
   const client = getMemoryClient();
   const ready = await client.ensureReady();
@@ -463,11 +520,23 @@ export async function status(): Promise<StepResult[]> {
     prisma.maintenanceRecord.count({ where: { vin: { startsWith: DEMO_VIN_PREFIX } } }),
     prisma.repairRecord.count({ where: { vin: { startsWith: DEMO_VIN_PREFIX } } }),
   ]);
+  // 默认演示车绑没绑车机——没接车机的环境（MOCK_CABIN_URL 未配）不算缺。
+  const ev = await prisma.vehicle.findUnique({ where: { vin: VIN_EV }, select: { cabinVehicleId: true } });
+  const cabinConfigured = (process.env.MOCK_CABIN_URL ?? "").trim() !== "";
   return [
     { name: "④车辆档案", ok: cars > 0, detail: `${cars} 辆` },
     { name: "⑥用车流水", ok: trips > 0, detail: `${trips} 条` },
     { name: "保养记录", ok: mnt > 0, detail: `${mnt} 条` },
     { name: "维修记录", ok: rep > 0, detail: `${rep} 条` },
+    {
+      name: "车机绑定",
+      ok: Boolean(ev?.cabinVehicleId) || !cabinConfigured,
+      detail: ev?.cabinVehicleId
+        ? `${VIN_EV} → ${ev.cabinVehicleId}`
+        : cabinConfigured
+          ? `${VIN_EV} 未绑定——电量读不到、座舱指令全部回"还没绑定车机"`
+          : "未绑定（MOCK_CABIN_URL 未配，这个环境没接车机）",
+    },
   ];
 }
 
@@ -493,7 +562,7 @@ async function main(): Promise<void> {
     process.exit(ok ? 0 : 1);
   }
 
-  const steps = [...(await seedPostgres(now)), ...(await seedMemory(now))];
+  const steps = [...(await seedPostgres(now)), ...(await seedCabinBinding()), ...(await seedMemory(now))];
   const ok = report("演示数据已预置（全部标注为模拟）：", steps);
   console.log(
     `\n归属用户 ${DEMO_USER}；车辆 VIN 前缀 ${DEMO_VIN_PREFIX}、行程 id 前缀 ${DEMO_TRIP_PREFIX}。` +

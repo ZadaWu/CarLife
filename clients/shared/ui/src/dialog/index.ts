@@ -11,7 +11,7 @@ export type { AttachmentLoader } from "./AttachmentStrip";
 export { attachmentLabel, checkPendingAdd, durationHint, formatBytes, kindOfFile, kindOfMime, readyDetections, readyHandles, MAX_DETECTIONS_PER_PHOTO } from "./attachments";
 export type { PendingAttachment } from "./attachments";
 // 端上框灯（ACR-044）：开关、摘要与结果类型；两端的 Tauri 端口按 `OnDeviceDetectResult` 回。
-export { ON_DEVICE_VISION_KEY, detectSummary, onDeviceVisionEnabled, setOnDeviceVisionEnabled } from "./attachments";
+export { NO_ON_DEVICE_VISION_MARK, ON_DEVICE_VISION_KEY, detectSummary, onDeviceVisionAvailable, onDeviceVisionEnabled, setOnDeviceVisionEnabled } from "./attachments";
 export type { OnDeviceDetectResult, OnDeviceDetection, PendingDetect } from "./attachments";
 // 版式截图入口用的演示数据（`?dialog=demo`）：两端共用一份。
 export { DEMO_DIALOG_MESSAGES, DEMO_DIALOG_SESSIONS, DEMO_DIALOG_STREAMING, isDialogDemo } from "./demo-dialog";

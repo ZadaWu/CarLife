@@ -139,6 +139,37 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # ── 指示灯检测的只推理服务（ACR-050）
+  #
+  # 观察层第一遍"框在哪"的线上去处：端上带了框的照片不经过它（ACR-045），
+  # 不带框的（网页演示版、关了端上框灯的原生端）由 runtime 经 VISION_TRAINER_URL 的 /predict 打到这里。
+  # 跑的是与端上编进二进制的同一份 ONNX；运行时是 MIT 的 onnxruntime——
+  # **不是** vision-trainer：那个依赖 AGPL 的 ultralytics，只能当不对外的内部工具（ACR-026）。
+  #
+  # 无 env_file：它不需要任何密钥。无 ports：只有 runtime 会找它，服务自身没有鉴权，不该出现在宿主端口上。
+  vision-infer:
+    build:
+      context: ..
+      dockerfile: infra/images/Dockerfile.vision-infer
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    container_name: carlife-vision-infer
+    environment:
+      # 2 核的 ECS 上别让一次推理把两个核都占满——runtime 与网关也在这台机器上
+      VISION_INFER_THREADS: ${VISION_INFER_THREADS:-2}
+    expose:
+      - "8799"
+    # 实测常驻约 200 MB；给到 1g 是为了让异常（而不是正常波动）触发 OOM 重启，别拖垮同机的 postgres
+    mem_limit: 1g
+    healthcheck:
+      # python:slim 里没有 wget / curl
+      test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8799/health', timeout=3))['ok']"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
   # ── Agent 运行时（LangGraph；内部服务，§3 规定网关是唯一对外入口）
   agent-runtime:
     build:
@@ -159,6 +190,11 @@ services:
       MOCK_CABIN_URL: http://mock-cabin:8793
       MOCK_REPAIR_URL: http://mock-repair:8797
       MOCK_INSURANCE_URL: http://mock-insurance:8798
+      # 观察层的 YOLO 检测（ACR-050）。.env 里那个 localhost:8799 是给宿主机上的 vision-trainer 用的，
+      # 在容器里它指向容器自己——2026-09-20 线上就是这样 ECONNREFUSED、每张不带框的照片整图降级，全程零报错。
+      # **刻意不设 depends_on**：检测器不在时观察层会换 describe 那一家定位，不该因为它挡住 runtime 启动。
+      # 网关的同名变量是控制台「模型训练」页的代理，不指向这个只推理的服务，所以只在这里覆盖。
+      VISION_TRAINER_URL: http://vision-infer:8799
     expose:
       - "8791"
     depends_on:

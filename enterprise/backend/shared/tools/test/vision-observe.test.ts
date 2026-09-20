@@ -391,6 +391,54 @@ describe("[F-20-03][AC-20-1] 第一遍零框 → 兜底定位", () => {
     assert.ok(b.notes.some((n) => n.includes("都没框到")), b.notes.join("|"));
   });
 
+  /*
+   * ACR-050（2026-09-20）：线上配了 yolo 却没有 YOLO 服务，detect 每次 ECONNREFUSED。
+   * 原先抛错直接 unreadable、兜底只认"成功但零框"——一条配置问题让每张不带框的照片整图降级，全程零报错。
+   */
+  it("第一遍抛错（检测服务不可达）也问兜底；兜底出框就照常往下走，notes 里留着原始错误", async () => {
+    const image = await synthImage();
+    const p = stub({ detect: async () => { throw new Error("检测器训练服务不可达（http://localhost:8799）：fetch failed"); } });
+    let fallbackCalls = 0;
+    p.detectFallback = async () => {
+      fallbackCalls += 1;
+      return { frame: { quality: {}, cut_off_sides: [], item_count: 1 }, items: [{ category: "warning_light", bbox: RED, confidence: 0.7 }] };
+    };
+    const obs = await observePhoto(image, p);
+    assert.equal(fallbackCalls, 1);
+    assert.equal(obs.frame.unreadable, false, "这一家连不上 ≠ 这张照片读不出");
+    assert.equal(obs.items.length, 1);
+    // 原始错误不能被兜底的成功盖掉：不留痕的话，线上永远没人知道 YOLO 服务其实是挂的
+    assert.ok(obs.notes.some((n) => n.includes("不可达") && n.includes("兜底")), obs.notes.join("|"));
+  });
+
+  it("第一遍抛错、兜底零框 ⇒ 零框的正常观察（不是 unreadable）：第二个人看过了，确实没有", async () => {
+    const image = await synthImage();
+    const p = stub({ detect: async () => { throw new Error("ECONNREFUSED"); } });
+    p.detectFallback = empty;
+    const obs = await observePhoto(image, p);
+    assert.equal(obs.frame.unreadable, false);
+    assert.equal(obs.items.length, 0);
+    assert.ok(obs.notes.some((n) => n.includes("ECONNREFUSED")), obs.notes.join("|"));
+  });
+
+  it("两家都抛错 ⇒ 这才是 unreadable，且两个错误都说出来", async () => {
+    const image = await synthImage();
+    const p = stub({ detect: async () => { throw new Error("ECONNREFUSED"); } });
+    p.detectFallback = async () => { throw new Error("qwen 挂了"); };
+    const obs = await observePhoto(image, p);
+    assert.equal(obs.frame.unreadable, true);
+    assert.ok(obs.notes[0].includes("ECONNREFUSED") && obs.notes[0].includes("qwen 挂了"), obs.notes.join("|"));
+  });
+
+  it("端上零框 + 服务端检测器抛错 ⇒ 继续往下问它的兜底，不把错误当终点", async () => {
+    const image = await synthImage();
+    const base = stub({ detect: async () => { throw new Error("ECONNREFUSED"); } });
+    base.detectFallback = async () => ({ frame: { quality: {}, cut_off_sides: [], item_count: 1 }, items: [{ category: "warning_light", bbox: RED, confidence: 0.6 }] });
+    const obs = await observePhoto(image, withClientDetections(base, { width: 400, height: 300, items: [] }));
+    assert.equal(obs.frame.unreadable, false);
+    assert.equal(obs.items.length, 1);
+  });
+
   it("没装兜底的 provider（两遍同一家）照旧，一行不变", async () => {
     const image = await synthImage();
     const obs = await observePhoto(image, stub({ detect: empty }));

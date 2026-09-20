@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { GatewayField } from "../auth/GatewayField";
-import { LocationSettings, onDeviceVisionEnabled, setOnDeviceVisionEnabled } from "@carlife/ui";
+import { LocationSettings, onDeviceVisionAvailable, onDeviceVisionEnabled, setOnDeviceVisionEnabled } from "@carlife/ui";
 import type { LocationFix } from "@carlife/shared";
 
 import "./settings.css";
@@ -171,7 +171,9 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
           输入条按定稿只放「相机 + 输入框 + 发送」三件，而这枚开关占掉近 90pt 宽、把输入框挤成一条缝；
           它又必须在**选照片之前**定（`onPickFiles` 里读它决定跑不跑检测），放待发条上已经晚了。
           开关值在 localStorage（`carlife.vision.onDevice`），对话页选文件时现读。
+          缺省开（ACR-050）。没有端上检测的环境（网页演示版）整组不显示——那里它是一枚拨了没用的开关。
         */}
+        {onDeviceVisionAvailable() && (
         <section className="mset-group">
           <h2>端上框灯</h2>
           <button
@@ -196,6 +198,7 @@ export function MobileSettings({ onLocated, sentinelOn }: MobileSettingsProps) {
             <span className="cloc-toggle__knob" aria-hidden="true" />
           </button>
         </section>
+        )}
 
         {/*
           日历账号绑定（M92-01，FL-31）。**只在手机端有**：FL-31 铁律规定

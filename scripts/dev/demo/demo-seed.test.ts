@@ -18,7 +18,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import { isValidVin } from "../../../enterprise/backend/shared/memory/src/vehicle-store";
-import { buildTrips } from "./demo-seed";
+import { bindSeedCabin, buildTrips } from "./demo-seed";
 
 // 不 import demo-seed.ts：它拉 `@carlife/db`，而 infra/ 不是 workspace 成员，
 // `test:infra` 会直接 MODULE_NOT_FOUND。这里读源文件抽字面量，
@@ -142,5 +142,34 @@ describe("预置流水：实测续航不依赖播种日是周几", () => {
       if (t.observedRangeKm === undefined) continue;
       assert.ok(t.observedRangeKm >= 418 && t.observedRangeKm <= 452, `越界：${t.observedRangeKm}`);
     }
+  });
+});
+
+describe("demo:seed 给默认演示车绑车机", () => {
+  // 线上演示站 2026-09-20 的事故：mock-cabin 健康、网关 200、一条错都没有，
+  // 演示车却是未绑定——因为绑定只能靠人去档案页点一次，重灌数据后没人点。
+  it("绑上了 → ok，detail 里带车机侧 id（人要能一眼对上 mock 里的那辆）", async () => {
+    const r = await bindSeedCabin({ bind: async () => ({ vehicleId: "VEH-000007", rebuilt: false }) as never }, "DEM00SEED0M0DELY1");
+    assert.equal(r.ok, true);
+    assert.match(r.detail, /DEM00SEED0M0DELY1 → VEH-000007/);
+    assert.doesNotMatch(r.detail, /重建/);
+  });
+
+  it("车机侧重建过要说出来——旧 id 已经悬空，不说的话对不上 mock 的状态文件", async () => {
+    const r = await bindSeedCabin({ bind: async () => ({ vehicleId: "VEH-000008", rebuilt: true }) as never }, "DEM00SEED0M0DELY1");
+    assert.match(r.detail, /重建/);
+  });
+
+  it("**绑不上必须是 ok:false**——这一步存在的理由就是不让「没绑上」再静默一次", async () => {
+    const r = await bindSeedCabin({ bind: async () => { throw new Error("fetch failed"); } }, "DEM00SEED0M0DELY1");
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /fetch failed/);
+  });
+
+  it("seed 的执行序列里真的有这一步，且只绑默认车（迈锐宝留着演「未绑定 → 绑定」）", () => {
+    assert.match(SRC, /seedPostgres\(now\)\), \.\.\.\(await seedCabinBinding\(\)\)/);
+    const body = SRC.slice(SRC.indexOf("async function seedCabinBinding"));
+    assert.match(body.slice(0, body.indexOf("\nasync function seedMemory")), /VIN_EV\)/);
+    assert.doesNotMatch(body.slice(0, body.indexOf("\nasync function seedMemory")), /VIN_ICE/);
   });
 });

@@ -57,7 +57,22 @@ COPY enterprise/console/package.json             enterprise/console/
 COPY clients/mobile/package.json          clients/mobile/
 COPY clients/cockpit/package.json         clients/cockpit/
 # 端应用（Tauri/Vite）不在服务端镜像运行，但 pnpm 需要完整 workspace 图
-RUN pnpm install --frozen-lockfile
+#
+# ⚠️ 换了 npm 源还不够：**原生模块的预编译二进制不走 npm 源**。better-sqlite3（mem0ai 带进来的）
+# 的 install 脚本是 `prebuild-install || node-gyp rebuild`，前者去 github.com 的 release 下
+# `…-linuxmusl-x64.tar.gz`；国内 ECS 连 GitHub 超时（2026-09-20 实测 15 s 无响应），
+# 于是落到 node-gyp，而 alpine 里没有 python——报出来的是 `gyp ERR! find Python`，
+# **离根因（下载超时）隔着一层**，看起来像是要往镜像里装编译工具链。
+# 同一天同一次构建里 migrate 目标下到了、agent-runtime 目标超时，纯属网络抖动，
+# 所以"昨天能编过"不说明什么。npmmirror 同时镜像了这些二进制（同机实测 0.28 s），
+# prebuild-install 认 `npm_config_<包名>_binary_host_mirror`。
+#
+# 只在源是 npmmirror 时才指过去：这个路径布局是 npmmirror 特有的，别的源没有。
+# 判据取 `COREPACK_NPM_REGISTRY`（ENV 会被子阶段继承，ARG 不会）。缺省官方源时一个字不变。
+RUN case "$COREPACK_NPM_REGISTRY" in \
+      *npmmirror.com*) export npm_config_better_sqlite3_binary_host_mirror="https://registry.npmmirror.com/-/binary/better-sqlite3" ;; \
+    esac; \
+    pnpm install --frozen-lockfile
 
 # ── 源码层
 FROM deps AS src

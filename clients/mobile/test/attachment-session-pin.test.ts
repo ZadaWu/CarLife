@@ -19,7 +19,7 @@ import { explainAttachmentFailure } from "../src/data/attachmentFailure";
 
 const APP = readFileSync(new URL("../src/app/index.tsx", import.meta.url), "utf8");
 
-describe("[F-09-07][AC-9-1] 句柄 → 会话的账本", () => {
+describe("[F-09-07][AC-09-1] 句柄 → 会话的账本", () => {
   it("上传进哪段会话，就钉在哪段", () => {
     const s = createAttachmentSessions();
     s.remember("h1", "sess-a");
@@ -53,7 +53,7 @@ describe("[F-09-07][AC-9-1] 句柄 → 会话的账本", () => {
   });
 });
 
-describe("[F-09-07][AC-9-1] 退休判定不读那一拍的 state", () => {
+describe("[F-09-07][AC-09-1] 退休判定不读那一拍的 state", () => {
   it("canRetire 的 lastInteractionAt 来自 ref；ensureUsableSession 的 deps 里没有它", () => {
     const ensure = APP.slice(APP.indexOf("const ensureUsableSession"), APP.indexOf("const endCurrentSession"));
     assert.ok(ensure.includes("lastInteractionAt: lastInteractionRef.current"), "退休判定必须读 ref");
@@ -70,7 +70,7 @@ describe("[F-09-07][AC-9-1] 退休判定不读那一拍的 state", () => {
   });
 });
 
-describe("[F-09-07][AC-9-1] 发消息时把会话钉在上传的那一段", () => {
+describe("[F-09-07][AC-09-1] 发消息时把会话钉在上传的那一段", () => {
   it("upload 成功即记账，sendText 用这组句柄取 keep", () => {
     assert.ok(APP.includes("attachmentSessions.remember(r.handle, sessionId)"), "上传成功要记一笔");
     assert.ok(

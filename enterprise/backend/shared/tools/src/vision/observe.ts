@@ -28,7 +28,7 @@ import sharp from "sharp";
 import { dominantColor } from "./color";
 import { violatesForbidden } from "./forbidden";
 import type { VisionProvider } from "./provider";
-import { PhotoObservationSchema, clientDetectionsToResult, type BBox, type ClientDetections, type Descriptor, type ObservedItem, type PhotoObservation } from "./schema";
+import { PhotoObservationSchema, clientDetectionsToResult, type BBox, type ClientDetections, type Descriptor, type DetectResult, type ObservedItem, type PhotoObservation } from "./schema";
 import { mergeAdjacentSameClass } from "./merge-boxes";
 
 export interface ObserveOptions {
@@ -147,36 +147,49 @@ export async function observePhoto(image: Buffer, provider: VisionProvider, opts
     return unreadable(`不是可解码的图片：${(e as Error).message}`);
   }
 
-  let detect;
-  try {
-    detect = await provider.detect(image);
-  } catch (e) {
-    return unreadable(`检测失败：${(e as Error).message}`);
-  }
   /*
-   * 第一遍零框 → 换一家再定位一次（`provider.detectFallback`，2026-09-19 用户走查）。
+   * 第一遍**抛错或零框** → 换一家再定位一次（`provider.detectFallback`）。
    *
-   * 走查那张是微信裁过的近景（440×548，四盏灯占画幅 9~10%）。同一块屏的全景照
-   * （evals 的 tesla-01）在同样参数下稳出 5 框、置信 0.82~0.94；裁紧之后逐级塌到 0.21~0.30，
+   * 零框那一半（2026-09-19 用户走查）：走查那张是微信裁过的近景（440×548，四盏灯占画幅 9~10%）。
+   * 同一块屏的全景照（evals 的 tesla-01）在同样参数下稳出 5 框、置信 0.82~0.94；裁紧之后逐级塌到 0.21~0.30，
    * 全部落在 conf 0.3 闸门之下 → 零框。放大救不回来（2x/3x 实测仍是 0 框），
    * 因为差的不是分辨率是尺度分布——那是检测器的训练集该补的，不是这一层能修的。
    *
-   * 这一层能做的是：别让"这一家没看见"等于"这张照片里什么都没有"。
-   * 失败只记 note，绝不把整张图降级成 unreadable——兜底失败时我们回到零框，不比原来更糟。
+   * 抛错那一半（ACR-050，2026-09-20）：线上配了 yolo 却没有 YOLO 服务，`detect` 每次 ECONNREFUSED。
+   * 原先抛错直接 `unreadable`，兜底只认"成功但零框"——于是一条**配置**问题让每张不带框的照片整图降级，
+   * 描述那一遍不跑、手册目录无从匹配，全程零报错。"这一家连不上"与"这一家没看见"对车主是同一件事：
+   * 都不等于"这张照片里什么都没有"，都该去问第二个人。
+   *
+   * 失败只记 note。只有**两家都失败**（或根本没装兜底）才是 `unreadable`；
+   * 第一遍成功但零框时兜底再失败，回到零框——不比原来更糟。
    */
-  if (detect.items.length === 0 && provider.detectFallback) {
+  let detect: DetectResult | undefined;
+  let detectError: Error | undefined;
+  try {
+    detect = await provider.detect(image);
+  } catch (e) {
+    detectError = e as Error;
+    if (!provider.detectFallback) return unreadable(`检测失败：${detectError.message}`);
+  }
+  if ((!detect || detect.items.length === 0) && provider.detectFallback) {
     try {
       const again = await provider.detectFallback(image);
-      if (again.items.length > 0) {
+      if (detectError) {
+        notes.push(`第一遍（${provider.models.detect}）失败：${detectError.message}；改用兜底定位，出 ${again.items.length} 项`);
+        detect = again;
+      } else if (again.items.length > 0) {
         notes.push(`第一遍（${provider.models.detect}）零框，改用兜底定位，出 ${again.items.length} 项`);
         detect = again;
       } else {
         notes.push("第一遍与兜底定位都没框到符号");
       }
     } catch (e) {
+      if (detectError) return unreadable(`检测失败：${detectError.message}；兜底定位也失败：${(e as Error).message}`);
       notes.push(`兜底定位失败：${(e as Error).message}`);
     }
   }
+  // 走到这里 detect 必有值：抛错且没兜底、抛错且兜底也失败，上面都已经 return 了
+  if (!detect) return unreadable(`检测失败：${detectError?.message ?? "未知"}`);
   const detectMs = Date.now() - t0;
   // 模型自检（数出来的项数 = 列出来的项数）要在合并**之前**核对：它核的是模型自己的账，合并是我们改的。
   if (detect.frame.item_count !== detect.items.length) {
@@ -336,7 +349,14 @@ export function withClientDetections(provider: VisionProvider, det: ClientDetect
     detect: async () => result,
     // 端上零框时的那一级一级往下问：服务端检测器 → 它自己的兜底（云端定位）。
     detectFallback: async (image: Buffer) => {
-      const server = await provider.detect(image);
+      // 服务端检测器连不上与它零框同样处理（ACR-050）：有下一级就往下问，没有才把错误交回去
+      let server: DetectResult;
+      try {
+        server = await provider.detect(image);
+      } catch (e) {
+        if (!provider.detectFallback) throw e;
+        return provider.detectFallback(image);
+      }
       if (server.items.length > 0 || !provider.detectFallback) return server;
       return provider.detectFallback(image);
     },

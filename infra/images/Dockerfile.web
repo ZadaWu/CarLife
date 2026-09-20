@@ -39,7 +39,14 @@ COPY mocks/cabin/package.json mocks/cabin/
 COPY enterprise/console/package.json enterprise/console/
 COPY clients/mobile/package.json clients/mobile/
 COPY clients/cockpit/package.json clients/cockpit/
-RUN pnpm install --frozen-lockfile
+# 与 infra/images/Dockerfile 同一处、同一个理由（那边有完整说明）：本镜像装的是整个 workspace，
+# better-sqlite3 也在里面；它的预编译二进制不走 npm 源而去 github.com 下，国内 ECS 超时后落到
+# node-gyp、alpine 没 python，报 `gyp ERR! find Python`。只在源是 npmmirror 时指到它的二进制镜像。
+# **两份 Dockerfile 必须同改**：2026-09-20 只改了服务那份，第二次部署换成 web 目标死在同一处。
+RUN case "$COREPACK_NPM_REGISTRY" in \
+      *npmmirror.com*) export npm_config_better_sqlite3_binary_host_mirror="https://registry.npmmirror.com/-/binary/better-sqlite3" ;; \
+    esac; \
+    pnpm install --frozen-lockfile
 
 FROM deps AS build
 # 控制台的缓存详情地图读 `import.meta.env.VITE_AMAP_JS_KEY`，那是**构建期**替换，

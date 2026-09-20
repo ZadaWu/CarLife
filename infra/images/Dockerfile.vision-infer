@@ -1,0 +1,46 @@
+# 线上只推理服务镜像（ACR-050）：onnxruntime（MIT）+ 与端上同一份指示灯检测 ONNX。
+#
+# 【为什么不是 vision-trainer 的镜像】那个服务依赖 AGPL 的 ultralytics，ACR-026 给它划的边界是
+# "内部工具，不对外提供服务"；它还带着训练 / 删任务的接口，PyTorch 镜像数 GB。
+# 线上只需要"给一张图、回一组框"——所以单开一个只推理的服务，运行时换成 onnxruntime。
+#
+# 【模型只有一份】唯一存放处是端上那个 crate（它要 include_bytes! 进二进制）。
+# 这里从**同一路径** COPY，不在服务目录下放第二份——两份迟早有一份是旧的，
+# 而"网页版与原生端框得不一样"是查不出原因的那种问题。
+#
+# 【为什么用 pip + 带哈希的 requirements，而不是在镜像里跑 uv sync】
+# uv.lock 记的是 files.pythonhosted.org 的绝对地址，--frozen 时不走镜像源；ECS 直连 PyPI 与直连 GitHub 一样慢。
+# `requirements.lock.txt` 由 `uv export` 生成（tests/test_lock_in_sync.py 守着它与 uv.lock 同步），
+# 哈希是内容哈希，换哪个源下载都校验得过——换源不丢完整性。
+#
+#   docker build -f infra/images/Dockerfile.vision-infer -t carlife-vision-infer .
+
+FROM python:3.12-slim
+WORKDIR /app
+
+# ── 构建期可换 pip 源（缺省不换）。与 NPM_REGISTRY 同一个思路：只影响这一次构建，不写进镜像的运行期配置。
+#   国内：PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_INDEX_URL=""
+
+# 依赖层先行：requirements 不变时命中缓存（onnxruntime 的 wheel 有几十 MB）
+COPY enterprise/backend/vision-infer/requirements.lock.txt ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock.txt ${PIP_INDEX_URL:+-i "$PIP_INDEX_URL"}
+
+COPY enterprise/backend/vision-infer/serve.py ./
+COPY enterprise/backend/vision-infer/vision_infer ./vision_infer
+COPY clients/shared/rust/carlife-vision/models/indicator-yolo11n.onnx \
+     clients/shared/rust/carlife-vision/models/indicator-yolo11n.names.json \
+     clients/shared/rust/carlife-vision/models/MODEL.md ./models/
+
+# 模型号不在这里写死：服务从 MODEL.md 读训练任务号（换模型时那份文档本来就要改）。
+ENV VISION_INFER_MODEL_DIR=/app/models \
+    VISION_INFER_HOST=0.0.0.0 \
+    VISION_INFER_PORT=8799 \
+    PYTHONUNBUFFERED=1
+
+# 非 root：它只读模型、不落盘
+RUN useradd --system --no-create-home infer
+USER infer
+
+EXPOSE 8799
+CMD ["python", "serve.py"]

@@ -21,11 +21,20 @@ import type {
   TripPlanRepository,
 } from "@carlife/db";
 
-import { requireAnyRole, CONSOLE_READERS, type ConsoleRequest } from "../auth/console";
+import { requireAnyRole, requireRole, CONSOLE_READERS, type ConsoleRequest } from "../auth/console";
 import { auditAction, auditLocals } from "./audit";
 import { redact } from "./redact";
 
 const MAX_LIMIT = 200;
+
+/** 「清理全部」一批多少条、最多几批（M108-03）。20 × 500 = 一次请求至多清 1 万条。 */
+const CLEAN_ALL_BATCH = 500;
+const CLEAN_ALL_MAX_BATCHES = 20;
+
+/** 列表的 `deleted` 参数：只认 `include` / `only`，其余（含缺省、拼错）一律不传——交给仓储的缺省。 */
+export function parseDeletedMode(v: unknown): "include" | "only" | undefined {
+  return v === "include" || v === "only" ? v : undefined;
+}
 
 /** 列表每行带的行程摘要：只有"定了什么、几天、还算不算数"，整份快照在详情页另取。 */
 export interface SessionTripSummary {
@@ -132,8 +141,95 @@ export function createSessionsRouter(
            */
           withTraceCounts:
             req.query.withTraceCounts === "1" || req.query.withTraceCounts === "true",
+          /*
+           * `deleted=include|only` 把被清理（软删除，M108）的会话也带上 / 只看它们。
+           * **不传就交给仓储的缺省**：平时不带，按 `sessionId` 精确定位时带——
+           * 详情页靠那条取元信息，被清理的会话点进去也该有标题与归属。
+           */
+          deleted: parseDeletedMode(req.query.deleted),
         });
       res.json({ ...page, sessions: await withTrips(page.sessions) });
+    },
+  );
+
+  /*
+   * ── 清理与恢复（施工单 M108-03，F-03-11）
+   *
+   * **清理是软删除**：只写 `sessions.deleted_at`，任何表一行不删（见仓储注释）。
+   * 三个端点都只给 admin——ops 能看不能清。`auditAction` 写在角色门之前，
+   * 被 403 挡回去的那一次也会落到正确的 action 上。
+   * 审计只记范围与条数，**不记任何会话内容**。
+   *
+   * ⚠️ `clean-all` 必须注册在 `/:id/clean` 之前看起来没必要（两者段数不同，不会互相吞），
+   * 但放在前面让读的人不必去想这件事。
+   */
+  router.post(
+    "/console/sessions/clean-all",
+    auditAction("session.clean_all"),
+    requireRole("admin"),
+    async (req: ConsoleRequest, res: Response) => {
+      const body = (req.body ?? {}) as { confirm?: unknown; dryRun?: unknown };
+      // 只报数、不动任何东西：界面弹确认框时要告诉人"这一下会清多少条"。
+      if (body.dryRun === true) {
+        auditLocals(res).auditHandled = true; // 没有发生治理动作，不留审计
+        res.json({ total: await chat.countSessions() });
+        return;
+      }
+      // 防的是脚本与重放，不是替代界面上的二次确认。
+      if (body.confirm !== "all") {
+        res.status(400).json({ error: "confirm_required" });
+        return;
+      }
+      /*
+       * 循环分批直到清完——与 worker 任务「一拍只跑一批」相反：
+       * 这里是人点的、在等结果。仍设总上限（20 批 = 1 万条），到上限如实回 `remaining`，
+       * 界面提示再点一次；没有上限的循环在库里有几十万条时就是一个挂死的请求。
+       */
+      let cleaned = 0;
+      let remaining = 0;
+      for (let i = 0; i < CLEAN_ALL_MAX_BATCHES; i += 1) {
+        const r = await chat.softDeleteSessions({ limit: CLEAN_ALL_BATCH });
+        cleaned += r.deleted;
+        remaining = r.remaining;
+        if (r.scanned === 0 || remaining === 0) break;
+      }
+      auditLocals(res).auditTarget = "sessions:all";
+      auditLocals(res).auditDetail = { cleaned, remaining };
+      res.json({ cleaned, remaining });
+    },
+  );
+
+  router.post(
+    "/console/sessions/:id/clean",
+    auditAction("session.clean"),
+    requireRole("admin"),
+    async (req: ConsoleRequest, res: Response) => {
+      const sessionId = String(req.params.id);
+      auditLocals(res).auditTarget = sessionId;
+      const r = await chat.softDeleteSession(sessionId, new Date());
+      if (!r) {
+        res.status(404).json({ error: "session_not_found" });
+        return;
+      }
+      auditLocals(res).auditDetail = { changed: r.changed };
+      res.json({ sessionId, deletedAt: r.deletedAt.toISOString() });
+    },
+  );
+
+  router.post(
+    "/console/sessions/:id/restore",
+    auditAction("session.restore"),
+    requireRole("admin"),
+    async (req: ConsoleRequest, res: Response) => {
+      const sessionId = String(req.params.id);
+      auditLocals(res).auditTarget = sessionId;
+      const r = await chat.restoreSession(sessionId);
+      if (!r) {
+        res.status(404).json({ error: "session_not_found" });
+        return;
+      }
+      auditLocals(res).auditDetail = { changed: r.changed };
+      res.json({ sessionId, deletedAt: null });
     },
   );
 

@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 
 import { BRIDGE_EVENTS, type EventEnvelope } from "@carlife/shared";
 
-import { createShim, parseSseChunk, project, shimCoverage, TurnAccumulator } from "../src/web-shim/index.ts";
+import { bytesOf, createShim, GatewayError, installWebShim, parseSseChunk, project, shimCoverage, TurnAccumulator, uploadFailureText } from "../src/web-shim/index.ts";
 
 const FIXTURE = JSON.parse(
   readFileSync(new URL("../../../../contracts/fixtures/contract-events.json", import.meta.url), "utf8"),
@@ -182,6 +182,146 @@ describe("[ACR-049] 命令面", () => {
   it("没登记的命令响亮地失败——静默返回 undefined 的症状会出现在很远的地方", async () => {
     const shim = make();
     await assert.rejects(() => shim.dispatch("some_future_command"), /没有登记在垫片里/);
+  });
+});
+
+describe("[ACR-049] 附件：照片与视频经垫片进对话", () => {
+  type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
+  const setup = (respond?: (url: string, init?: RequestInit) => Response | undefined) => {
+    const calls: Call[] = [];
+    const fakeFetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? "GET", url, headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body });
+      const custom = respond?.(url, init);
+      if (custom) return custom;
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      if (url === "/v1/auth/login") return json({ accessToken: "tok-1", user: { id: "demo-user", displayName: "演示用户" } });
+      if (url.endsWith("/attachments")) return json({ handle: "att_12345678", kind: "image", bytes: 3, contentType: "image/jpeg" }, 201);
+      if (url.startsWith("/v1/attachments/")) return new Response(new Uint8Array([9, 8, 7]), { status: 200, headers: { "content-type": "image/jpeg" } });
+      if (url.endsWith("/messages")) return json({ turnId: "turn-7" }, 202);
+      return json({ ok: true });
+    }) as unknown as typeof fetch;
+    const shim = createShim({ mockIPC: () => undefined, emit: async () => undefined, credentials: { username: "demo", password: "pw" }, fetch: fakeFetch });
+    return { shim, calls };
+  };
+  // 端上 buildUploadHeaders 的产物：x-filename 已经 encodeURIComponent 过
+  const headers = {
+    "x-session-id": "sess-9",
+    "content-type": "image/jpeg",
+    "x-filename": encodeURIComponent("特斯拉.jpg"),
+    "x-idempotency-key": "sess-9:3:1789000000000:" + encodeURIComponent("特斯拉.jpg"),
+  };
+
+  it("上传：字节原样作请求体、元数据从 invoke 的第三个参数取，返回形状与 Rust 的 UploadedAttachment 一致", async () => {
+    const { shim, calls } = setup();
+    const bytes = new Uint8Array([1, 2, 3]);
+    const r = await shim.dispatch("upload_attachment", bytes, { headers });
+    assert.deepEqual(r, { handle: "att_12345678", kind: "image", bytes: 3 });
+    const c = calls.find((x) => x.url === "/v1/session/sess-9/attachments")!;
+    assert.equal(c.method, "POST");
+    assert.equal(c.body, bytes, "请求体必须是那份字节本身——转成 JSON 数组的话 40 MB 视频是 200 MB 文本");
+    assert.equal(c.headers["content-type"], "image/jpeg");
+    // 文件名不解不编：端上已按网关 decodeFilename 的约定编好，这里没有 Rust 那一跳
+    assert.equal(c.headers["x-filename"], "%E7%89%B9%E6%96%AF%E6%8B%89.jpg");
+    assert.equal(c.headers["x-idempotency-key"], headers["x-idempotency-key"]);
+    assert.equal(c.headers["x-carlife-auth"], "Bearer tok-1");
+    // x-session-id 进路径，不再当头发出去
+    assert.equal("x-session-id" in c.headers, false);
+  });
+
+  it("Headers 实例与 ArrayBuffer 也收——Tauri 的 InvokeOptions / InvokeArgs 都允许这两种形态", async () => {
+    const { shim, calls } = setup();
+    await shim.dispatch("upload_attachment", new Uint8Array([1, 2, 3]).buffer, { headers: new Headers(headers) });
+    const c = calls.find((x) => x.url.endsWith("/attachments"))!;
+    assert.equal((c.body as Uint8Array).byteLength, 3);
+    assert.equal(c.headers["content-type"], "image/jpeg");
+  });
+
+  it("缺会话号 / 空文件 → 与 Rust 命令同一组原因串，且根本不发请求", async () => {
+    const { shim, calls } = setup();
+    await assert.rejects(() => shim.dispatch("upload_attachment", new Uint8Array([1]), { headers: { "content-type": "image/jpeg" } }), (e) => e === "缺少 x-session-id");
+    // mockIPC 丢 options 时就是这个形态——必须报出来，不能拿空会话号去打网关
+    await assert.rejects(() => shim.dispatch("upload_attachment", new Uint8Array([1])), (e) => e === "缺少 x-session-id");
+    await assert.rejects(() => shim.dispatch("upload_attachment", new Uint8Array(0), { headers }), (e) => e === "文件是空的");
+    assert.equal(calls.some((c) => c.url.endsWith("/attachments")), false);
+  });
+
+  it("网关的拒绝带面向用户的 reason，原样给界面；抛裸字符串（界面按 String(err) 显示）", async () => {
+    const { shim } = setup((url) =>
+      url.endsWith("/attachments") ? new Response(JSON.stringify({ error: "unsupported_type", reason: "这种格式暂时收不了，换成 JPG 或 PNG 试试。" }), { status: 415 }) : undefined,
+    );
+    await assert.rejects(() => shim.dispatch("upload_attachment", new Uint8Array([1]), { headers }), (e) => e === "这种格式暂时收不了，换成 JPG 或 PNG 试试。");
+  });
+
+  it("413 来自 nginx 时 body 是一页 HTML——按状态码说人话，不把 HTML 甩给用户", async () => {
+    assert.equal(uploadFailureText(new GatewayError("x → 413", 413, "<html><h1>413 Request Entity Too Large</h1></html>")), "文件太大，传输被中断了。");
+    assert.equal(uploadFailureText(new GatewayError("x → 404", 404, JSON.stringify({ error: "attachments_unavailable" }))), "服务端没有接对象存储，暂时收不了附件");
+    assert.equal(uploadFailureText(new GatewayError("x → 502", 502, "")), "上传失败（502）");
+  });
+
+  it("取件：字节以 ArrayBuffer 回界面，走带鉴权的 request（token 15 分钟过期，<img src> 直连续不了期）", async () => {
+    const { shim, calls } = setup();
+    const buf = (await shim.dispatch("fetch_attachment", { handle: "att_12345678" })) as ArrayBuffer;
+    assert.deepEqual([...new Uint8Array(buf)], [9, 8, 7]);
+    assert.equal(calls.find((c) => c.url === "/v1/attachments/att_12345678")!.headers["x-carlife-auth"], "Bearer tok-1");
+  });
+
+  it("发消息带上附件句柄；不带附件时请求体与原先逐字段相同", async () => {
+    const { shim, calls } = setup();
+    await shim.dispatch("send_text_message", { sessionId: "sess-9", content: "这个灯什么意思", attachments: ["att_12345678"] });
+    await shim.dispatch("send_text_message", { sessionId: "sess-9", content: "在吗", attachments: [] });
+    const sent = calls.filter((c) => c.url === "/v1/session/sess-9/messages").map((c) => JSON.parse(c.body as string));
+    assert.deepEqual(sent[0], { content: "这个灯什么意思", attachments: ["att_12345678"] });
+    // 网关对「有 detections 无 attachments」回 attachment_invalid——空数组不能变成一个空字段发出去
+    assert.deepEqual(sent[1], { content: "在吗" });
+  });
+
+  it("bytesOf：三种字节形态都认，对象形参不认", () => {
+    assert.equal(bytesOf(new Uint8Array([1, 2]))!.byteLength, 2);
+    assert.equal(bytesOf(new Uint8Array([1, 2]).buffer)!.byteLength, 2);
+    assert.deepEqual([...bytesOf([1, 2, 3])!], [1, 2, 3]);
+    assert.equal(bytesOf({ handle: "x" }), null);
+  });
+});
+
+describe("[ACR-049] installWebShim：补上 mockIPC 丢掉的第三个参数", () => {
+  it("点了名的命令带着 options 进 dispatch；其余命令（含事件模拟）原样交回 mockIPC", async () => {
+    const g = globalThis as { __TAURI_INTERNALS__?: { invoke?: (cmd: string, args?: unknown, options?: unknown) => Promise<unknown> } };
+    const before = g.__TAURI_INTERNALS__;
+    const viaMock: string[] = [];
+    const seen: { url: string; headers: Record<string, string> }[] = [];
+    try {
+      await installWebShim({
+        // 照 @tauri-apps/api/mocks 的真实行为：装一个**不转发 options** 的 invoke
+        mockIPC: (cb) => {
+          g.__TAURI_INTERNALS__ = {
+            invoke: async (cmd, args) => {
+              viaMock.push(cmd);
+              return cb(cmd, args);
+            },
+          };
+        },
+        emit: async () => undefined,
+        credentials: { username: "demo", password: "pw" },
+        fetch: (async (url: string, init?: RequestInit) => {
+          seen.push({ url, headers: (init?.headers ?? {}) as Record<string, string> });
+          const body = url === "/v1/auth/login" ? { accessToken: "t", user: { id: "u", displayName: null } } : { handle: "att_12345678", kind: "image", bytes: 1 };
+          return new Response(JSON.stringify(body), { status: 200 });
+        }) as unknown as typeof fetch,
+      });
+      const invoke = g.__TAURI_INTERNALS__!.invoke!;
+      const r = await invoke("upload_attachment", new Uint8Array([1]), { headers: { "x-session-id": "sess-1", "content-type": "image/png" } });
+      assert.deepEqual(r, { handle: "att_12345678", kind: "image", bytes: 1 });
+      assert.equal(seen.find((s) => s.url === "/v1/session/sess-1/attachments")!.headers["content-type"], "image/png");
+      assert.equal(viaMock.includes("upload_attachment"), false, "上传绕过了 mockIPC 那层——经它走的话 options 已经没了");
+      assert.equal(await invoke("device_role"), "personal");
+      assert.deepEqual(viaMock, ["device_role"]);
+      // ACR-050：端上框灯缺省是开的，而 vision_detect 在垫片里明确拒绝——装垫片即声明"本环境没有端上检测"
+      assert.equal((globalThis as Record<string, unknown>).__CARLIFE_NO_ON_DEVICE_VISION__, true);
+    } finally {
+      if (before === undefined) delete g.__TAURI_INTERNALS__;
+      else g.__TAURI_INTERNALS__ = before;
+      delete (globalThis as Record<string, unknown>).__CARLIFE_NO_ON_DEVICE_VISION__;
+    }
   });
 });
 

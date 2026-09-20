@@ -9,7 +9,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 
 import { CONTEXT_BLOCK_HEADER } from "@carlife/shared";
 import type { ChatStreamer, ChatTurnMessage } from "../src/llm";
@@ -65,6 +65,18 @@ async function runTurn(withContext: boolean): Promise<Seen[]> {
 }
 
 describe("[F-11-03][AC-11-2] off 档：一个字都不多", () => {
+  /*
+   * 本用例只让**装载层**这一个开关动。探针那句话落在 general 路由，而 general 的尾区自
+   * `general-scope.ts` 起另有一段作答范围说明（它有自己的开关与自己的对照用例
+   * `general-scope.test.ts`）——这里把它按住，两个开关的「off = 零变化」才各自验得清。
+   */
+  before(() => {
+    process.env.CARLIFE_GENERAL_SCOPE = "off";
+  });
+  after(() => {
+    delete process.env.CARLIFE_GENERAL_SCOPE;
+  });
+
   it("装载层关着时，发给模型的消息里没有状态块的任何痕迹", async () => {
     const seen = await runTurn(false);
     assert.ok(seen.length > 0, "这一轮应当至少调了一次模型");

@@ -64,6 +64,14 @@ export interface SessionFilters {
    * 默认藏起来的话，这个现象就没有任何地方看得见了。所以这里给开关，不给默认。
    */
   nonEmpty?: boolean;
+  /**
+   * 被清理（软删除，M108）的会话要不要：`include` 连它们一起看 / `only` 只看它们。
+   *
+   * **缺省不带**——清理的本意就是让它们从列表里退场。留这个开关是因为清理不删任何东西，
+   * 运营要能把清错的那条找回来（「只看已清理」里点恢复）。
+   * 演示大屏的选择器不传它：那里是挑「放哪一段」的，被清理的不该再被挑中。
+   */
+  deleted?: "include" | "only";
 }
 
 /**
@@ -86,11 +94,13 @@ export function sessionQuery(
   put("until", f.until ? dayEndIso(f.until) : undefined);
   // 布尔只在"开"的时候进 URL：`nonEmpty=0` 与不传是同一件事，接口只认 "1"/"true"。
   if (f.nonEmpty) q.set("nonEmpty", "1");
+  // 只认这两个值；缺省（未清理）不进 URL——与不传是同一件事。
+  if (f.deleted === "include" || f.deleted === "only") q.set("deleted", f.deleted);
   return q;
 }
 
 /** 有没有任何筛选条件（决定「清空」按钮出不出现、空态说哪一句）。 */
 export function hasFilters(f: SessionFilters): boolean {
-  if (f.nonEmpty) return true;
+  if (f.nonEmpty || f.deleted) return true;
   return [f.userId, f.sessionId, f.title, f.since, f.until].some((v) => Boolean(v?.trim()));
 }

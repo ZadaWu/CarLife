@@ -5,3 +5,9 @@
 {"ts":"2026-09-01T05:15:38Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":125,"commit":"bb9dbd0","by":"zada","confirmed":false}
 {"ts":"2026-09-19T07:35:04Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":161,"commit":"fc8dd077","by":"zada","confirmed":false}
 {"ts":"2026-09-19T07:52:11Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":600,"commit":"579564d5","by":"zada","confirmed":false}
+{"ts":"2026-09-20T04:47:27Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":135,"commit":"2426c878","by":"zada","confirmed":false}
+{"ts":"2026-09-20T04:50:40Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":81,"commit":"af5a49f0","by":"zada","confirmed":false}
+{"ts":"2026-09-20T05:22:41Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"fail","duration_s":1871,"commit":"0d8aa1a1","by":"zada","confirmed":false}
+{"ts":"2026-09-20T05:28:11Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":238,"commit":"0d8aa1a1","by":"zada","confirmed":false}
+{"ts":"2026-09-20T07:43:26Z","infra":"docker","script_id":"docker/M109-01-vision-infer-service","env":"test","verb":"apply","result":"fail","duration_s":1,"commit":"fe65ee36","by":"zada","confirmed":false}
+{"ts":"2026-09-20T07:47:34Z","infra":"docker","script_id":"docker/M109-01-vision-infer-service","env":"test","verb":"apply","result":"pass","duration_s":191,"commit":"fe65ee36","by":"zada","confirmed":false}

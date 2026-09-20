@@ -37,6 +37,18 @@ server {
     include /etc/nginx/snippets/proxy-common.conf;
   }
 
+  # 附件上传（照片 / 视频）。单独一条 location 只为放宽请求体上限：
+  # 手机拍的一张照片 2~8 MB，而 nginx 缺省上限是 1m——不放宽的话每张照片都是 413，
+  # 且 413 是 nginx 自己回的，网关日志里一行都没有。
+  # 72m 与网关 `upload/index.ts` 的 BODY_LIMIT 对齐（视频白名单 64 MiB 再宽一点）；
+  # 真正的格式与大小判定仍在网关，这里只保证请求到得了网关。
+  location ~ ^/v1/session/[^/]+/attachments$ {
+    client_max_body_size 72m;
+    limit_req zone=demo burst=${DEMO_RATE_BURST} nodelay;
+    limit_conn demo_conn ${DEMO_MAX_CONN};
+    include /etc/nginx/snippets/proxy-common.conf;
+  }
+
   # 其余接口：登录、建会话、开流、确认回执。
   # 这一跳是整个方案的地基：浏览器全程只跟魔搭的 HTTPS 域名说话，
   # 所以既不撞混合内容阻断，网关也不需要支持 CORS。

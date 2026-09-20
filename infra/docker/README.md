@@ -36,5 +36,6 @@ node $D runs docker                           # 最近的运行记录
 <!-- deploy-index:start -->
 | 脚本 | 标题 | Sprint | 状态 | 服务 | 环境 | 删除动作 | dev | test | prod |
 |---|---|---|---|---|---|---|---|---|---|
-| [docker/M56-01](M56-01-aliyun-ecs-stack-bringup.sh) | 阿里云 ECS 首次拉起完整服务栈（不含 ASR/TTS 大模型） | M56 | applied | postgres, redis, minio, migrate, mock-dealer, mock-cabin, mock-repair, mock-insurance, agent-runtime, gateway, worker, web | test | 是 | — | ✓ 2026-09-01 | — |
+| [docker/M56-01](M56-01-aliyun-ecs-stack-bringup.sh) | 阿里云 ECS 首次拉起完整服务栈（不含 ASR/TTS 大模型） | M56 | applied | postgres, redis, minio, migrate, mock-dealer, mock-cabin, mock-repair, mock-insurance, agent-runtime, gateway, worker, web | test | 是 | — | ✓ 2026-09-20 | — |
+| [docker/M109-01](M109-01-vision-infer-service.sh) | ECS 上拉起只推理的 YOLO 服务 vision-infer，runtime 改指向它 | M109 | applied | vision-infer, agent-runtime | test | 否 | — | ✓ 2026-09-20 | — |
 <!-- deploy-index:end -->
