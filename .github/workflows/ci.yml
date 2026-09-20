@@ -52,7 +52,9 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: 0
       CARGO_INCREMENTAL: 0
     steps:
-      - uses: actions/checkout@v4
+      # v4 跑在 Node 20 上，GitHub 已经强制它降级运行并预告弃用
+      # （runner 日志里那条 warning）。升到 v5 免得哪天直接断。
+      - uses: actions/checkout@v5
       # 同一件事的另一半：ubuntu runner 预装了 .NET、Android SDK、GHC、boost 等本仓永远用不到的大件，
       # 合计 20 GB 以上。先删再编，比在 checkout 上抠空间可靠。df 前后各打一次，下次再满能看出是哪头长了。
       - name: 释放 runner 磁盘（删本仓用不到的预装大件）
@@ -61,7 +63,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
           sudo docker image prune -af >/dev/null 2>&1 || true
           df -h / | tail -1
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
       # rust-toolchain.toml 钉了版本，装了 rustup 的 runner 会自动就位；

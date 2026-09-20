@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CarLife · 手机端</title>
+<!--
+  手机端界面的外框。手机端的版式按手机视口写的，直接摊在宽屏里会被拉变形，
+  所以套一个手机尺寸的 iframe。窄屏（真手机）上外框让开，界面占满。
+  allow 必须逐级往下传：平台给了这一层麦克风/相机/定位，这一层还得再交给里面那层，
+  少了这行，里面的「按住说话」会直接 permission_denied。
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; background: #0f1115; color: #9aa3b2;
+         font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         display: flex; flex-direction: column; align-items: center; }
+  nav { width: 100%; max-width: 900px; padding: 14px 16px; display: flex; gap: 16px; align-items: baseline; box-sizing: border-box; }
+  nav a { color: #4d9fff; text-decoration: none; }
+  nav span { font-size: 12px; }
+  .device { width: 390px; height: 844px; max-height: calc(100vh - 70px); border-radius: 36px; overflow: hidden;
+            border: 8px solid #262b35; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #000; }
+  /*
+     色彩方案在 iframe 边界上截断。外框自己是深色的（下面 body 那几行硬写着），但
+     `color-scheme` 是继承属性，iframe 元素会把它带进被嵌的文档——在会做这件事的引擎里，
+     里面那层的 `prefers-color-scheme` 就跟着报深色。手机端的主题正是跟随它的
+     （clients/mobile/src/app/theme.ts），于是**访客的系统是浅色、界面却是深色**。
+     而手机端的深色只刷了一半：`--hud-*` 有深色值、`--m-card-bg` 一类面 token 没有，
+     白卡上印近白字。2026-09-20 在魔搭创空间上就是这么露出来的。
+     下面的 `?theme=light` 已经把主题钉死，这一行是第二道锁（也顺带让加载期的默认底是白的）。 */
+  iframe { width: 100%; height: 100%; border: 0; display: block; color-scheme: light; }
+  @media (max-width: 480px) {
+    nav { padding: 8px 12px; }
+    .device { width: 100vw; height: calc(100vh - 44px); max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+  <nav><a href="./">← 返回</a><span>手机端界面 · 与原生应用同一套代码，经浏览器传输垫片直连服务端；语音需要允许麦克风</span></nav>
+  <div class="device"><iframe src="mobile/?theme=light" title="CarLife 手机端" allow="microphone; camera; geolocation; autoplay; clipboard-write"></iframe></div>
+</body>
+</html>

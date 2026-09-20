@@ -30,6 +30,7 @@
     ".": "./src/index.ts",
     "./styles": "./src/styles.ts",
     "./session-lifecycle": "./src/dialog/session-lifecycle.ts",
-    "./departure": "./src/departure/logic.ts"
+    "./departure": "./src/departure/logic.ts",
+    "./web-shim": "./src/web-shim/index.ts"
   }
 }

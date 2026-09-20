@@ -115,73 +115,38 @@ footer button:disabled { opacity: .4; cursor: default; }
   .turn { max-width: 100%; }
 }
 
-/* ── 助手形象的最小形态：一个会随状态变色/呼吸的点 ──────────────────
-   不做卡通形象：那是端上的资产，网页版硬搬既不完整也会让人误以为这就是产品。
-   这里只要一个能看出"它在想/在说"的指示物。 */
-.orb {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--dim); flex: none;
+/* ── 落地页 ─────────────────────────────────────────────── */
+.landing main { gap: 28px; }
+.landing header { padding-bottom: 16px; }
+.tagline { font-size: 13px; color: var(--dim); }
+.lead { font-size: 15px; line-height: 1.8; margin: 0; }
+.lead strong { color: #fff; }
+
+.surfaces { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.surface {
+  display: grid; gap: 6px; padding: 18px 20px; border-radius: 14px; text-decoration: none;
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
 }
-.orb-thinking { background: var(--accent); animation: breathe 1.4s ease-in-out infinite; }
-.orb-speaking { background: var(--accent); }
-.orb-alert { background: var(--warn); }
-@keyframes breathe { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.surface:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.surface strong { font-size: 17px; }
+.surface .cta { font-size: 13px; color: var(--accent); font-weight: 600; }
+.surface .detail { font-size: 12px; color: var(--dim); line-height: 1.7; }
 
-/* ── 引导：三个场景各对一个差异点 ───────────────────────────────── */
-.intro .lead { font-size: 15px; margin: 0 0 4px; }
-.intro .sub { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
-.scenarios { display: flex; flex-direction: column; gap: 10px; }
-.scenario {
-  display: grid; gap: 3px; text-align: left; cursor: pointer;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 12px 14px; color: var(--text); font: inherit;
-}
-.scenario:hover:not(:disabled) { border-color: var(--accent); }
-.scenario:disabled { opacity: .5; cursor: default; }
-.scenario strong { font-size: 14px; }
-.scenario .prompt { color: var(--accent); font-size: 13px; }
-.scenario .hint { color: var(--dim); font-size: 12px; line-height: 1.5; }
-.scenario .cost { color: var(--line); font-size: 11px; }
+.highlights h2, .showcase h2 { font-size: 14px; margin: 0 0 10px; }
+.highlights dl { margin: 0; display: grid; gap: 12px; }
+.highlights dt { font-size: 14px; margin-bottom: 2px; }
+.highlights dd { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.7; }
 
-/* ── 这一轮它在干什么 ──────────────────────────────────────────── */
-.working, .lanes {
-  border: 1px solid var(--line); border-left: 2px solid var(--accent);
-  border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--dim);
-}
-.working ul, .lanes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-.working .filler { margin: 0 0 8px; color: var(--text); }
-.working .dots { margin: 0; }
-.tool::before { content: "· "; }
-.tool-succeeded { color: var(--text); }
-.tool-failed { color: #ff7b72; }
-
-.lanes h2 { font-size: 13px; margin: 0 0 8px; color: var(--text); }
-.lane { display: flex; gap: 10px; align-items: baseline; }
-.lane-name { color: var(--text); min-width: 7em; }
-.lane-note { flex: 1; }
-.lane-time { font-size: 11px; font-family: ui-monospace, monospace; }
-.lane-ok .lane-name::before { content: "✓ "; color: #3fb950; }
-.lane-started .lane-name::before { content: "◌ "; }
-.lane-failed .lane-name::before, .lane-timeout .lane-name::before { content: "! "; color: var(--warn); }
-
-/* 回答正文里的段落 */
-.turn-assistant p { margin: 0 0 .7em; }
-.turn-assistant p:last-child { margin-bottom: 0; }
-.turn-assistant strong { color: #fff; }
-
-/* ── 真机展示 ─────────────────────────────────────────────────── */
-.showcase { border-top: 1px solid var(--line); padding: 24px 0 40px; }
-.showcase h2 { font-size: 15px; margin: 0 0 8px; }
+/* ── 真机展示 ─────────────────────────────────────────────── */
+.showcase { border-top: 1px solid var(--line); padding-top: 24px; padding-bottom: 40px; }
 .showcase p { color: var(--dim); font-size: 13px; margin: 0 0 16px; line-height: 1.7; }
 .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .showcase figure { margin: 0; }
 .showcase img { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
 .showcase figcaption { color: var(--dim); font-size: 12px; margin-top: 6px; }
 .showcase .wide { margin-top: 12px; }
-.showcase .links { margin-top: 16px; }
-.showcase a { color: var(--accent); }
+.showcase .links { margin-top: 16px; margin-bottom: 0; }
 
 @media (max-width: 600px) {
-  .shots { grid-template-columns: 1fr; }
-  .lane { flex-wrap: wrap; }
+  .surfaces, .shots { grid-template-columns: 1fr; }
 }

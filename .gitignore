@@ -107,3 +107,7 @@ evals/vision-observe/photos/inbox/
 tmp/
 
 __pycache__/
+
+# 两端的浏览器演示构建产物（ACR-049）。与 dist 分开放：原生的 tauri build 内嵌的是 dist，
+# 演示构建要是也写 dist，就会把带垫片的产物嵌进原生包里。
+**/dist-web/

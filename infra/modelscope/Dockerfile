@@ -28,19 +28,40 @@ RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY contracts/package.json contracts/
 COPY clients/demo-web/package.json clients/demo-web/
-# 只装演示页这一条依赖链（`...` 后缀 = 连同它依赖的工作区包）。
-# 整个 workspace 的其它成员不参与——它们的 package.json 都不在上下文里。
-RUN pnpm install --frozen-lockfile --filter @carlife/demo-web...
+COPY clients/shared/ui/package.json clients/shared/ui/
+COPY clients/mobile/package.json clients/mobile/
+COPY clients/cockpit/package.json clients/cockpit/
+# @carlife/ui 的清单里挂着 @carlife/rag（workspace:*），只要清单不要源码——
+# 与 infra/images/Dockerfile.client 同一口径，前端构建用不到它的实现。
+COPY enterprise/backend/shared/rag/package.json enterprise/backend/shared/rag/
+# `...` 后缀 = 连同各自依赖的工作区包。其余成员的 package.json 不在上下文里，不参与。
+RUN pnpm install --frozen-lockfile \
+      --filter @carlife/demo-web... --filter @carlife/mobile... --filter @carlife/cockpit...
 
 COPY contracts/ contracts/
+COPY clients/shared/ui/ clients/shared/ui/
 COPY clients/demo-web/ clients/demo-web/
+COPY clients/mobile/ clients/mobile/
+COPY clients/cockpit/ clients/cockpit/
 RUN pnpm --filter @carlife/demo-web build
+
+# ── 两端的真界面（ACR-049）：演示构建，带浏览器传输垫片，各挂一个子路径
+#
+# 高德 JS key 是 `import.meta.env.VITE_AMAP_JS_KEY`——**构建期**常量，而魔搭的 Docker 创空间
+# 不支持构建期变量。所以这里烘进去的是一个占位符，容器启动时由 entrypoint 按运行时环境变量
+# 替换成真值（没配就换成空串，地图退回程序化底图）。它本来就是要发给浏览器的 Web 端 key，
+# 安全性靠高德控制台的域名白名单，不靠藏。
+ENV VITE_WEB_SHIM=1 VITE_AMAP_JS_KEY=__CARLIFE_AMAP_JS_KEY__
+RUN VITE_BASE=/mobile/  pnpm --filter @carlife/mobile  exec vite build
+RUN VITE_BASE=/cockpit/ pnpm --filter @carlife/cockpit exec vite build
 
 FROM nginx:1.27-alpine
 # envsubst 来自 gettext；alpine 的 nginx 镜像没带
 RUN apk add --no-cache gettext
 
 COPY --from=build /app/clients/demo-web/dist /usr/share/nginx/html
+COPY --from=build /app/clients/mobile/dist-web  /usr/share/nginx/html/mobile
+COPY --from=build /app/clients/cockpit/dist-web /usr/share/nginx/html/cockpit
 
 # 构建指纹。用途很实际：平台的状态接口在滚动更新时**一直是 Running**，
 # 判断不了"我推的这版到底生效了没"——两次排查都卡在这上面，各多花一轮。
@@ -49,6 +70,7 @@ COPY --from=build /app/clients/demo-web/dist /usr/share/nginx/html
 RUN date -u +%Y%m%d-%H%M > /usr/share/nginx/html/build-id.txt
 COPY infra/modelscope/nginx.conf.template /etc/nginx/templates/site.conf.template
 COPY infra/modelscope/proxy-common.conf.template /etc/nginx/templates/proxy-common.conf.template
+COPY infra/modelscope/http-context.conf.template /etc/nginx/templates/http-context.conf.template
 COPY infra/modelscope/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

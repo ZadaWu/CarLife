@@ -14,6 +14,10 @@ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 # ——nginx 对空值的头直接不发，登录这类请求因此不受影响。
 proxy_set_header Authorization $carlife_auth;
 
+# 语音元数据：有头用头，没头用 ?ms= 合成（map 在 http-context.conf.template）。
+# 非语音请求两者都没有，值为空——nginx 对空值的头直接不发。
+proxy_set_header X-Audio-Meta $audio_meta;
+
 # SSE 的三件套，少一件都会让"流式"变成"憋一坨再吐"：
 #   proxy_buffering off          不攒够一个 buffer 才下发
 #   chunked_transfer_encoding on 不等 Content-Length

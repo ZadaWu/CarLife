@@ -183,6 +183,38 @@ const KEY_LABEL: Record<string, string> = {
   userId: "用户编号",
   preference: "偏好",
   who: "谁",
+
+  // ── 意图理解的提交通道（ACR-047）。说法取自 `agent-runtime/src/graph/intent.ts`
+  //    发给模型的那份 schema 说明，不按字段名自己猜——错的中文比英文更误导。
+  goal: "一句话目标",
+  context: "相关背景",
+  riskBoundary: "涉及的风险边界",
+  riskCategory: "风险边界类别",
+  route: "交给谁",
+  action: "对已有行程的处置",
+  when: "时间",
+  sideTasks: "顺带要办的事",
+  secondaryIntents: "顺带的意图",
+  newAsks: "这一轮新提的要求",
+  cancelPick: "要删掉第几项",
+  planScope: "接着改还是另起一趟",
+  tripLimits: "行程限制",
+  maxLegHours: "单段最长开车小时数",
+  minRangeMarginPct: "到达时续航余量下限(%)",
+  transitMode: "交通方式",
+  estimatedLossCny: "预估损失(元)",
+  accidentType: "事故类型",
+  // symptom 下的四个布尔：售后问诊据此判断要不要走安全兜底
+  safetyCritical: "涉及安全件",
+  worsensWithSpeedOrBraking: "随车速或制动加剧",
+  persistent: "持续出现",
+  warningLight: "伴随警告灯",
+
+  // ── 续航余量评估的提交通道
+  basis: "余量数字怎么来的",
+  sampleSize: "实测样本数",
+  windowDays: "实测窗口天数",
+  chargeStopsNeeded: "沿途需补能次数",
 };
 
 /** 「中文(英文)」；查不到就只给英文。 */

@@ -42,14 +42,14 @@ DEMO_NOTICE="${DEMO_NOTICE:-这是公开演示环境，请勿输入真实个人�
 
 # ── 2. 渲染 ──────────────────────────────────────────────────────────────
 
-# limit_req_zone 与 map 都只能待在 http{} 里，不能写进 server{}，所以在这儿插进主配置。
-# 10m 的共享内存约能记 16 万个 IP，对演示场景绰绰有余。
-#
-# 两个 map 合成 $carlife_auth：优先自定义头、其次 cookie、都没有则空串。
-# 另外三个只产出"有/无"，给 /__whoami 用——那是公网地址，绝不能回显 token 本身。
-sed -i "s|^http {|http {\n    limit_req_zone \$binary_remote_addr zone=demo:10m rate=${DEMO_RATE};\n    limit_conn_zone \$binary_remote_addr zone=demo_conn:10m;\n    limit_req_zone \$binary_remote_addr zone=turn:10m rate=${DEMO_TURN_RATE};\n    map \$cookie_carlife_auth \$carlife_auth_from_cookie { \"\" \"\"; default \"Bearer \$cookie_carlife_auth\"; }\n    map \$http_x_carlife_auth \$carlife_auth { \"\" \$carlife_auth_from_cookie; default \$http_x_carlife_auth; }\n    map \$http_x_carlife_auth \$has_auth_header { \"\" \"absent\"; default \"present\"; }\n    map \$cookie_carlife_auth \$has_auth_cookie { \"\" \"absent\"; default \"present\"; }\n    map \$carlife_auth \$has_effective_auth { \"\" \"absent\"; default \"present\"; }|" /etc/nginx/nginx.conf
+# http{} 上下文的指令（限流 zone、鉴权与语音元数据的 map）单独一个文件，
+# 见 http-context.conf.template 的文件头——以前用 sed 往 nginx.conf 里塞，栽过两次引号。
+# envsubst 只认**导出过**的变量。漏一个，模板里那处就被替换成空串，nginx 启动即 emerg——
+# 已经栽过两次（DEMO_TURN_BURST、以及重构时把整行 export 切掉），所以所有要替换的变量一次导齐。
+export DEMO_UPSTREAM DEMO_RATE DEMO_RATE_BURST DEMO_TURN_RATE DEMO_TURN_BURST DEMO_MAX_CONN
+envsubst '${DEMO_RATE} ${DEMO_TURN_RATE}' \
+  < /etc/nginx/templates/http-context.conf.template > /etc/nginx/conf.d/00-http-context.conf
 
-export DEMO_UPSTREAM DEMO_RATE_BURST DEMO_TURN_BURST DEMO_MAX_CONN
 mkdir -p /etc/nginx/snippets
 envsubst '${DEMO_UPSTREAM}' \
   < /etc/nginx/templates/proxy-common.conf.template > /etc/nginx/snippets/proxy-common.conf
@@ -67,6 +67,16 @@ DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_NOTICE="$DEMO_NOTICE"
     "$(printf %s "$DEMO_NOTICE" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g; s/^/\"/; s/$/\"/")" \
     "$(printf %s "$BUILD_ID" | sed "s/^/\"/; s/$/\"/")"' \
   > /usr/share/nginx/html/config.js
+
+# 高德 JS key：构建期烘进去的是占位符（见 Dockerfile），这里换成运行时的真值。
+# 只认 32 位十六进制——它要被 sed 写进 JS 文件，不校验就是注入的口子。
+# 没配或格式不对 → 换成空串，两端的地图退回程序化底图，其余功能不受影响。
+AMAP_KEY=""
+if printf %s "${DEMO_AMAP_JS_KEY:-}" | grep -Eq '^[0-9a-fA-F]{32}$'; then AMAP_KEY="$DEMO_AMAP_JS_KEY"; fi
+for d in /usr/share/nginx/html/mobile /usr/share/nginx/html/cockpit; do
+  [ -d "$d/assets" ] && find "$d/assets" -name '*.js' -exec sed -i "s/__CARLIFE_AMAP_JS_KEY__/${AMAP_KEY}/g" {} +
+done
+[ -n "$AMAP_KEY" ] && echo "[entrypoint] 高德 JS key 已注入" || echo "[entrypoint] 未配 DEMO_AMAP_JS_KEY：地图用程序化底图"
 
 nginx -t
 

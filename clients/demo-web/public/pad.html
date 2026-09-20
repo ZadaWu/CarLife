@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CarLife · 车机端</title>
+<!-- 车机端界面的外框：横屏 16:10，与车机屏同比例。allow 逐级下传的理由同 phone.html。 -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; background: #0f1115; color: #9aa3b2;
+         font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         display: flex; flex-direction: column; align-items: center; }
+  nav { width: 100%; max-width: 1280px; padding: 14px 16px; display: flex; gap: 16px; align-items: baseline; box-sizing: border-box; }
+  nav a { color: #4d9fff; text-decoration: none; }
+  nav span { font-size: 12px; }
+  .device { width: min(1280px, calc(100vw - 32px)); aspect-ratio: 16 / 10; max-height: calc(100vh - 80px);
+            border-radius: 18px; overflow: hidden; border: 6px solid #262b35; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #000; }
+  /* 色彩方案在 iframe 边界上截断，理由与 phone.html 同一条（那边写全了）。 */
+  iframe { width: 100%; height: 100%; border: 0; display: block; color-scheme: light; }
+</style>
+</head>
+<body>
+  <nav><a href="./">← 返回</a><span>车机端界面 · 对话入口是左下角「长按说话」（车机没有键盘），需要允许麦克风</span></nav>
+  <!-- `?theme=light` 在车机端此刻是显式声明而非修复：它不跟随系统外观
+       （App.tsx 的 `demoTheme() ?? "light"`），钉着是为了将来若改成跟随时不必再想起来。 -->
+  <div class="device"><iframe src="cockpit/?theme=light" title="CarLife 车机端" allow="microphone; camera; geolocation; autoplay; clipboard-write"></iframe></div>
+</body>
+</html>

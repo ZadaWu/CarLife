@@ -1,0 +1,48 @@
+# http{} 上下文里的东西：限流 zone 与几个 map。
+#
+# 放在 conf.d 下而不是用 sed 塞进 nginx.conf：官方镜像的 nginx.conf 在 http{} 里
+# `include /etc/nginx/conf.d/*.conf;`，所以这里的指令天然就在 http{} 上下文。
+# 早先那版用 sed 往主配置里插，先后栽在两处引号上（nginx 的 "" 空串被 shell 吞掉、
+# ${DEMO_RATE} 被连同 nginx 变量一起转义）——换成文件之后这类问题不存在了。
+# 文件名以 00- 开头：它必须先于 default.conf 被读到，后者要用这里定义的 zone 与变量。
+
+limit_req_zone  $binary_remote_addr zone=demo:10m rate=${DEMO_RATE};
+limit_req_zone  $binary_remote_addr zone=turn:10m rate=${DEMO_TURN_RATE};
+limit_conn_zone $binary_remote_addr zone=demo_conn:10m;
+
+# ── 鉴权：自定义头优先，cookie 兜底 ─────────────────────────────
+# 页面不能发 Authorization（平台保留），自定义头又很可能被边缘剥掉，所以两条路都收。
+# cookie 里存的是裸 token（带空格的 "Bearer " 在 cookie 值里非法），前缀在这里补。
+map $cookie_carlife_auth $carlife_auth_from_cookie {
+  ""      "";
+  default "Bearer $cookie_carlife_auth";
+}
+map $http_x_carlife_auth $carlife_auth {
+  ""      $carlife_auth_from_cookie;
+  default $http_x_carlife_auth;
+}
+
+# ── 语音元数据：头缺席时用查询参数合成 ─────────────────────────
+# 网关按 X-Audio-Meta 头读 AudioMeta。它同样是自定义头，同样可能被边缘剥掉——
+# 那样的话语音会静默失败（网关拿不到采样率，转写出一段空白）。
+# AudioMeta 里只有时长是变的，格式 / 采样率 / 声道都是常量，所以端上把时长放进 ?ms=，
+# 这里在头缺席时把整个头原样合成出来。
+# `ms` 只认 1~6 位数字：它要被拼进一个请求头，不校验就是头注入的口子。
+map $arg_ms $audio_ms {
+  "~^[0-9]{1,6}$" $arg_ms;
+  default         "";
+}
+map $audio_ms $audio_meta_synth {
+  ""      "";
+  default '{"durationMs":$audio_ms,"format":"pcm_s16le","sampleRateHz":16000,"channels":1}';
+}
+map $http_x_audio_meta $audio_meta {
+  ""      $audio_meta_synth;
+  default $http_x_audio_meta;
+}
+
+# ── /__whoami 用：只报"有/无"，绝不回显值 ──────────────────────
+map $http_x_carlife_auth $has_auth_header    { "" "absent"; default "present"; }
+map $cookie_carlife_auth $has_auth_cookie    { "" "absent"; default "present"; }
+map $carlife_auth        $has_effective_auth { "" "absent"; default "present"; }
+map $http_x_audio_meta   $has_audio_header   { "" "absent"; default "present"; }

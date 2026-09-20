@@ -29,6 +29,9 @@ server {
   #
   # 正则 location 优先级高于前缀 location，所以它会先于下面的 /v1/ 命中。
   location ~ ^/v1/session/[^/]+/messages$ {
+    # 一分钟 16 kHz 单声道 s16le 约 1.9 MB，而 nginx 缺省的请求体上限是 1m——
+    # 不放宽的话稍长一点的语音直接 413，端上看到的只是一句"上传失败"。网关那侧的上限是 10mb。
+    client_max_body_size 10m;
     limit_req zone=turn burst=${DEMO_TURN_BURST} nodelay;
     limit_conn demo_conn ${DEMO_MAX_CONN};
     include /etc/nginx/snippets/proxy-common.conf;
@@ -43,12 +46,30 @@ server {
     include /etc/nginx/snippets/proxy-common.conf;
   }
 
+  # 高德服务接口的代理（ACR-019）：两端把 serviceHost 指向自己的 origin，由网关追加安全密钥。
+  # 没有这条的表现是静默的——try_files 会回一份 index.html，SDK 拿到 HTML 解析失败，
+  # 路径规划退直线、底图样式不生效，控制台里只有一条看不出所以然的报错。
+  location /_AMapService/ {
+    include /etc/nginx/snippets/proxy-common.conf;
+  }
+
+  # 两端的真界面（ACR-049）。入口文件叫 web.html（演示构建的入口，先装垫片再载入 main）。
+  # 入口绝不缓存：旧入口指向的是上一版的哈希 JS。
+  location = /mobile/web.html  { add_header Cache-Control "no-cache"; }
+  location = /cockpit/web.html { add_header Cache-Control "no-cache"; }
+  location ~ ^/(mobile|cockpit)/assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+  location /mobile/  { try_files $uri /mobile/web.html; }
+  location /cockpit/ { try_files $uri /cockpit/web.html; }
+
   # 诊断端点：平台的边缘到底把哪些东西放进来了。
   # **只报"有没有"，不回显值**——这是公网可访问的地址，回显 token 等于把它发出去。
   # 查清哪条通道活着之后就该删掉它。
   location = /__whoami {
     default_type application/json;
-    return 200 '{"header":"$has_auth_header","cookie":"$has_auth_cookie","effective":"$has_effective_auth"}';
+    return 200 '{"header":"$has_auth_header","cookie":"$has_auth_cookie","effective":"$has_effective_auth","audioHeader":"$has_audio_header"}';
   }
 
   # 带哈希文件名的产物可以永久缓存——名字变了就是新文件。
