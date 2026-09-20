@@ -11,7 +11,7 @@
 
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { browserMicPermission, createBrowserRecorder, createSpeaker, installWebShim } from "@carlife/ui/web-shim";
+import { browserMicPermission, createBrowserRecorder, installWebShim } from "@carlife/ui/web-shim";
 
 declare global {
   interface Window {
@@ -29,9 +29,14 @@ void installWebShim({
   // 拿不到时界面如实显示「麦克风未授权」，不是静默失效
   recorder: createBrowserRecorder(),
   micPermission: browserMicPermission,
-  // 把回答读出来：合成在服务端（网关的 /v1/tts/speech，三档共用、密钥不下端），
-  // 浏览器只负责播。自动播放被拒时静音降级，不打断对话
-  createSpeaker,
+  /*
+   * **手机端不出声，所以这里不给 speaker**（产品定调 2026-09-17；F-02-12 原本就是「车机播报 / 手机静默」）。
+   * 手机常在公共场合，出声是打扰。原生手机端连 `carlife-tts` 依赖都没有、设置页也没有「播报」组；
+   * 垫片当初两端抄了同一份装配，于是浏览器演示版成了唯一会自己念出来的手机端——
+   * 那是这份垫片引入的偏离，不是产品意图。车机的 web-boot 保持接着，别「对齐」回来。
+   *
+   * 不传 = 这个环境不播报（`WebShimDeps.createSpeaker` 的契约），SSE 收尾的 idle 照常直出。
+   */
   // 公开演示的账号本来就是公开的，安全性靠账号本身的权限与限流，不靠藏。
   // 线上值由容器的 /config.js 注入；这里的缺省只服务本机开发。
   credentials: { username: injected?.demoUser ?? "demo", password: injected?.demoPassword ?? "carlife-dev" },

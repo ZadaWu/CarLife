@@ -8,8 +8,13 @@
  * 而"让手机端像车机一样 X"是个很自然的需求。接回来的表现是：车主在会议室里打字问一句，
  * 手机开始朗读。
  *
- * 所以这里把**四个入口一起钉住**：Rust 侧的共享核依赖、iOS 系统合成、WebView 的
- * Web Speech、以及对话层那枚播报开关。读源码，不渲染。
+ * 所以这里把**五个入口一起钉住**：Rust 侧的共享核依赖、iOS 系统合成、WebView 的
+ * Web Speech、对话层那枚播报开关，以及浏览器演示版的装配。读源码，不渲染。
+ *
+ * 第五条是 2026-09-20 用户在魔搭上听见手机端念出来才发现的：前四条一条都没红。
+ * 原因是垫片的播报**不经任何浏览器语音 API**——它打网关的 `/v1/tts/speech` 拿 mp3、
+ * 用 `<audio>` 放，所以 `speechSynthesis` 那条扫不到它；而 `carlife-tts` 是 Rust 侧的，
+ * 浏览器构建根本不经过 Cargo。ACR-049 做垫片时两端抄了同一份装配，车机该有的被一起带给了手机。
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -54,5 +59,24 @@ describe("[F-02-12] 手机端没有任何出声的路", () => {
    */
   it("对话页不传 broadcast：那枚喇叭是车机的", () => {
     assert.equal(/broadcast=\{/.test(APP), false);
+  });
+
+  /**
+   * 浏览器演示版（ACR-049）的装配入口。`createSpeaker` 一旦传给 `installWebShim`，
+   * 每轮收尾都会去打网关的 `/v1/tts/speech` 并当场放出来——公开演示站上的手机端
+   * 于是成了唯一会自己念的手机端（2026-09-20 用户在魔搭上听见）。
+   *
+   * 车机的 `clients/cockpit/src/web-boot.ts` **保持接着**，这份不对称是产品定调本身，
+   * 不是遗漏——所以这里连带断言它还在，免得下次有人"对齐"时把两边一起改。
+   */
+  it("浏览器演示版的手机端不装 speaker；车机端仍装着（这份不对称就是定调）", () => {
+    // 先剥注释再判：那份 web-boot 的注释里**专门写着**为什么不给 speaker，
+    // 连注释一起扫的话，解释得越清楚越容易把自己判红（第一版就是这么红的）。
+    const code = (f: string) =>
+      readFileSync(join(here, f), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/.*$/gm, "");
+    assert.equal(/createSpeaker/.test(code("../src/web-boot.ts")), false, "手机端的 web-boot 又把播报接回来了");
+    assert.ok(/createSpeaker/.test(code("../../cockpit/src/web-boot.ts")), "车机端的播报被顺手一起删了——只撤手机端，车机不动");
   });
 });
