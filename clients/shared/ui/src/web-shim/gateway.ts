@@ -17,9 +17,40 @@ export class GatewayError extends Error {
     readonly status: number,
     /** 响应体原文。网关的拒绝带面向用户的 `reason`（F-09-10），丢了它界面只剩一个状态码。 */
     readonly body: string = "",
+    /** 网关的机器可读错误码（响应体的 `error` 字段），认不出就是 null。 */
+    readonly code: string | null = null,
   ) {
     super(message);
   }
+}
+
+/** 响应体里的 `error` 字段。不是 JSON（nginx 的错误页）就当没有。 */
+export function errorCodeOf(body: string): string | null {
+  try {
+    const v = (JSON.parse(body) as { error?: unknown }).error;
+    return typeof v === "string" && v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 失败响应 → `GatewayError`。**错误码必须进 message**，不只是进字段。
+ *
+ * 上层认"会话过期"靠的是 `String(err).includes("session_expired")`
+ * （`sendWithRetry.ts` 的 `isExpired`，两端共用同一条判断）——这条判断是照着原生端来的：
+ * Rust 的 `NetError::SessionExpired` 用 `#[error("session_expired")]` 标注，`to_string()` 出来
+ * 正好就是那个词，而 Tauri 命令把它 `map_err(|e| e.to_string())` 原样交给 JS。
+ *
+ * 垫片原先只拼 `路径 → 409`，那个词一个字都没有，于是浏览器里的恢复逻辑**永远认不出过期**：
+ * 空会话被服务端清扫器收走（缺省 30 分钟，专挑一条消息都没有的）之后，
+ * 访客回到还开着的页面一打字就看到一行 `/v1/session/sess-xxx/messages → 409`，
+ * 而原生端在同样情形下会静静地新建会话重发。2026-09-20 线上实测：24 小时内 50 个会话里 31 个是这种。
+ */
+async function gatewayError(res: Response, path: string): Promise<GatewayError> {
+  const body = await res.text().catch(() => "");
+  const code = errorCodeOf(body);
+  return new GatewayError(path + " → " + res.status + (code ? " " + code : ""), res.status, body, code);
 }
 
 export interface Credentials {
@@ -57,7 +88,7 @@ export class Gateway {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(this.credentials),
     });
-    if (!res.ok) throw new GatewayError("/v1/auth/login → " + res.status, res.status);
+    if (!res.ok) throw await gatewayError(res, "/v1/auth/login");
     const body = (await res.json()) as { accessToken: string; user: AuthUser };
     this.token = body.accessToken;
     this.user = body.user;
@@ -112,7 +143,7 @@ export class Gateway {
       await this.ensureLogin();
       res = await send();
     }
-    if (!res.ok) throw new GatewayError(path + " → " + res.status, res.status, await res.text().catch(() => ""));
+    if (!res.ok) throw await gatewayError(res, path);
     return res;
   }
 
@@ -136,7 +167,7 @@ export class Gateway {
       await this.ensureLogin();
       res = await open();
     }
-    if (!res.ok || !res.body) throw new GatewayError(path + " → " + res.status, res.status);
+    if (!res.ok || !res.body) throw await gatewayError(res, path);
     return res;
   }
 }

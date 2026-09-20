@@ -200,7 +200,7 @@ infra/scripts/down.sh
 <!-- deploy-infra-index:start -->
 | 设施 | 目录 | 脚本数 | 最近一次 prod apply |
 |---|---|---|---|
-| Docker Compose | [`docker/`](docker/README.md) | 2 | — |
+| Docker Compose | [`docker/`](docker/README.md) | 3 | — |
 <!-- deploy-infra-index:end -->
 
 ## 6. 参考的文档组织原则

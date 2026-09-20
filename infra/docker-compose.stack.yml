@@ -195,6 +195,19 @@ services:
       # **刻意不设 depends_on**：检测器不在时观察层会换 describe 那一家定位，不该因为它挡住 runtime 启动。
       # 网关的同名变量是控制台「模型训练」页的代理，不指向这个只推理的服务，所以只在这里覆盖。
       VISION_TRAINER_URL: http://vision-infer:8799
+      # 手册图标图片（ACR-025）。**显式写路径，不吃默认值**：默认是从 index.ts 的位置往上数四层反推
+      # `<仓库根>/data/kb-src/icons`，在容器里恰好也是 /app/data/kb-src/icons——但那条反推一旦因为
+      # 文件挪位而变，挂载点就会悄悄对不上，而症状只是"匹配又只能说疑似了"，没有任何报错。
+      CARLIFE_ICON_IMAGES_ROOT: /app/data/kb-src/icons
+    volumes:
+      # 图标图片从宿主挂进来，**不进镜像**（同 mock-cabin 曲库那条的理由②）：
+      # 镜像的 src 阶段只 COPY contracts/ 与 enterprise/，data/ 从来不在里面；
+      # 而 data/ 整个目录在本机是 120 MB（备份 86M + 手册图 32M），只有 icons 这 1.8 MB 该上服务器。
+      #
+      # 没有它的后果不报错、但看得见：成对核验不会发生（icon-images.ts 取不到图就返回 null），
+      # 匹配一律降级成「疑似」，车主拿到的每一条都带着"未能与手册完全对上"。2026-09-20 线上实测就是这样。
+      # 只读：观察层只读图片。
+      - ../data/kb-src/icons:/app/data/kb-src/icons:ro
     expose:
       - "8791"
     depends_on:

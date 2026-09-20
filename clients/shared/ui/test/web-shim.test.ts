@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 
 import { BRIDGE_EVENTS, type EventEnvelope } from "@carlife/shared";
 
-import { bytesOf, createShim, GatewayError, installWebShim, parseSseChunk, project, shimCoverage, TurnAccumulator, uploadFailureText } from "../src/web-shim/index.ts";
+import { bytesOf, createShim, errorCodeOf, GatewayError, installWebShim, parseSseChunk, project, shimCoverage, TurnAccumulator, uploadFailureText } from "../src/web-shim/index.ts";
 
 const FIXTURE = JSON.parse(
   readFileSync(new URL("../../../../contracts/fixtures/contract-events.json", import.meta.url), "utf8"),
@@ -182,6 +182,56 @@ describe("[ACR-049] 命令面", () => {
   it("没登记的命令响亮地失败——静默返回 undefined 的症状会出现在很远的地方", async () => {
     const shim = make();
     await assert.rejects(() => shim.dispatch("some_future_command"), /没有登记在垫片里/);
+  });
+});
+
+describe("[ACR-049] 失败响应：错误码必须进 message，不只是进字段", () => {
+  const shimWith = (respond: (url: string) => Response) =>
+    createShim({
+      mockIPC: () => undefined,
+      emit: async () => undefined,
+      credentials: { username: "demo", password: "pw" },
+      fetch: (async (url: string) =>
+        url === "/v1/auth/login"
+          ? new Response(JSON.stringify({ accessToken: "t", user: { id: "u", displayName: null } }), { status: 200 })
+          : respond(url)) as unknown as typeof fetch,
+    });
+
+  /*
+   * 两端共用 `sendWithRetry.ts` 的 isExpired：`String(err).includes("session_expired")`。
+   * 那条判断是照原生端来的——Rust 的 NetError::SessionExpired 标了 #[error("session_expired")]，
+   * to_string() 就是那个词。垫片原先只拼「路径 → 409」，一个字都没有，浏览器里的恢复因此永远不触发：
+   * 空会话被服务端清扫器收走后（缺省 30 分钟，专挑一条消息都没有的），访客在还开着的页面一打字
+   * 就看到 /v1/session/sess-xxx/messages → 409，而原生端在同样情形下会静静新建会话重发。
+   */
+  it("409 session_expired：错误串里带得上那个词，端上的会话重试才认得出", async () => {
+    const shim = shimWith(() => new Response(JSON.stringify({ error: "session_expired", sessionId: "sess-1" }), { status: 409 }));
+    const err = await shim.dispatch("send_text_message", { sessionId: "sess-1", content: "在吗" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    assert.ok(String(err).includes("session_expired"), "sendWithSessionRetry 的 isExpired 就是这么判的：" + String(err));
+    assert.equal((err as GatewayError).status, 409);
+    assert.equal((err as GatewayError).code, "session_expired");
+    // 路径与状态码也要留着——排障时得分得清是哪个端点
+    assert.ok(String(err).includes("/v1/session/sess-1/messages") && String(err).includes("409"), String(err));
+  });
+
+  it("认不出错误码就只拼路径与状态码，不编一个出来", async () => {
+    const shim = shimWith(() => new Response("<html>413 Request Entity Too Large</html>", { status: 413 }));
+    const err = (await shim.dispatch("send_text_message", { sessionId: "s", content: "x" }).catch((e: unknown) => e)) as GatewayError;
+    assert.equal(err.code, null);
+    assert.equal(err.message, "/v1/session/s/messages → 413");
+    assert.ok(err.body.includes("413 Request Entity"), "响应体原文仍留着（附件上传的 reason 靠它）");
+  });
+
+  it("errorCodeOf：只认 JSON 里的字符串 error，其余一律 null", () => {
+    assert.equal(errorCodeOf(JSON.stringify({ error: "attachment_not_owned" })), "attachment_not_owned");
+    assert.equal(errorCodeOf(JSON.stringify({ error: "" })), null);
+    assert.equal(errorCodeOf(JSON.stringify({ error: 42 })), null);
+    assert.equal(errorCodeOf(JSON.stringify({ reason: "太大了" })), null);
+    assert.equal(errorCodeOf("not json"), null);
+    assert.equal(errorCodeOf(""), null);
   });
 });
 

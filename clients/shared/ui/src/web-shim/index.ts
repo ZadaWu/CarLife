@@ -38,7 +38,7 @@ import { createSpeaker, parseTtsNdjson, type Speaker } from "./speech";
 
 export { project, TurnAccumulator } from "./project";
 export { shimCoverage, ShimRejected } from "./commands";
-export { Gateway, GatewayError, AUTH_HEADER } from "./gateway";
+export { Gateway, GatewayError, AUTH_HEADER, errorCodeOf } from "./gateway";
 export { browserMicPermission, createBrowserRecorder, encodePcmS16le, resampleTo16k, type Recorder } from "./voice";
 export { createSpeaker, parseTtsNdjson, type Speaker } from "./speech";
 export { bytesOf, RAW_IPC_COMMANDS, uploadFailureText, type InvokeOptionsLike } from "./attachments";

@@ -11,3 +11,5 @@
 {"ts":"2026-09-20T05:28:11Z","infra":"docker","script_id":"docker/M56-01-aliyun-ecs-stack-bringup","env":"test","verb":"apply","result":"pass","duration_s":238,"commit":"0d8aa1a1","by":"zada","confirmed":false}
 {"ts":"2026-09-20T07:43:26Z","infra":"docker","script_id":"docker/M109-01-vision-infer-service","env":"test","verb":"apply","result":"fail","duration_s":1,"commit":"fe65ee36","by":"zada","confirmed":false}
 {"ts":"2026-09-20T07:47:34Z","infra":"docker","script_id":"docker/M109-01-vision-infer-service","env":"test","verb":"apply","result":"pass","duration_s":191,"commit":"fe65ee36","by":"zada","confirmed":false}
+{"ts":"2026-09-20T08:49:10Z","infra":"docker","script_id":"docker/M109-02-mount-icon-images","env":"test","verb":"apply","result":"fail","duration_s":27,"commit":"7ab34b0a","by":"zada","confirmed":false}
+{"ts":"2026-09-20T09:21:06Z","infra":"docker","script_id":"docker/M109-02-mount-icon-images","env":"test","verb":"apply","result":"pass","duration_s":19,"commit":"7ab34b0a","by":"zada","confirmed":false}
