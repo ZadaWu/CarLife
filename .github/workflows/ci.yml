@@ -66,6 +66,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          # v5 把 package-manager-cache 默认打开：它读 package.json 的 packageManager
+          # 看到 pnpm，就去 PATH 上找裸 `pnpm` 问 store 路径。本仓的 pnpm 只经 corepack 提供，
+          # PATH 上没有这个二进制（turbo 栽过同一个坑，垫片在 scripts/dev/bin/pnpm），
+          # 于是 setup-node 这一步直接 `Unable to locate executable file: pnpm` 而挂。
+          # 依赖缓存本仓没在用，关掉即可。
+          package-manager-cache: false
       # rust-toolchain.toml 钉了版本，装了 rustup 的 runner 会自动就位；
       # check:all 含 test:contract 与 test:rust，两者都要 cargo。
       - uses: dtolnay/rust-toolchain@stable
