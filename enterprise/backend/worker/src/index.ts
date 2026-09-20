@@ -1,8 +1,8 @@
 /**
  * worker 调度入口（施工单 M7-05，FL-32）。
  *
- * 六个任务（memory-decay / usage-aggregation / kb-sync / vehicle-reminder /
- * session-sweeper / trip-plan-review）挂在 node-cron 上，
+ * 七个任务（memory-decay / usage-aggregation / kb-sync / vehicle-reminder /
+ * session-sweeper / session-cleaner / trip-plan-review）挂在 node-cron 上，
  * 每次触发都经 `runJob` —— 三条运行契约（幂等 / 可补偿 / 失败要出声）由它统一保证，
  * 任务本体只管自己那点业务。
  *
@@ -44,6 +44,7 @@ import { usageAggregationJob } from "./usage-aggregation";
 import { kbSyncJob } from "./kb-sync";
 import { vehicleReminderJob } from "./vehicle-reminder";
 import { sessionSweeperJob } from "./session-sweeper";
+import { sessionCleanerJob } from "./session-cleaner";
 import { tripPlanReviewJob } from "./trip-plan-review";
 import { createResearchAcquireJob } from "./research-acquire";
 
@@ -78,6 +79,12 @@ const SCHEDULE: Record<string, string> = {
    */
   "session-sweeper": "15 * * * *",
   /*
+   * 会话按天自动清理（M108-02，软删除）。放 25 分：与聚合（5）、空会话收口（15）、
+   * 知识库（20）、研究面（40）都岔开。任务恒在调度表里，开不开由热配置
+   * `SESSION_AUTO_CLEAN_DAYS` 每拍决定（缺省 0 = 这一拍什么都不做）。
+   */
+  "session-cleaner": "25 * * * *",
+  /*
    * 行程每日核查（M72-02）：早 6:10——高德预报每日 6 点前后更新，且在多数车主出门前；
    * 与 8 点的保养提醒岔开。窗口 24 h、漏跑只补一个窗口（补三天前的核查没有意义）。
    */
@@ -91,7 +98,7 @@ const SCHEDULE: Record<string, string> = {
 };
 
 /**
- * 六个常驻任务。**研究面那个不在这里**——它带开关，见 `buildJobs()`。
+ * 七个常驻任务。**研究面那个不在这里**——它带开关，见 `buildJobs()`。
  *
  * 仍然导出这个常量是为了既有测试与 `--once` 的可选任务清单；
  * 调度用的是 `buildJobs()` 的返回值，两者的差就是研究面那一个。
@@ -102,6 +109,7 @@ const JOBS: JobDefinition[] = [
   memoryDecayJob,
   vehicleReminderJob,
   sessionSweeperJob,
+  sessionCleanerJob,
   tripPlanReviewJob,
 ];
 
@@ -109,7 +117,7 @@ const JOBS: JobDefinition[] = [
  * 装配研究面取数任务（M82-02）。
  *
  * 三种情况都返回 null 并给出**一句能直接照着修的话**，而不是抛：
- * 研究面不该拖垮其余六个任务（同 kb-sync 缺 RAGFLOW 配置的既有纪律）。
+ * 研究面不该拖垮其余七个任务（同 kb-sync 缺 RAGFLOW 配置的既有纪律）。
  *
  * `RESEARCH_ENABLED` 缺省 off——**这是"既有功能逐字节不变"的实现处**
  * （Sprint 完成判定第 1 条）：off 时不建 PgBoss 实例、不碰 pgboss schema、
@@ -156,7 +164,7 @@ async function buildResearchAcquireJob(): Promise<JobDefinition | null> {
 /** 编码队列名。与 research-runtime 的消费端同一个字符串，改一处要改两处。 */
 export const RESEARCH_CODE_QUEUE = "research.code";
 
-/** 本次进程要调度哪些任务 = 六个常驻 + 开着的研究面取数。 */
+/** 本次进程要调度哪些任务 = 七个常驻 + 开着的研究面取数。 */
 export async function buildJobs(): Promise<JobDefinition[]> {
   const research = await buildResearchAcquireJob();
   return research ? [...JOBS, research] : [...JOBS];

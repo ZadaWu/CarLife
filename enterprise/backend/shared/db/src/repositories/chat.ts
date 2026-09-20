@@ -203,6 +203,8 @@ export function createChatRepository(prisma: PrismaClient) {
           userId: q.userId,
           // 一句话都没有的会话不进车主的列表（理由见上）。
           messages: { some: {} },
+          // 被清理（软删除，M108-01）的不进车主的列表；行还在，控制台可恢复。
+          deletedAt: null,
           ...(cursorAt && !Number.isNaN(cursorAt.getTime())
             ? { updatedAt: { lt: cursorAt } }
             : {}),
@@ -546,6 +548,13 @@ export function createChatRepository(prisma: PrismaClient) {
        * 再补标题，这边是按会话分页再补事件数）。
        */
       withTraceCounts?: boolean;
+      /**
+       * 已清理（软删除，M108-01）的会话要不要：`exclude` 不要 / `include` 都要 / `only` 只要它们。
+       *
+       * **缺省 `exclude`，但给了 `sessionId` 时缺省 `include`**——精确定位就是"我要找这一条"，
+       * 它被清理过也该找得到（详情页就是拿 `sessionId` 取这一行的元信息）。
+       */
+      deleted?: "exclude" | "include" | "only";
     }): Promise<{
       sessions: Array<{
         sessionId: string;
@@ -561,6 +570,10 @@ export function createChatRepository(prisma: PrismaClient) {
         title: string | null;
         createdAt: string;
         updatedAt: string;
+        /** 会话结束时刻；`null` = 仍在进行。 */
+        closedAt: string | null;
+        /** 清理时刻（M108-01）；`null` = 没被清理过。 */
+        deletedAt: string | null;
         messageCount: number;
         turnCount: number;
         firstMessageAt: number | null;
@@ -579,8 +592,12 @@ export function createChatRepository(prisma: PrismaClient) {
         ? await prisma.session.findUnique({ where: { id: q.cursor } })
         : null;
 
+      const deletedMode = q.deleted ?? (q.sessionId ? "include" : "exclude");
+
       const rows = await prisma.session.findMany({
         where: {
+          ...(deletedMode === "exclude" ? { deletedAt: null } : {}),
+          ...(deletedMode === "only" ? { deletedAt: { not: null } } : {}),
           ...(q.userId ? { userId: q.userId } : {}),
           ...(q.sessionId ? { id: q.sessionId } : {}),
           // 时间筛选按**创建时间**（"这段时间新开的会话"是运营的原意），
@@ -640,6 +657,8 @@ export function createChatRepository(prisma: PrismaClient) {
             title: s.title,
             createdAt: s.createdAt.toISOString(),
             updatedAt: s.updatedAt.toISOString(),
+            closedAt: s.closedAt ? s.closedAt.toISOString() : null,
+            deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
             messageCount: s.messages.length,
             turnCount: new Set(s.messages.map((m) => m.turnId)).size,
             firstMessageAt: tsList.length ? Math.min(...tsList) : null,
@@ -731,6 +750,94 @@ export function createChatRepository(prisma: PrismaClient) {
            AND closed_at IS NULL`;
       const remaining = await prisma.session.count({ where });
       return { scanned: rows.length, closed, remaining };
+    },
+
+    /**
+     * 清理一条会话（施工单 M108-01，F-03-11）。**软删除：只写 `deleted_at`，任何表一行不删。**
+     *
+     * 上面 `consoleSessionPage` 的注释说本仓储"不提供修改或删除用户对话的方法"——
+     * 这条没有破它：对话内容一个字没动，动的只是"这条会话还出不出现在列表里"。
+     *
+     * 三条语义：
+     *  - **顺手关会话**：`closed_at` 为空才写（`COALESCE`），已关的保持原来的关闭时刻；
+     *  - **幂等**：已清理的再清一次不改 `deleted_at`，`changed: false`；
+     *  - **不碰 `updated_at`**：清理不是活动（理由同 `closeIdleEmptySessions`，所以走裸 SQL）。
+     *
+     * 会话不存在返回 `null`。
+     */
+    async softDeleteSession(
+      sessionId: string,
+      at: Date,
+    ): Promise<{ deletedAt: Date; changed: boolean } | null> {
+      const changed = await prisma.$executeRaw`
+        UPDATE sessions
+           SET deleted_at = ${at},
+               closed_at = COALESCE(closed_at, ${at})
+         WHERE id = ${sessionId}
+           AND deleted_at IS NULL`;
+      const row = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { deletedAt: true },
+      });
+      if (!row || !row.deletedAt) return null;
+      return { deletedAt: row.deletedAt, changed: changed > 0 };
+    },
+
+    /**
+     * 恢复一条被清理的会话（M108-01）。**只清 `deleted_at`，不复活 `closed_at`**——
+     * 恢复的是"看得见"，不是"接着说"。幂等；会话不存在返回 `null`。
+     */
+    async restoreSession(sessionId: string): Promise<{ changed: boolean } | null> {
+      const changed = await prisma.$executeRaw`
+        UPDATE sessions
+           SET deleted_at = NULL
+         WHERE id = ${sessionId}
+           AND deleted_at IS NOT NULL`;
+      if (changed > 0) return { changed: true };
+      return (await prisma.session.findUnique({ where: { id: sessionId }, select: { id: true } }))
+        ? { changed: false }
+        : null;
+    },
+
+    /**
+     * 分批清理（M108-01）。控制台「清理全部」与 worker 的按天自动清理共用这一个。
+     *
+     * `olderThan` 缺省 = 全部未清理的；给了就只动 `updated_at` **严格早于**它的
+     * （`updated_at` 就是最后活跃时间，见 `sessionState` 的注释）。
+     * 形状与 `closeIdleEmptySessions` 一致：先取一批 id、再一条裸 SQL、如实报 `remaining`——
+     * `limit` 是为了不长时间占着表，dev 库 2026-09-20 实测有 5765 条会话。
+     */
+    async softDeleteSessions(
+      opts: { olderThan?: Date; now?: Date; limit?: number } = {},
+    ): Promise<{ scanned: number; deleted: number; remaining: number }> {
+      const now = opts.now ?? new Date();
+      const limit = opts.limit ?? 500;
+      const where = {
+        deletedAt: null,
+        ...(opts.olderThan ? { updatedAt: { lt: opts.olderThan } } : {}),
+      };
+      const rows = await prisma.session.findMany({
+        where,
+        orderBy: { updatedAt: "asc" },
+        take: limit,
+        select: { id: true },
+      });
+      if (rows.length === 0) return { scanned: 0, deleted: 0, remaining: 0 };
+      const deleted = await prisma.$executeRaw`
+        UPDATE sessions
+           SET deleted_at = ${now},
+               closed_at = COALESCE(closed_at, ${now})
+         WHERE id = ANY(${rows.map((r) => r.id)}::text[])
+           AND deleted_at IS NULL`;
+      const remaining = await prisma.session.count({ where });
+      return { scanned: rows.length, deleted, remaining };
+    },
+
+    /** 会话计数（M108-01）。控制台「清理全部」弹确认时报数用；`deleted` 缺省数未清理的。 */
+    async countSessions(opts: { deleted?: boolean } = {}): Promise<number> {
+      return prisma.session.count({
+        where: opts.deleted ? { deletedAt: { not: null } } : { deletedAt: null },
+      });
     },
 
     async purgeHistoryOlderThan(retentionDays: number): Promise<number> {

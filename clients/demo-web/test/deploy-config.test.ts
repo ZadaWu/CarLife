@@ -50,12 +50,19 @@ describe("[ACR-048] 鉴权头不能用平台保留的名字", () => {
     const sedLines = sh.split("\n").filter((l) => /sed -i/.test(l) && !l.trimStart().startsWith("#"));
     assert.deepEqual(sedLines.filter((l) => /nginx/.test(l)), [], "nginx 的配置一律走模板文件 + envsubst");
   });
-  it("唯一剩下的 sed 是往编好的 JS 里换高德 key 占位符，且 key 先过 32 位十六进制校验——它要被写进 JS 文件", () => {
+  it("高德 key 走 config.js 下发、不往编好的 JS 里写——带哈希的产物是 immutable 缓存，内容变了文件名不变，浏览器永远拿旧的", () => {
     const sh = readFileSync(new URL("../../../infra/modelscope/entrypoint.sh", import.meta.url), "utf8");
     const sedLines = sh.split("\n").filter((l) => /sed -i/.test(l) && !l.trimStart().startsWith("#"));
-    assert.equal(sedLines.length, 1);
-    assert.match(sedLines[0], /__CARLIFE_AMAP_JS_KEY__/);
+    assert.deepEqual(sedLines, [], "启动时不许原地改任何产物");
+    assert.match(sh, /amapJsKey/);
+    // key 要被拼进脚本：先过 32 位十六进制校验
     assert.match(sh, /grep -Eq '\^\[0-9a-fA-F\]\{32\}\$'/);
+    const docker = readFileSync(new URL("../../../infra/modelscope/Dockerfile", import.meta.url), "utf8");
+    assert.equal(/^ENV .*VITE_AMAP_JS_KEY/m.test(docker), false, "构建期不烘 key，也不烘占位符");
+    for (const app of ["mobile", "cockpit"]) {
+      const main = readFileSync(new URL(`../../${app}/src/main.tsx`, import.meta.url), "utf8");
+      assert.match(main, /__CARLIFE_DEMO__\?\.amapJsKey/, app + " 的 main.tsx 要先读运行时下发的 key");
+    }
   });
   it("cookie 里不做 URL 编码、也不带 Bearer 前缀——编码后 nginx 取到的是编码串，拼出来的头是坏的（实测 401）", () => {
     // 写 cookie 的地方现在是两端的演示入口

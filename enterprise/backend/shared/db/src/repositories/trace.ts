@@ -139,13 +139,26 @@ export function createTraceRepository(prisma: PrismaClient): TraceRepository {
 
     async recentSessions(limit = 20) {
       await flush();
-      const rows = await prisma.traceEvent.groupBy({
-        by: ["sessionId"],
-        _count: { _all: true },
-        _max: { at: true },
-        orderBy: { _max: { at: "desc" } },
-        take: limit,
-      });
+      /*
+       * 裸 SQL 而不是 `groupBy`（M108-01）：要滤掉被清理（软删除）的会话，
+       * 而那个状态在 `sessions` 表上，`groupBy` 够不着另一张表。
+       *
+       * **用 `NOT EXISTS`，不用 inner join**：轨迹表里有一批会话在 `sessions` 里
+       * 根本没有行（自检会话、脚本直打 runtime 的那些），它们要照常列出来——
+       * 这里滤的只是"有行、且被清理了"的。先滤再 `LIMIT`，所以不会出现
+       * "取了 10 条、滤掉 7 条、弹窗里只剩 3 条"。
+       */
+      const rows = await prisma.$queryRaw<
+        Array<{ session_id: string; events: bigint; last_at: bigint | null }>
+      >`
+        SELECT t.session_id, count(*) AS events, max(t.at) AS last_at
+          FROM trace_events t
+         WHERE NOT EXISTS (
+                 SELECT 1 FROM sessions s
+                  WHERE s.id = t.session_id AND s.deleted_at IS NOT NULL)
+         GROUP BY t.session_id
+         ORDER BY max(t.at) DESC
+         LIMIT ${limit}`;
       /*
        * 顺手带上会话标题（M28-01）。
        *
@@ -159,16 +172,16 @@ export function createTraceRepository(prisma: PrismaClient): TraceRepository {
       const titles = new Map<string, string | null>(
         (
           await prisma.session.findMany({
-            where: { id: { in: rows.map((r) => r.sessionId) } },
+            where: { id: { in: rows.map((r) => r.session_id) } },
             select: { id: true, title: true },
           })
         ).map((x) => [x.id, x.title]),
       );
       return rows.map((r) => ({
-        sessionId: r.sessionId,
-        title: titles.get(r.sessionId) ?? null,
-        events: r._count._all,
-        lastAt: Number(r._max.at ?? 0n),
+        sessionId: r.session_id,
+        title: titles.get(r.session_id) ?? null,
+        events: Number(r.events),
+        lastAt: Number(r.last_at ?? 0n),
       }));
     },
 

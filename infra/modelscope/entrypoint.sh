@@ -56,26 +56,27 @@ envsubst '${DEMO_UPSTREAM}' \
 envsubst '${DEMO_RATE_BURST} ${DEMO_TURN_BURST} ${DEMO_MAX_CONN}' \
   < /etc/nginx/templates/site.conf.template > /etc/nginx/conf.d/default.conf
 
-# 浏览器侧的运行时配置。**只写演示账号与提示语**——上游地址不下发，
+# 浏览器侧的运行时配置。**只写演示账号、提示语与高德 Web 端 key**——上游地址不下发，
 # 页面只发同源 /v1/*，地址是 nginx 的事，浏览器不需要知道，也就不会泄露。
 # 值用 JSON 序列化，避免口令里有引号时把脚本写坏。
 BUILD_ID="$(cat /usr/share/nginx/html/build-id.txt 2>/dev/null || echo unknown)"
-DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_NOTICE="$DEMO_NOTICE" BUILD_ID="$BUILD_ID" \
-  sh -c 'printf "window.__CARLIFE_DEMO__ = {\"demoUser\":%s,\"demoPassword\":%s,\"notice\":%s,\"buildId\":%s};\n" \
+
+# 高德 JS key 也走 config.js，不往编好的 JS 里写（理由见 Dockerfile：immutable 缓存下内容变了
+# 文件名不变，浏览器永远拿旧的）。只认 32 位十六进制——它要被拼进脚本，不校验就是注入的口子；
+# 校验过的值里没有引号与反斜杠，所以不用再转义。
+# 没配或格式不对 → 空串，两端的地图退回程序化底图，其余功能不受影响。
+# 它本来就是要发给浏览器的 Web 端 key，安全性靠高德控制台的域名白名单，不靠藏。
+AMAP_KEY=""
+if printf %s "${DEMO_AMAP_JS_KEY:-}" | grep -Eq '^[0-9a-fA-F]{32}$'; then AMAP_KEY="$DEMO_AMAP_JS_KEY"; fi
+DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_NOTICE="$DEMO_NOTICE" BUILD_ID="$BUILD_ID" AMAP_KEY="$AMAP_KEY" \
+  sh -c 'printf "window.__CARLIFE_DEMO__ = {\"demoUser\":%s,\"demoPassword\":%s,\"notice\":%s,\"buildId\":%s,\"amapJsKey\":\"%s\"};\n" \
     "$(printf %s "$DEMO_USER" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g; s/^/\"/; s/$/\"/")" \
     "$(printf %s "$DEMO_PASSWORD" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g; s/^/\"/; s/$/\"/")" \
     "$(printf %s "$DEMO_NOTICE" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g; s/^/\"/; s/$/\"/")" \
-    "$(printf %s "$BUILD_ID" | sed "s/^/\"/; s/$/\"/")"' \
+    "$(printf %s "$BUILD_ID" | sed "s/^/\"/; s/$/\"/")" \
+    "$AMAP_KEY"' \
   > /usr/share/nginx/html/config.js
 
-# 高德 JS key：构建期烘进去的是占位符（见 Dockerfile），这里换成运行时的真值。
-# 只认 32 位十六进制——它要被 sed 写进 JS 文件，不校验就是注入的口子。
-# 没配或格式不对 → 换成空串，两端的地图退回程序化底图，其余功能不受影响。
-AMAP_KEY=""
-if printf %s "${DEMO_AMAP_JS_KEY:-}" | grep -Eq '^[0-9a-fA-F]{32}$'; then AMAP_KEY="$DEMO_AMAP_JS_KEY"; fi
-for d in /usr/share/nginx/html/mobile /usr/share/nginx/html/cockpit; do
-  [ -d "$d/assets" ] && find "$d/assets" -name '*.js' -exec sed -i "s/__CARLIFE_AMAP_JS_KEY__/${AMAP_KEY}/g" {} +
-done
 [ -n "$AMAP_KEY" ] && echo "[entrypoint] 高德 JS key 已注入" || echo "[entrypoint] 未配 DEMO_AMAP_JS_KEY：地图用程序化底图"
 
 nginx -t

@@ -52,7 +52,10 @@ async function amapServiceHost(): Promise<string | undefined> {
 //
 // 没配 = 车机 HUD 用程序化底图，与离线时是同一条路径，不需要额外处理。
 configureAmap({
-  jsKey: import.meta.env.VITE_AMAP_JS_KEY ?? "",
+  // 浏览器演示构建的 key 来自容器的 /config.js（运行时、no-store），原生构建没有这个全局量，走构建期常量。
+  // 不能在容器启动时往编好的 JS 里换占位符：带哈希的产物是 immutable 永久缓存，内容变了文件名不变，
+  // 先前开过页的浏览器会一直拿着那份空 key——配好了 key 地图照样不出来，全程零报错（ACR-049）。
+  jsKey: window.__CARLIFE_DEMO__?.amapJsKey || (import.meta.env.VITE_AMAP_JS_KEY ?? ""),
   serviceHost: amapServiceHost,
   // 行程路线的流动粒子（M13-06）与真实道路路径规划（M13-09）。
   // 插件跟脚本一起注入；加载失败只丢动画/退回直线，不丢标注。

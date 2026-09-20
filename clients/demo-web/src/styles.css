@@ -116,37 +116,34 @@ footer button:disabled { opacity: .4; cursor: default; }
 }
 
 /* ── 落地页 ─────────────────────────────────────────────── */
-.landing main { gap: 28px; }
+/* 页面上只有两张入口卡，所以比对话页那一栏放得宽 */
+.landing { max-width: 980px; }
 .landing header { padding-bottom: 16px; }
+.landing main { padding: 24px 0 40px; }
 .tagline { font-size: 13px; color: var(--dim); }
-.lead { font-size: 15px; line-height: 1.8; margin: 0; }
-.lead strong { color: #fff; }
 
-.surfaces { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* 两列的宽度比 = 两张截图的宽高比之比（车机 1400×1050、手机 720×1280），
+   截图又贴着卡片边缘不留内边距——于是两张图等高，两张卡也就等高，
+   不用给任何一边写死高度。换截图时这两个数要跟着换。 */
+.surfaces { display: grid; grid-template-columns: 1.3333fr 0.5625fr; gap: 16px; }
 .surface {
-  display: grid; gap: 6px; padding: 18px 20px; border-radius: 14px; text-decoration: none;
+  display: block; border-radius: 16px; overflow: hidden; text-decoration: none;
   background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  transition: border-color .15s, transform .15s;
 }
-.surface:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
-.surface strong { font-size: 17px; }
-.surface .cta { font-size: 13px; color: var(--accent); font-weight: 600; }
-.surface .detail { font-size: 12px; color: var(--dim); line-height: 1.7; }
+.surface:hover, .surface:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
+.surface .shot { display: block; background: #e9eef5; }
+.surface .shot img { display: block; width: 100%; height: auto; }
+.surface-cockpit .shot img { aspect-ratio: 1400 / 1050; }
+.surface-mobile .shot img { aspect-ratio: 720 / 1280; }
+.surface .meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 14px 16px 0; }
+.surface strong { font-size: 17px; white-space: nowrap; }
+.surface .cta { font-size: 13px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+/* 手机那张卡窄、说明会多折几行；两张卡的底边靠 grid 默认的 stretch 对齐 */
+.surface .detail { display: block; padding: 6px 16px 16px; font-size: 12px; color: var(--dim); line-height: 1.7; }
 
-.highlights h2, .showcase h2 { font-size: 14px; margin: 0 0 10px; }
-.highlights dl { margin: 0; display: grid; gap: 12px; }
-.highlights dt { font-size: 14px; margin-bottom: 2px; }
-.highlights dd { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.7; }
-
-/* ── 真机展示 ─────────────────────────────────────────────── */
-.showcase { border-top: 1px solid var(--line); padding-top: 24px; padding-bottom: 40px; }
-.showcase p { color: var(--dim); font-size: 13px; margin: 0 0 16px; line-height: 1.7; }
-.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.showcase figure { margin: 0; }
-.showcase img { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
-.showcase figcaption { color: var(--dim); font-size: 12px; margin-top: 6px; }
-.showcase .wide { margin-top: 12px; }
-.showcase .links { margin-top: 16px; margin-bottom: 0; }
-
-@media (max-width: 600px) {
-  .surfaces, .shots { grid-template-columns: 1fr; }
+@media (max-width: 700px) {
+  .surfaces { grid-template-columns: 1fr; }
+  /* 竖屏截图铺满一列会有两屏高，收到一半宽居中 */
+  .surface-mobile .shot img { width: 52%; margin: 0 auto; }
 }

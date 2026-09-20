@@ -47,11 +47,13 @@ RUN pnpm --filter @carlife/demo-web build
 
 # ── 两端的真界面（ACR-049）：演示构建，带浏览器传输垫片，各挂一个子路径
 #
-# 高德 JS key 是 `import.meta.env.VITE_AMAP_JS_KEY`——**构建期**常量，而魔搭的 Docker 创空间
-# 不支持构建期变量。所以这里烘进去的是一个占位符，容器启动时由 entrypoint 按运行时环境变量
-# 替换成真值（没配就换成空串，地图退回程序化底图）。它本来就是要发给浏览器的 Web 端 key，
-# 安全性靠高德控制台的域名白名单，不靠藏。
-ENV VITE_WEB_SHIM=1 VITE_AMAP_JS_KEY=__CARLIFE_AMAP_JS_KEY__
+# 高德 JS key **不进产物**：魔搭的 Docker 创空间不支持构建期变量，key 由 entrypoint 写进
+# /config.js（运行时、no-store），两端的 main.tsx 先读它。
+#
+# 先前的做法是烘一个占位符、容器启动时 sed 换成真值——栽在缓存上：带哈希的产物是 immutable
+# 永久缓存，sed 改了内容却不改文件名，开过页的浏览器一直拿着旧的那份。表现是「key 配好了、
+# 线上产物里也确实有 key，地图就是不出来」，而换个没缓存的浏览器又是好的。
+ENV VITE_WEB_SHIM=1
 RUN VITE_BASE=/mobile/  pnpm --filter @carlife/mobile  exec vite build
 RUN VITE_BASE=/cockpit/ pnpm --filter @carlife/cockpit exec vite build
 

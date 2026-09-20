@@ -376,11 +376,12 @@ describe("[M82-02] 任务契约", () => {
 });
 
 describe("[M82-02] 开关：缺省 off 时既有功能逐字节不变", () => {
-  it("静态 JOBS 里只有六个常驻任务，研究面不在其中", async () => {
+  it("静态 JOBS 里只有七个常驻任务，研究面不在其中", async () => {
     const { JOBS, SCHEDULE } = await import("../src/index");
     assert.deepEqual(
       JOBS.map((j) => j.name).sort(),
-      ["kb-sync", "memory-decay", "session-sweeper", "trip-plan-review", "usage-aggregation", "vehicle-reminder"],
+      // M108-02 加了 session-cleaner（按天软删会话）；这条守的仍是"研究面不在静态清单里"。
+      ["kb-sync", "memory-decay", "session-cleaner", "session-sweeper", "trip-plan-review", "usage-aggregation", "vehicle-reminder"],
     );
     // cron 表达式先声明着（挂不挂由 buildJobs 决定），且不与既有四个任务撞分钟。
     assert.equal(SCHEDULE["research-acquire"], "40 * * * *");

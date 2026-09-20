@@ -15,7 +15,7 @@ import { browserMicPermission, createBrowserRecorder, createSpeaker, installWebS
 
 declare global {
   interface Window {
-    __CARLIFE_DEMO__?: { demoUser?: string; demoPassword?: string };
+    __CARLIFE_DEMO__?: { demoUser?: string; demoPassword?: string; amapJsKey?: string };
   }
 }
 

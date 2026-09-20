@@ -756,6 +756,17 @@ export const CONFIG_REGISTRY: readonly ConfigDef[] = [
       "对话历史保留天数；0 = 长期保留（默认）。**与记忆衰减无耦合**——历史表只服务「可翻阅」，衰减是 Mem0 那一侧的事（FL-03 存储分层对齐）。承接 M2-06 F-03-11",
     validate: (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 ? null : "必须是非负整数"),
   },
+  {
+    key: "SESSION_AUTO_CLEAN_DAYS",
+    class: "endpoint",
+    scope: "runtime",
+    storage: "db",
+    envFallback: "SESSION_AUTO_CLEAN_DAYS",
+    default: "0",
+    description:
+      "会话自动清理天数：最后活动早于 N 天的会话由 worker 每小时自动清理一批；0 = 关（默认），演示环境设 1。**清理是软删除**——只写 sessions.deleted_at，任何表一行不删，控制台「会话与对话」页可筛出来恢复。与 HISTORY_RETENTION_DAYS 不是一回事（那个是硬删消息，且未接线）。M108 F-03-11",
+    validate: (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 ? null : "必须是非负整数"),
+  },
 
   // ── 引导层（配置层自身可用之前就被需要，因此只能由部署层注入）
   {

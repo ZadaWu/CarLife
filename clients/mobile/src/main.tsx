@@ -47,7 +47,10 @@ async function amapServiceHost(): Promise<string | undefined> {
 // 它要能在 Vite 之外的环境里编译。没配 = 用程序化底图，与离线同一条路径。
 // ⚠️ **只有 jsKey 在产物里，安全密钥没有**（ACR-019，同 cockpit）。
 configureAmap({
-  jsKey: import.meta.env.VITE_AMAP_JS_KEY ?? "",
+  // 浏览器演示构建的 key 来自容器的 /config.js（运行时、no-store），原生构建没有这个全局量，走构建期常量。
+  // 不能在容器启动时往编好的 JS 里换占位符：带哈希的产物是 immutable 永久缓存，内容变了文件名不变，
+  // 先前开过页的浏览器会一直拿着那份空 key——配好了 key 地图照样不出来，全程零报错（ACR-049）。
+  jsKey: window.__CARLIFE_DEMO__?.amapJsKey || (import.meta.env.VITE_AMAP_JS_KEY ?? ""),
   serviceHost: amapServiceHost,
   // 与 cockpit 同一套：手机端复用 clients/shared/ui 的行程图层，插件清单必须跟着，
   // 少了 AMap.Driving 会静默退回点到点直线（M13-09）。

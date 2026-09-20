@@ -52,6 +52,22 @@ model Session {
   /// 不建索引：没有"按关闭时间找会话"的用例。
   closedAt DateTime? @map("closed_at")
 
+  /// 清理时刻（M108-01，F-03-11）。`null` = 没被清理过。
+  ///
+  /// **软删除：任何一张表一行都不删。** 与 `closedAt` 分工——
+  /// `closedAt` 回答"还能不能接着说"，`deletedAt` 回答"还出不出现在列表里"。
+  /// 车主列表、控制台默认列表、大屏的会话选择都滤掉它；控制台可以筛出来并恢复。
+  ///
+  /// 不硬删的理由：只有 `messages` / `message_audio` 会级联，而 `trace_events`、
+  /// `llm_usage`、`attachments`、`trip_plans`、`research_evidence_units` 等都只存
+  /// `session_id` 没有外键——删掉会话行，它们就成了找不到主人的孤儿。
+  ///
+  /// 清理时顺手落 `closedAt`（为空才写）：已清理的会话不该还能接着说，
+  /// 而网关判"能不能接着说"只看 `closedAt`，这样就不需要第二套判定。
+  /// **恢复只清 `deletedAt`，不复活 `closedAt`**——恢复的是"看得见"。
+  /// 不建索引：清理任务按 `updatedAt` 扫，那一列已有索引。
+  deletedAt DateTime? @map("deleted_at")
+
   /// 会话标题（M28-01）。首轮结束后由旁路生成**一次**，`null` = 还没生成。
   ///
   /// **写入是幂等的且只写 null → 有值这一次**（`setSessionTitle` 用条件更新）。
